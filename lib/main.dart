@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
-import 'core/theme/app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:atlas_app/core/router/app_router.dart';
+import 'package:atlas_app/core/theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const AtlasApp());
+  runApp(const ProviderScope(child: AtlasApp()));
 }
 
-class AtlasApp extends StatelessWidget {
+class AtlasApp extends ConsumerWidget {
   const AtlasApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    return MaterialApp.router(
       title: 'Atlas',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
-      home: const Scaffold(
-        body: Center(
-          child: Text('Atlas'),
-        ),
-      ),
+      routerConfig: AppRouter.router,
     );
   }
 }
