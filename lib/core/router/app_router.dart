@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
 import 'package:atlas_app/core/design_system/organisms/placeholder_screens.dart';
+import 'package:atlas_app/core/router/transitions.dart';
 
 abstract final class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -22,29 +23,44 @@ abstract final class AppRouter {
           GoRoute(
             path: '/library',
             name: 'library',
-            builder: (context, state) => const LibraryScreen(),
+            pageBuilder: (context, state) => buildPageTransition(
+              child: const LibraryScreen(),
+              key: 'library',
+            ),
           ),
           GoRoute(
             path: '/reader/:bookId',
             name: 'reader',
-            builder: (context, state) => const ReaderScreen(),
+            pageBuilder: (context, state) => buildPageTransition(
+              child: const ReaderScreen(),
+              key: 'reader',
+            ),
           ),
           GoRoute(
             path: '/search',
             name: 'search',
-            builder: (context, state) => const SearchScreen(),
+            pageBuilder: (context, state) => buildPageTransition(
+              child: const SearchScreen(),
+              key: 'search',
+            ),
           ),
           GoRoute(
             path: '/settings',
             name: 'settings',
-            builder: (context, state) => const SettingsScreen(),
+            pageBuilder: (context, state) => buildPageTransition(
+              child: const SettingsScreen(),
+              key: 'settings',
+            ),
           ),
         ],
       ),
       GoRoute(
         path: '/auth',
         name: 'auth',
-        builder: (context, state) => const AuthScreen(),
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const AuthScreen(),
+          key: 'auth',
+        ),
       ),
     ],
   );
