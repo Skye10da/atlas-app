@@ -1,6 +1,6 @@
 {
-    "name": "readeros",
-    "short_name": "readeros",
+    "name": "atlas_app",
+    "short_name": "atlas_app",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
