@@ -1,0 +1,41 @@
+# Flutter
+.dart_tool/
+.packages
+build/
+*.iml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Flutter specific
+*.lock
+*.log
+
+# Android
+android/.gradle/
+android/app/build/
+android/local.properties
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# macOS
+macos/Pods/
+
+# Web
+web/build/
