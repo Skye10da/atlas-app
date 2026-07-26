@@ -321,9 +321,14 @@ class _BookDetailsView extends StatelessWidget {
   }
 
   void _openReader(BuildContext context, {int? chapterIndex}) {
-    final uri =
-        '/reader/${book.id}${chapterIndex != null ? '?chapter=$chapterIndex' : ''}';
-    context.push(uri);
+    final base = '/reader/${book.id}';
+    final params = <String, String>{};
+    if (chapterIndex != null) params['chapter'] = chapterIndex.toString();
+    if (book.progress != null && book.progress! > 0) {
+      params['progress'] = (book.progress! / 100).toStringAsFixed(4);
+    }
+    final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
+    context.push(query.isNotEmpty ? '$base?$query' : base);
   }
 
   void _deleteBook(BuildContext context) {

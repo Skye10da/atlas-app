@@ -107,6 +107,7 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
   List<ChapterEntity> _chapters = [];
   double _scrollProgress = 0.0;
   int? _initialChapterIndex;
+  double? _initialScrollProgress;
   bool _readQueryParam = false;
   bool _loading = true;
   String? _errorMessage;
@@ -211,10 +212,13 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_readQueryParam) {
-      final chapterParam =
-          GoRouterState.of(context).uri.queryParameters['chapter'];
+      final params = GoRouterState.of(context).uri.queryParameters;
+      final chapterParam = params['chapter'];
       _initialChapterIndex =
           chapterParam != null ? int.tryParse(chapterParam) : null;
+      final progressParam = params['progress'];
+      _initialScrollProgress =
+          progressParam != null ? double.tryParse(progressParam) : null;
       _readQueryParam = true;
     }
     _applySystemSettings();
@@ -258,6 +262,7 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
         currentChapterIndex: _currentChapter != null
             ? chapters.indexOf(_currentChapter!)
             : 0,
+        initialScrollProgress: _initialScrollProgress,
         onScrollProgress: _onContinuousScrollProgress,
         onCurrentChapterChanged: _onContinuousChapterChanged,
         onScrollDirectionChanged: _onScrollDirectionChanged,
@@ -906,6 +911,7 @@ class _ContinuousReaderLayout extends StatefulWidget {
     required this.chapters,
     required this.settings,
     required this.currentChapterIndex,
+    this.initialScrollProgress,
     required this.onScrollProgress,
     required this.onCurrentChapterChanged,
     required this.onScrollDirectionChanged,
@@ -918,6 +924,7 @@ class _ContinuousReaderLayout extends StatefulWidget {
   final List<ChapterEntity> chapters;
   final ReadingSettingsEntity settings;
   final int currentChapterIndex;
+  final double? initialScrollProgress;
   final void Function(double) onScrollProgress;
   final void Function(int) onCurrentChapterChanged;
   final void Function(ScrollDirection) onScrollDirectionChanged;
@@ -941,7 +948,13 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToChapter(widget.currentChapterIndex));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.initialScrollProgress != null) {
+        _restoreScrollProgress(widget.initialScrollProgress!);
+      } else {
+        _scrollToChapter(widget.currentChapterIndex);
+      }
+    });
     _resetChromeTimer();
   }
 
@@ -1072,6 +1085,13 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+  }
+
+  void _restoreScrollProgress(double progress) {
+    if (!_scrollController.hasClients) return;
+    final total = _scrollController.position.maxScrollExtent;
+    if (total <= 0) return;
+    _scrollController.jumpTo((progress * total).clamp(0.0, total));
   }
 
   int _currentChapterAtOffset(double scrollOffset) {

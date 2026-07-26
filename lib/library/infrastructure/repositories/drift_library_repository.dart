@@ -112,8 +112,8 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
     try {
       await (_db.update(_db.books)..where((b) => b.id.equals(id))).write(
         BooksCompanion(
-          title: title != null ? Value(title) : Value.absent(),
-          author: author != null ? Value(author) : Value.absent(),
+          title: title != null ? Value(title) : const Value.absent(),
+          author: author != null ? Value(author) : const Value.absent(),
           updatedAt: Value(DateTime.now()),
         ),
       );
