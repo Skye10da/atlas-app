@@ -72,17 +72,12 @@ final _bookDetailsProvider =
   final libRepo = DriftLibraryRepository(db);
   final readerRepo = DriftReaderRepository(db);
 
-  final booksResult = await libRepo.getBooks();
-  if (booksResult is Failure<List<BookEntity>>) {
+  final booksResult = await libRepo.getBookById(bookId);
+  if (booksResult is Failure<BookEntity>) {
     return Failure<_BookDetailsData>(booksResult.error, booksResult.stackTrace);
   }
 
-  final books = (booksResult as Success<List<BookEntity>>).value;
-  final book = books.where((b) => b.id == bookId).firstOrNull;
-  if (book == null) {
-    return Failure<_BookDetailsData>(
-        NotFoundException('Book $bookId not found'));
-  }
+  final book = (booksResult as Success<BookEntity>).value;
 
   final chaptersResult = await readerRepo.getChapters(bookId);
   if (chaptersResult is Failure<List<ChapterEntity>>) {
@@ -134,6 +129,8 @@ class _BookDetailsView extends StatelessWidget {
                       child: Image.file(
                         File(book.coverPath!),
                         fit: BoxFit.cover,
+                        cacheWidth: (MediaQuery.of(context).size.width * 3).round(),
+                        cacheHeight: (headerHeight * 3).round(),
                         errorBuilder: (_, _, _) => const SizedBox(),
                       ),
                     ),

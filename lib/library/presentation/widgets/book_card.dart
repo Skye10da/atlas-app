@@ -27,7 +27,10 @@ class BookCard extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
-              BookCover(coverPath: book.coverPath, format: book.format),
+              Hero(
+                tag: 'book-cover-${book.id}',
+                child: BookCover(coverPath: book.coverPath, format: book.format),
+              ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
@@ -92,11 +95,14 @@ class BookGridCard extends StatelessWidget {
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.md),
-                child: BookCover(
-                  coverPath: book.coverPath,
-                  format: book.format,
-                  width: coverWidth,
-                  height: coverHeight,
+                child: Hero(
+                  tag: 'book-cover-${book.id}',
+                  child: BookCover(
+                    coverPath: book.coverPath,
+                    format: book.format,
+                    width: coverWidth,
+                    height: coverHeight,
+                  ),
                 ),
               ),
             ),

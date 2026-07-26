@@ -50,8 +50,23 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
   @override
   Future<Result<BookEntity>> getBookById(String id) async {
     try {
-      final query = _db.select(_db.books)..where((b) => b.id.equals(id));
-      final book = await query.getSingle();
+      final rows = await (_db.select(_db.books).join(
+        [
+          leftOuterJoin(
+            _db.readingProgress,
+            _db.readingProgress.bookId.equalsExp(_db.books.id),
+          ),
+        ],
+      )..where(_db.books.id.equals(id))).get();
+
+      if (rows.isEmpty) {
+        return Failure(NotFoundException('Book $id not found'));
+      }
+
+      final row = rows.first;
+      final book = row.readTable(_db.books);
+      final progress = row.readTableOrNull(_db.readingProgress);
+
       return Success(BookEntity(
         id: book.id,
         title: book.title,
@@ -62,9 +77,10 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
         createdAt: book.createdAt,
         updatedAt: book.updatedAt,
         lastOpenedAt: book.lastOpenedAt,
+        progress: progress?.percentage,
       ));
     } catch (e, st) {
-      return Failure(DatabaseException('Book not found', e), st);
+      return Failure(DatabaseException('Failed to load book', e), st);
     }
   }
 

@@ -351,7 +351,6 @@ class _BookshelfScatteredState extends State<_BookshelfScattered> {
         angle: angle,
         xOffset: xOff,
         yOffset: yOff,
-        zIndex: rng.nextInt(count),
       );
     });
   }
@@ -435,11 +434,9 @@ class _ScatteredBook {
     required this.angle,
     required this.xOffset,
     required this.yOffset,
-    required this.zIndex,
   });
 
   final double angle;
   final double xOffset;
   final double yOffset;
-  final int zIndex;
 }

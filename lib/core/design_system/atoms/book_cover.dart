@@ -37,7 +37,11 @@ class BookCover extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
       child: Image.file(
         File(coverPath!),
+        width: width,
+        height: height,
         fit: BoxFit.cover,
+        cacheWidth: (width * 3).round(),
+        cacheHeight: (height * 3).round(),
         errorBuilder: (_, _, _) => _placeholder(),
       ),
     );
