@@ -40,7 +40,7 @@ final filteredLibraryProvider = Provider<List<BookEntity>>((ref) {
   final query = ref.watch(librarySearchQueryProvider).toLowerCase();
 
   final books = booksResult.whenOrNull(
-    Success: (b) => b as List<BookEntity>,
+    data: (result) => result is Success<List<BookEntity>> ? result.value : null,
   ) ?? <BookEntity>[];
 
   final filtered = query.isEmpty
