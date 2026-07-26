@@ -19,4 +19,5 @@ abstract interface class ReaderRepositoryInterface {
   Future<Result<List<BookmarkEntity>>> getBookmarks(String bookId);
   Future<Result<void>> addBookmark(BookmarkEntity bookmark);
   Future<Result<void>> removeBookmark(String bookmarkId);
+  Future<Result<List<BookmarkEntity>>> getAllBookmarks();
 }

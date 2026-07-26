@@ -145,6 +145,17 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
     }
   }
 
+  @override
+  Future<Result<List<BookmarkEntity>>> getAllBookmarks() async {
+    try {
+      final rows = await (_db.select(_db.bookmarks)
+        ..orderBy([(b) => OrderingTerm.desc(b.createdAt)])).get();
+      return Success(rows.map(_toBookmarkEntity).toList());
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to load bookmarks', e), st);
+    }
+  }
+
   BookmarkEntity _toBookmarkEntity(Bookmark b) => BookmarkEntity(
         id: b.id,
         bookId: b.bookId,

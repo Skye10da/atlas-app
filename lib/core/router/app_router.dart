@@ -5,8 +5,10 @@ import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
 import 'package:atlas_app/core/router/transitions.dart';
 import 'package:atlas_app/library/presentation/screens/book_details_screen.dart';
 import 'package:atlas_app/library/presentation/screens/library_screen.dart';
+import 'package:atlas_app/reader/presentation/screens/bookmarks_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/reader_screen.dart';
 import 'package:atlas_app/search/presentation/screens/search_screen.dart';
+import 'package:atlas_app/settings/presentation/screens/settings_screen.dart';
 
 abstract final class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -51,10 +53,30 @@ abstract final class AppRouter {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: '/bookmarks',
+                name: 'bookmarks',
+                pageBuilder: (context, state) =>
+                    buildPageTransition(child: const BookmarksScreen(), key: 'bookmarks'),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: '/search',
                 name: 'search',
                 pageBuilder: (context, state) =>
                     buildPageTransition(child: const SearchScreen(), key: 'search'),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/settings',
+                name: 'settings',
+                pageBuilder: (context, state) =>
+                    buildPageTransition(child: const SettingsScreen(), key: 'settings'),
               ),
             ],
           ),

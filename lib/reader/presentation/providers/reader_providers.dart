@@ -31,3 +31,13 @@ final bookmarksProvider =
     Failure() => <BookmarkEntity>[],
   };
 });
+
+final allBookmarksProvider =
+    FutureProvider<List<BookmarkEntity>>((ref) async {
+  final repo = ref.watch(readerRepositoryProvider);
+  final result = await repo.getAllBookmarks();
+  return switch (result) {
+    Success(value: final bookmarks) => bookmarks,
+    Failure() => <BookmarkEntity>[],
+  };
+});
