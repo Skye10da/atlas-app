@@ -24,7 +24,7 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
     return ReadingSettingsEntity(
       fontSize: prefs.getDouble(_keyFontSize) ?? 18.0,
       fontFamily: prefs.getString(_keyFontFamily),
-      lineHeight: prefs.getDouble(_keyLineHeight) ?? 1.8,
+      lineHeight: (prefs.getDouble(_keyLineHeight) ?? 1.8).clamp(1.0, 2.0),
       letterSpacing: prefs.getDouble(_keyLetterSpacing) ?? 0.0,
       keepScreenAwake: prefs.getBool(_keyKeepAwake) ?? false,
       brightness: prefs.getDouble(_keyBrightness) ?? 1.0,

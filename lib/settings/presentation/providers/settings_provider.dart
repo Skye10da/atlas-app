@@ -41,7 +41,7 @@ class ReadingSettingsNotifier extends StateNotifier<AsyncValue<ReadingSettingsEn
 
   Future<void> setLineHeight(double height) async {
     final current = state.valueOrNull ?? const ReadingSettingsEntity();
-    final updated = current.copyWith(lineHeight: height.clamp(1.2, 3.0));
+    final updated = current.copyWith(lineHeight: height.clamp(1.0, 2.0));
     state = AsyncData(updated);
     await _repo.save(updated);
   }
