@@ -108,7 +108,6 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
   double _scrollProgress = 0.0;
   int? _initialChapterIndex;
   double? _initialScrollProgress;
-  bool _readQueryParam = false;
   bool _loading = true;
   String? _errorMessage;
   Set<String> _bookmarkedChapterIds = {};
@@ -211,15 +210,20 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_readQueryParam) {
-      final params = GoRouterState.of(context).uri.queryParameters;
-      final chapterParam = params['chapter'];
-      _initialChapterIndex =
-          chapterParam != null ? int.tryParse(chapterParam) : null;
-      final progressParam = params['progress'];
-      _initialScrollProgress =
-          progressParam != null ? double.tryParse(progressParam) : null;
-      _readQueryParam = true;
+    final params = GoRouterState.of(context).uri.queryParameters;
+    final chapterParam = params['chapter'];
+    if (chapterParam != null) {
+      final newIdx = int.tryParse(chapterParam);
+      if (newIdx != null && newIdx != _initialChapterIndex) {
+        _initialChapterIndex = newIdx;
+        if (_chapters.isNotEmpty && newIdx < _chapters.length) {
+          setState(() => _currentChapter = _chapters[newIdx]);
+        }
+      }
+    }
+    final progressParam = params['progress'];
+    if (progressParam != null && _initialScrollProgress == null) {
+      _initialScrollProgress = double.tryParse(progressParam);
     }
     _applySystemSettings();
   }
@@ -256,13 +260,15 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
         _bookmarkedChapterIds.contains(_currentChapter!.id);
 
     if (settings.readingMode == ReadingMode.continuous) {
+      final chapIdx = _currentChapter != null
+          ? chapters.indexOf(_currentChapter!)
+          : 0;
       return _ContinuousReaderLayout(
         chapters: chapters,
         settings: settings,
-        currentChapterIndex: _currentChapter != null
-            ? chapters.indexOf(_currentChapter!)
-            : 0,
-        initialScrollProgress: _initialScrollProgress,
+        currentChapterIndex: chapIdx,
+        initialScrollProgress: _initialScrollProgress ??
+            (chapters.isNotEmpty ? chapIdx / chapters.length : null),
         onScrollProgress: _onContinuousScrollProgress,
         onCurrentChapterChanged: _onContinuousChapterChanged,
         onScrollDirectionChanged: _onScrollDirectionChanged,
@@ -321,7 +327,10 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
     _saveProgress(_chapters[chapterIndex]);
   }
 
-  void _goToPagedChapter(int index) {}
+  void _goToPagedChapter(int index) {
+    if (index < 0 || index >= _chapters.length) return;
+    setState(() => _currentChapter = _chapters[index]);
+  }
 
   void _showSettingsDrawer() {
     showModalBottomSheet(
@@ -946,11 +955,11 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
     _chapterKeys = List.generate(widget.chapters.length, (_) => GlobalKey());
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.initialScrollProgress != null) {
-        _restoreScrollProgress(widget.initialScrollProgress!);
-      } else {
-        _scrollToChapter(widget.currentChapterIndex);
-      }
+      final progress = widget.initialScrollProgress ??
+          (widget.chapters.isNotEmpty
+              ? widget.currentChapterIndex / widget.chapters.length
+              : 0.0);
+      _restoreScrollProgress(progress);
     });
     _resetChromeTimer();
   }
@@ -1078,10 +1087,10 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
     if (ctx != null) {
       final renderBox = ctx.findRenderObject() as RenderBox?;
       if (renderBox != null) {
-        final offset = renderBox.localToGlobal(Offset.zero).dy;
-        final scrollOffset = _scrollController.offset + offset;
+        final screenOffset = renderBox.localToGlobal(Offset.zero).dy;
         _scrollController.animateTo(
-          scrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+          (_scrollController.offset + screenOffset)
+              .clamp(0.0, _scrollController.position.maxScrollExtent),
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
@@ -1090,9 +1099,8 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
     }
     final total = _scrollController.position.maxScrollExtent;
     if (total <= 0) return;
-    final target = (index / widget.chapters.length) * total;
     _scrollController.animateTo(
-      target,
+      ((index / widget.chapters.length) * total).clamp(0.0, total),
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
@@ -1106,17 +1114,15 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   }
 
   int _currentChapterAtOffset() {
+    int lastBuilt = -1;
     for (int i = 0; i < _chapterKeys.length; i++) {
       final ctx = _chapterKeys[i].currentContext;
       if (ctx == null) break;
+      lastBuilt = i;
       final renderBox = ctx.findRenderObject() as RenderBox?;
       if (renderBox == null) continue;
       final dy = renderBox.localToGlobal(Offset.zero).dy;
-      if (dy >= 0) return i;
-    }
-    int lastBuilt = -1;
-    for (int i = 0; i < _chapterKeys.length; i++) {
-      if (_chapterKeys[i].currentContext != null) lastBuilt = i;
+      if (dy + renderBox.size.height / 2 > 0) return i;
     }
     return lastBuilt >= 0 ? lastBuilt : 0;
   }
