@@ -38,6 +38,7 @@ class BookDetailsScreen extends ConsumerWidget {
         Success(value: final data) => _BookDetailsView(
             book: data.book,
             chapters: data.chapters,
+            lastReadChapterIndex: data.lastReadChapterIndex,
             onDelete: () async {
               final db = ref.read(databaseProvider);
               final repo = DriftLibraryRepository(db);
@@ -85,16 +86,29 @@ final _bookDetailsProvider =
         chaptersResult.error, chaptersResult.stackTrace);
   }
 
+  final chapters = (chaptersResult as Success<List<ChapterEntity>>).value;
+
+  final progressRow = await db.getReadingProgress(bookId);
+  final lastReadChapterIndex = progressRow != null
+      ? chapters.indexWhere((c) => c.id == progressRow.chapterId)
+      : -1;
+
   return Success(_BookDetailsData(
     book: book,
-    chapters: (chaptersResult as Success<List<ChapterEntity>>).value,
+    chapters: chapters,
+    lastReadChapterIndex: lastReadChapterIndex >= 0 ? lastReadChapterIndex : null,
   ));
 });
 
 class _BookDetailsData {
-  const _BookDetailsData({required this.book, required this.chapters});
+  const _BookDetailsData({
+    required this.book,
+    required this.chapters,
+    this.lastReadChapterIndex,
+  });
   final BookEntity book;
   final List<ChapterEntity> chapters;
+  final int? lastReadChapterIndex;
 }
 
 class _BookDetailsView extends StatelessWidget {
@@ -102,11 +116,13 @@ class _BookDetailsView extends StatelessWidget {
     required this.book,
     required this.chapters,
     required this.onDelete,
+    this.lastReadChapterIndex,
   });
 
   final BookEntity book;
   final List<ChapterEntity> chapters;
   final VoidCallback onDelete;
+  final int? lastReadChapterIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -275,6 +291,7 @@ class _BookDetailsView extends StatelessWidget {
           ),
           ...chapters.map((ch) => _ChapterTile(
                 chapter: ch,
+                lastReadChapterIndex: lastReadChapterIndex,
                 onTap: () =>
                     _openReader(context, chapterIndex: ch.index),
               )),
@@ -363,14 +380,21 @@ class _ProgressCard extends StatelessWidget {
 }
 
 class _ChapterTile extends StatelessWidget {
-  const _ChapterTile({required this.chapter, required this.onTap});
+  const _ChapterTile({
+    required this.chapter,
+    required this.onTap,
+    this.lastReadChapterIndex,
+  });
 
   final ChapterEntity chapter;
   final VoidCallback onTap;
+  final int? lastReadChapterIndex;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isRead = lastReadChapterIndex != null && chapter.index < lastReadChapterIndex!;
+    final isCurrent = chapter.index == lastReadChapterIndex;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -379,19 +403,32 @@ class _ChapterTile extends StatelessWidget {
         child: ListTile(
           leading: CircleAvatar(
             radius: 14,
-            backgroundColor: theme.colorScheme.primaryContainer,
-            child: Text(
-              '${chapter.index + 1}',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            backgroundColor: isCurrent
+                ? theme.colorScheme.primary
+                : isRead
+                    ? theme.colorScheme.primaryContainer
+                    : theme.colorScheme.surfaceContainerHighest,
+            child: isRead
+                ? Icon(Icons.check, size: 14,
+                    color: theme.colorScheme.onPrimaryContainer)
+                : Text(
+                    '${chapter.index + 1}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: isCurrent
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
           ),
           title: Text(
             chapter.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: isCurrent ? FontWeight.w600 : null,
+              color: isRead ? theme.colorScheme.onSurfaceVariant : null,
+            ),
           ),
           trailing: Icon(Icons.chevron_right,
               size: 18, color: theme.colorScheme.onSurfaceVariant),

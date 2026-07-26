@@ -29,12 +29,15 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  Future<ReadingProgressData?> getReadingProgress(String bookId) =>
+      (select(readingProgress)..where((p) => p.id.equals(bookId))).getSingleOrNull();
 }
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File(p.join(dir.path, 'atlas.db'));
-    return NativeDatabase(file);
+    return NativeDatabase.createInBackground(file);
   });
 }
