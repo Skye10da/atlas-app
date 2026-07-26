@@ -8,8 +8,21 @@ import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/domain/entities/bookshelf_layout.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
 
+enum LibrarySortOrder {
+  titleAsc,
+  titleDesc,
+  author,
+  recentlyAdded,
+  recentlyRead,
+}
+
 final bookshelfLayoutProvider =
     StateProvider<BookshelfLayout>((ref) => BookshelfLayout.grid);
+
+final librarySortProvider =
+    StateProvider<LibrarySortOrder>((ref) => LibrarySortOrder.titleAsc);
+
+final librarySearchQueryProvider = StateProvider<String>((ref) => '');
 
 final libraryRepositoryProvider = Provider((ref) {
   final db = ref.watch(databaseProvider);
@@ -19,6 +32,37 @@ final libraryRepositoryProvider = Provider((ref) {
 final libraryBooksProvider = FutureProvider<Result<List<BookEntity>>>((ref) {
   final repo = ref.watch(libraryRepositoryProvider);
   return repo.getBooks();
+});
+
+final filteredLibraryProvider = Provider<List<BookEntity>>((ref) {
+  final booksResult = ref.watch(libraryBooksProvider);
+  final sortOrder = ref.watch(librarySortProvider);
+  final query = ref.watch(librarySearchQueryProvider).toLowerCase();
+
+  final books = booksResult.whenOrNull(
+    Success: (b) => b as List<BookEntity>,
+  ) ?? <BookEntity>[];
+
+  final filtered = query.isEmpty
+      ? books
+      : books.where((b) =>
+          b.title.toLowerCase().contains(query) ||
+          (b.author?.toLowerCase().contains(query) ?? false)).toList();
+
+  filtered.sort((a, b) => switch (sortOrder) {
+    LibrarySortOrder.titleAsc => a.title.compareTo(b.title),
+    LibrarySortOrder.titleDesc => b.title.compareTo(a.title),
+    LibrarySortOrder.author => (a.author ?? '').compareTo(b.author ?? ''),
+    LibrarySortOrder.recentlyAdded => b.createdAt.compareTo(a.createdAt),
+    LibrarySortOrder.recentlyRead => switch ((a.lastOpenedAt, b.lastOpenedAt)) {
+        (null, null) => 0,
+        (null, _) => 1,
+        (_, null) => -1,
+        (final aDate?, final bDate?) => bDate.compareTo(aDate),
+      },
+  });
+
+  return filtered;
 });
 
 final librarySeedProvider = FutureProvider<Result<void>>((ref) async {

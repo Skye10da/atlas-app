@@ -106,4 +106,20 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
       return Failure(DatabaseException('Failed to delete book', e), st);
     }
   }
+
+  @override
+  Future<Result<void>> updateBook(String id, {String? title, String? author}) async {
+    try {
+      await (_db.update(_db.books)..where((b) => b.id.equals(id))).write(
+        BooksCompanion(
+          title: title != null ? Value(title) : Value.absent(),
+          author: author != null ? Value(author) : Value.absent(),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to update book', e), st);
+    }
+  }
 }

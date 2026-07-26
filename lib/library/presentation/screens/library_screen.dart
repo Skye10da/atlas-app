@@ -23,9 +23,18 @@ class LibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final booksAsync = ref.watch(libraryBooksProvider);
+    final filteredBooks = ref.watch(filteredLibraryProvider);
     final importActions = ref.watch(libraryImportProvider);
     final layout = ref.watch(bookshelfLayoutProvider);
     final isDesktop = MediaQuery.of(context).size.width >= 1200;
@@ -34,6 +43,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return AppScaffold(
       title: 'Library',
       actions: [
+        IconButton(
+          icon: const Icon(Icons.sort),
+          onPressed: () => _showSortMenu(),
+          tooltip: 'Sort',
+        ),
         IconButton(
           icon: Icon(layout.icon),
           onPressed: () => _cycleLayout(),
@@ -45,33 +59,65 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           tooltip: 'Import EPUB',
         ),
       ],
-      child: booksAsync.when(
-        loading: () => const AppLoading(),
-        error: (error, _) => AppErrorState(
-          message: 'Something went wrong.',
-          technicalDetails: error.toString(),
-          onRetry: () => ref.invalidate(libraryBooksProvider),
-        ),
-        data: (result) {
-          return switch (result) {
-            Success(value: final books) => _BookshelfContent(
-                books: books,
-                layout: layout,
-                isTablet: isTablet,
-                isDesktop: isDesktop,
-                onBookTap: (id) => context.push('/book/$id'),
-                onLoadSamples: () => _loadSamples(),
-                onImport: () => _importBook(),
-                onDeleteBook: (id) => _deleteBook(id),
-                isImporting: importActions.isImporting,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Filter books...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: ref.watch(librarySearchQueryProvider).isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          ref.read(librarySearchQueryProvider.notifier).state = '';
+                        },
+                      )
+                    : null,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-            Failure(error: final err) => AppErrorState(
-                message: err.userMessage,
-                technicalDetails: err.message,
+              onChanged: (v) =>
+                  ref.read(librarySearchQueryProvider.notifier).state = v,
+            ),
+          ),
+          Expanded(
+            child: booksAsync.when(
+              loading: () => const AppLoading(),
+              error: (error, _) => AppErrorState(
+                message: 'Something went wrong.',
+                technicalDetails: error.toString(),
                 onRetry: () => ref.invalidate(libraryBooksProvider),
               ),
-          };
-        },
+              data: (result) {
+                return switch (result) {
+                  Success(value: _) => _BookshelfContent(
+                      books: filteredBooks,
+                      layout: layout,
+                      isTablet: isTablet,
+                      isDesktop: isDesktop,
+                      onBookTap: (id) => context.push('/book/$id'),
+                      onLoadSamples: () => _loadSamples(),
+                      onImport: () => _importBook(),
+                      onDeleteBook: (id) => _deleteBook(id),
+                      isImporting: importActions.isImporting,
+                    ),
+                  Failure(error: final err) => AppErrorState(
+                      message: err.userMessage,
+                      technicalDetails: err.message,
+                      onRetry: () => ref.invalidate(libraryBooksProvider),
+                    ),
+                };
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -81,6 +127,41 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     const values = BookshelfLayout.values;
     final nextIndex = (current.index + 1) % values.length;
     ref.read(bookshelfLayoutProvider.notifier).state = values[nextIndex];
+  }
+
+  void _showSortMenu() {
+    final current = ref.read(librarySortProvider);
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...LibrarySortOrder.values.map((order) {
+            final label = switch (order) {
+              LibrarySortOrder.titleAsc => 'Title A-Z',
+              LibrarySortOrder.titleDesc => 'Title Z-A',
+              LibrarySortOrder.author => 'Author',
+              LibrarySortOrder.recentlyAdded => 'Recently Added',
+              LibrarySortOrder.recentlyRead => 'Recently Read',
+            };
+            return ListTile(
+              leading: Icon(
+                order == current ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                color: order == current ? Theme.of(context).colorScheme.primary : null,
+              ),
+              title: Text(label),
+              trailing: order == current
+                  ? Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary)
+                  : null,
+              onTap: () {
+                ref.read(librarySortProvider.notifier).state = order;
+                Navigator.of(ctx).pop();
+              },
+            );
+          }),
+        ],
+      ),
+    );
   }
 
   void _loadSamples() {

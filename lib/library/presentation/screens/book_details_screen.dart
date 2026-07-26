@@ -54,6 +54,18 @@ class BookDetailsScreen extends ConsumerWidget {
                 }
               }
             },
+            onEditMetadata: (title, author) async {
+              final db = ref.read(databaseProvider);
+              final repo = DriftLibraryRepository(db);
+              await repo.updateBook(bookId,
+                  title: title, author: author);
+              ref.invalidate(_bookDetailsProvider(bookId));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Book updated')),
+                );
+              }
+            },
           ),
         Failure(error: final err) => Scaffold(
             body: AppErrorState(
@@ -117,12 +129,14 @@ class _BookDetailsView extends StatelessWidget {
     required this.chapters,
     required this.onDelete,
     this.lastReadChapterIndex,
+    this.onEditMetadata,
   });
 
   final BookEntity book;
   final List<ChapterEntity> chapters;
   final VoidCallback onDelete;
   final int? lastReadChapterIndex;
+  final Future<void> Function(String title, String? author)? onEditMetadata;
 
   @override
   Widget build(BuildContext context) {
@@ -179,6 +193,11 @@ class _BookDetailsView extends StatelessWidget {
                           onPressed: () => context.pop(),
                         ),
                         const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.edit,
+                              color: Colors.white),
+                          onPressed: () => _editMetadata(context),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline,
                               color: Colors.white),
@@ -324,6 +343,50 @@ class _BookDetailsView extends StatelessWidget {
               onDelete();
             },
             child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editMetadata(BuildContext context) {
+    final titleController = TextEditingController(text: book.title);
+    final authorController = TextEditingController(text: book.author ?? '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Metadata'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(labelText: 'Title'),
+              autofocus: true,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: authorController,
+              decoration: const InputDecoration(labelText: 'Author'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final title = titleController.text.trim();
+              final author = authorController.text.trim();
+              if (title.isNotEmpty) {
+                onEditMetadata?.call(title, author.isNotEmpty ? author : null);
+              }
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Save'),
           ),
         ],
       ),
