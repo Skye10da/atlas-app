@@ -39,3 +39,6 @@ macos/Pods/
 
 # Web
 web/build/
+
+# Embedded projects
+.atlas/
