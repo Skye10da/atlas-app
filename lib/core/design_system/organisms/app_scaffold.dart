@@ -1,6 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+class AppShell extends StatelessWidget {
+  const AppShell({super.key, required this.navigationShell});
+
+  final StatefulNavigationShell navigationShell;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: navigationShell,
+      bottomNavigationBar: AppBottomNav(navigationShell: navigationShell),
+    );
+  }
+}
+
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
@@ -36,15 +50,15 @@ class AppScaffold extends StatelessWidget {
 }
 
 class AppBottomNav extends StatelessWidget {
-  const AppBottomNav({super.key});
+  const AppBottomNav({super.key, required this.navigationShell});
+
+  final StatefulNavigationShell navigationShell;
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.toString();
-
     return BottomNavigationBar(
-      currentIndex: _indexForLocation(location),
-      onTap: (index) => _onTap(context, index),
+      currentIndex: navigationShell.currentIndex,
+      onTap: (index) => navigationShell.goBranch(index),
       items: const [
         BottomNavigationBarItem(
           icon: Icon(Icons.library_books),
@@ -56,19 +70,5 @@ class AppBottomNav extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  int _indexForLocation(String location) {
-    if (location.startsWith('/search')) return 1;
-    return 0;
-  }
-
-  void _onTap(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go('/library');
-      case 1:
-        context.go('/search');
-    }
   }
 }

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' hide ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -113,6 +112,7 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
   String? _errorMessage;
   Set<String> _bookmarkedChapterIds = {};
   late final PlatformService _platformService;
+  Timer? _saveDebounceTimer;
 
   @override
   void initState() {
@@ -222,6 +222,7 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
 
   @override
   void dispose() {
+    _saveDebounceTimer?.cancel();
     if (_currentChapter != null) {
       _saveProgress(_currentChapter!);
     }
@@ -293,7 +294,10 @@ class _ReaderContentState extends ConsumerState<_ReaderContent> {
   }
 
   void _onScrollDirectionChanged(ScrollDirection direction) {
-    if (_currentChapter != null) _saveProgress(_currentChapter!);
+    _saveDebounceTimer?.cancel();
+    _saveDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      if (_currentChapter != null) _saveProgress(_currentChapter!);
+    });
   }
 
   void _saveProgress(ChapterEntity chapter) async {
@@ -929,7 +933,6 @@ class _ContinuousReaderLayout extends StatefulWidget {
 
 class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   final _scrollController = ScrollController();
-  late final List<GlobalKey> _chapterKeys;
   double _lastScrollPos = 0;
   bool _chromeVisible = true;
   Timer? _chromeTimer;
@@ -937,7 +940,6 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   @override
   void initState() {
     super.initState();
-    _chapterKeys = List.generate(widget.chapters.length, (_) => GlobalKey());
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToChapter(widget.currentChapterIndex));
     _resetChromeTimer();
@@ -946,8 +948,7 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   @override
   void didUpdateWidget(_ContinuousReaderLayout oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.chapters.length != _chapterKeys.length) {
-      _chapterKeys = List.generate(widget.chapters.length, (_) => GlobalKey());
+    if (widget.currentChapterIndex != oldWidget.currentChapterIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToChapter(widget.currentChapterIndex));
     }
   }
@@ -1062,22 +1063,7 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
 
   void _scrollToChapter(int index) {
     if (!_scrollController.hasClients) return;
-    if (index < 0 || index >= _chapterKeys.length) return;
-
-    final ctx = _chapterKeys[index].currentContext;
-    if (ctx != null && ctx.findRenderObject() != null) {
-      Scrollable.ensureVisible(
-        ctx,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        alignment: 0.0,
-      );
-    } else {
-      _scrollProportional(index);
-    }
-  }
-
-  void _scrollProportional(int index) {
+    if (index < 0 || index >= widget.chapters.length) return;
     final total = _scrollController.position.maxScrollExtent;
     if (total <= 0) return;
     final target = (index / widget.chapters.length) * total;
@@ -1089,20 +1075,6 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   }
 
   int _currentChapterAtOffset(double scrollOffset) {
-    final viewportHeight = _scrollController.position.viewportDimension;
-    final viewportCenter = scrollOffset + viewportHeight / 2;
-    for (int i = 0; i < _chapterKeys.length; i++) {
-      final ctx = _chapterKeys[i].currentContext;
-      if (ctx == null) continue;
-      final box = ctx.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) continue;
-      final chapterTop =
-          RenderAbstractViewport.of(box).getOffsetToReveal(box, 0.0).offset;
-      final chapterBottom = chapterTop + box.size.height;
-      if (viewportCenter >= chapterTop && viewportCenter < chapterBottom) {
-        return i;
-      }
-    }
     final total = _scrollController.position.maxScrollExtent;
     final progress = total > 0 ? scrollOffset / total : 0.0;
     return (progress * widget.chapters.length).floor().clamp(0, widget.chapters.length - 1);
@@ -1234,18 +1206,10 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
         onKeyEvent: _handleKeyEvent,
         child: GestureDetector(
         onTap: _toggleChrome,
-        child: SingleChildScrollView(
+        child: ListView.builder(
           controller: _scrollController,
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (int i = 0; i < chapters.length; i++)
-                  KeyedSubtree(
-                    key: _chapterKeys[i],
-                    child: _buildChapterBlock(chapters[i], i, showHeaders: _chromeVisible),
-                  ),
-              ],
-          ),
+          itemCount: chapters.length,
+          itemBuilder: (context, index) => _buildChapterBlock(chapters[index], index, showHeaders: _chromeVisible),
         ),
       ),
       ),
