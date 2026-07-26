@@ -54,17 +54,12 @@ class AppBottomNav extends StatelessWidget {
           icon: Icon(Icons.search),
           label: 'Search',
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.settings),
-          label: 'Settings',
-        ),
       ],
     );
   }
 
   int _indexForLocation(String location) {
     if (location.startsWith('/search')) return 1;
-    if (location.startsWith('/settings')) return 2;
     return 0;
   }
 
@@ -74,8 +69,6 @@ class AppBottomNav extends StatelessWidget {
         context.go('/library');
       case 1:
         context.go('/search');
-      case 2:
-        context.go('/settings');
     }
   }
 }
