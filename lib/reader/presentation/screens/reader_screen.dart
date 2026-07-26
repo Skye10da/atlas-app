@@ -669,7 +669,12 @@ class _PagedReaderLayoutState extends ConsumerState<_PagedReaderLayout> {
               title: Text(chapters[currentIndex].title,
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 14)),
-              
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.text_fields, size: 18, color: vt.text),
+                  onPressed: widget.onSettingsTap,
+                ),
+              ],
             )
           : null,
       bottomNavigationBar: _chromeVisible
@@ -938,12 +943,10 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   double _lastScrollPos = 0;
   bool _chromeVisible = true;
   Timer? _chromeTimer;
-  late final List<GlobalKey> _chapterKeys;
 
   @override
   void initState() {
     super.initState();
-    _chapterKeys = List.generate(widget.chapters.length, (_) => GlobalKey());
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialScrollProgress != null) {
@@ -958,8 +961,8 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   @override
   void didUpdateWidget(_ContinuousReaderLayout oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.chapters.length != oldWidget.chapters.length) {
-      _chapterKeys = List.generate(widget.chapters.length, (_) => GlobalKey());
+    if (widget.currentChapterIndex != oldWidget.currentChapterIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToChapter(widget.currentChapterIndex));
     }
   }
 
@@ -1074,20 +1077,6 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   void _scrollToChapter(int index) {
     if (!_scrollController.hasClients) return;
     if (index < 0 || index >= widget.chapters.length) return;
-    final ctx = _chapterKeys[index].currentContext;
-    if (ctx != null) {
-      final renderBox = ctx.findRenderObject() as RenderBox?;
-      if (renderBox != null) {
-        final offset = renderBox.localToGlobal(Offset.zero).dy;
-        final scrollOffset = _scrollController.offset + offset;
-        _scrollController.animateTo(
-          scrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-        return;
-      }
-    }
     final total = _scrollController.position.maxScrollExtent;
     if (total <= 0) return;
     final target = (index / widget.chapters.length) * total;
@@ -1105,20 +1094,10 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
     _scrollController.jumpTo((progress * total).clamp(0.0, total));
   }
 
-  int _currentChapterAtOffset() {
-    for (int i = 0; i < _chapterKeys.length; i++) {
-      final ctx = _chapterKeys[i].currentContext;
-      if (ctx == null) break;
-      final renderBox = ctx.findRenderObject() as RenderBox?;
-      if (renderBox == null) continue;
-      final dy = renderBox.localToGlobal(Offset.zero).dy;
-      if (dy >= 0) return i;
-    }
-    int lastBuilt = -1;
-    for (int i = 0; i < _chapterKeys.length; i++) {
-      if (_chapterKeys[i].currentContext != null) lastBuilt = i;
-    }
-    return lastBuilt >= 0 ? lastBuilt : 0;
+  int _currentChapterAtOffset(double scrollOffset) {
+    final total = _scrollController.position.maxScrollExtent;
+    final progress = total > 0 ? scrollOffset / total : 0.0;
+    return (progress * widget.chapters.length).floor().clamp(0, widget.chapters.length - 1);
   }
 
   void _onScroll() {
@@ -1128,7 +1107,7 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
     final progress = pos.maxScrollExtent > 0 ? pos.pixels / pos.maxScrollExtent : 0.0;
     widget.onScrollProgress(progress);
 
-    final current = _currentChapterAtOffset();
+    final current = _currentChapterAtOffset(pos.pixels);
     widget.onCurrentChapterChanged(current);
 
     final delta = pos.pixels - _lastScrollPos;
@@ -1145,7 +1124,7 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
     _lastScrollPos = pos.pixels;
   }
 
-  Widget _buildChapterBlock(ChapterEntity chapter, int index, {bool showHeaders = true, Key? key}) {
+  Widget _buildChapterBlock(ChapterEntity chapter, int index, {bool showHeaders = true}) {
     final vt = widget.settings.theme;
     final textStyle = TextStyle(
       fontSize: widget.settings.fontSize,
@@ -1165,7 +1144,6 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
           );
 
     return Column(
-      key: key,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (showHeaders)
@@ -1235,12 +1213,12 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
               toolbarHeight: 40,
               title: Text(chapters[index].title, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 14)),
-              // actions: [
-              //   // IconButton(
-              //   //   icon: Icon(Icons.text_fields, size: 18, color: vt.text),
-              //   //   onPressed: widget.onSettingsTap,
-              //   // ),
-              // ],
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.text_fields, size: 18, color: vt.text),
+                  onPressed: widget.onSettingsTap,
+                ),
+              ],
             )
           : null,
       body: Focus(
@@ -1251,7 +1229,7 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
         child: ListView.builder(
           controller: _scrollController,
           itemCount: chapters.length,
-          itemBuilder: (context, index) => _buildChapterBlock(chapters[index], index, showHeaders: _chromeVisible, key: _chapterKeys[index]),
+          itemBuilder: (context, index) => _buildChapterBlock(chapters[index], index, showHeaders: _chromeVisible),
         ),
       ),
       ),
@@ -1356,10 +1334,7 @@ class _ChapterContent extends ConsumerWidget {
         ref.watch(readerChapterContentProvider(chapter.contentPath));
 
     return contentAsync.when(
-      loading: () => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.6,
-        child: const AppLoading(),
-      ),
+      loading: () => const AppLoading(),
       error: (err, _) => Center(
         child: Text('Could not load chapter.',
             style: TextStyle(color: vt.text)),
