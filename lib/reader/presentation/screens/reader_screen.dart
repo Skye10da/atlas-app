@@ -961,8 +961,10 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
   @override
   void didUpdateWidget(_ContinuousReaderLayout oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.currentChapterIndex != oldWidget.currentChapterIndex) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToChapter(widget.currentChapterIndex));
+    final diff = (widget.currentChapterIndex - oldWidget.currentChapterIndex).abs();
+    if (diff > 1) {
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _scrollToChapter(widget.currentChapterIndex));
     }
   }
 
@@ -1291,7 +1293,6 @@ class _ContinuousReaderLayoutState extends State<_ContinuousReaderLayout> {
                       ? Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary)
                       : null,
                   onTap: () {
-                    _scrollToChapter(idx);
                     Navigator.of(ctx).pop();
                     widget.onChapterSelected(idx);
                   },
