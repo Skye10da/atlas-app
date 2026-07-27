@@ -11,6 +11,7 @@ import 'package:atlas_app/core/database/tables/reading_progress.dart';
 import 'package:atlas_app/core/database/tables/bookmarks.dart';
 import 'package:atlas_app/core/database/tables/settings.dart';
 import 'package:atlas_app/core/database/tables/characters.dart';
+import 'package:atlas_app/core/database/tables/dictionary_words.dart';
 
 part 'database.g.dart';
 
@@ -22,6 +23,7 @@ part 'database.g.dart';
     Bookmarks,
     AppSettings,
     Characters,
+    DictionaryWords,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -30,7 +32,16 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (migrator, from, to) async {
+          if (from == 1) {
+            await migrator.createTable(dictionaryWords);
+          }
+        },
+      );
 
   Future<ReadingProgressData?> getReadingProgress(String bookId) =>
       (select(readingProgress)..where((p) => p.id.equals(bookId))).getSingleOrNull();

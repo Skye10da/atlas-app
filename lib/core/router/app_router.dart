@@ -7,6 +7,7 @@ import 'package:atlas_app/library/presentation/screens/book_details_screen.dart'
 import 'package:atlas_app/library/presentation/screens/library_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/bookmarks_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/reader_screen.dart';
+import 'package:atlas_app/dictionary/presentation/screens/dictionary_screen.dart';
 import 'package:atlas_app/search/presentation/screens/search_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/settings_screen.dart';
 
@@ -57,6 +58,16 @@ abstract final class AppRouter {
                 name: 'bookmarks',
                 pageBuilder: (context, state) =>
                     buildPageTransition(child: const BookmarksScreen(), key: 'bookmarks'),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/dictionary',
+                name: 'dictionary',
+                pageBuilder: (context, state) =>
+                    buildPageTransition(child: const DictionaryScreen(), key: 'dictionary'),
               ),
             ],
           ),

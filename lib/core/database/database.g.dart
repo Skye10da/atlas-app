@@ -3336,6 +3336,577 @@ class CharactersCompanion extends UpdateCompanion<Character> {
   }
 }
 
+class $DictionaryWordsTable extends DictionaryWords
+    with TableInfo<$DictionaryWordsTable, DictionaryWord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DictionaryWordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _wordMeta = const VerificationMeta('word');
+  @override
+  late final GeneratedColumn<String> word = GeneratedColumn<String>(
+    'word',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _languageMeta = const VerificationMeta(
+    'language',
+  );
+  @override
+  late final GeneratedColumn<String> language = GeneratedColumn<String>(
+    'language',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _languageLabelMeta = const VerificationMeta(
+    'languageLabel',
+  );
+  @override
+  late final GeneratedColumn<String> languageLabel = GeneratedColumn<String>(
+    'language_label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _phoneticMeta = const VerificationMeta(
+    'phonetic',
+  );
+  @override
+  late final GeneratedColumn<String> phonetic = GeneratedColumn<String>(
+    'phonetic',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _partOfSpeechMeta = const VerificationMeta(
+    'partOfSpeech',
+  );
+  @override
+  late final GeneratedColumn<String> partOfSpeech = GeneratedColumn<String>(
+    'part_of_speech',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _definitionMeta = const VerificationMeta(
+    'definition',
+  );
+  @override
+  late final GeneratedColumn<String> definition = GeneratedColumn<String>(
+    'definition',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fullJsonMeta = const VerificationMeta(
+    'fullJson',
+  );
+  @override
+  late final GeneratedColumn<String> fullJson = GeneratedColumn<String>(
+    'full_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _savedAtMeta = const VerificationMeta(
+    'savedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> savedAt = GeneratedColumn<DateTime>(
+    'saved_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    word,
+    language,
+    languageLabel,
+    phonetic,
+    partOfSpeech,
+    definition,
+    fullJson,
+    savedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dictionary_words';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DictionaryWord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('word')) {
+      context.handle(
+        _wordMeta,
+        word.isAcceptableOrUnknown(data['word']!, _wordMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_wordMeta);
+    }
+    if (data.containsKey('language')) {
+      context.handle(
+        _languageMeta,
+        language.isAcceptableOrUnknown(data['language']!, _languageMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_languageMeta);
+    }
+    if (data.containsKey('language_label')) {
+      context.handle(
+        _languageLabelMeta,
+        languageLabel.isAcceptableOrUnknown(
+          data['language_label']!,
+          _languageLabelMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_languageLabelMeta);
+    }
+    if (data.containsKey('phonetic')) {
+      context.handle(
+        _phoneticMeta,
+        phonetic.isAcceptableOrUnknown(data['phonetic']!, _phoneticMeta),
+      );
+    }
+    if (data.containsKey('part_of_speech')) {
+      context.handle(
+        _partOfSpeechMeta,
+        partOfSpeech.isAcceptableOrUnknown(
+          data['part_of_speech']!,
+          _partOfSpeechMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_partOfSpeechMeta);
+    }
+    if (data.containsKey('definition')) {
+      context.handle(
+        _definitionMeta,
+        definition.isAcceptableOrUnknown(data['definition']!, _definitionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_definitionMeta);
+    }
+    if (data.containsKey('full_json')) {
+      context.handle(
+        _fullJsonMeta,
+        fullJson.isAcceptableOrUnknown(data['full_json']!, _fullJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fullJsonMeta);
+    }
+    if (data.containsKey('saved_at')) {
+      context.handle(
+        _savedAtMeta,
+        savedAt.isAcceptableOrUnknown(data['saved_at']!, _savedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_savedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DictionaryWord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DictionaryWord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      word: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}word'],
+      )!,
+      language: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language'],
+      )!,
+      languageLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language_label'],
+      )!,
+      phonetic: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}phonetic'],
+      ),
+      partOfSpeech: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}part_of_speech'],
+      )!,
+      definition: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}definition'],
+      )!,
+      fullJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}full_json'],
+      )!,
+      savedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}saved_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DictionaryWordsTable createAlias(String alias) {
+    return $DictionaryWordsTable(attachedDatabase, alias);
+  }
+}
+
+class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
+  final String id;
+  final String word;
+  final String language;
+  final String languageLabel;
+  final String? phonetic;
+  final String partOfSpeech;
+  final String definition;
+  final String fullJson;
+  final DateTime savedAt;
+  const DictionaryWord({
+    required this.id,
+    required this.word,
+    required this.language,
+    required this.languageLabel,
+    this.phonetic,
+    required this.partOfSpeech,
+    required this.definition,
+    required this.fullJson,
+    required this.savedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['word'] = Variable<String>(word);
+    map['language'] = Variable<String>(language);
+    map['language_label'] = Variable<String>(languageLabel);
+    if (!nullToAbsent || phonetic != null) {
+      map['phonetic'] = Variable<String>(phonetic);
+    }
+    map['part_of_speech'] = Variable<String>(partOfSpeech);
+    map['definition'] = Variable<String>(definition);
+    map['full_json'] = Variable<String>(fullJson);
+    map['saved_at'] = Variable<DateTime>(savedAt);
+    return map;
+  }
+
+  DictionaryWordsCompanion toCompanion(bool nullToAbsent) {
+    return DictionaryWordsCompanion(
+      id: Value(id),
+      word: Value(word),
+      language: Value(language),
+      languageLabel: Value(languageLabel),
+      phonetic: phonetic == null && nullToAbsent
+          ? const Value.absent()
+          : Value(phonetic),
+      partOfSpeech: Value(partOfSpeech),
+      definition: Value(definition),
+      fullJson: Value(fullJson),
+      savedAt: Value(savedAt),
+    );
+  }
+
+  factory DictionaryWord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DictionaryWord(
+      id: serializer.fromJson<String>(json['id']),
+      word: serializer.fromJson<String>(json['word']),
+      language: serializer.fromJson<String>(json['language']),
+      languageLabel: serializer.fromJson<String>(json['languageLabel']),
+      phonetic: serializer.fromJson<String?>(json['phonetic']),
+      partOfSpeech: serializer.fromJson<String>(json['partOfSpeech']),
+      definition: serializer.fromJson<String>(json['definition']),
+      fullJson: serializer.fromJson<String>(json['fullJson']),
+      savedAt: serializer.fromJson<DateTime>(json['savedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'word': serializer.toJson<String>(word),
+      'language': serializer.toJson<String>(language),
+      'languageLabel': serializer.toJson<String>(languageLabel),
+      'phonetic': serializer.toJson<String?>(phonetic),
+      'partOfSpeech': serializer.toJson<String>(partOfSpeech),
+      'definition': serializer.toJson<String>(definition),
+      'fullJson': serializer.toJson<String>(fullJson),
+      'savedAt': serializer.toJson<DateTime>(savedAt),
+    };
+  }
+
+  DictionaryWord copyWith({
+    String? id,
+    String? word,
+    String? language,
+    String? languageLabel,
+    Value<String?> phonetic = const Value.absent(),
+    String? partOfSpeech,
+    String? definition,
+    String? fullJson,
+    DateTime? savedAt,
+  }) => DictionaryWord(
+    id: id ?? this.id,
+    word: word ?? this.word,
+    language: language ?? this.language,
+    languageLabel: languageLabel ?? this.languageLabel,
+    phonetic: phonetic.present ? phonetic.value : this.phonetic,
+    partOfSpeech: partOfSpeech ?? this.partOfSpeech,
+    definition: definition ?? this.definition,
+    fullJson: fullJson ?? this.fullJson,
+    savedAt: savedAt ?? this.savedAt,
+  );
+  DictionaryWord copyWithCompanion(DictionaryWordsCompanion data) {
+    return DictionaryWord(
+      id: data.id.present ? data.id.value : this.id,
+      word: data.word.present ? data.word.value : this.word,
+      language: data.language.present ? data.language.value : this.language,
+      languageLabel: data.languageLabel.present
+          ? data.languageLabel.value
+          : this.languageLabel,
+      phonetic: data.phonetic.present ? data.phonetic.value : this.phonetic,
+      partOfSpeech: data.partOfSpeech.present
+          ? data.partOfSpeech.value
+          : this.partOfSpeech,
+      definition: data.definition.present
+          ? data.definition.value
+          : this.definition,
+      fullJson: data.fullJson.present ? data.fullJson.value : this.fullJson,
+      savedAt: data.savedAt.present ? data.savedAt.value : this.savedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DictionaryWord(')
+          ..write('id: $id, ')
+          ..write('word: $word, ')
+          ..write('language: $language, ')
+          ..write('languageLabel: $languageLabel, ')
+          ..write('phonetic: $phonetic, ')
+          ..write('partOfSpeech: $partOfSpeech, ')
+          ..write('definition: $definition, ')
+          ..write('fullJson: $fullJson, ')
+          ..write('savedAt: $savedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    word,
+    language,
+    languageLabel,
+    phonetic,
+    partOfSpeech,
+    definition,
+    fullJson,
+    savedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DictionaryWord &&
+          other.id == this.id &&
+          other.word == this.word &&
+          other.language == this.language &&
+          other.languageLabel == this.languageLabel &&
+          other.phonetic == this.phonetic &&
+          other.partOfSpeech == this.partOfSpeech &&
+          other.definition == this.definition &&
+          other.fullJson == this.fullJson &&
+          other.savedAt == this.savedAt);
+}
+
+class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
+  final Value<String> id;
+  final Value<String> word;
+  final Value<String> language;
+  final Value<String> languageLabel;
+  final Value<String?> phonetic;
+  final Value<String> partOfSpeech;
+  final Value<String> definition;
+  final Value<String> fullJson;
+  final Value<DateTime> savedAt;
+  final Value<int> rowid;
+  const DictionaryWordsCompanion({
+    this.id = const Value.absent(),
+    this.word = const Value.absent(),
+    this.language = const Value.absent(),
+    this.languageLabel = const Value.absent(),
+    this.phonetic = const Value.absent(),
+    this.partOfSpeech = const Value.absent(),
+    this.definition = const Value.absent(),
+    this.fullJson = const Value.absent(),
+    this.savedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DictionaryWordsCompanion.insert({
+    required String id,
+    required String word,
+    required String language,
+    required String languageLabel,
+    this.phonetic = const Value.absent(),
+    required String partOfSpeech,
+    required String definition,
+    required String fullJson,
+    required DateTime savedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       word = Value(word),
+       language = Value(language),
+       languageLabel = Value(languageLabel),
+       partOfSpeech = Value(partOfSpeech),
+       definition = Value(definition),
+       fullJson = Value(fullJson),
+       savedAt = Value(savedAt);
+  static Insertable<DictionaryWord> custom({
+    Expression<String>? id,
+    Expression<String>? word,
+    Expression<String>? language,
+    Expression<String>? languageLabel,
+    Expression<String>? phonetic,
+    Expression<String>? partOfSpeech,
+    Expression<String>? definition,
+    Expression<String>? fullJson,
+    Expression<DateTime>? savedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (word != null) 'word': word,
+      if (language != null) 'language': language,
+      if (languageLabel != null) 'language_label': languageLabel,
+      if (phonetic != null) 'phonetic': phonetic,
+      if (partOfSpeech != null) 'part_of_speech': partOfSpeech,
+      if (definition != null) 'definition': definition,
+      if (fullJson != null) 'full_json': fullJson,
+      if (savedAt != null) 'saved_at': savedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DictionaryWordsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? word,
+    Value<String>? language,
+    Value<String>? languageLabel,
+    Value<String?>? phonetic,
+    Value<String>? partOfSpeech,
+    Value<String>? definition,
+    Value<String>? fullJson,
+    Value<DateTime>? savedAt,
+    Value<int>? rowid,
+  }) {
+    return DictionaryWordsCompanion(
+      id: id ?? this.id,
+      word: word ?? this.word,
+      language: language ?? this.language,
+      languageLabel: languageLabel ?? this.languageLabel,
+      phonetic: phonetic ?? this.phonetic,
+      partOfSpeech: partOfSpeech ?? this.partOfSpeech,
+      definition: definition ?? this.definition,
+      fullJson: fullJson ?? this.fullJson,
+      savedAt: savedAt ?? this.savedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (word.present) {
+      map['word'] = Variable<String>(word.value);
+    }
+    if (language.present) {
+      map['language'] = Variable<String>(language.value);
+    }
+    if (languageLabel.present) {
+      map['language_label'] = Variable<String>(languageLabel.value);
+    }
+    if (phonetic.present) {
+      map['phonetic'] = Variable<String>(phonetic.value);
+    }
+    if (partOfSpeech.present) {
+      map['part_of_speech'] = Variable<String>(partOfSpeech.value);
+    }
+    if (definition.present) {
+      map['definition'] = Variable<String>(definition.value);
+    }
+    if (fullJson.present) {
+      map['full_json'] = Variable<String>(fullJson.value);
+    }
+    if (savedAt.present) {
+      map['saved_at'] = Variable<DateTime>(savedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DictionaryWordsCompanion(')
+          ..write('id: $id, ')
+          ..write('word: $word, ')
+          ..write('language: $language, ')
+          ..write('languageLabel: $languageLabel, ')
+          ..write('phonetic: $phonetic, ')
+          ..write('partOfSpeech: $partOfSpeech, ')
+          ..write('definition: $definition, ')
+          ..write('fullJson: $fullJson, ')
+          ..write('savedAt: $savedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3347,6 +3918,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $BookmarksTable bookmarks = $BookmarksTable(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $CharactersTable characters = $CharactersTable(this);
+  late final $DictionaryWordsTable dictionaryWords = $DictionaryWordsTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3358,6 +3932,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     bookmarks,
     appSettings,
     characters,
+    dictionaryWords,
   ];
 }
 
@@ -5008,6 +5583,294 @@ typedef $$CharactersTableProcessedTableManager =
       Character,
       PrefetchHooks Function()
     >;
+typedef $$DictionaryWordsTableCreateCompanionBuilder =
+    DictionaryWordsCompanion Function({
+      required String id,
+      required String word,
+      required String language,
+      required String languageLabel,
+      Value<String?> phonetic,
+      required String partOfSpeech,
+      required String definition,
+      required String fullJson,
+      required DateTime savedAt,
+      Value<int> rowid,
+    });
+typedef $$DictionaryWordsTableUpdateCompanionBuilder =
+    DictionaryWordsCompanion Function({
+      Value<String> id,
+      Value<String> word,
+      Value<String> language,
+      Value<String> languageLabel,
+      Value<String?> phonetic,
+      Value<String> partOfSpeech,
+      Value<String> definition,
+      Value<String> fullJson,
+      Value<DateTime> savedAt,
+      Value<int> rowid,
+    });
+
+class $$DictionaryWordsTableFilterComposer
+    extends Composer<_$AppDatabase, $DictionaryWordsTable> {
+  $$DictionaryWordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get word => $composableBuilder(
+    column: $table.word,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get languageLabel => $composableBuilder(
+    column: $table.languageLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get phonetic => $composableBuilder(
+    column: $table.phonetic,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partOfSpeech => $composableBuilder(
+    column: $table.partOfSpeech,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get definition => $composableBuilder(
+    column: $table.definition,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fullJson => $composableBuilder(
+    column: $table.fullJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DictionaryWordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DictionaryWordsTable> {
+  $$DictionaryWordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get word => $composableBuilder(
+    column: $table.word,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get languageLabel => $composableBuilder(
+    column: $table.languageLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get phonetic => $composableBuilder(
+    column: $table.phonetic,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partOfSpeech => $composableBuilder(
+    column: $table.partOfSpeech,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get definition => $composableBuilder(
+    column: $table.definition,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fullJson => $composableBuilder(
+    column: $table.fullJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DictionaryWordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DictionaryWordsTable> {
+  $$DictionaryWordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get word =>
+      $composableBuilder(column: $table.word, builder: (column) => column);
+
+  GeneratedColumn<String> get language =>
+      $composableBuilder(column: $table.language, builder: (column) => column);
+
+  GeneratedColumn<String> get languageLabel => $composableBuilder(
+    column: $table.languageLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get phonetic =>
+      $composableBuilder(column: $table.phonetic, builder: (column) => column);
+
+  GeneratedColumn<String> get partOfSpeech => $composableBuilder(
+    column: $table.partOfSpeech,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get definition => $composableBuilder(
+    column: $table.definition,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get fullJson =>
+      $composableBuilder(column: $table.fullJson, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get savedAt =>
+      $composableBuilder(column: $table.savedAt, builder: (column) => column);
+}
+
+class $$DictionaryWordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DictionaryWordsTable,
+          DictionaryWord,
+          $$DictionaryWordsTableFilterComposer,
+          $$DictionaryWordsTableOrderingComposer,
+          $$DictionaryWordsTableAnnotationComposer,
+          $$DictionaryWordsTableCreateCompanionBuilder,
+          $$DictionaryWordsTableUpdateCompanionBuilder,
+          (
+            DictionaryWord,
+            BaseReferences<
+              _$AppDatabase,
+              $DictionaryWordsTable,
+              DictionaryWord
+            >,
+          ),
+          DictionaryWord,
+          PrefetchHooks Function()
+        > {
+  $$DictionaryWordsTableTableManager(
+    _$AppDatabase db,
+    $DictionaryWordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DictionaryWordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DictionaryWordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DictionaryWordsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> word = const Value.absent(),
+                Value<String> language = const Value.absent(),
+                Value<String> languageLabel = const Value.absent(),
+                Value<String?> phonetic = const Value.absent(),
+                Value<String> partOfSpeech = const Value.absent(),
+                Value<String> definition = const Value.absent(),
+                Value<String> fullJson = const Value.absent(),
+                Value<DateTime> savedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DictionaryWordsCompanion(
+                id: id,
+                word: word,
+                language: language,
+                languageLabel: languageLabel,
+                phonetic: phonetic,
+                partOfSpeech: partOfSpeech,
+                definition: definition,
+                fullJson: fullJson,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String word,
+                required String language,
+                required String languageLabel,
+                Value<String?> phonetic = const Value.absent(),
+                required String partOfSpeech,
+                required String definition,
+                required String fullJson,
+                required DateTime savedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DictionaryWordsCompanion.insert(
+                id: id,
+                word: word,
+                language: language,
+                languageLabel: languageLabel,
+                phonetic: phonetic,
+                partOfSpeech: partOfSpeech,
+                definition: definition,
+                fullJson: fullJson,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DictionaryWordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DictionaryWordsTable,
+      DictionaryWord,
+      $$DictionaryWordsTableFilterComposer,
+      $$DictionaryWordsTableOrderingComposer,
+      $$DictionaryWordsTableAnnotationComposer,
+      $$DictionaryWordsTableCreateCompanionBuilder,
+      $$DictionaryWordsTableUpdateCompanionBuilder,
+      (
+        DictionaryWord,
+        BaseReferences<_$AppDatabase, $DictionaryWordsTable, DictionaryWord>,
+      ),
+      DictionaryWord,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5024,4 +5887,6 @@ class $AppDatabaseManager {
       $$AppSettingsTableTableManager(_db, _db.appSettings);
   $$CharactersTableTableManager get characters =>
       $$CharactersTableTableManager(_db, _db.characters);
+  $$DictionaryWordsTableTableManager get dictionaryWords =>
+      $$DictionaryWordsTableTableManager(_db, _db.dictionaryWords);
 }

@@ -3,7 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  screen_brightness_windows
+  screen_brightness_pro
   sqlite3_flutter_libs
 )
 

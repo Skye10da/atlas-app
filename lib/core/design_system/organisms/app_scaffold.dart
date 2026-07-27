@@ -33,6 +33,10 @@ class AppShell extends StatelessWidget {
                   label: Text('Search'),
                 ),
                 NavigationRailDestination(
+                  icon: Icon(Icons.menu_book),
+                  label: Text('Dictionary'),
+                ),
+                NavigationRailDestination(
                   icon: Icon(Icons.settings),
                   label: Text('Settings'),
                 ),
@@ -63,6 +67,10 @@ class AppShell extends StatelessWidget {
           BottomNavigationBarItem(
             icon: Icon(Icons.search),
             label: 'Search',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu_book),
+            label: 'Dictionary',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),

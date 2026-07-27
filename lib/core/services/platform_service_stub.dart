@@ -2,14 +2,23 @@ import 'package:atlas_app/core/services/platform_service.dart';
 
 class StubPlatformService implements PlatformService {
   @override
-  void setBrightness(double value) {}
+  Future<void> setBrightness(double value, {bool smooth = false}) async {}
 
   @override
-  void resetBrightness() {}
+  Future<double> getBrightness() async => 1.0;
 
   @override
-  void enableWakeLock() {}
+  Future<void> resetBrightness() async {}
 
   @override
-  void disableWakeLock() {}
+  Future<void> setKeepScreenOn(bool value) async {}
+
+  @override
+  Future<double> getBatteryLevel() async => 1.0;
+
+  @override
+  Future<bool> isLowPowerModeEnabled() async => false;
+
+  @override
+  Future<void> optimizeForLowBattery() async {}
 }

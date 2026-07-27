@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 
 enum ReadingViewTheme {
   light,
@@ -92,7 +95,7 @@ extension ReadingViewThemeX on ReadingViewTheme {
   };
 }
 
-class ChapterView extends StatefulWidget {
+class ChapterView extends ConsumerStatefulWidget {
   const ChapterView({
     super.key,
     required this.content,
@@ -106,6 +109,7 @@ class ChapterView extends StatefulWidget {
     this.scrollable = true,
     this.onScroll,
     this.onScrollDirectionChanged,
+    this.dropCapStyle,
   });
 
   final String content;
@@ -119,12 +123,13 @@ class ChapterView extends StatefulWidget {
   final bool scrollable;
   final void Function(double scrollOffset)? onScroll;
   final void Function(ScrollDirection direction)? onScrollDirectionChanged;
+  final TextStyle? dropCapStyle;
 
   @override
-  State<ChapterView> createState() => _ChapterViewState();
+  ConsumerState<ChapterView> createState() => _ChapterViewState();
 }
 
-class _ChapterViewState extends State<ChapterView> {
+class _ChapterViewState extends ConsumerState<ChapterView> {
   final _scrollController = ScrollController();
   double _lastScrollPos = 0;
 
@@ -170,16 +175,8 @@ class _ChapterViewState extends State<ChapterView> {
       letterSpacing: widget.letterSpacing,
       color: widget.theme.text,
     );
-    final textStyle = widget.fontFamily != null
-        ? GoogleFonts.getFont(widget.fontFamily!, textStyle: baseStyle)
-        : baseStyle;
 
-    final content = SelectableText(
-      widget.content,
-      style: textStyle,
-      textAlign: widget.textAlignment.flutterTextAlign,
-    );
-
+    final content = _buildText(baseStyle);
     if (!widget.scrollable) {
       return Padding(padding: _padding, child: content);
     }
@@ -196,11 +193,128 @@ class _ChapterViewState extends State<ChapterView> {
       ),
     );
   }
+
+  Widget _buildText(TextStyle baseStyle) {
+    final textStyle = widget.fontFamily != null
+        ? GoogleFonts.getFont(widget.fontFamily!, textStyle: baseStyle)
+        : baseStyle;
+
+    final ds = widget.dropCapStyle;
+    final c = widget.content;
+
+    if (ds != null && c.isNotEmpty) {
+      return SelectableText.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: c.substring(0, 1), style: ds),
+            TextSpan(text: c.substring(1), style: textStyle),
+          ],
+        ),
+        textAlign: widget.textAlignment.flutterTextAlign,
+        contextMenuBuilder: (ctx, editable) =>
+            _contextMenu(ctx, editable, c),
+      );
+    }
+
+    return SelectableText(
+      c,
+      style: textStyle,
+      textAlign: widget.textAlignment.flutterTextAlign,
+      contextMenuBuilder: (ctx, editable) =>
+          _contextMenu(ctx, editable, c),
+    );
+  }
+
+  Widget _contextMenu(
+      BuildContext ctx, EditableTextState editable, String fullText) {
+    final sel = editable.textEditingValue.selection;
+    final buttonItems = <ContextMenuButtonItem>[
+      ContextMenuButtonItem(
+        label: 'Copy',
+        onPressed: () {
+          final data = editable.textEditingValue.selection.textInside(
+            editable.textEditingValue.text,
+          );
+          Clipboard.setData(ClipboardData(text: data));
+        },
+      ),
+      ContextMenuButtonItem(
+        label: 'Select all',
+        onPressed: () => editable.selectAll(SelectionChangedCause.toolbar),
+      ),
+    ];
+
+    if (sel.isValid && !sel.isCollapsed) {
+      final word = fullText.substring(sel.start, sel.end).trim();
+      if (word.isNotEmpty) {
+        buttonItems.insert(
+          0,
+          ContextMenuButtonItem(
+            label: 'Define "$word"',
+            onPressed: () => _showDefine(word),
+          ),
+        );
+      }
+    }
+
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editable.contextMenuAnchors,
+      buttonItems: buttonItems,
+    );
+  }
+
+  void _showDefine(String word) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => WordLookupSheet(word: word),
+    );
+  }
 }
 
 enum ScrollDirection { up, down }
 
 enum ReadingMode { page, continuous }
+
+enum PageTurnAnimation { slide, fade, reveal, cube, depth }
+
+extension PageTurnAnimationX on PageTurnAnimation {
+  String get label => switch (this) {
+    PageTurnAnimation.slide => 'Slide',
+    PageTurnAnimation.fade => 'Fade',
+    PageTurnAnimation.reveal => 'Reveal',
+    PageTurnAnimation.cube => 'Cube',
+    PageTurnAnimation.depth => 'Depth',
+  };
+
+  IconData get icon => switch (this) {
+    PageTurnAnimation.slide => Icons.arrow_forward,
+    PageTurnAnimation.fade => Icons.blur_on,
+    PageTurnAnimation.reveal => Icons.swap_horiz,
+    PageTurnAnimation.cube => Icons.view_in_ar,
+    PageTurnAnimation.depth => Icons.layers,
+  };
+}
+
+enum ScrollAnimation { smooth, snap, fadeEdges, parallax, glow }
+
+extension ScrollAnimationX on ScrollAnimation {
+  String get label => switch (this) {
+    ScrollAnimation.smooth => 'Smooth',
+    ScrollAnimation.snap => 'Snap',
+    ScrollAnimation.fadeEdges => 'Fade Edges',
+    ScrollAnimation.parallax => 'Parallax',
+    ScrollAnimation.glow => 'Scroll Glow',
+  };
+
+  IconData get icon => switch (this) {
+    ScrollAnimation.smooth => Icons.swap_vert,
+    ScrollAnimation.snap => Icons.first_page,
+    ScrollAnimation.fadeEdges => Icons.blur_linear,
+    ScrollAnimation.parallax => Icons.view_carousel,
+    ScrollAnimation.glow => Icons.touch_app,
+  };
+}
 
 extension ReadingModeX on ReadingMode {
   String get label => switch (this) {

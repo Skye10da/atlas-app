@@ -13,10 +13,13 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
   static const _keyLetterSpacing = 'reader_letter_spacing';
   static const _keyKeepAwake = 'reader_keep_awake';
   static const _keyBrightness = 'reader_brightness';
+  static const _keyAutoOptimize = 'reader_auto_optimize';
   static const _keyTheme = 'reader_theme';
   static const _keyReadingMode = 'reader_reading_mode';
   static const _keyTextAlignment = 'reader_text_alignment';
   static const _keyMarginPreset = 'reader_margin_preset';
+  static const _keyPageTurnAnimation = 'reader_page_turn_animation';
+  static const _keyScrollAnimation = 'reader_scroll_animation';
 
   @override
   Future<ReadingSettingsEntity> load() async {
@@ -28,6 +31,7 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
       letterSpacing: prefs.getDouble(_keyLetterSpacing) ?? 0.0,
       keepScreenAwake: prefs.getBool(_keyKeepAwake) ?? false,
       brightness: prefs.getDouble(_keyBrightness) ?? 1.0,
+      autoOptimizeBrightness: prefs.getBool(_keyAutoOptimize) ?? false,
       theme: switch (prefs.getString(_keyTheme)) {
         'dark' => ReadingViewTheme.dark,
         'sepia' => ReadingViewTheme.sepia,
@@ -54,6 +58,20 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
         'wide' => MarginPreset.wide,
         _ => MarginPreset.normal,
       },
+      pageTurnAnimation: switch (prefs.getString(_keyPageTurnAnimation)) {
+        'fade' => PageTurnAnimation.fade,
+        'reveal' => PageTurnAnimation.reveal,
+        'cube' => PageTurnAnimation.cube,
+        'depth' => PageTurnAnimation.depth,
+        _ => PageTurnAnimation.slide,
+      },
+      scrollAnimation: switch (prefs.getString(_keyScrollAnimation)) {
+        'snap' => ScrollAnimation.snap,
+        'fadeEdges' => ScrollAnimation.fadeEdges,
+        'parallax' => ScrollAnimation.parallax,
+        'glow' => ScrollAnimation.glow,
+        _ => ScrollAnimation.smooth,
+      },
     );
   }
 
@@ -70,9 +88,12 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
     await prefs.setDouble(_keyLetterSpacing, settings.letterSpacing);
     await prefs.setBool(_keyKeepAwake, settings.keepScreenAwake);
     await prefs.setDouble(_keyBrightness, settings.brightness);
+    await prefs.setBool(_keyAutoOptimize, settings.autoOptimizeBrightness);
     await prefs.setString(_keyTheme, settings.theme.name);
     await prefs.setString(_keyReadingMode, settings.readingMode.name);
     await prefs.setString(_keyTextAlignment, settings.textAlignment.name);
     await prefs.setString(_keyMarginPreset, settings.marginPreset.name);
+    await prefs.setString(_keyPageTurnAnimation, settings.pageTurnAnimation.name);
+    await prefs.setString(_keyScrollAnimation, settings.scrollAnimation.name);
   }
 }

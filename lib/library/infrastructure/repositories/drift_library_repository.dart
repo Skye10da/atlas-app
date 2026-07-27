@@ -122,4 +122,18 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
       return Failure(DatabaseException('Failed to update book', e), st);
     }
   }
+
+  @override
+  Future<Result<void>> markAsOpened(String id) async {
+    try {
+      await (_db.update(_db.books)..where((b) => b.id.equals(id))).write(
+        BooksCompanion(
+          lastOpenedAt: Value(DateTime.now()),
+        ),
+      );
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to mark book as opened', e), st);
+    }
+  }
 }

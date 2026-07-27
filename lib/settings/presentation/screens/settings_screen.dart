@@ -34,6 +34,13 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: notifier.setBrightness,
                 ),
               ),
+              SwitchListTile(
+                title: const Text('Auto-optimize for battery'),
+                subtitle: const Text(
+                    'Automatically dim brightness when battery is low'),
+                value: settings.autoOptimizeBrightness,
+                onChanged: notifier.setAutoOptimizeBrightness,
+              ),
               const Divider(),
               ListTile(
                 title: const Text('Font size'),

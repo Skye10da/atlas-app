@@ -8,10 +8,13 @@ class ReadingSettingsEntity {
     this.letterSpacing = 0.0,
     this.keepScreenAwake = false,
     this.brightness = 1.0,
+    this.autoOptimizeBrightness = false,
     this.theme = ReadingViewTheme.light,
     this.readingMode = ReadingMode.page,
     this.textAlignment = TextAlignment.left,
     this.marginPreset = MarginPreset.normal,
+    this.pageTurnAnimation = PageTurnAnimation.slide,
+    this.scrollAnimation = ScrollAnimation.smooth,
   });
 
   final double fontSize;
@@ -20,10 +23,13 @@ class ReadingSettingsEntity {
   final double letterSpacing;
   final bool keepScreenAwake;
   final double brightness;
+  final bool autoOptimizeBrightness;
   final ReadingViewTheme theme;
   final ReadingMode readingMode;
   final TextAlignment textAlignment;
   final MarginPreset marginPreset;
+  final PageTurnAnimation pageTurnAnimation;
+  final ScrollAnimation scrollAnimation;
 
   ReadingSettingsEntity copyWith({
     double? fontSize,
@@ -32,10 +38,13 @@ class ReadingSettingsEntity {
     double? letterSpacing,
     bool? keepScreenAwake,
     double? brightness,
+    bool? autoOptimizeBrightness,
     ReadingViewTheme? theme,
     ReadingMode? readingMode,
     TextAlignment? textAlignment,
     MarginPreset? marginPreset,
+    PageTurnAnimation? pageTurnAnimation,
+    ScrollAnimation? scrollAnimation,
   }) {
     return ReadingSettingsEntity(
       fontSize: fontSize ?? this.fontSize,
@@ -44,10 +53,13 @@ class ReadingSettingsEntity {
       letterSpacing: letterSpacing ?? this.letterSpacing,
       keepScreenAwake: keepScreenAwake ?? this.keepScreenAwake,
       brightness: brightness ?? this.brightness,
+      autoOptimizeBrightness: autoOptimizeBrightness ?? this.autoOptimizeBrightness,
       theme: theme ?? this.theme,
       readingMode: readingMode ?? this.readingMode,
       textAlignment: textAlignment ?? this.textAlignment,
       marginPreset: marginPreset ?? this.marginPreset,
+      pageTurnAnimation: pageTurnAnimation ?? this.pageTurnAnimation,
+      scrollAnimation: scrollAnimation ?? this.scrollAnimation,
     );
   }
 }

@@ -94,4 +94,25 @@ class ReadingSettingsNotifier extends StateNotifier<AsyncValue<ReadingSettingsEn
     state = AsyncData(updated);
     await _repo.save(updated);
   }
+
+  Future<void> setAutoOptimizeBrightness(bool value) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(autoOptimizeBrightness: value);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setPageTurnAnimation(PageTurnAnimation animation) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(pageTurnAnimation: animation);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setScrollAnimation(ScrollAnimation animation) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(scrollAnimation: animation);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
 }

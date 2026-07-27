@@ -40,12 +40,14 @@ dependencies:
   # Google Fonts
   google_fonts: ^6.2.1
 
+  # Networking
+  http: ^1.5.0
+
   # Utilities
   equatable: ^2.0.7
   shared_preferences: ^2.5.5
   image: ^4.8.0
-  wakelock_plus: ^1.4.0
-  screen_brightness: ^2.1.9
+  screen_brightness_pro: ^1.0.1
 
 dev_dependencies:
   flutter_test:

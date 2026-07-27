@@ -1,11 +1,9 @@
+// ignore_for_file: avoid_dynamic_calls
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 
 import 'package:atlas_app/core/database/database.dart';
-import 'package:atlas_app/core/database/tables/books.dart';
-import 'package:atlas_app/core/database/tables/chapters.dart';
-import 'package:atlas_app/core/database/tables/reading_progress.dart';
-import 'package:atlas_app/core/database/tables/bookmarks.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';

@@ -39,6 +39,28 @@ class BookDetailsScreen extends ConsumerWidget {
             book: data.book,
             chapters: data.chapters,
             lastReadChapterIndex: data.lastReadChapterIndex,
+            onOpenReader: (chapterIndex) async {
+              final navigator = GoRouter.of(context);
+              final libRepo = DriftLibraryRepository(ref.read(databaseProvider));
+              await libRepo.markAsOpened(bookId);
+              final base = '/reader/${data.book.id}';
+              final params = <String, String>{};
+              final ch = chapterIndex ?? data.lastReadChapterIndex;
+              if (ch != null && ch >= 0) {
+                params['chapter'] = ch.toString();
+              }
+              if (data.book.progress != null && data.book.progress! > 0) {
+                params['progress'] =
+                    (data.book.progress! / 100).toStringAsFixed(4);
+              }
+              final query =
+                  params.entries.map((e) => '${e.key}=${e.value}').join('&');
+              final route = query.isNotEmpty ? '$base?$query' : base;
+              await navigator.push(route);
+              if (context.mounted) {
+                ref.invalidate(_bookDetailsProvider(bookId));
+              }
+            },
             onDelete: () async {
               final db = ref.read(databaseProvider);
               final repo = DriftLibraryRepository(db);
@@ -130,6 +152,7 @@ class _BookDetailsView extends StatelessWidget {
     required this.onDelete,
     this.lastReadChapterIndex,
     this.onEditMetadata,
+    this.onOpenReader,
   });
 
   final BookEntity book;
@@ -137,6 +160,7 @@ class _BookDetailsView extends StatelessWidget {
   final VoidCallback onDelete;
   final int? lastReadChapterIndex;
   final Future<void> Function(String title, String? author)? onEditMetadata;
+  final void Function(int? chapterIndex)? onOpenReader;
 
   @override
   Widget build(BuildContext context) {
@@ -266,7 +290,7 @@ class _BookDetailsView extends StatelessWidget {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton.icon(
-                                onPressed: () => _openReader(context),
+                                onPressed: () => onOpenReader?.call(null),
                                 icon: Icon(
                                   progress > 0
                                       ? Icons.play_arrow
@@ -291,7 +315,11 @@ class _BookDetailsView extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
               child: _ProgressCard(
-                  progress: progress, totalChapters: book.totalChapters),
+                progress: progress,
+                totalChapters: book.totalChapters,
+                lastReadChapterIndex: lastReadChapterIndex,
+                chapters: chapters,
+              ),
             ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -311,24 +339,12 @@ class _BookDetailsView extends StatelessWidget {
           ...chapters.map((ch) => _ChapterTile(
                 chapter: ch,
                 lastReadChapterIndex: lastReadChapterIndex,
-                onTap: () =>
-                    _openReader(context, chapterIndex: ch.index),
+                onTap: () => onOpenReader?.call(ch.index),
               )),
           const SizedBox(height: AppSpacing.xl * 2),
         ],
       ),
     );
-  }
-
-  void _openReader(BuildContext context, {int? chapterIndex}) {
-    final base = '/reader/${book.id}';
-    final params = <String, String>{};
-    if (chapterIndex != null) params['chapter'] = chapterIndex.toString();
-    if (book.progress != null && book.progress! > 0) {
-      params['progress'] = (book.progress! / 100).toStringAsFixed(4);
-    }
-    final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
-    context.push(query.isNotEmpty ? '$base?$query' : base);
   }
 
   void _deleteBook(BuildContext context) {
@@ -400,11 +416,17 @@ class _BookDetailsView extends StatelessWidget {
 }
 
 class _ProgressCard extends StatelessWidget {
-  const _ProgressCard(
-      {required this.progress, required this.totalChapters});
+  const _ProgressCard({
+    required this.progress,
+    required this.totalChapters,
+    this.lastReadChapterIndex,
+    this.chapters,
+  });
 
   final double progress;
   final int totalChapters;
+  final int? lastReadChapterIndex;
+  final List<ChapterEntity>? chapters;
 
   @override
   Widget build(BuildContext context) {
@@ -440,6 +462,15 @@ class _ProgressCard extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (lastReadChapterIndex != null && chapters != null)
+              Text(
+                'Last read: ${chapters![lastReadChapterIndex!].title}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
           ],
         ),
       ),
