@@ -15,6 +15,7 @@ abstract interface class ReaderRepositoryInterface {
     required int totalPositions,
   });
   Future<Result<BookEntity>> getBookById(String id);
+  Future<Result<void>> updateChapterContent(String bookId, int chapterIndex, String content);
 
   Future<Result<List<BookmarkEntity>>> getBookmarks(String bookId);
   Future<Result<void>> addBookmark(BookmarkEntity bookmark);

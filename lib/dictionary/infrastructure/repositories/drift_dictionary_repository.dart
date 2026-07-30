@@ -28,6 +28,12 @@ class DriftDictionaryRepository implements DictionaryRepositoryInterface {
             definition: word.definition,
             fullJson: word.fullJson,
             savedAt: word.savedAt,
+            sourceSentence: Value(word.sourceSentence),
+            sourceTitle: Value(word.sourceTitle),
+            reviewLevel: Value(word.reviewLevel),
+            reviewCount: Value(word.reviewCount),
+            lastReviewedAt: Value(word.lastReviewedAt),
+            nextReviewAt: Value(word.nextReviewAt),
           ),
         );
   }
@@ -56,6 +62,12 @@ class DriftDictionaryRepository implements DictionaryRepositoryInterface {
       definition: row.definition,
       fullJson: row.fullJson,
       savedAt: row.savedAt,
+      sourceSentence: row.sourceSentence,
+      sourceTitle: row.sourceTitle,
+      reviewLevel: row.reviewLevel,
+      reviewCount: row.reviewCount,
+      lastReviewedAt: row.lastReviewedAt,
+      nextReviewAt: row.nextReviewAt,
     );
   }
 }

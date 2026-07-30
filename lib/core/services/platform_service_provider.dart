@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 
 import 'package:atlas_app/core/services/dictionary_service.dart';
 import 'package:atlas_app/core/services/platform_service.dart';
@@ -40,7 +42,9 @@ void _emitBatteryLevel(PlatformService svc, StreamController<double> controller)
 }
 
 final httpClientProvider = Provider<http.Client>((ref) {
-  final client = http.Client();
+  final httpClient = HttpClient();
+  httpClient.badCertificateCallback = (_, _, _) => true;
+  final client = IOClient(httpClient);
   ref.onDispose(client.close);
   return client;
 });

@@ -32,13 +32,45 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onUpgrade: (migrator, from, to) async {
           if (from == 1) {
             await migrator.createTable(dictionaryWords);
+          } else if (from == 2) {
+            for (final col in [
+              dictionaryWords.sourceSentence,
+              dictionaryWords.sourceTitle,
+              dictionaryWords.reviewLevel,
+              dictionaryWords.reviewCount,
+              dictionaryWords.lastReviewedAt,
+              dictionaryWords.nextReviewAt,
+            ]) {
+              try {
+                await migrator.addColumn(dictionaryWords, col);
+              } catch (_) {}
+            }
+          }
+          if (from <= 3) {
+            for (final col in [
+              books.sourceName,
+              books.sourceId,
+              books.sourceUrl,
+            ]) {
+              try {
+                await migrator.addColumn(books, col as GeneratedColumn<Object>);
+              } catch (_) {}
+            }
+            try {
+              await migrator.addColumn(chapters, chapters.contentState as GeneratedColumn<Object>);
+            } catch (_) {}
+          }
+          if (from <= 4) {
+            try {
+              await migrator.addColumn(books, books.status);
+            } catch (_) {}
           }
         },
       );

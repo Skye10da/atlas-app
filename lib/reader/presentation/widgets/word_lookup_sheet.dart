@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -12,10 +15,16 @@ class WordLookupSheet extends ConsumerStatefulWidget {
     super.key,
     required this.word,
     this.initialLanguage = 'en',
+    this.sourceSentence,
+    this.sourceTitle,
   });
 
   final String word;
   final String initialLanguage;
+
+  final String? sourceSentence;
+
+  final String? sourceTitle;
 
   @override
   ConsumerState<WordLookupSheet> createState() => _WordLookupSheetState();
@@ -27,6 +36,8 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
   bool _loading = true;
   String? _error;
   bool _saved = false;
+  late final TextEditingController _contextController =
+      TextEditingController(text: widget.sourceSentence ?? '');
 
   @override
   void initState() {
@@ -34,6 +45,12 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
     _language = widget.initialLanguage;
     _checkSaved();
     _lookup();
+  }
+
+  @override
+  void dispose() {
+    _contextController.dispose();
+    super.dispose();
   }
 
   void _checkSaved() {
@@ -75,6 +92,7 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
     if (result == null) return;
     final id = '${widget.word}_$_language';
     final repo = ref.read(dictionaryRepositoryProvider);
+    await HapticFeedback.lightImpact();
     if (_saved) {
       await repo.delete(id);
     } else {
@@ -82,21 +100,46 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
           .firstWhere((l) => l.code == _language,
               orElse: () => const WiktionaryLanguage('en', 'English'))
           .label;
-      final first = result.senses.first;
+      final context = _contextController.text.trim();
       await repo.save(DictionaryWordEntity(
         id: id,
         word: widget.word,
         language: _language,
         languageLabel: langLabel,
         phonetic: result.phonetic,
-        partOfSpeech: first.partOfSpeech,
-        definition: first.definition,
-        fullJson: '',
+        partOfSpeech: result.senses.first.partOfSpeech,
+        definition: result.senses.map((s) => s.definition).join('\n'),
+        fullJson: jsonEncode(result.toJson()),
         savedAt: DateTime.now(),
+        sourceSentence: context.isEmpty ? null : context,
+        sourceTitle: widget.sourceTitle,
+        reviewLevel: 0,
+        reviewCount: 0,
+        lastReviewedAt: null,
+        nextReviewAt: null,
       ));
     }
     ref.invalidate(savedWordsProvider);
-    if (mounted) setState(() => _saved = !_saved);
+    if (!mounted) return;
+    setState(() => _saved = !_saved);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_saved ? 'Saved "${widget.word}"' : 'Removed from saved words'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _copyWord() {
+    final result = _result;
+    if (result == null) return;
+    final text = result.senses
+        .map((s) => '${s.partOfSpeech}: ${s.definition}')
+        .join('\n');
+    Clipboard.setData(ClipboardData(text: '${widget.word}\n$text'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copied to clipboard')),
+    );
   }
 
   @override
@@ -108,88 +151,322 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
       padding: EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
-        top: AppSpacing.lg,
+        top: AppSpacing.sm,
         bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const _DragHandle(),
+          const SizedBox(height: AppSpacing.sm),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(widget.word,
-                    style: textTheme.titleLarge
+                    style: textTheme.headlineSmall
                         ?.copyWith(fontWeight: FontWeight.bold)),
               ),
-              IconButton(
-                icon: Icon(_saved ? Icons.bookmark : Icons.bookmark_border),
-                tooltip: _saved ? 'Remove from saved' : 'Save word',
-                onPressed: _result != null ? _toggleSave : null,
+              _SaveButton(
+                saved: _saved,
+                enabled: _result != null,
+                onPressed: _toggleSave,
               ),
               IconButton(
                 icon: const Icon(Icons.close),
+                tooltip: 'Close',
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
           ),
-          if (_loading) ...[
-            const SizedBox(height: AppSpacing.lg),
-            const Center(child: CircularProgressIndicator()),
-          ],
-          if (_error != null) ...[
+          if (widget.sourceSentence != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text(_error!, style: textTheme.bodyMedium),
+            _ContextField(controller: _contextController, source: widget.sourceTitle),
           ],
-          if (_result != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            SizedBox(
-              height: 32,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: supportedLanguages.length,
-                separatorBuilder: (_, _) =>
-                    const SizedBox(width: AppSpacing.xs),
-                itemBuilder: (ctx, i) {
-                  final l = supportedLanguages[i];
-                  final selected = l.code == _language;
-                  return ChoiceChip(
-                    label: Text(l.code.toUpperCase(),
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: selected
-                                ? FontWeight.w600
-                                : FontWeight.normal)),
-                    selected: selected,
-                    onSelected: (v) {
-                      if (v && !selected) {
-                        setState(() => _language = l.code);
-                        _lookup();
-                      }
-                    },
-                    visualDensity: VisualDensity.compact,
-                  );
-                },
-              ),
+          const SizedBox(height: AppSpacing.sm),
+          _LanguageSelector(
+            selected: _language,
+            onChanged: (code) {
+              if (code != null && code != _language) {
+                setState(() => _language = code);
+                _lookup();
+              }
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Flexible(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _loading
+                  ? const _LoadingState(key: ValueKey('loading'))
+                  : _error != null
+                      ? _ErrorState(
+                          key: const ValueKey('error'),
+                          message: _error!,
+                          onRetry: _lookup,
+                        )
+                      : _result != null
+                          ? SingleChildScrollView(
+                              key: const ValueKey('result'),
+                              child: _DefinitionCard(
+                                result: _result!,
+                                language: _language,
+                                onCopy: _copyWord,
+                                textTheme: textTheme,
+                                colorScheme: colorScheme,
+                                relatedWords: const [],
+                                onRelatedWordTap: (relatedWord) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => Scaffold(
+                                        body: SafeArea(
+                                          child: WordLookupSheet(
+                                            word: relatedWord,
+                                            initialLanguage: _language,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            )
+                          : const SizedBox.shrink(),
             ),
-            const SizedBox(height: AppSpacing.md),
-            Expanded(
-              child: SingleChildScrollView(
-                child: _buildDefinitionCard(textTheme, colorScheme),
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildDefinitionCard(
-      TextTheme textTheme, ColorScheme colorScheme) {
-    final result = _result!;
+class _DragHandle extends StatelessWidget {
+  const _DragHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 36,
+        height: 4,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+}
+
+class _SaveButton extends StatelessWidget {
+  const _SaveButton({
+    required this.saved,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool saved;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return IconButton(
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        transitionBuilder: (child, animation) =>
+            ScaleTransition(scale: animation, child: child),
+        child: Icon(
+          saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+          key: ValueKey(saved),
+          color: saved ? colorScheme.primary : null,
+        ),
+      ),
+      tooltip: saved ? 'Remove from saved' : 'Save word',
+      onPressed: enabled ? onPressed : null,
+    );
+  }
+}
+
+class _ContextField extends StatelessWidget {
+  const _ContextField({required this.controller, required this.source});
+
+  final TextEditingController controller;
+  final String? source;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.format_quote_rounded,
+                  size: 16, color: colorScheme.onSurface.withValues(alpha: 0.5)),
+              const SizedBox(width: 4),
+              Text('Found in context',
+                  style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.6))),
+              if (source != null) ...[
+                const Spacer(),
+                Flexible(
+                  child: Text(source!,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSurface.withValues(alpha: 0.5))),
+                ),
+              ],
+            ],
+          ),
+          TextField(
+            controller: controller,
+            maxLines: 2,
+            minLines: 1,
+            style: textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+            decoration: const InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.only(top: 4),
+              hintText: 'Edit the sentence saved with this word…',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LanguageSelector extends StatelessWidget {
+  const _LanguageSelector({required this.selected, required this.onChanged});
+
+  final String selected;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DropdownButtonFormField<String>(
+      initialValue: selected,
+      isExpanded: true,
+      icon: const Icon(Icons.expand_more_rounded, size: 20),
+      decoration: InputDecoration(
+        labelText: 'Language',
+        prefixIcon: const Icon(Icons.translate_rounded, size: 20),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        filled: true,
+        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        isDense: true,
+      ),
+      items: supportedLanguages.map((l) {
+        return DropdownMenuItem(
+          value: l.code,
+          child: Text('${l.label} (${l.code.toUpperCase()})'),
+        );
+      }).toList(),
+      onChanged: onChanged,
+    );
+  }
+}
+
+class _LoadingState extends StatelessWidget {
+  const _LoadingState({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: AppSpacing.md),
+          Text('Looking that up…',
+              style: TextStyle(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6))),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({super.key, required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.search_off_rounded,
+              size: 40, color: colorScheme.onSurface.withValues(alpha: 0.3)),
+          const SizedBox(height: AppSpacing.sm),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: textTheme.bodyMedium
+                  ?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7))),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton.tonalIcon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Try again'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DefinitionCard extends StatelessWidget {
+  const _DefinitionCard({
+    required this.result,
+    required this.language,
+    required this.onCopy,
+    required this.textTheme,
+    required this.colorScheme,
+    this.relatedWords = const [],
+    this.onRelatedWordTap,
+  });
+
+  final WiktionaryResult result;
+  final String language;
+  final VoidCallback onCopy;
+  final TextTheme textTheme;
+  final ColorScheme colorScheme;
+  final List<String> relatedWords;
+  final ValueChanged<String>? onRelatedWordTap;
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
@@ -202,53 +479,137 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(width: AppSpacing.sm),
                 if (result.phonetic != null)
-                  Text(result.phonetic!,
-                      style: textTheme.bodySmall
-                          ?.copyWith(fontStyle: FontStyle.italic)),
-                const Spacer(),
-                Text(_language.toUpperCase(),
-                    style: textTheme.labelSmall
-                        ?.copyWith(color: colorScheme.primary)),
+                  Expanded(
+                    child: Text(result.phonetic!,
+                        style: textTheme.bodySmall
+                            ?.copyWith(fontStyle: FontStyle.italic)),
+                  ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(language.toUpperCase(),
+                      style: textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w600)),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.copy_rounded, size: 16),
+                  tooltip: 'Copy definition',
+                  onPressed: onCopy,
+                ),
               ],
             ),
             const Divider(height: AppSpacing.lg),
-            ...result.senses.map((sense) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(sense.partOfSpeech,
-                          style: textTheme.labelSmall?.copyWith(
-                              color: colorScheme.onPrimaryContainer)),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(sense.definition,
-                        style: textTheme.bodyMedium),
-                    if (sense.examples.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      ...sense.examples.take(1).map((ex) => Text(
-                            '"$ex"',
-                            style: textTheme.bodySmall?.copyWith(
-                                fontStyle: FontStyle.italic,
-                                color: colorScheme.onSurface
-                                    .withValues(alpha: 0.6)),
-                          )),
-                    ],
-                  ],
+            for (var i = 0; i < result.senses.length; i++)
+              Padding(
+                padding: EdgeInsets.only(
+                    bottom: i == result.senses.length - 1 ? 0 : AppSpacing.md),
+                child: _SenseTile(
+                  index: i + 1,
+                  sense: result.senses[i],
+                  textTheme: textTheme,
+                  colorScheme: colorScheme,
                 ),
-              );
-            }),
+              ),
+            if (relatedWords.isNotEmpty) ...[
+              const Divider(height: AppSpacing.lg),
+              Text('Related words',
+                  style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.6))),
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                children: relatedWords
+                    .map((w) => ActionChip(
+                          label: Text(w),
+                          onPressed: onRelatedWordTap == null
+                              ? null
+                              : () => onRelatedWordTap!(w),
+                        ))
+                    .toList(),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SenseTile extends StatelessWidget {
+  const _SenseTile({
+    required this.index,
+    required this.sense,
+    required this.textTheme,
+    required this.colorScheme,
+  });
+
+  final int index;
+  final WiktionarySense sense;
+  final TextTheme textTheme;
+  final ColorScheme colorScheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          margin: const EdgeInsets.only(top: 1),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: colorScheme.secondaryContainer,
+          ),
+          child: Text('$index',
+              style: textTheme.labelSmall?.copyWith(
+                  color: colorScheme.onSecondaryContainer,
+                  fontWeight: FontWeight.w600)),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(sense.partOfSpeech,
+                    style: textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSecondaryContainer)),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(sense.definition, style: textTheme.bodyMedium),
+              if (sense.examples.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                ...sense.examples.take(1).map(
+                      (ex) => Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '"$ex"',
+                          style: textTheme.bodySmall?.copyWith(
+                              fontStyle: FontStyle.italic,
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.6)),
+                        ),
+                      ),
+                    ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -19,6 +19,18 @@ class DictionaryWords extends Table {
 
   DateTimeColumn get savedAt => dateTime()();
 
+  TextColumn get sourceSentence => text().nullable()();
+
+  TextColumn get sourceTitle => text().nullable()();
+
+  IntColumn get reviewLevel => integer().withDefault(const Constant(0))();
+
+  IntColumn get reviewCount => integer().withDefault(const Constant(0))();
+
+  DateTimeColumn get lastReviewedAt => dateTime().nullable()();
+
+  DateTimeColumn get nextReviewAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 

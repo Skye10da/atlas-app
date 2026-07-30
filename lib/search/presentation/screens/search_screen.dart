@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
+import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/molecules/app_empty_state.dart';
+import 'package:atlas_app/core/design_system/molecules/app_list_item.dart';
+import 'package:atlas_app/core/design_system/molecules/app_search_bar.dart';
+import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/search/domain/entities/search_result_entity.dart';
@@ -18,13 +22,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
-  late TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-  }
+  final TextEditingController _controller = TextEditingController();
 
   @override
   void dispose() {
@@ -36,49 +34,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final resultsAsync = ref.watch(searchResultsProvider);
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: TextField(
+    return AppScaffold(
+      title: 'Search',
+      child: Column(
+        children: [
+          AppSearchBar(
             controller: _controller,
             autofocus: true,
-            decoration: InputDecoration(
-              hintText: 'Search books and chapters...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _controller.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _controller.clear();
-                        ref.read(searchQueryProvider.notifier).state = '';
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
-              ),
-            ),
+            hint: 'Search books and chapters...',
             onChanged: (value) {
               ref.read(searchQueryProvider.notifier).state = value;
             },
           ),
-        ),
-        Expanded(
-          child: resultsAsync.when(
-            loading: () => const AppLoading(),
-            error: (error, _) => Center(child: Text('Search failed: $error')),
-            data: (result) => switch (result) {
-              Success(value: final results) => _SearchResults(
-                  results: results,
-                  onBookTap: (bookId) => context.push('/book/$bookId'),
-                  onChapterTap: (bookId, chapterIndex) => context.push('/reader/$bookId?chapter=$chapterIndex'),
-                ),
-              Failure(error: final err) => Center(child: Text(err.message)),
-            },
+          Expanded(
+            child: resultsAsync.when(
+              loading: () => const AppLoading(),
+              error: (error, _) => Center(child: Text('Search failed: $error')),
+              data: (result) => switch (result) {
+                Success(value: final results) => _SearchResults(
+                    results: results,
+                    onBookTap: (bookId) => context.push('/book/$bookId'),
+                    onChapterTap: (bookId, chapterIndex) =>
+                        context.push('/reader/$bookId?chapter=$chapterIndex'),
+                  ),
+                Failure(error: final err) => Center(child: Text(err.message)),
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -108,39 +92,23 @@ class _SearchResults extends StatelessWidget {
     final chapters = results.where((r) => r.kind == SearchResultKind.chapter).toList();
 
     return ListView(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       children: [
         if (books.isNotEmpty) ...[
-          const _SectionHeader(title: 'Books'),
-          ...books.map((r) => _BookResultTile(result: r, onTap: () => onBookTap(r.bookId))),
+          const AppSectionHeader(title: 'Books'),
+          ...books.map((r) => _BookResultTile(
+            result: r,
+            onTap: () => onBookTap(r.bookId),
+          )),
         ],
         if (chapters.isNotEmpty) ...[
-          const _SectionHeader(title: 'Chapters'),
+          const AppSectionHeader(title: 'Chapters'),
           ...chapters.map((r) => _ChapterResultTile(
             result: r,
             onTap: () => onChapterTap(r.bookId, r.chapterIndex ?? 0),
           )),
         ],
       ],
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-            ),
-      ),
     );
   }
 }
@@ -153,11 +121,12 @@ class _BookResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    final colors = Theme.of(context).colorScheme;
+    return AppListItem(
       leading: BookCover(coverPath: result.coverPath, width: 40, height: 56),
-      title: Text(result.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: result.author != null ? Text(result.author!, maxLines: 1) : null,
-      trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      title: result.title,
+      subtitle: result.author,
+      trailing: Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
       onTap: onTap,
     );
   }
@@ -171,11 +140,12 @@ class _ChapterResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    final colors = Theme.of(context).colorScheme;
+    return AppListItem(
       leading: BookCover(coverPath: result.coverPath, width: 40, height: 56),
-      title: Text(result.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(result.bookTitle, maxLines: 1),
-      trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      title: result.title,
+      subtitle: result.bookTitle,
+      trailing: Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
       onTap: onTap,
     );
   }

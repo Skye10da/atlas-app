@@ -8,6 +8,7 @@ class ChapterEntity {
     this.wordCount = 0,
     this.pageCount = 0,
     this.totalChapters = 0,
+    this.contentState = 0,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class ChapterEntity {
   final int wordCount;
   final int pageCount;
   final int totalChapters;
+  final int contentState;
 
   bool get hasNextChapter => index < totalChapters - 1;
   bool get hasPrevChapter => index > 0;

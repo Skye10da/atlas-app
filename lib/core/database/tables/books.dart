@@ -12,7 +12,11 @@ class Books extends Table {
   IntColumn get totalChapters => integer()();
   TextColumn get language => text().nullable()();
   TextColumn get tags => text().nullable()();
+  TextColumn get sourceName => text().nullable()();
+  TextColumn get sourceId => text().nullable()();
+  TextColumn get sourceUrl => text().nullable()();
   RealColumn get rating => real().nullable()();
+  TextColumn get status => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get lastOpenedAt => dateTime().nullable()();

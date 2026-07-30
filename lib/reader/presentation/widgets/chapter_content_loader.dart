@@ -36,7 +36,7 @@ class ChapterContentLoader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final contentAsync =
-        ref.watch(readerChapterContentProvider(chapter.contentPath));
+        ref.watch(readerChapterContentProvider(chapter));
 
     return contentAsync.when(
       loading: () => const AppLoading(),
@@ -57,6 +57,7 @@ class ChapterContentLoader extends ConsumerWidget {
           marginPreset: marginPreset,
           scrollable: scrollable,
           dropCapStyle: chapterStyle?.dropCapStyle,
+          chapterTitle: chapter.title,
         ),
       ),
     );

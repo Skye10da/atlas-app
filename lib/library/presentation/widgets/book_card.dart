@@ -27,9 +27,19 @@ class BookCard extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
-              Hero(
-                tag: 'book-cover-${book.id}',
-                child: BookCover(coverPath: book.coverPath, format: book.format),
+              Stack(
+                children: [
+                  Hero(
+                    tag: 'book-cover-${book.id}',
+                    child: BookCover(coverPath: book.coverPath, format: book.format),
+                  ),
+                  if (book.progress == null)
+                    const Positioned(
+                      top: 4,
+                      right: 4,
+                      child: _NewBadge(),
+                    ),
+                ],
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -92,18 +102,41 @@ class BookGridCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.md),
-                child: Hero(
-                  tag: 'book-cover-${book.id}',
-                  child: BookCover(
-                    coverPath: book.coverPath,
-                    format: book.format,
-                    width: coverWidth,
-                    height: coverHeight,
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.md),
+              child: Stack(
+                children: [
+                  Hero(
+                    tag: 'book-cover-${book.id}',
+                    child: BookCover(
+                      coverPath: book.coverPath,
+                      format: book.format,
+                      width: coverWidth,
+                      height: coverHeight,
+                    ),
                   ),
-                ),
+                  if (book.progress == null)
+                    const Positioned(
+                      top: 4,
+                      right: 4,
+                      child: _NewBadge(),
+                    ),
+                  if (book.progress != null && book.progress! > 0)
+                    Positioned(
+                      bottom: 4,
+                      left: 4,
+                      right: 4,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: book.progress! / 100,
+                          minHeight: 3,
+                          backgroundColor: Colors.black26,
+                          valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             Padding(
@@ -137,6 +170,8 @@ class BookGridCard extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: progress / 100,
                         minHeight: 3,
+                        backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                        valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
                       ),
                     ),
                   ],
@@ -159,11 +194,53 @@ class _ProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (progress <= 0) return const SizedBox.shrink();
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(2),
-      child: LinearProgressIndicator(
-        value: progress / 100,
-        minHeight: 4,
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: progress / 100,
+            minHeight: 4,
+            backgroundColor: cs.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${progress.toStringAsFixed(0)}%',
+          style: TextStyle(
+            fontSize: 10,
+            color: cs.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NewBadge extends StatelessWidget {
+  const _NewBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: cs.primary,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'New',
+        style: TextStyle(
+          color: cs.onPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

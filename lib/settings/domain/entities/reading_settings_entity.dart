@@ -1,7 +1,12 @@
+import 'package:flutter/material.dart';
+
+import 'package:atlas_app/core/theme/app_brand.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 
 class ReadingSettingsEntity {
   const ReadingSettingsEntity({
+    this.systemFontFamily,
+    this.brand = AppBrand.violet,
     this.fontSize = 18.0,
     this.fontFamily,
     this.lineHeight = 1.8,
@@ -15,8 +20,11 @@ class ReadingSettingsEntity {
     this.marginPreset = MarginPreset.normal,
     this.pageTurnAnimation = PageTurnAnimation.slide,
     this.scrollAnimation = ScrollAnimation.smooth,
+    this.themeMode = ThemeMode.system,
   });
 
+  final String? systemFontFamily;
+  final AppBrand brand;
   final double fontSize;
   final String? fontFamily;
   final double lineHeight;
@@ -30,8 +38,11 @@ class ReadingSettingsEntity {
   final MarginPreset marginPreset;
   final PageTurnAnimation pageTurnAnimation;
   final ScrollAnimation scrollAnimation;
+  final ThemeMode themeMode;
 
   ReadingSettingsEntity copyWith({
+    String? systemFontFamily,
+    AppBrand? brand,
     double? fontSize,
     String? fontFamily,
     double? lineHeight,
@@ -45,8 +56,11 @@ class ReadingSettingsEntity {
     MarginPreset? marginPreset,
     PageTurnAnimation? pageTurnAnimation,
     ScrollAnimation? scrollAnimation,
+    ThemeMode? themeMode,
   }) {
     return ReadingSettingsEntity(
+      systemFontFamily: systemFontFamily ?? this.systemFontFamily,
+      brand: brand ?? this.brand,
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
       lineHeight: lineHeight ?? this.lineHeight,
@@ -60,6 +74,7 @@ class ReadingSettingsEntity {
       marginPreset: marginPreset ?? this.marginPreset,
       pageTurnAnimation: pageTurnAnimation ?? this.pageTurnAnimation,
       scrollAnimation: scrollAnimation ?? this.scrollAnimation,
+      themeMode: themeMode ?? this.themeMode,
     );
   }
 }

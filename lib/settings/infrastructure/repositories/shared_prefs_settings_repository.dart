@@ -1,5 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:atlas_app/core/theme/app_brand.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/domain/repository_interfaces/settings_repository_interface.dart';
@@ -7,6 +9,9 @@ import 'package:atlas_app/settings/domain/repository_interfaces/settings_reposit
 final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface {
   const SharedPrefsSettingsRepository();
 
+  static const _keySystemFont = 'system_font_family';
+  static const _keyBrand = 'app_brand';
+  static const _keyThemeMode = 'theme_mode';
   static const _keyFontSize = 'reader_font_size';
   static const _keyFontFamily = 'reader_font_family';
   static const _keyLineHeight = 'reader_line_height';
@@ -25,6 +30,19 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
   Future<ReadingSettingsEntity> load() async {
     final prefs = await SharedPreferences.getInstance();
     return ReadingSettingsEntity(
+      systemFontFamily: prefs.getString(_keySystemFont),
+      brand: switch (prefs.getString(_keyBrand)) {
+        'emerald' => AppBrand.emerald,
+        'ruby' => AppBrand.ruby,
+        'sapphire' => AppBrand.sapphire,
+        'amber' => AppBrand.amber,
+        _ => AppBrand.violet,
+      },
+      themeMode: switch (prefs.getString(_keyThemeMode)) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      },
       fontSize: prefs.getDouble(_keyFontSize) ?? 18.0,
       fontFamily: prefs.getString(_keyFontFamily),
       lineHeight: (prefs.getDouble(_keyLineHeight) ?? 1.8).clamp(1.0, 2.0),
@@ -78,6 +96,17 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
   @override
   Future<void> save(ReadingSettingsEntity settings) async {
     final prefs = await SharedPreferences.getInstance();
+    if (settings.systemFontFamily != null) {
+      await prefs.setString(_keySystemFont, settings.systemFontFamily!);
+    } else {
+      await prefs.remove(_keySystemFont);
+    }
+    await prefs.setString(_keyBrand, settings.brand.name);
+    await prefs.setString(_keyThemeMode, switch (settings.themeMode) {
+      ThemeMode.light => 'light',
+      ThemeMode.dark => 'dark',
+      _ => 'system',
+    });
     await prefs.setDouble(_keyFontSize, settings.fontSize);
     if (settings.fontFamily != null) {
       await prefs.setString(_keyFontFamily, settings.fontFamily!);

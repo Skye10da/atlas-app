@@ -201,6 +201,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
         currentChapterIndex: _currentChapter != null
             ? chapters.indexOf(_currentChapter!)
             : 0,
+        bookmarkedChapterIds: _bookmarkedChapterIds,
         initialScrollProgress: savedProgress,
         onScrollProgress: _onContinuousScrollProgress,
         onCurrentChapterChanged: _onContinuousChapterChanged,
@@ -218,6 +219,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       chapters: chapters,
       settings: settings,
       currentChapterIndex: chapters.indexOf(_currentChapter!),
+      bookmarkedChapterIds: _bookmarkedChapterIds,
       initialProgress: savedProgress,
       onPageChanged: _onPagedPageChanged,
       onProgressChanged: _onPagedProgressChanged,

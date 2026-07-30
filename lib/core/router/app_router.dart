@@ -1,10 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
 import 'package:atlas_app/core/router/transitions.dart';
 import 'package:atlas_app/library/presentation/screens/book_details_screen.dart';
 import 'package:atlas_app/library/presentation/screens/library_screen.dart';
+import 'package:atlas_app/library/presentation/screens/novel_details_screen.dart';
+import 'package:atlas_app/library/presentation/screens/source_browser_screen.dart';
+import 'package:atlas_app/library/presentation/screens/source_search_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/bookmarks_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/reader_screen.dart';
 import 'package:atlas_app/dictionary/presentation/screens/dictionary_screen.dart';
@@ -25,6 +28,24 @@ abstract final class AppRouter {
         pageBuilder: (context, state) => buildPageTransition(
           child: ReaderScreen(bookId: state.pathParameters['bookId']!),
           key: state.pathParameters['bookId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/sources',
+        name: 'sources',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const SourceBrowserScreen(),
+          key: state.uri.toString(),
+        ),
+      ),
+      GoRoute(
+        path: '/sources/:name',
+        name: 'sourceSearch',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: SourceSearchScreen(sourceName: state.pathParameters['name']!),
+          key: state.uri.toString(),
         ),
       ),
       StatefulShellRoute.indexedStack(
@@ -49,6 +70,14 @@ abstract final class AppRouter {
                   key: 'book_${state.pathParameters['bookId']!}',
                 ),
               ),
+              GoRoute(
+                path: '/novel/:bookId',
+                name: 'novelDetails',
+                pageBuilder: (context, state) => buildPageTransition(
+                  child: NovelDetailsScreen(bookId: state.pathParameters['bookId']!),
+                  key: 'novel_${state.pathParameters['bookId']!}',
+                ),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -64,20 +93,20 @@ abstract final class AppRouter {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/dictionary',
-                name: 'dictionary',
+                path: '/search',
+                name: 'search',
                 pageBuilder: (context, state) =>
-                    buildPageTransition(child: const DictionaryScreen(), key: 'dictionary'),
+                    buildPageTransition(child: const SearchScreen(), key: 'search'),
               ),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/search',
-                name: 'search',
+                path: '/dictionary',
+                name: 'dictionary',
                 pageBuilder: (context, state) =>
-                    buildPageTransition(child: const SearchScreen(), key: 'search'),
+                    buildPageTransition(child: const DictionaryScreen(), key: 'dictionary'),
               ),
             ],
           ),

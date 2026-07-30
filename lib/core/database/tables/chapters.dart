@@ -7,6 +7,7 @@ class Chapters extends Table {
   TextColumn get title => text()();
   TextColumn get contentPath => text()();
   IntColumn get wordCount => integer()();
+  IntColumn get contentState => integer().withDefault(const Constant(0))();
   IntColumn get pageCount => integer()();
   DateTimeColumn get createdAt => dateTime()();
 

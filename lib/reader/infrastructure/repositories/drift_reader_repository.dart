@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -20,6 +22,9 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
         ..where((c) => c.bookId.equals(bookId))
         ..orderBy([(c) => OrderingTerm.asc(c.index)])).get();
 
+      final book = await (_db.select(_db.books)..where((b) => b.id.equals(bookId))).getSingleOrNull();
+      final totalChapters = book?.totalChapters ?? rows.length;
+
       final chapters = rows
           .map((c) => ChapterEntity(
                 id: c.id,
@@ -29,12 +34,34 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
                 contentPath: c.contentPath,
                 wordCount: c.wordCount,
                 pageCount: c.pageCount,
+                contentState: c.contentState,
+                totalChapters: totalChapters,
               ))
           .toList();
 
       return Success(chapters);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to load chapters', e), st);
+    }
+  }
+
+  @override
+  Future<Result<void>> updateChapterContent(String bookId, int chapterIndex, String content) async {
+    try {
+      final row = await (_db.select(_db.chapters)
+        ..where((c) => c.bookId.equals(bookId))
+        ..where((c) => c.index.equals(chapterIndex))).getSingle();
+
+      final file = File(row.contentPath);
+      await file.writeAsString(content);
+
+      await (_db.update(_db.chapters)
+        ..where((c) => c.id.equals(row.id)))
+        .write(ChaptersCompanion(contentState: Value(ContentState.availableOffline.index)));
+
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to update chapter content', e), st);
     }
   }
 
@@ -92,6 +119,16 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
         coverPath: book.coverPath,
         format: book.format,
         totalChapters: book.totalChapters,
+        description: book.description,
+        language: book.language,
+        tags: _parseTags(book.tags),
+        rating: book.rating,
+        status: book.status,
+        fileSize: book.fileSize,
+        filePath: book.filePath,
+        sourceName: book.sourceName,
+        sourceId: book.sourceId,
+        sourceUrl: book.sourceUrl,
         createdAt: book.createdAt,
         updatedAt: book.updatedAt,
         lastOpenedAt: book.lastOpenedAt,
@@ -114,6 +151,17 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
   }
 
   @override
+  Future<Result<List<BookmarkEntity>>> getAllBookmarks() async {
+    try {
+      final rows = await (_db.select(_db.bookmarks)
+        ..orderBy([(b) => OrderingTerm.desc(b.createdAt)])).get();
+      return Success(rows.map(_toBookmarkEntity).toList());
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to load all bookmarks', e), st);
+    }
+  }
+
+  @override
   Future<Result<void>> addBookmark(BookmarkEntity bookmark) async {
     try {
       await _db.into(_db.bookmarks).insert(
@@ -122,8 +170,8 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
               bookId: Value(bookmark.bookId),
               chapterId: Value(bookmark.chapterId),
               position: Value(bookmark.position),
-              note: Value(bookmark.note),
-              color: Value(bookmark.color),
+              note: bookmark.note != null ? Value(bookmark.note) : const Value.absent(),
+              color: bookmark.color != null ? Value(bookmark.color) : const Value.absent(),
               createdAt: Value(bookmark.createdAt),
               updatedAt: Value(bookmark.updatedAt),
             ),
@@ -137,33 +185,32 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
   @override
   Future<Result<void>> removeBookmark(String bookmarkId) async {
     try {
-      await (_db.delete(_db.bookmarks)
-        ..where((b) => b.id.equals(bookmarkId))).go();
+      await (_db.delete(_db.bookmarks)..where((b) => b.id.equals(bookmarkId))).go();
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to remove bookmark', e), st);
     }
   }
 
-  @override
-  Future<Result<List<BookmarkEntity>>> getAllBookmarks() async {
-    try {
-      final rows = await (_db.select(_db.bookmarks)
-        ..orderBy([(b) => OrderingTerm.desc(b.createdAt)])).get();
-      return Success(rows.map(_toBookmarkEntity).toList());
-    } catch (e, st) {
-      return Failure(DatabaseException('Failed to load bookmarks', e), st);
-    }
+  BookmarkEntity _toBookmarkEntity(Bookmark row) {
+    return BookmarkEntity(
+      id: row.id,
+      bookId: row.bookId,
+      chapterId: row.chapterId,
+      position: row.position,
+      note: row.note,
+      color: row.color,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    );
   }
 
-  BookmarkEntity _toBookmarkEntity(Bookmark b) => BookmarkEntity(
-        id: b.id,
-        bookId: b.bookId,
-        chapterId: b.chapterId,
-        position: b.position,
-        note: b.note,
-        color: b.color,
-        createdAt: b.createdAt,
-        updatedAt: b.updatedAt,
-      );
+  List<String> _parseTags(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is List) return parsed.whereType<String>().toList();
+    } catch (_) {}
+    return raw.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+  }
 }

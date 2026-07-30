@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 
 enum ReadingViewTheme {
@@ -110,6 +111,11 @@ class ChapterView extends ConsumerStatefulWidget {
     this.onScroll,
     this.onScrollDirectionChanged,
     this.dropCapStyle,
+    this.chapterTitle,
+    this.onHighlight,
+    this.onAddNote,
+    this.onShare,
+    this.onSearchWeb,
   });
 
   final String content;
@@ -124,6 +130,23 @@ class ChapterView extends ConsumerStatefulWidget {
   final void Function(double scrollOffset)? onScroll;
   final void Function(ScrollDirection direction)? onScrollDirectionChanged;
   final TextStyle? dropCapStyle;
+  final String? chapterTitle;
+
+  /// Called with the selected text and chosen color when the reader taps a
+  /// highlight swatch in the context menu. Omit to hide highlighting.
+  final void Function(String text, Color color)? onHighlight;
+
+  /// Called with the selected text (and surrounding sentence, if available)
+  /// when the reader taps "Note". Omit to hide the note action.
+  final void Function(String text, String? sentence)? onAddNote;
+
+  /// Called with the selected text when the reader taps "Share". Omit to
+  /// hide the share action.
+  final void Function(String text)? onShare;
+
+  /// Called with the selected text when the reader taps "Search the web".
+  /// Omit to hide the search action.
+  final void Function(String text)? onSearchWeb;
 
   @override
   ConsumerState<ChapterView> createState() => _ChapterViewState();
@@ -211,8 +234,7 @@ class _ChapterViewState extends ConsumerState<ChapterView> {
           ],
         ),
         textAlign: widget.textAlignment.flutterTextAlign,
-        contextMenuBuilder: (ctx, editable) =>
-            _contextMenu(ctx, editable, c),
+        contextMenuBuilder: _contextMenuBuilder(c),
       );
     }
 
@@ -220,54 +242,110 @@ class _ChapterViewState extends ConsumerState<ChapterView> {
       c,
       style: textStyle,
       textAlign: widget.textAlignment.flutterTextAlign,
-      contextMenuBuilder: (ctx, editable) =>
-          _contextMenu(ctx, editable, c),
+      contextMenuBuilder: _contextMenuBuilder(c),
     );
   }
 
-  Widget _contextMenu(
-      BuildContext ctx, EditableTextState editable, String fullText) {
-    final sel = editable.textEditingValue.selection;
-    final buttonItems = <ContextMenuButtonItem>[
-      ContextMenuButtonItem(
-        label: 'Copy',
-        onPressed: () {
-          final data = editable.textEditingValue.selection.textInside(
-            editable.textEditingValue.text,
-          );
-          Clipboard.setData(ClipboardData(text: data));
-        },
-      ),
-      ContextMenuButtonItem(
-        label: 'Select all',
-        onPressed: () => editable.selectAll(SelectionChangedCause.toolbar),
-      ),
-    ];
+  static const _highlightPalette = [
+    AppContextMenuHighlightOption(color: Color(0xFFFFF176), label: 'Yellow'),
+    AppContextMenuHighlightOption(color: Color(0xFFA5D6A7), label: 'Green'),
+    AppContextMenuHighlightOption(color: Color(0xFF90CAF9), label: 'Blue'),
+    AppContextMenuHighlightOption(color: Color(0xFFF48FB1), label: 'Pink'),
+    AppContextMenuHighlightOption(color: Color(0xFFCE93D8), label: 'Purple'),
+  ];
 
-    if (sel.isValid && !sel.isCollapsed) {
-      final word = fullText.substring(sel.start, sel.end).trim();
-      if (word.isNotEmpty) {
-        buttonItems.insert(
-          0,
-          ContextMenuButtonItem(
-            label: 'Define "$word"',
-            onPressed: () => _showDefine(word),
-          ),
+  EditableTextContextMenuBuilder _contextMenuBuilder(String fullText) {
+    return AppContextMenu.builder(
+      build: (ctx, editable, anchor) {
+        final sel = editable.textEditingValue.selection;
+        final hasSelection = sel.isValid && !sel.isCollapsed;
+        final word = hasSelection
+            ? fullText.substring(sel.start, sel.end).trim()
+            : '';
+        final sentence =
+            hasSelection && word.isNotEmpty ? _sentenceAround(fullText, sel) : null;
+        final showSelectionActions = hasSelection && word.isNotEmpty;
+
+        return AppContextMenu(
+          anchor: anchor,
+          highlightColors: showSelectionActions ? _highlightPalette : const [],
+          onHighlightSelected: showSelectionActions && widget.onHighlight != null
+              ? (color) => widget.onHighlight!(word, color)
+              : null,
+          quickActions: [
+            AppContextMenuAction(
+              label: 'Copy',
+              icon: Icons.content_copy_rounded,
+              onPressed: () {
+                final data = editable.textEditingValue.selection.textInside(
+                  editable.textEditingValue.text,
+                );
+                Clipboard.setData(ClipboardData(text: data));
+              },
+            ),
+            if (showSelectionActions && widget.onAddNote != null)
+              AppContextMenuAction(
+                label: 'Note',
+                icon: Icons.edit_note_rounded,
+                onPressed: () => widget.onAddNote!(word, sentence),
+              ),
+            if (showSelectionActions && widget.onShare != null)
+              AppContextMenuAction(
+                label: 'Share',
+                icon: Icons.ios_share_rounded,
+                onPressed: () => widget.onShare!(word),
+              ),
+          ],
+          listActions: [
+            if (showSelectionActions)
+              AppContextMenuAction(
+                label: 'Define "$word"',
+                icon: Icons.translate_rounded,
+                onPressed: () => _showDefine(word, sentence: sentence),
+              ),
+            if (showSelectionActions && widget.onSearchWeb != null)
+              AppContextMenuAction(
+                label: 'Search the web for "$word"',
+                icon: Icons.search_rounded,
+                onPressed: () => widget.onSearchWeb!(word),
+              ),
+            AppContextMenuAction(
+              label: 'Select all',
+              icon: Icons.select_all_rounded,
+              onPressed: () => editable.selectAll(SelectionChangedCause.toolbar),
+            ),
+          ],
         );
-      }
-    }
-
-    return AdaptiveTextSelectionToolbar.buttonItems(
-      anchors: editable.contextMenuAnchors,
-      buttonItems: buttonItems,
+      },
     );
   }
 
-  void _showDefine(String word) {
+  String _sentenceAround(String fullText, TextSelection sel) {
+    if (!sel.isValid || sel.isCollapsed) return '';
+    const punctuation = '.!?\n';
+    int start = sel.start;
+    while (start > 0) {
+      if (punctuation.contains(fullText[start - 1])) break;
+      start--;
+    }
+    int end = sel.end;
+    while (end < fullText.length) {
+      if (punctuation.contains(fullText[end])) break;
+      end++;
+    }
+    if (end < fullText.length) end++;
+    return fullText.substring(start, end).trim();
+  }
+
+  void _showDefine(String word, {String? sentence}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => WordLookupSheet(word: word),
+      builder: (ctx) => WordLookupSheet(
+        word: word,
+        sourceSentence: sentence,
+        sourceTitle: widget.chapterTitle,
+      ),
     );
   }
 }

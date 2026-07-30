@@ -5,6 +5,7 @@ abstract interface class LibraryRepositoryInterface {
   Future<Result<List<BookEntity>>> getBooks();
   Future<Result<BookEntity>> getBookById(String id);
   Future<Result<void>> deleteBook(String id);
+  Future<Result<void>> deleteAllBooks();
   Future<Result<void>> updateBook(String id, {String? title, String? author});
   Future<Result<void>> markAsOpened(String id);
 }

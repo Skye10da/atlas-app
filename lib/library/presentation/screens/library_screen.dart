@@ -5,14 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
+import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/molecules/app_empty_state.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
+import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/domain/entities/bookshelf_layout.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
-import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/library/presentation/widgets/book_card.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -37,8 +39,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final filteredBooks = ref.watch(filteredLibraryProvider);
     final importActions = ref.watch(libraryImportProvider);
     final layout = ref.watch(bookshelfLayoutProvider);
-    final isDesktop = MediaQuery.of(context).size.width >= 1200;
-    final isTablet = MediaQuery.of(context).size.width >= 600 && !isDesktop;
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 900;
+    final isTablet = width >= 600 && !isDesktop;
+
+    final recentBooks = filteredBooks.take(3).toList();
 
     return AppScaffold(
       title: 'Library',
@@ -53,14 +58,53 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           onPressed: () => _cycleLayout(),
           tooltip: 'Layout: ${layout.label}',
         ),
-        IconButton(
-          icon: const Icon(Icons.file_upload_outlined),
-          onPressed: importActions.isImporting ? null : () => _importBook(),
-          tooltip: 'Import EPUB',
-        ),
+        if (importActions.isImporting)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  importActions.progress.message ?? 'Importing...',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ],
+            ),
+          )
+        else ...[
+          IconButton(
+            icon: const Icon(Icons.explore),
+            onPressed: () => context.push('/sources'),
+            tooltip: 'Browse',
+          ),
+          IconButton(
+            icon: const Icon(Icons.link),
+            onPressed: () => _importFromUrl(),
+            tooltip: 'Import from URL',
+          ),
+          IconButton(
+            icon: const Icon(Icons.file_upload_outlined),
+            onPressed: () => _importBook(),
+            tooltip: 'Import EPUB',
+          ),
+        ],
       ],
       child: Column(
         children: [
+          if (isDesktop)
+            _SortToolbar(
+              currentOrder: ref.watch(librarySortProvider),
+              onSort: (order) => ref.read(librarySortProvider.notifier).state = order,
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: TextField(
@@ -87,6 +131,42 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   ref.read(librarySearchQueryProvider.notifier).state = v,
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<LibraryCategory>(
+                segments: const [
+                  ButtonSegment(value: LibraryCategory.books, label: Text('Books')),
+                  ButtonSegment(value: LibraryCategory.novels, label: Text('Novels')),
+                ],
+                selected: {ref.watch(libraryCategoryProvider)},
+                onSelectionChanged: (selected) {
+                  ref.read(libraryCategoryProvider.notifier).state = selected.first;
+                  ref.read(libraryGenreFilterProvider.notifier).state = null;
+                },
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+          ),
+          if (ref.watch(libraryGenreFilterProvider) case final genre?)
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
+              child: Row(
+                children: [
+                  Chip(
+                    label: Text(genre, style: const TextStyle(fontSize: 12)),
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    onDeleted: () => ref.read(libraryGenreFilterProvider.notifier).state = null,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: booksAsync.when(
               loading: () => const AppLoading(),
@@ -99,10 +179,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 return switch (result) {
                   Success(value: _) => _BookshelfContent(
                       books: filteredBooks,
+                      recentBooks: recentBooks,
                       layout: layout,
-                      isTablet: isTablet,
                       isDesktop: isDesktop,
-                      onBookTap: (id) => context.push('/book/$id'),
+                      isTablet: isTablet,
+                      onBookTap: (id) {
+                        final book = filteredBooks.where((b) => b.id == id).firstOrNull;
+                        if (book?.isNovel == true) {
+                          context.push('/novel/$id');
+                        } else {
+                          context.push('/book/$id');
+                        }
+                      },
+                      onBookLongPress: (id, pos) => _showBookContextMenu(id, pos),
                       onLoadSamples: () => _loadSamples(),
                       onImport: () => _importBook(),
                       onDeleteBook: (id) => _deleteBook(id),
@@ -121,6 +210,58 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ),
     );
   }
+
+  void _showBookContextMenu(String bookId, Offset globalPosition) {
+  final overlay = Overlay.of(context);
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (ctx) => Stack(
+      children: [
+        GestureDetector(
+          onTap: () => entry.remove(),
+          behavior: HitTestBehavior.opaque,
+          child: Container(color: Colors.transparent),
+        ),
+        Material(
+          type: MaterialType.transparency,
+          child: AppContextMenu(
+            anchor: globalPosition,
+            quickActions: [
+              AppContextMenuAction(
+                label: 'Continue',
+                icon: Icons.play_arrow_rounded,
+                onPressed: () => context.push('/reader/$bookId'),
+              ),
+              AppContextMenuAction(
+                label: 'Details',
+                icon: Icons.info_outline_rounded,
+                onPressed: () {
+                  final books = ref.read(filteredLibraryProvider);
+                  final book = books.where((b) => b.id == bookId).firstOrNull;
+                  if (book?.isNovel == true) {
+                    context.push('/novel/$bookId');
+                  } else {
+                    context.push('/book/$bookId');
+                  }
+                },
+              ),
+            ],
+            listActions: [
+              AppContextMenuAction(
+                label: 'Delete',
+                icon: Icons.delete_outline_rounded,
+                onPressed: () => _deleteBook(bookId),
+                destructive: true,
+              ),
+            ],
+            onDismiss: () => entry.remove(),
+          ),
+        ),
+      ],
+    ),
+  );
+  overlay.insert(entry);
+}
 
   void _cycleLayout() {
     final current = ref.read(bookshelfLayoutProvider);
@@ -170,6 +311,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     });
   }
 
+  Future<void> _importFromUrl() async {
+    final actions = ref.read(libraryImportProvider);
+    final result = await actions.importUrl(context);
+    ref.invalidate(libraryBooksProvider);
+
+    if (result is Success<String> && mounted) {
+      await context.push('/book/${result.value}');
+    } else if (result is Failure<String> && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.error.userMessage)),
+      );
+    }
+  }
+
   Future<void> _importBook() async {
     final actions = ref.read(libraryImportProvider);
     final result = await actions.import();
@@ -211,13 +366,191 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
+class _SortToolbar extends StatelessWidget {
+  const _SortToolbar({
+    required this.currentOrder,
+    required this.onSort,
+  });
+
+  final LibrarySortOrder currentOrder;
+  final void Function(LibrarySortOrder) onSort;
+
+  @override
+  Widget build(BuildContext context) {
+    final options = [
+      (LibrarySortOrder.recentlyRead, 'Recent'),
+      (LibrarySortOrder.titleAsc, 'Title'),
+      (LibrarySortOrder.author, 'Author'),
+      (LibrarySortOrder.recentlyAdded, 'Added'),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          ...options.map((o) {
+            final selected = o.$1 == currentOrder;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(o.$2, style: const TextStyle(fontSize: 12)),
+                selected: selected,
+                onSelected: (_) => onSort(o.$1),
+                visualDensity: VisualDensity.compact,
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContinueReadingStrip extends StatelessWidget {
+  const _ContinueReadingStrip({
+    required this.books,
+    required this.onBookTap,
+  });
+
+  final List<BookEntity> books;
+  final void Function(String id) onBookTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (books.isEmpty) return const SizedBox.shrink();
+
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: [
+              Icon(Icons.trending_up, size: 16, color: cs.primary),
+              const SizedBox(width: 6),
+              Text('Continue Reading',
+                  style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 140,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: books.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final book = books[index];
+              return _ContinueReadingCard(
+                book: book,
+                onTap: () => onBookTap(book.id),
+              );
+            },
+          ),
+        ),
+        const Divider(indent: 16, endIndent: 16),
+      ],
+    );
+  }
+}
+
+class _ContinueReadingCard extends StatefulWidget {
+  const _ContinueReadingCard({required this.book, required this.onTap});
+
+  final BookEntity book;
+  final VoidCallback onTap;
+
+  @override
+  State<_ContinueReadingCard> createState() => _ContinueReadingCardState();
+}
+
+class _ContinueReadingCardState extends State<_ContinueReadingCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 200,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: cs.surfaceContainerHighest,
+            boxShadow: _hovered
+                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 4))]
+                : null,
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                child: BookCover(
+                  coverPath: widget.book.coverPath,
+                  width: 80,
+                  height: 140,
+                  format: widget.book.format,
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        widget.book.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      if (widget.book.author != null)
+                        Text(
+                          widget.book.author!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      const Spacer(),
+                      if (widget.book.progress != null && widget.book.progress! > 0)
+                        LinearProgressIndicator(
+                          value: widget.book.progress! / 100,
+                          minHeight: 3,
+                          backgroundColor: cs.surfaceContainerHighest,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BookshelfContent extends StatelessWidget {
   const _BookshelfContent({
     required this.books,
+    required this.recentBooks,
     required this.layout,
     required this.isTablet,
     required this.isDesktop,
     required this.onBookTap,
+    required this.onBookLongPress,
     required this.onLoadSamples,
     required this.onImport,
     required this.onDeleteBook,
@@ -225,10 +558,12 @@ class _BookshelfContent extends StatelessWidget {
   });
 
   final List<BookEntity> books;
+  final List<BookEntity> recentBooks;
   final BookshelfLayout layout;
   final bool isTablet;
   final bool isDesktop;
   final void Function(String id) onBookTap;
+  final void Function(String id, Offset globalPosition) onBookLongPress;
   final VoidCallback onLoadSamples;
   final VoidCallback onImport;
   final void Function(String id) onDeleteBook;
@@ -268,14 +603,31 @@ class _BookshelfContent extends StatelessWidget {
       );
     }
 
-    return Stack(
+    return ListView(
       children: [
+        if (isDesktop || recentBooks.isNotEmpty)
+          _ContinueReadingStrip(books: recentBooks, onBookTap: onBookTap),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            isDesktop ? 0 : AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: Text(
+            isDesktop ? 'All Books' : 'Library',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
         switch (layout) {
           BookshelfLayout.grid => _BookshelfGrid(
               books: books,
               isDesktop: isDesktop,
               isTablet: isTablet,
               onBookTap: onBookTap,
+              onBookLongPress: onBookLongPress,
               onDeleteBook: onDeleteBook,
             ),
           BookshelfLayout.list => _BookshelfList(
@@ -289,25 +641,6 @@ class _BookshelfContent extends StatelessWidget {
               onDeleteBook: onDeleteBook,
             ),
         },
-        if (isImporting)
-          Positioned(
-            bottom: 16,
-            left: 16,
-            right: 16,
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const CircularProgressIndicator(strokeWidth: 2),
-                    const SizedBox(width: 16),
-                    Text('Importing EPUB...',
-                        style: Theme.of(context).textTheme.bodyMedium),
-                  ],
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
@@ -319,6 +652,7 @@ class _BookshelfGrid extends StatelessWidget {
     required this.isDesktop,
     required this.isTablet,
     required this.onBookTap,
+    required this.onBookLongPress,
     required this.onDeleteBook,
   });
 
@@ -326,6 +660,7 @@ class _BookshelfGrid extends StatelessWidget {
   final bool isDesktop;
   final bool isTablet;
   final void Function(String id) onBookTap;
+  final void Function(String id, Offset globalPosition) onBookLongPress;
   final void Function(String id) onDeleteBook;
 
   @override
@@ -335,7 +670,9 @@ class _BookshelfGrid extends StatelessWidget {
     final coverHeight = isDesktop ? 210.0 : isTablet ? 180.0 : 150.0;
 
     return GridView.builder(
-      padding: EdgeInsets.all(isDesktop ? 32 : 16),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         mainAxisSpacing: isDesktop ? 20 : 12,
@@ -349,9 +686,204 @@ class _BookshelfGrid extends StatelessWidget {
           book: book,
           coverWidth: coverWidth,
           coverHeight: coverHeight,
+          isDesktop: isDesktop,
           onTap: () => onBookTap(book.id),
+          onLongPress: (pos) => onBookLongPress(book.id, pos),
         );
       },
+    );
+  }
+}
+
+class BookGridCard extends StatefulWidget {
+  const BookGridCard({
+    super.key,
+    required this.book,
+    required this.coverWidth,
+    required this.coverHeight,
+    this.isDesktop = false,
+    required this.onTap,
+    this.onLongPress,
+  });
+
+  final BookEntity book;
+  final double coverWidth;
+  final double coverHeight;
+  final bool isDesktop;
+  final VoidCallback onTap;
+  final void Function(Offset position)? onLongPress;
+
+  @override
+  State<BookGridCard> createState() => _BookGridCardState();
+}
+
+class _BookGridCardState extends State<BookGridCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onLongPressStart: widget.onLongPress != null
+            ? (d) => widget.onLongPress!(d.globalPosition)
+            : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          transform: _hovered && widget.isDesktop
+              ? (Matrix4.identity()..translateByDouble(0.0, -4.0, 0.0, 1.0))
+              : Matrix4.identity(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  Hero(
+                    tag: 'book-cover-${widget.book.id}',
+                    child: BookCover(
+                      coverPath: widget.book.coverPath,
+                      width: widget.coverWidth,
+                      height: widget.coverHeight,
+                      format: widget.book.format,
+                    ),
+                  ),
+                  if (widget.book.progress == null)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: cs.primary,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'New',
+                          style: TextStyle(
+                            color: cs.onPrimary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (widget.book.progress != null && widget.book.progress! > 0)
+                    Positioned(
+                      bottom: 4,
+                      left: 4,
+                      right: 4,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: widget.book.progress! / 100,
+                          minHeight: 3,
+                          backgroundColor: Colors.black26,
+                          valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                        ),
+                      ),
+                    ),
+                  if (_hovered && widget.isDesktop)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 150),
+                        opacity: _hovered ? 1.0 : 0.0,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.8),
+                                Colors.transparent,
+                              ],
+                            ),
+                            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(4)),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _QuickActionChip(
+                                icon: Icons.play_arrow,
+                                label: 'Read',
+                                onTap: widget.onTap,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.book.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+              ),
+              if (widget.book.author != null)
+                Text(
+                  widget.book.author!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionChip extends StatelessWidget {
+  const _QuickActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.2),
+      borderRadius: BorderRadius.circular(6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: Colors.white),
+              const SizedBox(width: 4),
+              Text(label,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -370,7 +902,9 @@ class _BookshelfList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 48),
       itemCount: books.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
@@ -438,6 +972,7 @@ class _BookshelfScatteredState extends State<_BookshelfScattered> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final isDesktop = MediaQuery.of(context).size.width >= 1200;
     final coverWidth = isDesktop ? 130.0 : 90.0;
     final coverHeight = isDesktop ? 195.0 : 135.0;
@@ -480,11 +1015,36 @@ class _BookshelfScatteredState extends State<_BookshelfScattered> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                BookCover(
-                                  coverPath: book.coverPath,
-                                  format: book.format,
-                                  width: coverWidth,
-                                  height: coverHeight,
+                                Stack(
+                                  children: [
+                                    BookCover(
+                                      coverPath: book.coverPath,
+                                      format: book.format,
+                                      width: coverWidth,
+                                      height: coverHeight,
+                                    ),
+                                    if (book.progress == null)
+                                      Positioned(
+                                        top: 2,
+                                        right: 2,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: cs.primary,
+                                            borderRadius: BorderRadius.circular(3),
+                                          ),
+                                          child: Text(
+                                            'New',
+                                            style: TextStyle(
+                                              color: cs.onPrimary,
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(

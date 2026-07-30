@@ -108,31 +108,32 @@ class EpubImportService {
       }
 
       var chapterIndex = 0;
-      for (final epubChapter in _flattenChapters(book.chapters)) {
-        final html = epubChapter.htmlContent;
-        if (html == null) continue;
+      final flatChapters = _flattenChapters(book.chapters);
 
-        final text = _stripHtml(html).trim();
-        if (text.isEmpty) continue;
+      if (flatChapters.isNotEmpty) {
+        for (final epubChapter in flatChapters) {
+          final html = epubChapter.htmlContent;
+          if (html == null) continue;
 
-        final chTitle = epubChapter.title ?? 'Chapter ${chapterIndex + 1}';
-        final chapterId = '${bookId}_ch$chapterIndex';
-        final contentPath = p.join(bookDir.path, '$chapterId.txt');
+          final text = _stripHtml(html).trim();
+          if (text.isEmpty) continue;
 
-        await File(contentPath).writeAsString(text);
+          final chTitle = epubChapter.title ?? 'Chapter ${chapterIndex + 1}';
+          chapterIndex = await _writeChapter(bookId, bookDir, chTitle, text, chapterIndex);
+        }
+      }
 
-        await _db.into(_db.chapters).insert(ChaptersCompanion(
-          id: Value(chapterId),
-          bookId: Value(bookId),
-          index: Value(chapterIndex),
-          title: Value(chTitle),
-          contentPath: Value(contentPath),
-          wordCount: Value(text.split(RegExp(r'\s+')).length),
-          pageCount: Value((text.length / 2000).ceil()),
-          createdAt: Value(DateTime.now()),
-        ));
-
-        chapterIndex++;
+      if (chapterIndex == 0) {
+        final content = book.content;
+        if (content != null) {
+          for (final entry in content.html.entries) {
+            final raw = entry.value.content;
+            if (raw == null) continue;
+            final text = _stripHtml(raw).trim();
+            if (text.isEmpty) continue;
+            chapterIndex = await _writeChapter(bookId, bookDir, 'Chapter ${chapterIndex + 1}', text, chapterIndex);
+          }
+        }
       }
 
       if (chapterIndex == 0) {
@@ -155,6 +156,23 @@ class EpubImportService {
     } on Exception catch (e) {
       return Failure(ValidationException('Failed to import epub: $e'));
     }
+  }
+
+  Future<int> _writeChapter(String bookId, Directory bookDir, String title, String text, int index) async {
+    final chapterId = '${bookId}_ch$index';
+    final contentPath = p.join(bookDir.path, '$chapterId.txt');
+    await File(contentPath).writeAsString(text);
+    await _db.into(_db.chapters).insert(ChaptersCompanion(
+      id: Value(chapterId),
+      bookId: Value(bookId),
+      index: Value(index),
+      title: Value(title),
+      contentPath: Value(contentPath),
+      wordCount: Value(text.split(RegExp(r'\s+')).length),
+      pageCount: Value((text.length / 2000).ceil()),
+      createdAt: Value(DateTime.now()),
+    ));
+    return index + 1;
   }
 
   List<EpubChapter> _flattenChapters(List<EpubChapter> chapters) {

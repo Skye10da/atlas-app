@@ -3,21 +3,28 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_content_loader.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_bottom_nav.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_command_palette.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_progress_bar.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_right_panel.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
+import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 
-class ContinuousReaderLayout extends StatefulWidget {
+class ContinuousReaderLayout extends ConsumerStatefulWidget {
   const ContinuousReaderLayout({
     super.key,
     required this.chapters,
     required this.settings,
     required this.currentChapterIndex,
+    required this.bookmarkedChapterIds,
     this.initialScrollProgress,
     required this.onScrollProgress,
     required this.onCurrentChapterChanged,
@@ -31,6 +38,7 @@ class ContinuousReaderLayout extends StatefulWidget {
   final List<ChapterEntity> chapters;
   final ReadingSettingsEntity settings;
   final int currentChapterIndex;
+  final Set<String> bookmarkedChapterIds;
   final double? initialScrollProgress;
   final void Function(double) onScrollProgress;
   final void Function(int) onCurrentChapterChanged;
@@ -41,17 +49,20 @@ class ContinuousReaderLayout extends StatefulWidget {
   final VoidCallback onBookmarkToggle;
 
   @override
-  State<ContinuousReaderLayout> createState() =>
+  ConsumerState<ContinuousReaderLayout> createState() =>
       _ContinuousReaderLayoutState();
 }
 
-class _ContinuousReaderLayoutState extends State<ContinuousReaderLayout> {
+class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout> {
   static const _snapScrollDuration = Duration(milliseconds: 300);
+  static const _rightPanelWidth = 280.0;
 
   final _scrollController = ScrollController();
   double _lastScrollPos = 0;
   double _scrollOffset = 0;
   bool _chromeVisible = true;
+  bool _rightPanelVisible = false;
+  bool _commandPaletteVisible = false;
   Timer? _chromeTimer;
   ScrollAnimation _animation = ScrollAnimation.smooth;
 
@@ -184,7 +195,20 @@ class _ContinuousReaderLayoutState extends State<ContinuousReaderLayout> {
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (_commandPaletteVisible) {
+        setState(() => _commandPaletteVisible = false);
+        return KeyEventResult.handled;
+      }
       _toggleChrome();
+      return KeyEventResult.handled;
+    }
+
+    final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    if (isCtrlOrCmd && event.logicalKey == LogicalKeyboardKey.keyK) {
+      if (!_commandPaletteVisible) {
+        setState(() => _commandPaletteVisible = true);
+      }
       return KeyEventResult.handled;
     }
 
@@ -260,6 +284,39 @@ class _ContinuousReaderLayoutState extends State<ContinuousReaderLayout> {
       });
     }
     _lastScrollPos = pos.pixels;
+  }
+
+  bool get _isDesktop => MediaQuery.of(context).size.width >= 840;
+
+  void _toggleRightPanel() {
+    setState(() => _rightPanelVisible = !_rightPanelVisible);
+  }
+
+  void _hideRightPanel() {
+    if (_rightPanelVisible) setState(() => _rightPanelVisible = false);
+  }
+
+  double? _brightnessDragStartY;
+  double? _brightnessDragStartValue;
+
+  void _onEdgeBrightnessStart(DragStartDetails details) {
+    _brightnessDragStartY = details.localPosition.dy;
+    _brightnessDragStartValue = widget.settings.brightness;
+  }
+
+  void _onEdgeBrightnessUpdate(DragUpdateDetails details) {
+    if (_brightnessDragStartY == null || _brightnessDragStartValue == null) return;
+    final delta = (details.localPosition.dy - _brightnessDragStartY!) / 300;
+    final newBrightness = (_brightnessDragStartValue! - delta).clamp(0.0, 1.0);
+    final notifier = ref.read(readingSettingsProvider.notifier);
+    notifier.setBrightness(newBrightness);
+    final svc = ref.read(platformServiceProvider);
+    svc.setBrightness(newBrightness, smooth: true);
+  }
+
+  void _onEdgeBrightnessEnd(DragEndDetails details) {
+    _brightnessDragStartY = null;
+    _brightnessDragStartValue = null;
   }
 
   bool _onScrollEnd(ScrollEndNotification notification) {
@@ -464,6 +521,18 @@ class _ContinuousReaderLayoutState extends State<ContinuousReaderLayout> {
               title: Text(chapters[index].title, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 14)),
               actions: [
+                if (_isDesktop) ...[
+                  IconButton(
+                    icon: Icon(
+                      _rightPanelVisible ? Icons.view_sidebar : Icons.view_sidebar_outlined,
+                      size: 18,
+                      color: vt.text,
+                    ),
+                    tooltip: 'Toggle panel',
+                    onPressed: _toggleRightPanel,
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 IconButton(
                   icon: Icon(Icons.text_fields, size: 18, color: vt.text),
                   onPressed: widget.onSettingsTap,
@@ -471,19 +540,118 @@ class _ContinuousReaderLayoutState extends State<ContinuousReaderLayout> {
               ],
             )
           : null,
-      body: Focus(
-        autofocus: true,
-        onKeyEvent: _handleKeyEvent,
-        child: GestureDetector(
-        onTap: _toggleChrome,
-        child: _wrapWithAnimation(
-          ListView.builder(
-            controller: _scrollController,
-            itemCount: chapters.length,
-            itemBuilder: (context, index) => _buildChapterBlock(chapters[index], index, showHeaders: _chromeVisible),
+      body: Stack(
+        children: [
+          Focus(
+            autofocus: true,
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.escape) {
+                if (_rightPanelVisible) {
+                  _hideRightPanel();
+                  return KeyEventResult.handled;
+                }
+              }
+              return _handleKeyEvent(node, event);
+            },
+            child: GestureDetector(
+              onTap: () {
+                if (_rightPanelVisible) {
+                  _hideRightPanel();
+                }
+                _toggleChrome();
+              },
+              child: _wrapWithAnimation(
+                ListView.builder(
+                  controller: _scrollController,
+                  itemCount: chapters.length,
+                  itemBuilder: (context, index) => _buildChapterBlock(chapters[index], index, showHeaders: _chromeVisible),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+          if (!_isDesktop && _chromeVisible)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ReaderProgressBar(
+                progress: _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0
+                    ? _scrollController.offset / _scrollController.position.maxScrollExtent
+                    : 0.0,
+                color: widget.settings.theme.accent,
+              ),
+            ),
+          if (!_isDesktop)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 40,
+              child: GestureDetector(
+                onVerticalDragStart: _onEdgeBrightnessStart,
+                onVerticalDragUpdate: _onEdgeBrightnessUpdate,
+                onVerticalDragEnd: _onEdgeBrightnessEnd,
+                behavior: HitTestBehavior.translucent,
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+          if (_isDesktop) ...[
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: 8,
+              child: MouseRegion(
+                onEnter: (_) {
+                  if (!_rightPanelVisible) {
+                    setState(() => _rightPanelVisible = true);
+                  }
+                },
+                cursor: _rightPanelVisible ? SystemMouseCursors.basic : SystemMouseCursors.click,
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+            if (_rightPanelVisible)
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: _rightPanelWidth,
+                child: ReaderRightPanel(
+                  chapters: chapters,
+                  currentChapterIndex: index,
+                  bookmarkedChapterIds: widget.bookmarkedChapterIds,
+                  onChapterSelected: (idx) {
+                    widget.onChapterSelected(idx);
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _scrollToChapter(idx),
+                    );
+                  },
+                  onBookmarkToggle: widget.onBookmarkToggle,
+                  isBookmarked: widget.isBookmarked,
+                  onClose: _hideRightPanel,
+                  settings: widget.settings,
+                ),
+              ),
+          ],
+          if (_commandPaletteVisible)
+            ReaderCommandPalette(
+              chapters: chapters,
+              currentChapterIndex: index,
+              onChapterSelected: (idx) {
+                widget.onChapterSelected(idx);
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _scrollToChapter(idx),
+                );
+              },
+              onToggleBookmark: widget.onBookmarkToggle,
+              isBookmarked: widget.isBookmarked,
+              onToggleSettings: widget.onSettingsTap,
+              onTogglePanel: _toggleRightPanel,
+              onClose: () => setState(() => _commandPaletteVisible = false),
+            ),
+        ],
       ),
       bottomNavigationBar: _chromeVisible
           ? ReaderBottomNav(

@@ -119,6 +119,39 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sourceNameMeta = const VerificationMeta(
+    'sourceName',
+  );
+  @override
+  late final GeneratedColumn<String> sourceName = GeneratedColumn<String>(
+    'source_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceUrlMeta = const VerificationMeta(
+    'sourceUrl',
+  );
+  @override
+  late final GeneratedColumn<String> sourceUrl = GeneratedColumn<String>(
+    'source_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _ratingMeta = const VerificationMeta('rating');
   @override
   late final GeneratedColumn<double> rating = GeneratedColumn<double>(
@@ -126,6 +159,15 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     aliasedName,
     true,
     type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
@@ -174,7 +216,11 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     totalChapters,
     language,
     tags,
+    sourceName,
+    sourceId,
+    sourceUrl,
     rating,
+    status,
     createdAt,
     updatedAt,
     lastOpenedAt,
@@ -270,10 +316,34 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         tags.isAcceptableOrUnknown(data['tags']!, _tagsMeta),
       );
     }
+    if (data.containsKey('source_name')) {
+      context.handle(
+        _sourceNameMeta,
+        sourceName.isAcceptableOrUnknown(data['source_name']!, _sourceNameMeta),
+      );
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    }
+    if (data.containsKey('source_url')) {
+      context.handle(
+        _sourceUrlMeta,
+        sourceUrl.isAcceptableOrUnknown(data['source_url']!, _sourceUrlMeta),
+      );
+    }
     if (data.containsKey('rating')) {
       context.handle(
         _ratingMeta,
         rating.isAcceptableOrUnknown(data['rating']!, _ratingMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
       );
     }
     if (data.containsKey('created_at')) {
@@ -354,9 +424,25 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         DriftSqlType.string,
         data['${effectivePrefix}tags'],
       ),
+      sourceName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_name'],
+      ),
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      ),
+      sourceUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_url'],
+      ),
       rating: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}rating'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
       ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -391,7 +477,11 @@ class Book extends DataClass implements Insertable<Book> {
   final int totalChapters;
   final String? language;
   final String? tags;
+  final String? sourceName;
+  final String? sourceId;
+  final String? sourceUrl;
   final double? rating;
+  final String? status;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastOpenedAt;
@@ -407,7 +497,11 @@ class Book extends DataClass implements Insertable<Book> {
     required this.totalChapters,
     this.language,
     this.tags,
+    this.sourceName,
+    this.sourceId,
+    this.sourceUrl,
     this.rating,
+    this.status,
     required this.createdAt,
     required this.updatedAt,
     this.lastOpenedAt,
@@ -438,8 +532,20 @@ class Book extends DataClass implements Insertable<Book> {
     if (!nullToAbsent || tags != null) {
       map['tags'] = Variable<String>(tags);
     }
+    if (!nullToAbsent || sourceName != null) {
+      map['source_name'] = Variable<String>(sourceName);
+    }
+    if (!nullToAbsent || sourceId != null) {
+      map['source_id'] = Variable<String>(sourceId);
+    }
+    if (!nullToAbsent || sourceUrl != null) {
+      map['source_url'] = Variable<String>(sourceUrl);
+    }
     if (!nullToAbsent || rating != null) {
       map['rating'] = Variable<double>(rating);
+    }
+    if (!nullToAbsent || status != null) {
+      map['status'] = Variable<String>(status);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -472,9 +578,21 @@ class Book extends DataClass implements Insertable<Book> {
           ? const Value.absent()
           : Value(language),
       tags: tags == null && nullToAbsent ? const Value.absent() : Value(tags),
+      sourceName: sourceName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceName),
+      sourceId: sourceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceId),
+      sourceUrl: sourceUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceUrl),
       rating: rating == null && nullToAbsent
           ? const Value.absent()
           : Value(rating),
+      status: status == null && nullToAbsent
+          ? const Value.absent()
+          : Value(status),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       lastOpenedAt: lastOpenedAt == null && nullToAbsent
@@ -500,7 +618,11 @@ class Book extends DataClass implements Insertable<Book> {
       totalChapters: serializer.fromJson<int>(json['totalChapters']),
       language: serializer.fromJson<String?>(json['language']),
       tags: serializer.fromJson<String?>(json['tags']),
+      sourceName: serializer.fromJson<String?>(json['sourceName']),
+      sourceId: serializer.fromJson<String?>(json['sourceId']),
+      sourceUrl: serializer.fromJson<String?>(json['sourceUrl']),
       rating: serializer.fromJson<double?>(json['rating']),
+      status: serializer.fromJson<String?>(json['status']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       lastOpenedAt: serializer.fromJson<DateTime?>(json['lastOpenedAt']),
@@ -521,7 +643,11 @@ class Book extends DataClass implements Insertable<Book> {
       'totalChapters': serializer.toJson<int>(totalChapters),
       'language': serializer.toJson<String?>(language),
       'tags': serializer.toJson<String?>(tags),
+      'sourceName': serializer.toJson<String?>(sourceName),
+      'sourceId': serializer.toJson<String?>(sourceId),
+      'sourceUrl': serializer.toJson<String?>(sourceUrl),
       'rating': serializer.toJson<double?>(rating),
+      'status': serializer.toJson<String?>(status),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'lastOpenedAt': serializer.toJson<DateTime?>(lastOpenedAt),
@@ -540,7 +666,11 @@ class Book extends DataClass implements Insertable<Book> {
     int? totalChapters,
     Value<String?> language = const Value.absent(),
     Value<String?> tags = const Value.absent(),
+    Value<String?> sourceName = const Value.absent(),
+    Value<String?> sourceId = const Value.absent(),
+    Value<String?> sourceUrl = const Value.absent(),
     Value<double?> rating = const Value.absent(),
+    Value<String?> status = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> lastOpenedAt = const Value.absent(),
@@ -556,7 +686,11 @@ class Book extends DataClass implements Insertable<Book> {
     totalChapters: totalChapters ?? this.totalChapters,
     language: language.present ? language.value : this.language,
     tags: tags.present ? tags.value : this.tags,
+    sourceName: sourceName.present ? sourceName.value : this.sourceName,
+    sourceId: sourceId.present ? sourceId.value : this.sourceId,
+    sourceUrl: sourceUrl.present ? sourceUrl.value : this.sourceUrl,
     rating: rating.present ? rating.value : this.rating,
+    status: status.present ? status.value : this.status,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     lastOpenedAt: lastOpenedAt.present ? lastOpenedAt.value : this.lastOpenedAt,
@@ -578,7 +712,13 @@ class Book extends DataClass implements Insertable<Book> {
           : this.totalChapters,
       language: data.language.present ? data.language.value : this.language,
       tags: data.tags.present ? data.tags.value : this.tags,
+      sourceName: data.sourceName.present
+          ? data.sourceName.value
+          : this.sourceName,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
       rating: data.rating.present ? data.rating.value : this.rating,
+      status: data.status.present ? data.status.value : this.status,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       lastOpenedAt: data.lastOpenedAt.present
@@ -601,7 +741,11 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('totalChapters: $totalChapters, ')
           ..write('language: $language, ')
           ..write('tags: $tags, ')
+          ..write('sourceName: $sourceName, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('sourceUrl: $sourceUrl, ')
           ..write('rating: $rating, ')
+          ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt')
@@ -622,7 +766,11 @@ class Book extends DataClass implements Insertable<Book> {
     totalChapters,
     language,
     tags,
+    sourceName,
+    sourceId,
+    sourceUrl,
     rating,
+    status,
     createdAt,
     updatedAt,
     lastOpenedAt,
@@ -642,7 +790,11 @@ class Book extends DataClass implements Insertable<Book> {
           other.totalChapters == this.totalChapters &&
           other.language == this.language &&
           other.tags == this.tags &&
+          other.sourceName == this.sourceName &&
+          other.sourceId == this.sourceId &&
+          other.sourceUrl == this.sourceUrl &&
           other.rating == this.rating &&
+          other.status == this.status &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.lastOpenedAt == this.lastOpenedAt);
@@ -660,7 +812,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<int> totalChapters;
   final Value<String?> language;
   final Value<String?> tags;
+  final Value<String?> sourceName;
+  final Value<String?> sourceId;
+  final Value<String?> sourceUrl;
   final Value<double?> rating;
+  final Value<String?> status;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> lastOpenedAt;
@@ -677,7 +833,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.totalChapters = const Value.absent(),
     this.language = const Value.absent(),
     this.tags = const Value.absent(),
+    this.sourceName = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
     this.rating = const Value.absent(),
+    this.status = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.lastOpenedAt = const Value.absent(),
@@ -695,7 +855,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
     required int totalChapters,
     this.language = const Value.absent(),
     this.tags = const Value.absent(),
+    this.sourceName = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
     this.rating = const Value.absent(),
+    this.status = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
     this.lastOpenedAt = const Value.absent(),
@@ -719,7 +883,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<int>? totalChapters,
     Expression<String>? language,
     Expression<String>? tags,
+    Expression<String>? sourceName,
+    Expression<String>? sourceId,
+    Expression<String>? sourceUrl,
     Expression<double>? rating,
+    Expression<String>? status,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? lastOpenedAt,
@@ -737,7 +905,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (totalChapters != null) 'total_chapters': totalChapters,
       if (language != null) 'language': language,
       if (tags != null) 'tags': tags,
+      if (sourceName != null) 'source_name': sourceName,
+      if (sourceId != null) 'source_id': sourceId,
+      if (sourceUrl != null) 'source_url': sourceUrl,
       if (rating != null) 'rating': rating,
+      if (status != null) 'status': status,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (lastOpenedAt != null) 'last_opened_at': lastOpenedAt,
@@ -757,7 +929,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Value<int>? totalChapters,
     Value<String?>? language,
     Value<String?>? tags,
+    Value<String?>? sourceName,
+    Value<String?>? sourceId,
+    Value<String?>? sourceUrl,
     Value<double?>? rating,
+    Value<String?>? status,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? lastOpenedAt,
@@ -775,7 +951,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
       totalChapters: totalChapters ?? this.totalChapters,
       language: language ?? this.language,
       tags: tags ?? this.tags,
+      sourceName: sourceName ?? this.sourceName,
+      sourceId: sourceId ?? this.sourceId,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
       rating: rating ?? this.rating,
+      status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
@@ -819,8 +999,20 @@ class BooksCompanion extends UpdateCompanion<Book> {
     if (tags.present) {
       map['tags'] = Variable<String>(tags.value);
     }
+    if (sourceName.present) {
+      map['source_name'] = Variable<String>(sourceName.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (sourceUrl.present) {
+      map['source_url'] = Variable<String>(sourceUrl.value);
+    }
     if (rating.present) {
       map['rating'] = Variable<double>(rating.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -851,7 +1043,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('totalChapters: $totalChapters, ')
           ..write('language: $language, ')
           ..write('tags: $tags, ')
+          ..write('sourceName: $sourceName, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('sourceUrl: $sourceUrl, ')
           ..write('rating: $rating, ')
+          ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt, ')
@@ -924,6 +1120,18 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _contentStateMeta = const VerificationMeta(
+    'contentState',
+  );
+  @override
+  late final GeneratedColumn<int> contentState = GeneratedColumn<int>(
+    'content_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _pageCountMeta = const VerificationMeta(
     'pageCount',
   );
@@ -954,6 +1162,7 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     title,
     contentPath,
     wordCount,
+    contentState,
     pageCount,
     createdAt,
   ];
@@ -1017,6 +1226,15 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     } else if (isInserting) {
       context.missing(_wordCountMeta);
     }
+    if (data.containsKey('content_state')) {
+      context.handle(
+        _contentStateMeta,
+        contentState.isAcceptableOrUnknown(
+          data['content_state']!,
+          _contentStateMeta,
+        ),
+      );
+    }
     if (data.containsKey('page_count')) {
       context.handle(
         _pageCountMeta,
@@ -1066,6 +1284,10 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
         DriftSqlType.int,
         data['${effectivePrefix}word_count'],
       )!,
+      contentState: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}content_state'],
+      )!,
       pageCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}page_count'],
@@ -1090,6 +1312,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
   final String title;
   final String contentPath;
   final int wordCount;
+  final int contentState;
   final int pageCount;
   final DateTime createdAt;
   const Chapter({
@@ -1099,6 +1322,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     required this.title,
     required this.contentPath,
     required this.wordCount,
+    required this.contentState,
     required this.pageCount,
     required this.createdAt,
   });
@@ -1111,6 +1335,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     map['title'] = Variable<String>(title);
     map['content_path'] = Variable<String>(contentPath);
     map['word_count'] = Variable<int>(wordCount);
+    map['content_state'] = Variable<int>(contentState);
     map['page_count'] = Variable<int>(pageCount);
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -1124,6 +1349,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       title: Value(title),
       contentPath: Value(contentPath),
       wordCount: Value(wordCount),
+      contentState: Value(contentState),
       pageCount: Value(pageCount),
       createdAt: Value(createdAt),
     );
@@ -1141,6 +1367,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       title: serializer.fromJson<String>(json['title']),
       contentPath: serializer.fromJson<String>(json['contentPath']),
       wordCount: serializer.fromJson<int>(json['wordCount']),
+      contentState: serializer.fromJson<int>(json['contentState']),
       pageCount: serializer.fromJson<int>(json['pageCount']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
@@ -1155,6 +1382,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       'title': serializer.toJson<String>(title),
       'contentPath': serializer.toJson<String>(contentPath),
       'wordCount': serializer.toJson<int>(wordCount),
+      'contentState': serializer.toJson<int>(contentState),
       'pageCount': serializer.toJson<int>(pageCount),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
@@ -1167,6 +1395,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     String? title,
     String? contentPath,
     int? wordCount,
+    int? contentState,
     int? pageCount,
     DateTime? createdAt,
   }) => Chapter(
@@ -1176,6 +1405,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     title: title ?? this.title,
     contentPath: contentPath ?? this.contentPath,
     wordCount: wordCount ?? this.wordCount,
+    contentState: contentState ?? this.contentState,
     pageCount: pageCount ?? this.pageCount,
     createdAt: createdAt ?? this.createdAt,
   );
@@ -1189,6 +1419,9 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           ? data.contentPath.value
           : this.contentPath,
       wordCount: data.wordCount.present ? data.wordCount.value : this.wordCount,
+      contentState: data.contentState.present
+          ? data.contentState.value
+          : this.contentState,
       pageCount: data.pageCount.present ? data.pageCount.value : this.pageCount,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
@@ -1203,6 +1436,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           ..write('title: $title, ')
           ..write('contentPath: $contentPath, ')
           ..write('wordCount: $wordCount, ')
+          ..write('contentState: $contentState, ')
           ..write('pageCount: $pageCount, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
@@ -1217,6 +1451,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     title,
     contentPath,
     wordCount,
+    contentState,
     pageCount,
     createdAt,
   );
@@ -1230,6 +1465,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           other.title == this.title &&
           other.contentPath == this.contentPath &&
           other.wordCount == this.wordCount &&
+          other.contentState == this.contentState &&
           other.pageCount == this.pageCount &&
           other.createdAt == this.createdAt);
 }
@@ -1241,6 +1477,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
   final Value<String> title;
   final Value<String> contentPath;
   final Value<int> wordCount;
+  final Value<int> contentState;
   final Value<int> pageCount;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
@@ -1251,6 +1488,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     this.title = const Value.absent(),
     this.contentPath = const Value.absent(),
     this.wordCount = const Value.absent(),
+    this.contentState = const Value.absent(),
     this.pageCount = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1262,6 +1500,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     required String title,
     required String contentPath,
     required int wordCount,
+    this.contentState = const Value.absent(),
     required int pageCount,
     required DateTime createdAt,
     this.rowid = const Value.absent(),
@@ -1280,6 +1519,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     Expression<String>? title,
     Expression<String>? contentPath,
     Expression<int>? wordCount,
+    Expression<int>? contentState,
     Expression<int>? pageCount,
     Expression<DateTime>? createdAt,
     Expression<int>? rowid,
@@ -1291,6 +1531,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
       if (title != null) 'title': title,
       if (contentPath != null) 'content_path': contentPath,
       if (wordCount != null) 'word_count': wordCount,
+      if (contentState != null) 'content_state': contentState,
       if (pageCount != null) 'page_count': pageCount,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
@@ -1304,6 +1545,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     Value<String>? title,
     Value<String>? contentPath,
     Value<int>? wordCount,
+    Value<int>? contentState,
     Value<int>? pageCount,
     Value<DateTime>? createdAt,
     Value<int>? rowid,
@@ -1315,6 +1557,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
       title: title ?? this.title,
       contentPath: contentPath ?? this.contentPath,
       wordCount: wordCount ?? this.wordCount,
+      contentState: contentState ?? this.contentState,
       pageCount: pageCount ?? this.pageCount,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
@@ -1342,6 +1585,9 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     if (wordCount.present) {
       map['word_count'] = Variable<int>(wordCount.value);
     }
+    if (contentState.present) {
+      map['content_state'] = Variable<int>(contentState.value);
+    }
     if (pageCount.present) {
       map['page_count'] = Variable<int>(pageCount.value);
     }
@@ -1363,6 +1609,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
           ..write('title: $title, ')
           ..write('contentPath: $contentPath, ')
           ..write('wordCount: $wordCount, ')
+          ..write('contentState: $contentState, ')
           ..write('pageCount: $pageCount, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
@@ -3437,6 +3684,75 @@ class $DictionaryWordsTable extends DictionaryWords
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sourceSentenceMeta = const VerificationMeta(
+    'sourceSentence',
+  );
+  @override
+  late final GeneratedColumn<String> sourceSentence = GeneratedColumn<String>(
+    'source_sentence',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceTitleMeta = const VerificationMeta(
+    'sourceTitle',
+  );
+  @override
+  late final GeneratedColumn<String> sourceTitle = GeneratedColumn<String>(
+    'source_title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _reviewLevelMeta = const VerificationMeta(
+    'reviewLevel',
+  );
+  @override
+  late final GeneratedColumn<int> reviewLevel = GeneratedColumn<int>(
+    'review_level',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _reviewCountMeta = const VerificationMeta(
+    'reviewCount',
+  );
+  @override
+  late final GeneratedColumn<int> reviewCount = GeneratedColumn<int>(
+    'review_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastReviewedAtMeta = const VerificationMeta(
+    'lastReviewedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastReviewedAt =
+      GeneratedColumn<DateTime>(
+        'last_reviewed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _nextReviewAtMeta = const VerificationMeta(
+    'nextReviewAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextReviewAt = GeneratedColumn<DateTime>(
+    'next_review_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3448,6 +3764,12 @@ class $DictionaryWordsTable extends DictionaryWords
     definition,
     fullJson,
     savedAt,
+    sourceSentence,
+    sourceTitle,
+    reviewLevel,
+    reviewCount,
+    lastReviewedAt,
+    nextReviewAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3534,6 +3856,60 @@ class $DictionaryWordsTable extends DictionaryWords
     } else if (isInserting) {
       context.missing(_savedAtMeta);
     }
+    if (data.containsKey('source_sentence')) {
+      context.handle(
+        _sourceSentenceMeta,
+        sourceSentence.isAcceptableOrUnknown(
+          data['source_sentence']!,
+          _sourceSentenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_title')) {
+      context.handle(
+        _sourceTitleMeta,
+        sourceTitle.isAcceptableOrUnknown(
+          data['source_title']!,
+          _sourceTitleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('review_level')) {
+      context.handle(
+        _reviewLevelMeta,
+        reviewLevel.isAcceptableOrUnknown(
+          data['review_level']!,
+          _reviewLevelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('review_count')) {
+      context.handle(
+        _reviewCountMeta,
+        reviewCount.isAcceptableOrUnknown(
+          data['review_count']!,
+          _reviewCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_reviewed_at')) {
+      context.handle(
+        _lastReviewedAtMeta,
+        lastReviewedAt.isAcceptableOrUnknown(
+          data['last_reviewed_at']!,
+          _lastReviewedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_review_at')) {
+      context.handle(
+        _nextReviewAtMeta,
+        nextReviewAt.isAcceptableOrUnknown(
+          data['next_review_at']!,
+          _nextReviewAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3579,6 +3955,30 @@ class $DictionaryWordsTable extends DictionaryWords
         DriftSqlType.dateTime,
         data['${effectivePrefix}saved_at'],
       )!,
+      sourceSentence: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_sentence'],
+      ),
+      sourceTitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_title'],
+      ),
+      reviewLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}review_level'],
+      )!,
+      reviewCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}review_count'],
+      )!,
+      lastReviewedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_reviewed_at'],
+      ),
+      nextReviewAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_review_at'],
+      ),
     );
   }
 
@@ -3598,6 +3998,12 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
   final String definition;
   final String fullJson;
   final DateTime savedAt;
+  final String? sourceSentence;
+  final String? sourceTitle;
+  final int reviewLevel;
+  final int reviewCount;
+  final DateTime? lastReviewedAt;
+  final DateTime? nextReviewAt;
   const DictionaryWord({
     required this.id,
     required this.word,
@@ -3608,6 +4014,12 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     required this.definition,
     required this.fullJson,
     required this.savedAt,
+    this.sourceSentence,
+    this.sourceTitle,
+    required this.reviewLevel,
+    required this.reviewCount,
+    this.lastReviewedAt,
+    this.nextReviewAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3623,6 +4035,20 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     map['definition'] = Variable<String>(definition);
     map['full_json'] = Variable<String>(fullJson);
     map['saved_at'] = Variable<DateTime>(savedAt);
+    if (!nullToAbsent || sourceSentence != null) {
+      map['source_sentence'] = Variable<String>(sourceSentence);
+    }
+    if (!nullToAbsent || sourceTitle != null) {
+      map['source_title'] = Variable<String>(sourceTitle);
+    }
+    map['review_level'] = Variable<int>(reviewLevel);
+    map['review_count'] = Variable<int>(reviewCount);
+    if (!nullToAbsent || lastReviewedAt != null) {
+      map['last_reviewed_at'] = Variable<DateTime>(lastReviewedAt);
+    }
+    if (!nullToAbsent || nextReviewAt != null) {
+      map['next_review_at'] = Variable<DateTime>(nextReviewAt);
+    }
     return map;
   }
 
@@ -3639,6 +4065,20 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
       definition: Value(definition),
       fullJson: Value(fullJson),
       savedAt: Value(savedAt),
+      sourceSentence: sourceSentence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceSentence),
+      sourceTitle: sourceTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceTitle),
+      reviewLevel: Value(reviewLevel),
+      reviewCount: Value(reviewCount),
+      lastReviewedAt: lastReviewedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastReviewedAt),
+      nextReviewAt: nextReviewAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextReviewAt),
     );
   }
 
@@ -3657,6 +4097,12 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
       definition: serializer.fromJson<String>(json['definition']),
       fullJson: serializer.fromJson<String>(json['fullJson']),
       savedAt: serializer.fromJson<DateTime>(json['savedAt']),
+      sourceSentence: serializer.fromJson<String?>(json['sourceSentence']),
+      sourceTitle: serializer.fromJson<String?>(json['sourceTitle']),
+      reviewLevel: serializer.fromJson<int>(json['reviewLevel']),
+      reviewCount: serializer.fromJson<int>(json['reviewCount']),
+      lastReviewedAt: serializer.fromJson<DateTime?>(json['lastReviewedAt']),
+      nextReviewAt: serializer.fromJson<DateTime?>(json['nextReviewAt']),
     );
   }
   @override
@@ -3672,6 +4118,12 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
       'definition': serializer.toJson<String>(definition),
       'fullJson': serializer.toJson<String>(fullJson),
       'savedAt': serializer.toJson<DateTime>(savedAt),
+      'sourceSentence': serializer.toJson<String?>(sourceSentence),
+      'sourceTitle': serializer.toJson<String?>(sourceTitle),
+      'reviewLevel': serializer.toJson<int>(reviewLevel),
+      'reviewCount': serializer.toJson<int>(reviewCount),
+      'lastReviewedAt': serializer.toJson<DateTime?>(lastReviewedAt),
+      'nextReviewAt': serializer.toJson<DateTime?>(nextReviewAt),
     };
   }
 
@@ -3685,6 +4137,12 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     String? definition,
     String? fullJson,
     DateTime? savedAt,
+    Value<String?> sourceSentence = const Value.absent(),
+    Value<String?> sourceTitle = const Value.absent(),
+    int? reviewLevel,
+    int? reviewCount,
+    Value<DateTime?> lastReviewedAt = const Value.absent(),
+    Value<DateTime?> nextReviewAt = const Value.absent(),
   }) => DictionaryWord(
     id: id ?? this.id,
     word: word ?? this.word,
@@ -3695,6 +4153,16 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     definition: definition ?? this.definition,
     fullJson: fullJson ?? this.fullJson,
     savedAt: savedAt ?? this.savedAt,
+    sourceSentence: sourceSentence.present
+        ? sourceSentence.value
+        : this.sourceSentence,
+    sourceTitle: sourceTitle.present ? sourceTitle.value : this.sourceTitle,
+    reviewLevel: reviewLevel ?? this.reviewLevel,
+    reviewCount: reviewCount ?? this.reviewCount,
+    lastReviewedAt: lastReviewedAt.present
+        ? lastReviewedAt.value
+        : this.lastReviewedAt,
+    nextReviewAt: nextReviewAt.present ? nextReviewAt.value : this.nextReviewAt,
   );
   DictionaryWord copyWithCompanion(DictionaryWordsCompanion data) {
     return DictionaryWord(
@@ -3713,6 +4181,24 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
           : this.definition,
       fullJson: data.fullJson.present ? data.fullJson.value : this.fullJson,
       savedAt: data.savedAt.present ? data.savedAt.value : this.savedAt,
+      sourceSentence: data.sourceSentence.present
+          ? data.sourceSentence.value
+          : this.sourceSentence,
+      sourceTitle: data.sourceTitle.present
+          ? data.sourceTitle.value
+          : this.sourceTitle,
+      reviewLevel: data.reviewLevel.present
+          ? data.reviewLevel.value
+          : this.reviewLevel,
+      reviewCount: data.reviewCount.present
+          ? data.reviewCount.value
+          : this.reviewCount,
+      lastReviewedAt: data.lastReviewedAt.present
+          ? data.lastReviewedAt.value
+          : this.lastReviewedAt,
+      nextReviewAt: data.nextReviewAt.present
+          ? data.nextReviewAt.value
+          : this.nextReviewAt,
     );
   }
 
@@ -3727,7 +4213,13 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
           ..write('partOfSpeech: $partOfSpeech, ')
           ..write('definition: $definition, ')
           ..write('fullJson: $fullJson, ')
-          ..write('savedAt: $savedAt')
+          ..write('savedAt: $savedAt, ')
+          ..write('sourceSentence: $sourceSentence, ')
+          ..write('sourceTitle: $sourceTitle, ')
+          ..write('reviewLevel: $reviewLevel, ')
+          ..write('reviewCount: $reviewCount, ')
+          ..write('lastReviewedAt: $lastReviewedAt, ')
+          ..write('nextReviewAt: $nextReviewAt')
           ..write(')'))
         .toString();
   }
@@ -3743,6 +4235,12 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     definition,
     fullJson,
     savedAt,
+    sourceSentence,
+    sourceTitle,
+    reviewLevel,
+    reviewCount,
+    lastReviewedAt,
+    nextReviewAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -3756,7 +4254,13 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
           other.partOfSpeech == this.partOfSpeech &&
           other.definition == this.definition &&
           other.fullJson == this.fullJson &&
-          other.savedAt == this.savedAt);
+          other.savedAt == this.savedAt &&
+          other.sourceSentence == this.sourceSentence &&
+          other.sourceTitle == this.sourceTitle &&
+          other.reviewLevel == this.reviewLevel &&
+          other.reviewCount == this.reviewCount &&
+          other.lastReviewedAt == this.lastReviewedAt &&
+          other.nextReviewAt == this.nextReviewAt);
 }
 
 class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
@@ -3769,6 +4273,12 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
   final Value<String> definition;
   final Value<String> fullJson;
   final Value<DateTime> savedAt;
+  final Value<String?> sourceSentence;
+  final Value<String?> sourceTitle;
+  final Value<int> reviewLevel;
+  final Value<int> reviewCount;
+  final Value<DateTime?> lastReviewedAt;
+  final Value<DateTime?> nextReviewAt;
   final Value<int> rowid;
   const DictionaryWordsCompanion({
     this.id = const Value.absent(),
@@ -3780,6 +4290,12 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     this.definition = const Value.absent(),
     this.fullJson = const Value.absent(),
     this.savedAt = const Value.absent(),
+    this.sourceSentence = const Value.absent(),
+    this.sourceTitle = const Value.absent(),
+    this.reviewLevel = const Value.absent(),
+    this.reviewCount = const Value.absent(),
+    this.lastReviewedAt = const Value.absent(),
+    this.nextReviewAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DictionaryWordsCompanion.insert({
@@ -3792,6 +4308,12 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     required String definition,
     required String fullJson,
     required DateTime savedAt,
+    this.sourceSentence = const Value.absent(),
+    this.sourceTitle = const Value.absent(),
+    this.reviewLevel = const Value.absent(),
+    this.reviewCount = const Value.absent(),
+    this.lastReviewedAt = const Value.absent(),
+    this.nextReviewAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        word = Value(word),
@@ -3811,6 +4333,12 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     Expression<String>? definition,
     Expression<String>? fullJson,
     Expression<DateTime>? savedAt,
+    Expression<String>? sourceSentence,
+    Expression<String>? sourceTitle,
+    Expression<int>? reviewLevel,
+    Expression<int>? reviewCount,
+    Expression<DateTime>? lastReviewedAt,
+    Expression<DateTime>? nextReviewAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3823,6 +4351,12 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
       if (definition != null) 'definition': definition,
       if (fullJson != null) 'full_json': fullJson,
       if (savedAt != null) 'saved_at': savedAt,
+      if (sourceSentence != null) 'source_sentence': sourceSentence,
+      if (sourceTitle != null) 'source_title': sourceTitle,
+      if (reviewLevel != null) 'review_level': reviewLevel,
+      if (reviewCount != null) 'review_count': reviewCount,
+      if (lastReviewedAt != null) 'last_reviewed_at': lastReviewedAt,
+      if (nextReviewAt != null) 'next_review_at': nextReviewAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3837,6 +4371,12 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     Value<String>? definition,
     Value<String>? fullJson,
     Value<DateTime>? savedAt,
+    Value<String?>? sourceSentence,
+    Value<String?>? sourceTitle,
+    Value<int>? reviewLevel,
+    Value<int>? reviewCount,
+    Value<DateTime?>? lastReviewedAt,
+    Value<DateTime?>? nextReviewAt,
     Value<int>? rowid,
   }) {
     return DictionaryWordsCompanion(
@@ -3849,6 +4389,12 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
       definition: definition ?? this.definition,
       fullJson: fullJson ?? this.fullJson,
       savedAt: savedAt ?? this.savedAt,
+      sourceSentence: sourceSentence ?? this.sourceSentence,
+      sourceTitle: sourceTitle ?? this.sourceTitle,
+      reviewLevel: reviewLevel ?? this.reviewLevel,
+      reviewCount: reviewCount ?? this.reviewCount,
+      lastReviewedAt: lastReviewedAt ?? this.lastReviewedAt,
+      nextReviewAt: nextReviewAt ?? this.nextReviewAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3883,6 +4429,24 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     if (savedAt.present) {
       map['saved_at'] = Variable<DateTime>(savedAt.value);
     }
+    if (sourceSentence.present) {
+      map['source_sentence'] = Variable<String>(sourceSentence.value);
+    }
+    if (sourceTitle.present) {
+      map['source_title'] = Variable<String>(sourceTitle.value);
+    }
+    if (reviewLevel.present) {
+      map['review_level'] = Variable<int>(reviewLevel.value);
+    }
+    if (reviewCount.present) {
+      map['review_count'] = Variable<int>(reviewCount.value);
+    }
+    if (lastReviewedAt.present) {
+      map['last_reviewed_at'] = Variable<DateTime>(lastReviewedAt.value);
+    }
+    if (nextReviewAt.present) {
+      map['next_review_at'] = Variable<DateTime>(nextReviewAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3901,6 +4465,12 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
           ..write('definition: $definition, ')
           ..write('fullJson: $fullJson, ')
           ..write('savedAt: $savedAt, ')
+          ..write('sourceSentence: $sourceSentence, ')
+          ..write('sourceTitle: $sourceTitle, ')
+          ..write('reviewLevel: $reviewLevel, ')
+          ..write('reviewCount: $reviewCount, ')
+          ..write('lastReviewedAt: $lastReviewedAt, ')
+          ..write('nextReviewAt: $nextReviewAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3949,7 +4519,11 @@ typedef $$BooksTableCreateCompanionBuilder =
       required int totalChapters,
       Value<String?> language,
       Value<String?> tags,
+      Value<String?> sourceName,
+      Value<String?> sourceId,
+      Value<String?> sourceUrl,
       Value<double?> rating,
+      Value<String?> status,
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<DateTime?> lastOpenedAt,
@@ -3968,7 +4542,11 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<int> totalChapters,
       Value<String?> language,
       Value<String?> tags,
+      Value<String?> sourceName,
+      Value<String?> sourceId,
+      Value<String?> sourceUrl,
       Value<double?> rating,
+      Value<String?> status,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> lastOpenedAt,
@@ -4038,8 +4616,28 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get sourceName => $composableBuilder(
+    column: $table.sourceName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<double> get rating => $composableBuilder(
     column: $table.rating,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4123,8 +4721,28 @@ class $$BooksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sourceName => $composableBuilder(
+    column: $table.sourceName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get rating => $composableBuilder(
     column: $table.rating,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4190,8 +4808,22 @@ class $$BooksTableAnnotationComposer
   GeneratedColumn<String> get tags =>
       $composableBuilder(column: $table.tags, builder: (column) => column);
 
+  GeneratedColumn<String> get sourceName => $composableBuilder(
+    column: $table.sourceName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceUrl =>
+      $composableBuilder(column: $table.sourceUrl, builder: (column) => column);
+
   GeneratedColumn<double> get rating =>
       $composableBuilder(column: $table.rating, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -4244,7 +4876,11 @@ class $$BooksTableTableManager
                 Value<int> totalChapters = const Value.absent(),
                 Value<String?> language = const Value.absent(),
                 Value<String?> tags = const Value.absent(),
+                Value<String?> sourceName = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
+                Value<String?> sourceUrl = const Value.absent(),
                 Value<double?> rating = const Value.absent(),
+                Value<String?> status = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
@@ -4261,7 +4897,11 @@ class $$BooksTableTableManager
                 totalChapters: totalChapters,
                 language: language,
                 tags: tags,
+                sourceName: sourceName,
+                sourceId: sourceId,
+                sourceUrl: sourceUrl,
                 rating: rating,
+                status: status,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 lastOpenedAt: lastOpenedAt,
@@ -4280,7 +4920,11 @@ class $$BooksTableTableManager
                 required int totalChapters,
                 Value<String?> language = const Value.absent(),
                 Value<String?> tags = const Value.absent(),
+                Value<String?> sourceName = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
+                Value<String?> sourceUrl = const Value.absent(),
                 Value<double?> rating = const Value.absent(),
+                Value<String?> status = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
@@ -4297,7 +4941,11 @@ class $$BooksTableTableManager
                 totalChapters: totalChapters,
                 language: language,
                 tags: tags,
+                sourceName: sourceName,
+                sourceId: sourceId,
+                sourceUrl: sourceUrl,
                 rating: rating,
+                status: status,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 lastOpenedAt: lastOpenedAt,
@@ -4333,6 +4981,7 @@ typedef $$ChaptersTableCreateCompanionBuilder =
       required String title,
       required String contentPath,
       required int wordCount,
+      Value<int> contentState,
       required int pageCount,
       required DateTime createdAt,
       Value<int> rowid,
@@ -4345,6 +4994,7 @@ typedef $$ChaptersTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String> contentPath,
       Value<int> wordCount,
+      Value<int> contentState,
       Value<int> pageCount,
       Value<DateTime> createdAt,
       Value<int> rowid,
@@ -4386,6 +5036,11 @@ class $$ChaptersTableFilterComposer
 
   ColumnFilters<int> get wordCount => $composableBuilder(
     column: $table.wordCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get contentState => $composableBuilder(
+    column: $table.contentState,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4439,6 +5094,11 @@ class $$ChaptersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get contentState => $composableBuilder(
+    column: $table.contentState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get pageCount => $composableBuilder(
     column: $table.pageCount,
     builder: (column) => ColumnOrderings(column),
@@ -4478,6 +5138,11 @@ class $$ChaptersTableAnnotationComposer
 
   GeneratedColumn<int> get wordCount =>
       $composableBuilder(column: $table.wordCount, builder: (column) => column);
+
+  GeneratedColumn<int> get contentState => $composableBuilder(
+    column: $table.contentState,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get pageCount =>
       $composableBuilder(column: $table.pageCount, builder: (column) => column);
@@ -4520,6 +5185,7 @@ class $$ChaptersTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String> contentPath = const Value.absent(),
                 Value<int> wordCount = const Value.absent(),
+                Value<int> contentState = const Value.absent(),
                 Value<int> pageCount = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -4530,6 +5196,7 @@ class $$ChaptersTableTableManager
                 title: title,
                 contentPath: contentPath,
                 wordCount: wordCount,
+                contentState: contentState,
                 pageCount: pageCount,
                 createdAt: createdAt,
                 rowid: rowid,
@@ -4542,6 +5209,7 @@ class $$ChaptersTableTableManager
                 required String title,
                 required String contentPath,
                 required int wordCount,
+                Value<int> contentState = const Value.absent(),
                 required int pageCount,
                 required DateTime createdAt,
                 Value<int> rowid = const Value.absent(),
@@ -4552,6 +5220,7 @@ class $$ChaptersTableTableManager
                 title: title,
                 contentPath: contentPath,
                 wordCount: wordCount,
+                contentState: contentState,
                 pageCount: pageCount,
                 createdAt: createdAt,
                 rowid: rowid,
@@ -5594,6 +6263,12 @@ typedef $$DictionaryWordsTableCreateCompanionBuilder =
       required String definition,
       required String fullJson,
       required DateTime savedAt,
+      Value<String?> sourceSentence,
+      Value<String?> sourceTitle,
+      Value<int> reviewLevel,
+      Value<int> reviewCount,
+      Value<DateTime?> lastReviewedAt,
+      Value<DateTime?> nextReviewAt,
       Value<int> rowid,
     });
 typedef $$DictionaryWordsTableUpdateCompanionBuilder =
@@ -5607,6 +6282,12 @@ typedef $$DictionaryWordsTableUpdateCompanionBuilder =
       Value<String> definition,
       Value<String> fullJson,
       Value<DateTime> savedAt,
+      Value<String?> sourceSentence,
+      Value<String?> sourceTitle,
+      Value<int> reviewLevel,
+      Value<int> reviewCount,
+      Value<DateTime?> lastReviewedAt,
+      Value<DateTime?> nextReviewAt,
       Value<int> rowid,
     });
 
@@ -5661,6 +6342,36 @@ class $$DictionaryWordsTableFilterComposer
 
   ColumnFilters<DateTime> get savedAt => $composableBuilder(
     column: $table.savedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceSentence => $composableBuilder(
+    column: $table.sourceSentence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceTitle => $composableBuilder(
+    column: $table.sourceTitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get reviewLevel => $composableBuilder(
+    column: $table.reviewLevel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get reviewCount => $composableBuilder(
+    column: $table.reviewCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastReviewedAt => $composableBuilder(
+    column: $table.lastReviewedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextReviewAt => $composableBuilder(
+    column: $table.nextReviewAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5718,6 +6429,36 @@ class $$DictionaryWordsTableOrderingComposer
     column: $table.savedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sourceSentence => $composableBuilder(
+    column: $table.sourceSentence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceTitle => $composableBuilder(
+    column: $table.sourceTitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get reviewLevel => $composableBuilder(
+    column: $table.reviewLevel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get reviewCount => $composableBuilder(
+    column: $table.reviewCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastReviewedAt => $composableBuilder(
+    column: $table.lastReviewedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextReviewAt => $composableBuilder(
+    column: $table.nextReviewAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DictionaryWordsTableAnnotationComposer
@@ -5761,6 +6502,36 @@ class $$DictionaryWordsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get savedAt =>
       $composableBuilder(column: $table.savedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceSentence => $composableBuilder(
+    column: $table.sourceSentence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceTitle => $composableBuilder(
+    column: $table.sourceTitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get reviewLevel => $composableBuilder(
+    column: $table.reviewLevel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get reviewCount => $composableBuilder(
+    column: $table.reviewCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastReviewedAt => $composableBuilder(
+    column: $table.lastReviewedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get nextReviewAt => $composableBuilder(
+    column: $table.nextReviewAt,
+    builder: (column) => column,
+  );
 }
 
 class $$DictionaryWordsTableTableManager
@@ -5809,6 +6580,12 @@ class $$DictionaryWordsTableTableManager
                 Value<String> definition = const Value.absent(),
                 Value<String> fullJson = const Value.absent(),
                 Value<DateTime> savedAt = const Value.absent(),
+                Value<String?> sourceSentence = const Value.absent(),
+                Value<String?> sourceTitle = const Value.absent(),
+                Value<int> reviewLevel = const Value.absent(),
+                Value<int> reviewCount = const Value.absent(),
+                Value<DateTime?> lastReviewedAt = const Value.absent(),
+                Value<DateTime?> nextReviewAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DictionaryWordsCompanion(
                 id: id,
@@ -5820,6 +6597,12 @@ class $$DictionaryWordsTableTableManager
                 definition: definition,
                 fullJson: fullJson,
                 savedAt: savedAt,
+                sourceSentence: sourceSentence,
+                sourceTitle: sourceTitle,
+                reviewLevel: reviewLevel,
+                reviewCount: reviewCount,
+                lastReviewedAt: lastReviewedAt,
+                nextReviewAt: nextReviewAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5833,6 +6616,12 @@ class $$DictionaryWordsTableTableManager
                 required String definition,
                 required String fullJson,
                 required DateTime savedAt,
+                Value<String?> sourceSentence = const Value.absent(),
+                Value<String?> sourceTitle = const Value.absent(),
+                Value<int> reviewLevel = const Value.absent(),
+                Value<int> reviewCount = const Value.absent(),
+                Value<DateTime?> lastReviewedAt = const Value.absent(),
+                Value<DateTime?> nextReviewAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DictionaryWordsCompanion.insert(
                 id: id,
@@ -5844,6 +6633,12 @@ class $$DictionaryWordsTableTableManager
                 definition: definition,
                 fullJson: fullJson,
                 savedAt: savedAt,
+                sourceSentence: sourceSentence,
+                sourceTitle: sourceTitle,
+                reviewLevel: reviewLevel,
+                reviewCount: reviewCount,
+                lastReviewedAt: lastReviewedAt,
+                nextReviewAt: nextReviewAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

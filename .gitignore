@@ -42,3 +42,4 @@ web/build/
 
 # Embedded projects
 .atlas/
+opencode.json

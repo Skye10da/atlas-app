@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
@@ -34,6 +35,16 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
           coverPath: book.coverPath,
           format: book.format,
           totalChapters: book.totalChapters,
+          description: book.description,
+          language: book.language,
+          tags: _parseTags(book.tags),
+          rating: book.rating,
+          status: book.status,
+          fileSize: book.fileSize,
+          filePath: book.filePath,
+          sourceName: book.sourceName,
+          sourceId: book.sourceId,
+          sourceUrl: book.sourceUrl,
           createdAt: book.createdAt,
           updatedAt: book.updatedAt,
           lastOpenedAt: book.lastOpenedAt,
@@ -74,6 +85,15 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
         coverPath: book.coverPath,
         format: book.format,
         totalChapters: book.totalChapters,
+        description: book.description,
+        language: book.language,
+        tags: _parseTags(book.tags),
+        rating: book.rating,
+        status: book.status,
+        fileSize: book.fileSize,
+        sourceName: book.sourceName,
+        sourceId: book.sourceId,
+        sourceUrl: book.sourceUrl,
         createdAt: book.createdAt,
         updatedAt: book.updatedAt,
         lastOpenedAt: book.lastOpenedAt,
@@ -108,6 +128,28 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
   }
 
   @override
+  Future<Result<void>> deleteAllBooks() async {
+    try {
+      final books = await _db.select(_db.books).get();
+      for (final book in books) {
+        if (book.filePath.isNotEmpty) {
+          final dir = Directory(book.filePath);
+          if (await dir.exists()) {
+            await dir.delete(recursive: true);
+          }
+        }
+      }
+      await _db.delete(_db.readingProgress).go();
+      await _db.delete(_db.chapters).go();
+      await _db.delete(_db.bookmarks).go();
+      await _db.delete(_db.books).go();
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to delete all books', e), st);
+    }
+  }
+
+  @override
   Future<Result<void>> updateBook(String id, {String? title, String? author}) async {
     try {
       await (_db.update(_db.books)..where((b) => b.id.equals(id))).write(
@@ -135,5 +177,14 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
     } catch (e, st) {
       return Failure(DatabaseException('Failed to mark book as opened', e), st);
     }
+  }
+
+  List<String> _parseTags(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is List) return parsed.whereType<String>().toList();
+    } catch (_) {}
+    return raw.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
   }
 }
