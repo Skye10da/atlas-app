@@ -1,0 +1,157 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:drift/drift.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+import 'package:atlas_app/core/content_acquisition/adapters/source_adapter.dart';
+import 'package:atlas_app/core/content_acquisition/adapters/source_registry.dart';
+import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
+import 'package:atlas_app/core/content_acquisition/services/cache_manager.dart';
+import 'package:atlas_app/core/content_acquisition/services/download_engine.dart';
+import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
+import 'package:atlas_app/core/content_acquisition/services/prefetch_engine.dart';
+import 'package:atlas_app/core/database/database.dart';
+
+class ContentAcquisitionEngine {
+  ContentAcquisitionEngine({
+    required this.registry,
+    required this.db,
+  }) : cacheManager = CacheManager(),
+       downloadEngine = DownloadEngine(cacheManager: CacheManager()),
+       importService = ImportService(registry),
+       prefetchEngine = PrefetchEngine(downloadEngine: DownloadEngine(cacheManager: CacheManager()));
+
+  final SourceRegistry registry;
+  final AppDatabase db;
+  final ImportService importService;
+  final CacheManager cacheManager;
+  final DownloadEngine downloadEngine;
+  final PrefetchEngine prefetchEngine;
+  final Map<String, _BookSourceState> _activeBooks = {};
+
+  Future<String> importAndSave(String url) async {
+    final result = await importService.import(url);
+    final novel = result.novel;
+    final chapters = result.chapters;
+    final source = result.source;
+
+    final existing = await (db.select(db.books)
+      ..where((b) => b.sourceId.equals(novel.sourceId) & b.sourceName.equals(novel.source)))
+        .getSingleOrNull();
+    if (existing != null) {
+      throw const ImportException('This book is already in your library.');
+    }
+
+    var bookId = _normalizeId(novel.title);
+    final idConflict = await (db.select(db.books)..where((b) => b.id.equals(bookId))).getSingleOrNull();
+    if (idConflict != null) {
+      bookId = '${bookId}_${DateTime.now().millisecondsSinceEpoch}';
+    }
+
+    final docsDir = await getApplicationSupportDirectory();
+    final bookDir = Directory(p.join(docsDir.path, 'books', bookId));
+    if (!bookDir.existsSync()) await bookDir.create(recursive: true);
+
+    String? coverPath;
+    Uint8List? coverBytes = novel.coverBytes;
+    if (coverBytes == null && novel.coverUrl != null) {
+      try {
+        final coverResponse = await http.get(Uri.parse(novel.coverUrl!));
+        if (coverResponse.statusCode == 200) {
+          coverBytes = coverResponse.bodyBytes;
+        }
+      } catch (_) {}
+    }
+    if (coverBytes != null) {
+      coverPath = p.join(bookDir.path, 'cover.jpg');
+      await File(coverPath).writeAsBytes(coverBytes);
+    }
+
+    for (final ch in chapters) {
+      final chapterId = '${bookId}_ch${ch.index}';
+      final contentPath = p.join(bookDir.path, '${ch.index}.txt');
+
+      if (ch.content != null) {
+        await File(contentPath).writeAsString(ch.content!);
+      }
+
+      final wordCount = ch.wordCount ?? (ch.content?.split(RegExp(r'\s+')).length ?? 0);
+
+      await db.into(db.chapters).insert(ChaptersCompanion(
+        id: Value(chapterId),
+        bookId: Value(bookId),
+        index: Value(ch.index),
+        title: Value(ch.title),
+        contentPath: Value(contentPath),
+        wordCount: Value(wordCount),
+        pageCount: Value((wordCount / 300).ceil().clamp(1, 9999)),
+        contentState: Value(ch.content != null ? ContentState.availableOffline.index : ContentState.discovered.index),
+        createdAt: Value(DateTime.now()),
+      ));
+    }
+
+    final chapterIndex = chapters.map((ch) => {
+      'id': ch.id,
+      'title': ch.title,
+      'index': ch.index,
+      'contentUrl': ch.contentUrl,
+    }).toList();
+    await File(p.join(bookDir.path, '.chapter_index.json')).writeAsString(jsonEncode(chapterIndex));
+
+    await db.into(db.books).insert(BooksCompanion(
+      id: Value(bookId),
+      title: Value(novel.title),
+      author: novel.author != null ? Value(novel.author) : const Value.absent(),
+      description: novel.description != null ? Value(novel.description) : const Value.absent(),
+      format: const Value('web'),
+      filePath: Value(bookDir.path),
+      coverPath: coverPath != null ? Value(coverPath) : const Value.absent(),
+      totalChapters: Value(chapters.length),
+      language: novel.language != null ? Value(novel.language) : const Value.absent(),
+      tags: novel.genres.isNotEmpty ? Value(jsonEncode(novel.genres)) : const Value.absent(),
+      rating: novel.rating != null ? Value(novel.rating) : const Value.absent(),
+      status: novel.status != null ? Value(novel.status) : const Value.absent(),
+      sourceName: Value(novel.source),
+      sourceId: Value(novel.sourceId),
+      sourceUrl: Value(novel.sourceUrl),
+      createdAt: Value(DateTime.now()),
+      updatedAt: Value(DateTime.now()),
+    ));
+
+    _activeBooks[bookId] = _BookSourceState(chapters: chapters, source: source);
+    prefetchEngine.registerChapters(bookId, chapters, source);
+
+    return bookId;
+  }
+
+  Future<void> downloadChapter(String bookId, int chapterIndex) async {
+    final state = _activeBooks[bookId];
+    if (state == null || chapterIndex >= state.chapters.length) return;
+    downloadEngine.enqueue(bookId, state.chapters[chapterIndex], state.source);
+  }
+
+  Future<void> downloadAllChapters(String bookId) async {
+    final state = _activeBooks[bookId];
+    if (state == null) return;
+    downloadEngine.enqueueMany(bookId, state.chapters, state.source);
+  }
+
+  void onChapterRead(String bookId, int chapterIndex) {
+    prefetchEngine.onChapterRead(bookId, chapterIndex);
+  }
+
+  String _normalizeId(String title) {
+    final id = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'_+'), '_').replaceAll(RegExp(r'^_|_$'), '');
+    return id.length > 48 ? '${id.substring(0, 48)}_${id.hashCode.abs()}' : id;
+  }
+}
+
+class _BookSourceState {
+  _BookSourceState({required this.chapters, required this.source});
+  final List<ChapterModel> chapters;
+  final SourceAdapter source;
+}
