@@ -92,12 +92,19 @@ class ChapterDownloadService {
     final indexFile = File('${book.filePath}/.chapter_index.json');
     if (!await indexFile.exists()) return [];
     final json = await indexFile.readAsString();
-    final List<dynamic> data = jsonDecode(json);
-    return data.map((m) => ChapterModel(
-      id: m['id'] as String,
-      title: m['title'] as String,
-      index: m['index'] as int,
-      contentUrl: m['contentUrl'] as String?,
-    )).toList();
+    final decoded = jsonDecode(json);
+    if (decoded is! List) return [];
+    return decoded.whereType<Map>().map((raw) {
+      final id = raw['id'];
+      final title = raw['title'];
+      final index = raw['index'];
+      final contentUrl = raw['contentUrl'];
+      return ChapterModel(
+        id: id is String ? id : '',
+        title: title is String ? title : 'Untitled',
+        index: index is num ? index.toInt() : 0,
+        contentUrl: contentUrl is String ? contentUrl : null,
+      );
+    }).toList();
   }
 }
