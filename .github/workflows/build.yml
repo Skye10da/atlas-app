@@ -10,7 +10,6 @@ concurrency:
   cancel-in-progress: true
 env:
   FLUTTER_VERSION: '3.41.9'
-  XCODE_VERSION: '16.2'
 
 jobs:
   test:
@@ -29,7 +28,7 @@ jobs:
       - run: flutter test
 
   build-android:
-    name: Android (APK + AAB)
+    name: Android (APK)
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -51,13 +50,10 @@ jobs:
       # android/app/build.gradle's signingConfigs.release.
       - run: flutter pub get
       - run: flutter build apk --release
-      - run: flutter build appbundle --release
       - uses: actions/upload-artifact@v7
         with:
           name: android-release
-          path: |
-            build/app/outputs/flutter-apk/*.apk
-            build/app/outputs/bundle/release/*.aab
+          path: build/app/outputs/flutter-apk/*.apk
           retention-days: 14
 
   build-windows:
@@ -179,7 +175,6 @@ jobs:
           # build still fails the workflow before a release is cut.
           files: |
             artifacts/android-release/**/*.apk
-            artifacts/android-release/**/*.aab
             artifacts/windows-release/**/*.zip
             artifacts/linux-release/**/*.tar.gz
             artifacts/macos-release/**/*.zip
