@@ -19,7 +19,7 @@ jobs:
     name: Android (APK + AAB)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -27,7 +27,7 @@ jobs:
       - run: flutter pub get
       - run: flutter build apk --release
       - run: flutter build appbundle --release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-release
           path: |
@@ -39,14 +39,15 @@ jobs:
     name: Windows
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
+      - run: bash tool/patch_screen_brightness_windows.sh
       - run: flutter build windows --release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-release
           path: build/windows/x64/runner/Release
@@ -56,14 +57,14 @@ jobs:
     name: iOS (no codesign)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
       - run: flutter build ios --release --no-codesign
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ios-release
           path: build/ios/iphoneos/*.app
@@ -73,7 +74,7 @@ jobs:
     name: macOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -81,7 +82,7 @@ jobs:
       - run: flutter pub get
       - run: bash tool/patch_screen_brightness_macos.sh
       - run: flutter build macos --release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-release
           path: build/macos/Build/Products/Release/*.app
