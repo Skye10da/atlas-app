@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Draggable bottom sheets across all six sheets (library sort, chapter index, word lookup, reader settings, etc.).
 - Reader chrome refactored into shared widgets (chrome bar, edge regions, key events, chapter chrome pieces).
 - `popOrGoToLibrary` fallback: popping at the root navigates to the library instead of throwing.
-- GitHub Actions workflow building Android, Windows, iOS, macOS, and Web on push/PR/tag.
+- GitHub Actions workflow building Android, Windows, iOS, and macOS on push/PR/tag.
 - App icon and launcher assets for all platforms.
 
 ### Fixed
