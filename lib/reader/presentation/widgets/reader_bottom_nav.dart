@@ -15,6 +15,8 @@ class ReaderBottomNav extends ConsumerWidget {
     this.currentChapterTitle,
     this.currentChapterNumber,
     this.totalChapters,
+    this.autoScrollActive = false,
+    this.onAutoScrollToggle,
   });
 
   final VoidCallback onSettingsTap;
@@ -24,17 +26,20 @@ class ReaderBottomNav extends ConsumerWidget {
   final String? currentChapterTitle;
   final int? currentChapterNumber;
   final int? totalChapters;
+  final bool autoScrollActive;
+  final VoidCallback? onAutoScrollToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final batteryAsync = ref.watch(liveBatteryLevelProvider);
     final batteryLevel = batteryAsync.valueOrNull;
+    final chargingAsync = ref.watch(liveChargingProvider);
+    final charging = chargingAsync.valueOrNull ?? false;
 
     return Container(
       padding: EdgeInsets.only(bottom: bottomInset),
-      color: colorScheme.surface,
+      color: Colors.transparent,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -62,7 +67,15 @@ class ReaderBottomNav extends ConsumerWidget {
                   onBookmarkTap();
                 },
               ),
-              _BatteryIndicator(level: batteryLevel),
+              if (onAutoScrollToggle != null)
+                _NavIconButton(
+                  icon: autoScrollActive
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_outline,
+                  label: autoScrollActive ? 'Pause' : 'Auto-scroll',
+                  onTap: onAutoScrollToggle!,
+                ),
+              _BatteryIndicator(level: batteryLevel, charging: charging),
             ],
           ),
         ),
@@ -95,9 +108,13 @@ class _NavIconButton extends StatelessWidget {
           children: [
             Icon(icon, size: 22, color: colorScheme.onSurface),
             const SizedBox(height: 2),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 10, color: colorScheme.onSurface.withValues(alpha: 0.8))),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: colorScheme.onSurface.withValues(alpha: 0.8),
+              ),
+            ),
           ],
         ),
       ),
@@ -106,22 +123,28 @@ class _NavIconButton extends StatelessWidget {
 }
 
 class _BatteryIndicator extends StatelessWidget {
-  const _BatteryIndicator({required this.level});
+  const _BatteryIndicator({required this.level, this.charging = false});
 
   final double? level;
+  final bool charging;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final pct = level != null ? (level! * 100).round() : null;
 
-    final icon = switch (pct) {
-      null => Icons.battery_unknown,
-      >= 80 => Icons.battery_full,
-      >= 50 => Icons.battery_5_bar,
-      >= 20 => Icons.battery_3_bar,
-      _ => Icons.battery_alert,
-    };
+    final IconData icon;
+    if (charging) {
+      icon = Icons.battery_charging_full;
+    } else {
+      icon = switch (pct) {
+        null => Icons.battery_unknown,
+        >= 80 => Icons.battery_full,
+        >= 50 => Icons.battery_5_bar,
+        >= 20 => Icons.battery_3_bar,
+        _ => Icons.battery_alert,
+      };
+    }
 
     final label = pct != null ? '$pct%' : 'Battery';
 
@@ -132,11 +155,13 @@ class _BatteryIndicator extends StatelessWidget {
         children: [
           Icon(icon, size: 20, color: colorScheme.onSurface),
           const SizedBox(height: 2),
-          Text(label,
-              style: TextStyle(
-                fontSize: 10,
-                color: colorScheme.onSurface.withValues(alpha: 0.8),
-              )),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: colorScheme.onSurface.withValues(alpha: 0.8),
+            ),
+          ),
         ],
       ),
     );

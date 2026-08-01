@@ -15,12 +15,14 @@ class WordLookupSheet extends ConsumerStatefulWidget {
     super.key,
     required this.word,
     this.initialLanguage = 'en',
+    this.initialSource = DictionarySource.wiktionary,
     this.sourceSentence,
     this.sourceTitle,
   });
 
   final String word;
   final String initialLanguage;
+  final DictionarySource initialSource;
 
   final String? sourceSentence;
 
@@ -32,6 +34,7 @@ class WordLookupSheet extends ConsumerStatefulWidget {
 
 class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
   late String _language;
+  late DictionarySource _source;
   WiktionaryResult? _result;
   bool _loading = true;
   String? _error;
@@ -43,6 +46,10 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
   void initState() {
     super.initState();
     _language = widget.initialLanguage;
+    _source = widget.initialSource;
+    if (!_source.languages.any((l) => l.code == _language)) {
+      _language = _source.languages.first.code;
+    }
     _checkSaved();
     _lookup();
   }
@@ -66,7 +73,7 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
       _result = null;
       _error = null;
     });
-    final svc = ref.read(dictionaryServiceProvider);
+    final svc = ref.read(dictionaryServiceProvider(_source));
     try {
       final result = await svc.lookup(widget.word, _language);
       if (!mounted) return;
@@ -96,7 +103,7 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
     if (_saved) {
       await repo.delete(id);
     } else {
-      final langLabel = supportedLanguages
+      final langLabel = _source.languages
           .firstWhere((l) => l.code == _language,
               orElse: () => const WiktionaryLanguage('en', 'English'))
           .label;
@@ -106,6 +113,8 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
         word: widget.word,
         language: _language,
         languageLabel: langLabel,
+        source: _source.id,
+        sourceLabel: _source.label,
         phonetic: result.phonetic,
         partOfSpeech: result.senses.first.partOfSpeech,
         definition: result.senses.map((s) => s.definition).join('\n'),
@@ -158,8 +167,6 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _DragHandle(),
-          const SizedBox(height: AppSpacing.sm),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -180,19 +187,40 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
               ),
             ],
           ),
-          if (widget.sourceSentence != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            _ContextField(controller: _contextController, source: widget.sourceTitle),
-          ],
           const SizedBox(height: AppSpacing.sm),
-          _LanguageSelector(
-            selected: _language,
-            onChanged: (code) {
-              if (code != null && code != _language) {
-                setState(() => _language = code);
-                _lookup();
-              }
-            },
+          _ContextField(controller: _contextController, source: widget.sourceTitle),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: _SourceSelector(
+                  selected: _source,
+                  onChanged: (src) {
+                    if (src == null || src == _source) return;
+                    setState(() {
+                      _source = src;
+                      if (!_source.languages.any((l) => l.code == _language)) {
+                        _language = _source.languages.first.code;
+                      }
+                    });
+                    _lookup();
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _LanguageSelector(
+                  selected: _language,
+                  languages: _source.languages,
+                  onChanged: (code) {
+                    if (code != null && code != _language) {
+                      setState(() => _language = code);
+                      _lookup();
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.md),
           Flexible(
@@ -212,6 +240,7 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
                               child: _DefinitionCard(
                                 result: _result!,
                                 language: _language,
+                                source: _source,
                                 onCopy: _copyWord,
                                 textTheme: textTheme,
                                 colorScheme: colorScheme,
@@ -224,6 +253,7 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
                                           child: WordLookupSheet(
                                             word: relatedWord,
                                             initialLanguage: _language,
+                                            initialSource: _source,
                                           ),
                                         ),
                                       ),
@@ -236,24 +266,6 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _DragHandle extends StatelessWidget {
-  const _DragHandle();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 36,
-        height: 4,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(2),
-        ),
       ),
     );
   }
@@ -347,9 +359,14 @@ class _ContextField extends StatelessWidget {
 }
 
 class _LanguageSelector extends StatelessWidget {
-  const _LanguageSelector({required this.selected, required this.onChanged});
+  const _LanguageSelector({
+    required this.selected,
+    required this.languages,
+    required this.onChanged,
+  });
 
   final String selected;
+  final List<WiktionaryLanguage> languages;
   final ValueChanged<String?> onChanged;
 
   @override
@@ -372,10 +389,47 @@ class _LanguageSelector extends StatelessWidget {
         ),
         isDense: true,
       ),
-      items: supportedLanguages.map((l) {
+      items: languages.map((l) {
         return DropdownMenuItem(
           value: l.code,
           child: Text('${l.label} (${l.code.toUpperCase()})'),
+        );
+      }).toList(),
+      onChanged: onChanged,
+    );
+  }
+}
+
+class _SourceSelector extends StatelessWidget {
+  const _SourceSelector({required this.selected, required this.onChanged});
+
+  final DictionarySource selected;
+  final ValueChanged<DictionarySource?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DropdownButtonFormField<DictionarySource>(
+      initialValue: selected,
+      isExpanded: true,
+      icon: const Icon(Icons.expand_more_rounded, size: 20),
+      decoration: InputDecoration(
+        labelText: 'Source',
+        prefixIcon: const Icon(Icons.book_rounded, size: 20),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        filled: true,
+        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        isDense: true,
+      ),
+      items: DictionarySource.values.map((s) {
+        return DropdownMenuItem(
+          value: s,
+          child: Text(s.label),
         );
       }).toList(),
       onChanged: onChanged,
@@ -443,6 +497,7 @@ class _DefinitionCard extends StatelessWidget {
   const _DefinitionCard({
     required this.result,
     required this.language,
+    required this.source,
     required this.onCopy,
     required this.textTheme,
     required this.colorScheme,
@@ -452,6 +507,7 @@ class _DefinitionCard extends StatelessWidget {
 
   final WiktionaryResult result;
   final String language;
+  final DictionarySource source;
   final VoidCallback onCopy;
   final TextTheme textTheme;
   final ColorScheme colorScheme;
@@ -494,6 +550,19 @@ class _DefinitionCard extends StatelessWidget {
                   child: Text(language.toUpperCase(),
                       style: textTheme.labelSmall?.copyWith(
                           color: colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(source.label,
+                      style: textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSecondaryContainer,
                           fontWeight: FontWeight.w600)),
                 ),
                 IconButton(

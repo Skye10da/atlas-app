@@ -5,6 +5,8 @@ class DictionaryWordEntity {
     required this.word,
     required this.language,
     required this.languageLabel,
+    this.source = 'wiktionary',
+    this.sourceLabel = 'Wiktionary',
     this.phonetic,
     required this.partOfSpeech,
     required this.definition,
@@ -21,6 +23,8 @@ class DictionaryWordEntity {
   final String word;
   final String language;
   final String languageLabel;
+  final String source;
+  final String sourceLabel;
   final String? phonetic;
   final String partOfSpeech;
   final String definition;
@@ -38,6 +42,8 @@ class DictionaryWordEntity {
     String? word,
     String? language,
     String? languageLabel,
+    String? source,
+    String? sourceLabel,
     String? phonetic,
     String? partOfSpeech,
     String? definition,
@@ -59,6 +65,8 @@ class DictionaryWordEntity {
       word: word ?? this.word,
       language: language ?? this.language,
       languageLabel: languageLabel ?? this.languageLabel,
+      source: source ?? this.source,
+      sourceLabel: sourceLabel ?? this.sourceLabel,
       phonetic: phonetic ?? this.phonetic,
       partOfSpeech: partOfSpeech ?? this.partOfSpeech,
       definition: definition ?? this.definition,

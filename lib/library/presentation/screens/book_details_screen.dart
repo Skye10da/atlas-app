@@ -12,6 +12,7 @@ import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
@@ -93,7 +94,7 @@ Future<void> _deleteBook(String bookId, WidgetRef ref, BuildContext context) asy
   if (context.mounted) {
     if (r is Success) {
       ref.invalidate(libraryBooksProvider);
-      context.pop();
+      popOrGoToLibrary(context);
     } else if (r is Failure) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(r.error.userMessage)),
@@ -687,7 +688,7 @@ class _MobileBookDetails extends StatelessWidget {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.arrow_back, color: Colors.white),
-                            onPressed: () => context.pop(),
+                            onPressed: () => popOrGoToLibrary(context),
                           ),
                           const Spacer(),
                           IconButton(

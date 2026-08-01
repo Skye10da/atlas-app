@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/presentation/providers/source_browser_provider.dart';
 
 class SourceBrowserScreen extends ConsumerWidget {
@@ -20,7 +21,7 @@ class SourceBrowserScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => popOrGoToLibrary(context),
         ),
         title: const Text('Browse Sources'),
       ),

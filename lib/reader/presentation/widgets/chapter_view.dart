@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
@@ -338,10 +339,11 @@ class _ChapterViewState extends ConsumerState<ChapterView> {
   }
 
   void _showDefine(String word, {String? sentence}) {
-    showModalBottomSheet(
+    DraggableBottomSheet.show(
       context: context,
-      isScrollControlled: true,
-      builder: (ctx) => WordLookupSheet(
+      id: 'word_lookup',
+      initialHeight: 0.7,
+      child: WordLookupSheet(
         word: word,
         sourceSentence: sentence,
         sourceTitle: widget.chapterTitle,
@@ -398,6 +400,20 @@ extension ReadingModeX on ReadingMode {
   String get label => switch (this) {
     ReadingMode.page => 'Page Mode',
     ReadingMode.continuous => 'Continuous',
+  };
+}
+
+enum ReaderChromeStyle { translucent, frosted }
+
+extension ReaderChromeStyleX on ReaderChromeStyle {
+  String get label => switch (this) {
+    ReaderChromeStyle.translucent => 'Translucent',
+    ReaderChromeStyle.frosted => 'Frosted Glass',
+  };
+
+  IconData get icon => switch (this) {
+    ReaderChromeStyle.translucent => Icons.blur_on,
+    ReaderChromeStyle.frosted => Icons.grain,
   };
 }
 

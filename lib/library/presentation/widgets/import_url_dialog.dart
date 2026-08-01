@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
 
 class ImportUrlDialog extends StatefulWidget {
-  const ImportUrlDialog({super.key});
+  const ImportUrlDialog({
+    super.key,
+    this.title = 'Import from URL',
+    this.labelText = 'Book URL',
+    this.hintText = 'https://example.com/book.epub',
+    this.buttonLabel = 'Import',
+  });
+
+  final String title;
+  final String labelText;
+  final String hintText;
+  final String buttonLabel;
 
   @override
   State<ImportUrlDialog> createState() => _ImportUrlDialogState();
@@ -25,13 +36,13 @@ class _ImportUrlDialogState extends State<ImportUrlDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Import from URL'),
+      title: Text(widget.title),
       content: TextField(
         controller: _controller,
-        decoration: const InputDecoration(
-          hintText: 'https://example.com/book.txt',
-          labelText: 'Book URL',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          hintText: widget.hintText,
+          labelText: widget.labelText,
+          border: const OutlineInputBorder(),
         ),
         autofocus: true,
         keyboardType: TextInputType.url,
@@ -46,7 +57,7 @@ class _ImportUrlDialogState extends State<ImportUrlDialog> {
         ),
         FilledButton(
           onPressed: _valid ? _submit : null,
-          child: const Text('Import'),
+          child: Text(widget.buttonLabel),
         ),
       ],
     );

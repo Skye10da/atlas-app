@@ -8,19 +8,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
+import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/pager.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_bar_surface.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_bottom_nav.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_chrome_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_command_palette.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_edge_regions.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_progress_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_right_panel.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
@@ -77,7 +85,8 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
   ConsumerState<PagedReaderLayout> createState() => _PagedReaderLayoutState();
 }
 
-class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
+class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
+    with ReaderChromeController {
   final _pageController = PageController();
   final Map<int, List<String>> _pageCache = {};
   final Map<int, String> _contentCache = {};
@@ -85,58 +94,24 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
   int _totalPages = 0;
   int _currentGlobalPage = 0;
   String _cacheKey = '';
-  bool _chromeVisible = true;
-  bool _rightPanelVisible = false;
-  bool _commandPaletteVisible = false;
   bool _pendingChapterJump = true;
-  Timer? _chromeTimer;
   double _layoutWidth = 0;
   double _layoutHeight = 0;
   int? _neighborPrefetchScheduledFor;
   static const double _maxReadingWidth = 720.0;
-  static const double _rightPanelWidth = 280.0;
 
   @override
   void initState() {
     super.initState();
     _cacheKey = _computeCacheKey();
-    _resetChromeTimer();
+    initReaderChrome(isDarkTheme: widget.settings.theme.isDark);
   }
 
   @override
   void dispose() {
-    _chromeTimer?.cancel();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    disposeReaderChrome();
     _pageController.dispose();
     super.dispose();
-  }
-
-  void _setFullscreen(bool fullscreen) {
-    SystemChrome.setEnabledSystemUIMode(
-      fullscreen ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
-    );
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness:
-          widget.settings.theme.isDark ? Brightness.light : Brightness.dark,
-      systemNavigationBarColor: widget.settings.theme.background,
-      systemNavigationBarIconBrightness:
-          widget.settings.theme.isDark ? Brightness.light : Brightness.dark,
-    ));
-  }
-
-  void _toggleChrome() {
-    HapticFeedback.lightImpact();
-    setState(() {
-      _chromeVisible = !_chromeVisible;
-    });
-    if (_chromeVisible) {
-      _setFullscreen(false);
-      _resetChromeTimer();
-    } else {
-      _setFullscreen(true);
-      _chromeTimer?.cancel();
-    }
   }
 
   void _onDesktopSpreadTapUp(TapUpDetails details, BoxConstraints constraints) {
@@ -158,7 +133,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
             curve: Curves.easeInOut);
       }
     } else {
-      _toggleChrome();
+      toggleChrome(isDarkTheme: widget.settings.theme.isDark);
     }
   }
 
@@ -180,64 +155,28 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
         );
       }
     } else {
-      _toggleChrome();
+      toggleChrome(isDarkTheme: widget.settings.theme.isDark);
     }
   }
 
-  double? _brightnessDragStartY;
-  double? _brightnessDragStartValue;
-
-  void _onEdgeBrightnessStart(DragStartDetails details) {
-    _brightnessDragStartY = details.localPosition.dy;
-    _brightnessDragStartValue = widget.settings.brightness;
-  }
-
-  void _onEdgeBrightnessUpdate(DragUpdateDetails details) {
-    if (_brightnessDragStartY == null || _brightnessDragStartValue == null) return;
-    final delta = (details.localPosition.dy - _brightnessDragStartY!) / 300;
-    final newBrightness = (_brightnessDragStartValue! - delta).clamp(0.0, 1.0);
+  void _applyBrightness(double newBrightness) {
     final notifier = ref.read(readingSettingsProvider.notifier);
     notifier.setBrightness(newBrightness);
     final svc = ref.read(platformServiceProvider);
     svc.setBrightness(newBrightness, smooth: true);
   }
 
-  void _onEdgeBrightnessEnd(DragEndDetails details) {
-    _brightnessDragStartY = null;
-    _brightnessDragStartValue = null;
-  }
-
-  void _resetChromeTimer() {
-    _chromeTimer?.cancel();
-    _chromeTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted) {
-        setState(() => _chromeVisible = false);
-        _setFullscreen(true);
-      }
-    });
-  }
-
-  bool get _isDesktop => MediaQuery.of(context).size.width >= 840;
-  bool get _isWideDesktop => _isDesktop && MediaQuery.of(context).size.width >= 1200;
-
   int get _totalSpreads => (_totalPages + 1) ~/ 2;
 
   double _pageWidthForCurrentMode() {
     final rawWidth = _layoutWidth > 0 ? _layoutWidth : 800.0;
-    if (_isWideDesktop) {
-      final maxSpreadWidth = rawWidth - (_rightPanelVisible ? _rightPanelWidth : 0);
+    if (isWideDesktop) {
+      final maxSpreadWidth =
+          rawWidth - (rightPanelVisible ? ReaderChromeController.rightPanelWidth : 0);
       final pageArea = maxSpreadWidth * 0.9;
       return (pageArea / 2).clamp(280.0, 520.0);
     }
     return rawWidth > _maxReadingWidth ? _maxReadingWidth : rawWidth;
-  }
-
-  void _toggleRightPanel() {
-    setState(() => _rightPanelVisible = !_rightPanelVisible);
-  }
-
-  void _hideRightPanel() {
-    if (_rightPanelVisible) setState(() => _rightPanelVisible = false);
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -245,12 +184,22 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
     final isDesktop = MediaQuery.of(context).size.width >= 840;
     if (!isDesktop) return KeyEventResult.ignored;
 
+    final common = handleCommonReaderKeys(
+      event,
+      commandPaletteVisible: commandPaletteVisible,
+      onClosePalette: () => setState(() => commandPaletteVisible = false),
+      onToggleChrome: () =>
+          toggleChrome(isDarkTheme: widget.settings.theme.isDark),
+      onOpenPalette: () => setState(() => commandPaletteVisible = true),
+    );
+    if (common != KeyEventResult.ignored) return common;
+
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      _resetChromeTimer();
+      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
       if (_currentGlobalPage > 0) {
-        final step = _isWideDesktop ? 2 : 1;
+        final step = isWideDesktop ? 2 : 1;
         final target = _currentGlobalPage - step;
-        if (_isWideDesktop) {
+        if (isWideDesktop) {
           _pageController.animateToPage(target ~/ 2,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut);
@@ -263,9 +212,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      _resetChromeTimer();
+      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
       if (_currentGlobalPage < _totalPages - 1) {
-        if (_isWideDesktop) {
+        if (isWideDesktop) {
           final target = _currentGlobalPage + 2;
           _pageController.animateToPage(target ~/ 2,
               duration: const Duration(milliseconds: 200),
@@ -275,23 +224,6 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut);
         }
-      }
-      return KeyEventResult.handled;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.escape) {
-      if (_commandPaletteVisible) {
-        setState(() => _commandPaletteVisible = false);
-        return KeyEventResult.handled;
-      }
-      _toggleChrome();
-      return KeyEventResult.handled;
-    }
-
-    final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed ||
-        HardwareKeyboard.instance.isMetaPressed;
-    if (isCtrlOrCmd && event.logicalKey == LogicalKeyboardKey.keyK) {
-      if (!_commandPaletteVisible) {
-        setState(() => _commandPaletteVisible = true);
       }
       return KeyEventResult.handled;
     }
@@ -502,7 +434,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
       widget.onProgressChanged(_totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_pageController.hasClients) {
-          _pageController.jumpToPage(_isWideDesktop ? target ~/ 2 : target);
+          _pageController.jumpToPage(isWideDesktop ? target ~/ 2 : target);
         }
       });
     }
@@ -510,17 +442,23 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
     if (!_contentCache.containsKey(currentIndex) || _totalPages == 0) {
       return Scaffold(
         backgroundColor: vt.background,
-        appBar: AppBar(
-          backgroundColor: vt.surface,
-          foregroundColor: vt.text,
-          title: Text(chapters[widget.currentChapterIndex].title,
-              maxLines: 1, overflow: TextOverflow.ellipsis),
-          actions: [
-            IconButton(
-              icon: Icon(Icons.text_fields, color: vt.text),
-              onPressed: widget.onSettingsTap,
-            ),
-          ],
+        extendBodyBehindAppBar: true,
+        appBar: ReaderBarSurface(
+          style: widget.settings.chromeStyle,
+          color: vt.surface,
+          child: AppBar(
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            foregroundColor: vt.text,
+            title: Text(chapters[widget.currentChapterIndex].title,
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.text_fields, color: vt.text),
+                onPressed: widget.onSettingsTap,
+              ),
+            ],
+          ),
         ),
         body: const Center(child: AppLoading()),
       );
@@ -528,45 +466,35 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
 
     return Scaffold(
       backgroundColor: vt.background,
-      appBar: _chromeVisible
-          ? AppBar(
-              backgroundColor: vt.surface,
-              foregroundColor: vt.text,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              toolbarHeight: 40,
-              title: Text(chapters[currentIndex].title,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14)),
-              actions: [
-                if (_isDesktop) ...[
-                  IconButton(
-                    icon: Icon(
-                      _rightPanelVisible ? Icons.view_sidebar : Icons.view_sidebar_outlined,
-                      size: 18,
-                      color: vt.text,
-                    ),
-                    tooltip: 'Toggle panel',
-                    onPressed: _toggleRightPanel,
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                IconButton(
-                  icon: Icon(Icons.text_fields, size: 18, color: vt.text),
-                  onPressed: widget.onSettingsTap,
-                ),
-              ],
+      extendBodyBehindAppBar: true,
+      extendBody: true,
+      appBar: chromeVisible
+          ? ReaderBarSurface(
+              style: widget.settings.chromeStyle,
+              color: vt.surface,
+              child: ReaderChromeBar(
+                title: chapters[currentIndex].title,
+                textColor: vt.text,
+                showPanelToggle: isDesktop,
+                rightPanelVisible: rightPanelVisible,
+                onTogglePanel: toggleRightPanel,
+                onSettingsTap: widget.onSettingsTap,
+              ),
             )
           : null,
-      bottomNavigationBar: _chromeVisible
-          ? ReaderBottomNav(
-              onSettingsTap: widget.onSettingsTap,
-              onChapterIndexTap: () => _showChapterIndex(context),
-              onBookmarkTap: widget.onBookmarkToggle,
-              isBookmarked: widget.isBookmarked,
-              currentChapterTitle: chapters[currentIndex].title,
-              currentChapterNumber: currentIndex,
-              totalChapters: chapters.length,
+      bottomNavigationBar: chromeVisible
+          ? ReaderBarSurface(
+              style: widget.settings.chromeStyle,
+              color: vt.surface,
+              child: ReaderBottomNav(
+                onSettingsTap: widget.onSettingsTap,
+                onChapterIndexTap: () => _showChapterIndex(context),
+                onBookmarkTap: widget.onBookmarkToggle,
+                isBookmarked: widget.isBookmarked,
+                currentChapterTitle: chapters[currentIndex].title,
+                currentChapterNumber: currentIndex,
+                totalChapters: chapters.length,
+              ),
             )
           : null,
       body: LayoutBuilder(
@@ -584,8 +512,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
                 onKeyEvent: (node, event) {
                   if (event is KeyDownEvent &&
                       event.logicalKey == LogicalKeyboardKey.escape) {
-                    if (_rightPanelVisible) {
-                      _hideRightPanel();
+                    if (rightPanelVisible) {
+                      hideRightPanel();
                       return KeyEventResult.handled;
                     }
                   }
@@ -594,22 +522,22 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onTapUp: (details) {
-                    if (_rightPanelVisible) {
-                      _hideRightPanel();
+                    if (rightPanelVisible) {
+                      hideRightPanel();
                       return;
                     }
-                    if (!_isDesktop) {
+                    if (!isDesktop) {
                       _onMobileTapUp(details, constraints);
-                    } else if (_isWideDesktop) {
+                    } else if (isWideDesktop) {
                       _onDesktopSpreadTapUp(details, constraints);
                     } else {
-                      _toggleChrome();
+                      toggleChrome(isDarkTheme: widget.settings.theme.isDark);
                     }
                   },
                   child: PageView.builder(
                     controller: _pageController,
                     onPageChanged: (pageIndex) {
-                      _currentGlobalPage = _isWideDesktop ? pageIndex * 2 : pageIndex;
+                      _currentGlobalPage = isWideDesktop ? pageIndex * 2 : pageIndex;
                       final (chIdx, _) = _globalToLocal(_currentGlobalPage);
                       _ensureChapterLoaded(chIdx);
                       if (chIdx + 1 < chapters.length) {
@@ -618,11 +546,11 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
                       widget.onPageChanged(chIdx);
                       widget.onProgressChanged(
                           _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
-                      _resetChromeTimer();
+                      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
                     },
-                    itemCount: _isWideDesktop ? _totalSpreads : _totalPages,
+                    itemCount: isWideDesktop ? _totalSpreads : _totalPages,
                     itemBuilder: (context, index) {
-                      if (_isWideDesktop) {
+                      if (isWideDesktop) {
                         return _buildSpread(index, vt, chapters);
                       }
                       return _buildSinglePage(index, vt, chapters);
@@ -630,9 +558,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
                   ),
                 ),
               ),
-              if (!_isDesktop && _chromeVisible)
+              if (!isDesktop && chromeVisible)
                 Positioned(
-                  top: 0,
+                  top: MediaQuery.of(context).padding.top,
                   left: 0,
                   right: 0,
                   child: ReaderProgressBar(
@@ -640,61 +568,43 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
                     color: widget.settings.theme.accent,
                   ),
                 ),
-              if (!_isDesktop)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: 40,
-                  child: GestureDetector(
-                    onVerticalDragStart: _onEdgeBrightnessStart,
-                    onVerticalDragUpdate: _onEdgeBrightnessUpdate,
-                    onVerticalDragEnd: _onEdgeBrightnessEnd,
-                    behavior: HitTestBehavior.translucent,
-                    child: Container(color: Colors.transparent),
+              if (!isDesktop)
+                BrightnessEdgeGestureRegion(
+                  onVerticalDragStart: (details) => onEdgeBrightnessStart(
+                    details,
+                    followSystemBrightness: widget.settings.followSystemBrightness,
+                    currentBrightness: widget.settings.brightness,
                   ),
+                  onVerticalDragUpdate: (details) => onEdgeBrightnessUpdate(
+                    details,
+                    onChanged: _applyBrightness,
+                  ),
+                  onVerticalDragEnd: onEdgeBrightnessEnd,
                 ),
-              if (_isDesktop) ...[
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: 8,
-                  child: MouseRegion(
-                    onEnter: (_) {
-                      if (!_rightPanelVisible) {
-                        setState(() => _rightPanelVisible = true);
-                      }
+              if (isDesktop)
+                DesktopRightPanelRegion(
+                  visible: rightPanelVisible,
+                  chromeVisible: chromeVisible,
+                  panelWidth: ReaderChromeController.rightPanelWidth,
+                  onHoverReveal: showRightPanelOnHover,
+                  panel: ReaderRightPanel(
+                    chapters: chapters,
+                    currentChapterIndex: currentIndex,
+                    bookmarkedChapterIds: widget.bookmarkedChapterIds,
+                    onChapterSelected: (idx) {
+                      widget.onChapterSelected(idx);
+                      final target = _localToGlobal(idx, 0);
+                      _pageController.animateToPage(target,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut);
                     },
-                    cursor: _rightPanelVisible ? SystemMouseCursors.basic : SystemMouseCursors.click,
-                    child: Container(color: Colors.transparent),
+                    onBookmarkToggle: widget.onBookmarkToggle,
+                    isBookmarked: widget.isBookmarked,
+                    onClose: hideRightPanel,
+                    settings: widget.settings,
                   ),
                 ),
-                if (_rightPanelVisible)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: _rightPanelWidth,
-                    child: ReaderRightPanel(
-                      chapters: chapters,
-                      currentChapterIndex: currentIndex,
-                      bookmarkedChapterIds: widget.bookmarkedChapterIds,
-                      onChapterSelected: (idx) {
-                        widget.onChapterSelected(idx);
-                        final target = _localToGlobal(idx, 0);
-                        _pageController.animateToPage(target,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut);
-                      },
-                      onBookmarkToggle: widget.onBookmarkToggle,
-                      isBookmarked: widget.isBookmarked,
-                      onClose: _hideRightPanel,
-                      settings: widget.settings,
-                    ),
-                  ),
-              ],
-              if (_commandPaletteVisible)
+              if (commandPaletteVisible)
                 ReaderCommandPalette(
                   chapters: chapters,
                   currentChapterIndex: currentIndex,
@@ -708,8 +618,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
                   onToggleBookmark: widget.onBookmarkToggle,
                   isBookmarked: widget.isBookmarked,
                   onToggleSettings: widget.onSettingsTap,
-                  onTogglePanel: _toggleRightPanel,
-                  onClose: () => setState(() => _commandPaletteVisible = false),
+                  onTogglePanel: toggleRightPanel,
+                  onClose: () => setState(() => commandPaletteVisible = false),
                 ),
             ],
           );
@@ -792,71 +702,19 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
   }
 
   void _showChapterIndex(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text('Chapters',
-                style: Theme.of(context).textTheme.titleMedium),
-          ),
-          const Divider(height: 1),
-          SizedBox(
-            height: MediaQuery.of(context).size.height * 0.4,
-            child: ListView.separated(
-              itemCount: widget.chapters.length,
-              separatorBuilder: (_, _) =>
-                  const Divider(height: 1, indent: 16),
-              itemBuilder: (_, idx) {
-                final ch = widget.chapters[idx];
-                final (curChIdx, _) = _globalToLocal(_currentGlobalPage);
-                final isCurrent = idx == curChIdx;
-                return ListTile(
-                  leading: CircleAvatar(
-                    radius: 14,
-                    backgroundColor: isCurrent
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
-                    child: Text(
-                      '${idx + 1}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isCurrent
-                            ? Theme.of(context).colorScheme.onPrimary
-                            : null,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    ch.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontWeight: isCurrent ? FontWeight.w600 : null),
-                  ),
-                  trailing: isCurrent
-                      ? Icon(Icons.check,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.primary)
-                      : null,
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    final target = _localToGlobal(idx, 0);
-                    final pageToJump = _isWideDesktop ? target ~/ 2 : target;
-                    _pageController.animateToPage(pageToJump,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+    final (curChIdx, _) = _globalToLocal(_currentGlobalPage);
+    ChapterIndexSheet.show(
+      context,
+      sheetId: 'paged_chapter_index',
+      chapters: widget.chapters,
+      currentChapterIndex: curChIdx,
+      onChapterTap: (idx) {
+        final target = _localToGlobal(idx, 0);
+        final pageToJump = isWideDesktop ? target ~/ 2 : target;
+        _pageController.animateToPage(pageToJump,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut);
+      },
     );
   }
 
@@ -895,7 +753,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout> {
       textAlignment: widget.settings.textAlignment,
       marginPreset: widget.settings.marginPreset,
       vt: vt,
-      showHeaders: _chromeVisible,
+      showHeaders: true,
       chapterStyle: ChapterStyle.forChapter(chIdx),
       onHighlight: widget.onHighlight,
       onAddNote: widget.onAddNote,
@@ -1032,56 +890,15 @@ class _PagedPageView extends StatelessWidget {
       child: Column(
         children: [
           if (isFirstPageOfChapter && showHeaders && cs != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-              decoration: BoxDecoration(
-                color: cs.bannerBackground.withValues(alpha: 0.3),
-                border: Border(
-                  bottom: BorderSide(
-                      color: cs.accentColor.withValues(alpha: 0.2)),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: cs.accentColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${chapterIndex + 1}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Text(chapterTitle, style: cs.titleStyle),
-                  ),
-                ],
-              ),
+            ChapterHeaderBanner(
+              chapterNumber: chapterIndex + 1,
+              title: chapterTitle,
+              style: cs,
             ),
           if (isFirstPageOfChapter && showHeaders && cs != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Center(
-                child: Text(
-                  ChapterStyle.ornamentalDivider,
-                  style: TextStyle(
-                    color: cs.accentColor.withValues(alpha: 0.4),
-                    fontSize: 16,
-                  ),
-                ),
-              ),
+            ChapterOrnamentalDivider(
+              accentColor: cs.accentColor,
+              verticalPadding: 4,
             ),
           Expanded(
             child: SingleChildScrollView(
@@ -1091,36 +908,11 @@ class _PagedPageView extends StatelessWidget {
           ),
           if (isLastPageOfChapter && showHeaders) ...[
             if (cs != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Center(
-                  child: Text(
-                    ChapterStyle.ornamentalDivider,
-                    style: TextStyle(
-                      color: cs.accentColor.withValues(alpha: 0.4),
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-              child: Column(
-                children: [
-                  Divider(color: vt.text.withValues(alpha: 0.15)),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    '— End of Chapter ${chapterIndex + 1} —',
-                    style: TextStyle(
-                      fontSize: textStyle.fontSize! * 0.85,
-                      color: vt.text.withValues(alpha: 0.5),
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ),
+              ChapterOrnamentalDivider(accentColor: cs.accentColor),
+            ChapterEndFooter(
+              chapterNumber: chapterIndex + 1,
+              textColor: vt.text,
+              baseFontSize: textStyle.fontSize!,
             ),
           ],
         ],
@@ -1247,10 +1039,11 @@ class _PagedPageView extends StatelessWidget {
   }
 
   void _showDefine(BuildContext ctx, String word, {String? sentence, String? sourceTitle}) {
-    showModalBottomSheet(
+    DraggableBottomSheet.show(
       context: ctx,
-      isScrollControlled: true,
-      builder: (c) => WordLookupSheet(
+      id: 'word_lookup',
+      initialHeight: 0.7,
+      child: WordLookupSheet(
         word: word,
         sourceSentence: sentence,
         sourceTitle: sourceTitle,

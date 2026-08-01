@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/molecules/app_empty_state.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
+import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -87,14 +90,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             tooltip: 'Browse',
           ),
           IconButton(
-            icon: const Icon(Icons.link),
-            onPressed: () => _importFromUrl(),
-            tooltip: 'Import from URL',
+            icon: const Icon(Icons.auto_stories),
+            onPressed: () => _importNovel(),
+            tooltip: 'Add Novel',
           ),
-          IconButton(
-            icon: const Icon(Icons.file_upload_outlined),
-            onPressed: () => _importBook(),
-            tooltip: 'Import EPUB',
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Import Book',
+            onSelected: (value) {
+              if (value == 'file') {
+                _importBook();
+              } else if (value == 'link') {
+                _importBookFromUrl();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'file',
+                child: Text('From device (.epub)'),
+              ),
+              PopupMenuItem(
+                value: 'link',
+                child: Text('From link'),
+              ),
+            ],
           ),
         ],
       ],
@@ -194,6 +213,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       onBookLongPress: (id, pos) => _showBookContextMenu(id, pos),
                       onLoadSamples: () => _loadSamples(),
                       onImport: () => _importBook(),
+                      onAddNovel: () => _importNovel(),
                       onDeleteBook: (id) => _deleteBook(id),
                       isImporting: importActions.isImporting,
                     ),
@@ -272,9 +292,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   void _showSortMenu() {
     final current = ref.read(librarySortProvider);
-    showModalBottomSheet(
+    DraggableBottomSheet.show(
       context: context,
-      builder: (ctx) => Column(
+      id: 'library_sort',
+      initialHeight: 0.5,
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ...LibrarySortOrder.values.map((order) {
@@ -296,7 +318,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   : null,
               onTap: () {
                 ref.read(librarySortProvider.notifier).state = order;
-                Navigator.of(ctx).pop();
+                Navigator.of(context).pop();
               },
             );
           }),
@@ -311,18 +333,50 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     });
   }
 
-  Future<void> _importFromUrl() async {
+  Future<void> _importFromUrl({
+    String title = 'Import from URL',
+    String labelText = 'Book URL',
+    String hintText = 'https://example.com/book.epub',
+    String buttonLabel = 'Import',
+  }) async {
     final actions = ref.read(libraryImportProvider);
-    final result = await actions.importUrl(context);
+    final result = await actions.importUrl(
+      context,
+      title: title,
+      labelText: labelText,
+      hintText: hintText,
+      buttonLabel: buttonLabel,
+    );
     ref.invalidate(libraryBooksProvider);
 
-    if (result is Success<String> && mounted) {
-      await context.push('/book/${result.value}');
-    } else if (result is Failure<String> && mounted) {
+    if (result is Success<ImportOutcome> && mounted) {
+      final route = result.value.category == ContentCategory.novel
+          ? '/novel/${result.value.bookId}'
+          : '/book/${result.value.bookId}';
+      await context.push(route);
+    } else if (result is Failure<ImportOutcome> && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result.error.userMessage)),
       );
     }
+  }
+
+  Future<void> _importBookFromUrl() {
+    return _importFromUrl(
+      title: 'Import book from link',
+      labelText: 'Book link',
+      hintText: 'https://example.com/book.epub',
+      buttonLabel: 'Import',
+    );
+  }
+
+  Future<void> _importNovel() {
+    return _importFromUrl(
+      title: 'Add novel from link',
+      labelText: 'Novel link',
+      hintText: 'https://www.mvlempyr.io/novel/...',
+      buttonLabel: 'Add',
+    );
   }
 
   Future<void> _importBook() async {
@@ -553,6 +607,7 @@ class _BookshelfContent extends StatelessWidget {
     required this.onBookLongPress,
     required this.onLoadSamples,
     required this.onImport,
+    required this.onAddNovel,
     required this.onDeleteBook,
     this.isImporting = false,
   });
@@ -566,6 +621,7 @@ class _BookshelfContent extends StatelessWidget {
   final void Function(String id, Offset globalPosition) onBookLongPress;
   final VoidCallback onLoadSamples;
   final VoidCallback onImport;
+  final VoidCallback onAddNovel;
   final void Function(String id) onDeleteBook;
   final bool isImporting;
 
@@ -578,7 +634,7 @@ class _BookshelfContent extends StatelessWidget {
           children: [
             const AppEmptyState(
               title: 'Your library is empty',
-              message: 'Import an EPUB file or load samples to start reading.',
+              message: 'Import a book or add a novel to start reading.',
               icon: Icons.library_books,
             ),
             const SizedBox(height: 16),
@@ -591,7 +647,13 @@ class _BookshelfContent extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.file_upload),
-              label: Text(isImporting ? 'Importing...' : 'Import EPUB'),
+              label: Text(isImporting ? 'Importing...' : 'Import Book'),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: isImporting ? null : onAddNovel,
+              icon: const Icon(Icons.auto_stories, size: 18),
+              label: const Text('Add Novel from link'),
             ),
             const SizedBox(height: 8),
             TextButton(

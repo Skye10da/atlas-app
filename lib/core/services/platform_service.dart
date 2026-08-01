@@ -1,3 +1,5 @@
+import 'dart:async';
+
 abstract class PlatformService {
   // Brightness
   Future<void> setBrightness(double value, {bool smooth});
@@ -11,4 +13,8 @@ abstract class PlatformService {
   Future<double> getBatteryLevel();
   Future<bool> isLowPowerModeEnabled();
   Future<void> optimizeForLowBattery();
+
+  // Charging state
+  Future<bool> isCharging();
+  Stream<bool> get onChargingChanged;
 }

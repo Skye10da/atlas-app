@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.dart';
+import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
+import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/presentation/providers/source_browser_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
 
@@ -131,9 +134,9 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
       );
 
       if (!mounted) return;
-      String? bookId;
+      ImportOutcome? outcome;
       try {
-        bookId = await importFuture;
+        outcome = await importFuture;
       } on ImportRedirect catch (e) {
         if (!mounted) return;
         final shouldOpen = await showDialog<bool>(
@@ -160,7 +163,10 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
       }
 
       if (!mounted) return;
-      context.go('/book/$bookId');
+      final route = outcome.category == ContentCategory.novel
+          ? '/novel/${outcome.bookId}'
+          : '/book/${outcome.bookId}';
+      context.go(route);
     } finally {
       if (mounted) setState(() => _isImporting = false);
     }
@@ -174,7 +180,7 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => popOrGoToLibrary(context),
         ),
         title: Text(_source.sourceName),
       ),

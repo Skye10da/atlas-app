@@ -94,6 +94,41 @@ const List<WiktionaryLanguage> supportedLanguages = [
   WiktionaryLanguage('hi', 'Hindi'),
 ];
 
+/// A selectable dictionary backend. Each source advertises the languages it
+/// can look up, so the UI can present a source picker next to the language
+/// picker and only offer valid combinations.
+enum DictionarySource {
+  wiktionary(
+    id: 'wiktionary',
+    label: 'Wiktionary',
+    languages: supportedLanguages,
+  ),
+  urbanDictionary(
+    id: 'urban_dictionary',
+    label: 'Urban Dictionary',
+    languages: [
+      WiktionaryLanguage('en', 'English'),
+    ],
+  );
+
+  const DictionarySource({
+    required this.id,
+    required this.label,
+    required this.languages,
+  });
+
+  final String id;
+  final String label;
+  final List<WiktionaryLanguage> languages;
+
+  static DictionarySource fromId(String id) {
+    return DictionarySource.values.firstWhere(
+      (s) => s.id == id,
+      orElse: () => DictionarySource.wiktionary,
+    );
+  }
+}
+
 abstract interface class DictionaryService {
   Future<WiktionaryResult?> lookup(String word, String language);
 }
@@ -164,5 +199,50 @@ class WiktionaryService implements DictionaryService {
 
     if (allSenses.isEmpty) return null;
     return WiktionaryResult(word: word, phonetic: phonetic, senses: allSenses);
+  }
+}
+
+class UrbanDictionaryService implements DictionaryService {
+  UrbanDictionaryService({http.Client? client}) : _client = client ?? http.Client();
+
+  final http.Client _client;
+
+  static const _maxResults = 5;
+
+  @override
+  Future<WiktionaryResult?> lookup(String word, String language) async {
+    final uri = Uri.parse(
+      'https://api.urbandictionary.com/v0/define'
+      '?term=${Uri.encodeComponent(word.toLowerCase())}',
+    );
+    final response = await _client
+        .get(uri, headers: {'User-Agent': 'AtlasApp/1.0'})
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Urban Dictionary API returned status ${response.statusCode} for "$word"',
+      );
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final list = body['list'] as List?;
+    if (list == null || list.isEmpty) return null;
+
+    final senses = <WiktionarySense>[];
+    for (final item in list.take(_maxResults)) {
+      final e = item as Map<String, dynamic>;
+      final definition = (e['definition'] as String? ?? '').trim();
+      if (definition.isEmpty) continue;
+      final example = (e['example'] as String? ?? '').trim();
+      senses.add(WiktionarySense(
+        partOfSpeech: 'slang',
+        definition: definition,
+        examples: example.isEmpty ? const [] : [example],
+      ));
+    }
+
+    if (senses.isEmpty) return null;
+    return WiktionaryResult(word: word, phonetic: null, senses: senses);
   }
 }

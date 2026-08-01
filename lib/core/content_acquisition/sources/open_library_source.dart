@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.dart';
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 
@@ -18,6 +19,9 @@ class OpenLibrarySource implements SearchableSource {
 
   @override
   String get sourceName => 'Open Library';
+
+  @override
+  ContentCategory get contentCategory => ContentCategory.book;
 
   @override
   bool canHandle(Uri uri) {

@@ -145,6 +145,7 @@ class EpubImportService {
         title: Value(title),
         author: Value(author),
         format: const Value('epub'),
+        itemType: const Value('book'),
         filePath: Value(bookDir.path),
         totalChapters: Value(chapterIndex),
         coverPath: coverPath != null ? Value(coverPath) : const Value(null),

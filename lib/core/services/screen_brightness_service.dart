@@ -1,8 +1,19 @@
+import 'dart:async';
+
+import 'package:battery_plus/battery_plus.dart';
 import 'package:screen_brightness_pro/screen_brightness_pro.dart';
 
 import 'package:atlas_app/core/services/platform_service.dart';
 
 class ScreenBrightnessService implements PlatformService {
+  final Battery _battery = Battery();
+
+  bool _isOnPower(BatteryState state) {
+    return state == BatteryState.charging ||
+        state == BatteryState.full ||
+        state == BatteryState.connectedNotCharging;
+  }
+
   @override
   Future<void> setBrightness(double value, {bool smooth = false}) async {
     try {
@@ -56,5 +67,21 @@ class ScreenBrightnessService implements PlatformService {
     try {
       await ScreenBrightnessPro.optimizeForLowBattery();
     } catch (_) {}
+  }
+
+  @override
+  Future<bool> isCharging() async {
+    try {
+      return _isOnPower(await _battery.batteryState);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Stream<bool> get onChargingChanged {
+    return _battery.onBatteryStateChanged
+        .map(_isOnPower)
+        .handleError((Object _, StackTrace _) {});
   }
 }

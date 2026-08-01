@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:atlas_app/core/services/platform_service.dart';
 
 class StubPlatformService implements PlatformService {
@@ -21,4 +23,10 @@ class StubPlatformService implements PlatformService {
 
   @override
   Future<void> optimizeForLowBattery() async {}
+
+  @override
+  Future<bool> isCharging() async => false;
+
+  @override
+  Stream<bool> get onChargingChanged => const Stream.empty();
 }

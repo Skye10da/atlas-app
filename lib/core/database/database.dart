@@ -31,8 +31,10 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.memory() : super(NativeDatabase.memory());
 
+  AppDatabase.open(super.executor);
+
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -71,6 +73,24 @@ class AppDatabase extends _$AppDatabase {
             try {
               await migrator.addColumn(books, books.status);
             } catch (_) {}
+          }
+          if (from <= 5) {
+            for (final col in [
+              dictionaryWords.source,
+              dictionaryWords.sourceLabel,
+            ]) {
+              try {
+                await migrator.addColumn(dictionaryWords, col);
+              } catch (_) {}
+            }
+          }
+          if (from <= 6) {
+            try {
+              await migrator.addColumn(books, books.itemType);
+            } catch (_) {}
+            await migrator.database.customStatement(
+              "UPDATE books SET item_type = 'novel' WHERE source_name = 'MVLEMPYR'",
+            );
           }
         },
       );

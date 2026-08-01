@@ -118,6 +118,13 @@ class ReadingSettingsNotifier extends StateNotifier<AsyncValue<ReadingSettingsEn
     await _repo.save(updated);
   }
 
+  Future<void> setFollowSystemBrightness(bool value) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(followSystemBrightness: value);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
   Future<void> setPageTurnAnimation(PageTurnAnimation animation) async {
     final current = state.valueOrNull ?? const ReadingSettingsEntity();
     final updated = current.copyWith(pageTurnAnimation: animation);
@@ -128,6 +135,13 @@ class ReadingSettingsNotifier extends StateNotifier<AsyncValue<ReadingSettingsEn
   Future<void> setScrollAnimation(ScrollAnimation animation) async {
     final current = state.valueOrNull ?? const ReadingSettingsEntity();
     final updated = current.copyWith(scrollAnimation: animation);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setChromeStyle(ReaderChromeStyle style) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(chromeStyle: style);
     state = AsyncData(updated);
     await _repo.save(updated);
   }

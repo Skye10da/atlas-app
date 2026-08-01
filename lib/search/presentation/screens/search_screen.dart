@@ -53,7 +53,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               data: (result) => switch (result) {
                 Success(value: final results) => _SearchResults(
                     results: results,
-                    onBookTap: (bookId) => context.push('/book/$bookId'),
+                    onBookTap: (bookId, isNovel) => isNovel
+                        ? context.push('/novel/$bookId')
+                        : context.push('/book/$bookId'),
                     onChapterTap: (bookId, chapterIndex) =>
                         context.push('/reader/$bookId?chapter=$chapterIndex'),
                   ),
@@ -75,7 +77,7 @@ class _SearchResults extends StatelessWidget {
   });
 
   final List<SearchResultEntity> results;
-  final void Function(String bookId) onBookTap;
+  final void Function(String bookId, bool isNovel) onBookTap;
   final void Function(String bookId, int chapterIndex) onChapterTap;
 
   @override
@@ -98,7 +100,7 @@ class _SearchResults extends StatelessWidget {
           const AppSectionHeader(title: 'Books'),
           ...books.map((r) => _BookResultTile(
             result: r,
-            onTap: () => onBookTap(r.bookId),
+            onTap: () => onBookTap(r.bookId, r.isNovel),
           )),
         ],
         if (chapters.isNotEmpty) ...[

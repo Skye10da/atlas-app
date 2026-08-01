@@ -11,6 +11,7 @@ class SearchResultEntity {
     this.chapterId,
     this.coverPath,
     this.totalChapters,
+    this.isNovel = false,
   });
 
   final SearchResultKind kind;
@@ -22,4 +23,5 @@ class SearchResultEntity {
   final String? chapterId;
   final String? coverPath;
   final int? totalChapters;
+  final bool isNovel;
 }

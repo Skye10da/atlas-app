@@ -9,12 +9,19 @@ import 'package:path_provider/path_provider.dart';
 import 'package:atlas_app/core/content_acquisition/adapters/source_adapter.dart';
 import 'package:atlas_app/core/content_acquisition/adapters/source_registry.dart';
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
 import 'package:atlas_app/core/content_acquisition/services/cache_manager.dart';
 import 'package:atlas_app/core/content_acquisition/services/download_engine.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 import 'package:atlas_app/core/content_acquisition/services/prefetch_engine.dart';
 import 'package:atlas_app/core/database/database.dart';
+
+class ImportOutcome {
+  const ImportOutcome({required this.bookId, required this.category});
+  final String bookId;
+  final ContentCategory category;
+}
 
 class ContentAcquisitionEngine {
   ContentAcquisitionEngine({
@@ -33,11 +40,11 @@ class ContentAcquisitionEngine {
   final PrefetchEngine prefetchEngine;
   final Map<String, _BookSourceState> _activeBooks = {};
 
-  Future<String> importAndSave(String url) async {
+  Future<ImportOutcome> importAndSave(String url) async {
     final result = await importService.import(url);
     final novel = result.novel;
     final chapters = result.chapters;
-    final source = result.source;
+    final category = novel.category;
 
     final existing = await (db.select(db.books)
       ..where((b) => b.sourceId.equals(novel.sourceId) & b.sourceName.equals(novel.source)))
@@ -107,7 +114,8 @@ class ContentAcquisitionEngine {
       title: Value(novel.title),
       author: novel.author != null ? Value(novel.author) : const Value.absent(),
       description: novel.description != null ? Value(novel.description) : const Value.absent(),
-      format: const Value('web'),
+      format: Value(category == ContentCategory.book ? (novel.fileFormat ?? 'epub') : 'web'),
+      itemType: Value(category.name),
       filePath: Value(bookDir.path),
       coverPath: coverPath != null ? Value(coverPath) : const Value.absent(),
       totalChapters: Value(chapters.length),
@@ -122,10 +130,10 @@ class ContentAcquisitionEngine {
       updatedAt: Value(DateTime.now()),
     ));
 
-    _activeBooks[bookId] = _BookSourceState(chapters: chapters, source: source);
-    prefetchEngine.registerChapters(bookId, chapters, source);
+    _activeBooks[bookId] = _BookSourceState(chapters: chapters, source: result.source);
+    prefetchEngine.registerChapters(bookId, chapters, result.source);
 
-    return bookId;
+    return ImportOutcome(bookId: bookId, category: category);
   }
 
   Future<void> downloadChapter(String bookId, int chapterIndex) async {

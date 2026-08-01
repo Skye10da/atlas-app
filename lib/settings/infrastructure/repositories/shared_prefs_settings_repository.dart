@@ -11,7 +11,7 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
 
   static const _keySystemFont = 'system_font_family';
   static const _keyBrand = 'app_brand';
-  static const _keyThemeMode = 'theme_mode';
+  static const _keyThemeMode = 'app_theme_mode';
   static const _keyFontSize = 'reader_font_size';
   static const _keyFontFamily = 'reader_font_family';
   static const _keyLineHeight = 'reader_line_height';
@@ -19,16 +19,19 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
   static const _keyKeepAwake = 'reader_keep_awake';
   static const _keyBrightness = 'reader_brightness';
   static const _keyAutoOptimize = 'reader_auto_optimize';
+  static const _keyFollowSystemBrightness = 'reader_follow_system_brightness';
   static const _keyTheme = 'reader_theme';
   static const _keyReadingMode = 'reader_reading_mode';
   static const _keyTextAlignment = 'reader_text_alignment';
   static const _keyMarginPreset = 'reader_margin_preset';
   static const _keyPageTurnAnimation = 'reader_page_turn_animation';
   static const _keyScrollAnimation = 'reader_scroll_animation';
+  static const _keyChromeStyle = 'reader_chrome_style';
 
   @override
   Future<ReadingSettingsEntity> load() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('theme_mode');
     return ReadingSettingsEntity(
       systemFontFamily: prefs.getString(_keySystemFont),
       brand: switch (prefs.getString(_keyBrand)) {
@@ -50,6 +53,8 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
       keepScreenAwake: prefs.getBool(_keyKeepAwake) ?? false,
       brightness: prefs.getDouble(_keyBrightness) ?? 1.0,
       autoOptimizeBrightness: prefs.getBool(_keyAutoOptimize) ?? false,
+      followSystemBrightness:
+          prefs.getBool(_keyFollowSystemBrightness) ?? true,
       theme: switch (prefs.getString(_keyTheme)) {
         'dark' => ReadingViewTheme.dark,
         'sepia' => ReadingViewTheme.sepia,
@@ -90,6 +95,10 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
         'glow' => ScrollAnimation.glow,
         _ => ScrollAnimation.smooth,
       },
+      chromeStyle: switch (prefs.getString(_keyChromeStyle)) {
+        'frosted' => ReaderChromeStyle.frosted,
+        _ => ReaderChromeStyle.translucent,
+      },
     );
   }
 
@@ -118,11 +127,14 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
     await prefs.setBool(_keyKeepAwake, settings.keepScreenAwake);
     await prefs.setDouble(_keyBrightness, settings.brightness);
     await prefs.setBool(_keyAutoOptimize, settings.autoOptimizeBrightness);
+    await prefs.setBool(
+        _keyFollowSystemBrightness, settings.followSystemBrightness);
     await prefs.setString(_keyTheme, settings.theme.name);
     await prefs.setString(_keyReadingMode, settings.readingMode.name);
     await prefs.setString(_keyTextAlignment, settings.textAlignment.name);
     await prefs.setString(_keyMarginPreset, settings.marginPreset.name);
     await prefs.setString(_keyPageTurnAnimation, settings.pageTurnAnimation.name);
     await prefs.setString(_keyScrollAnimation, settings.scrollAnimation.name);
+    await prefs.setString(_keyChromeStyle, settings.chromeStyle.name);
   }
 }

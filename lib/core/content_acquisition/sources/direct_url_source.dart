@@ -2,11 +2,15 @@ import 'package:http/http.dart' as http;
 
 import 'package:atlas_app/core/content_acquisition/adapters/source_adapter.dart';
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 
 class DirectUrlSource implements SourceAdapter {
   @override
   String get sourceName => 'Direct URL';
+
+  @override
+  ContentCategory get contentCategory => ContentCategory.book;
 
   @override
   bool canHandle(Uri uri) {
@@ -24,6 +28,8 @@ class DirectUrlSource implements SourceAdapter {
       title: _titleCase(title),
       source: sourceName,
       sourceUrl: uri.toString(),
+      category: contentCategory,
+      fileFormat: uri.path.endsWith('.md') ? 'markdown' : 'text',
       chapterCount: 1,
     );
   }

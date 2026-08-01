@@ -77,6 +77,18 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _itemTypeMeta = const VerificationMeta(
+    'itemType',
+  );
+  @override
+  late final GeneratedColumn<String> itemType = GeneratedColumn<String>(
+    'item_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('book'),
+  );
   static const VerificationMeta _fileSizeMeta = const VerificationMeta(
     'fileSize',
   );
@@ -212,6 +224,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     description,
     format,
     filePath,
+    itemType,
     fileSize,
     totalChapters,
     language,
@@ -286,6 +299,12 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
       );
     } else if (isInserting) {
       context.missing(_filePathMeta);
+    }
+    if (data.containsKey('item_type')) {
+      context.handle(
+        _itemTypeMeta,
+        itemType.isAcceptableOrUnknown(data['item_type']!, _itemTypeMeta),
+      );
     }
     if (data.containsKey('file_size')) {
       context.handle(
@@ -408,6 +427,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         DriftSqlType.string,
         data['${effectivePrefix}file_path'],
       )!,
+      itemType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}item_type'],
+      )!,
       fileSize: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}file_size'],
@@ -473,6 +496,7 @@ class Book extends DataClass implements Insertable<Book> {
   final String? description;
   final String format;
   final String filePath;
+  final String itemType;
   final int? fileSize;
   final int totalChapters;
   final String? language;
@@ -493,6 +517,7 @@ class Book extends DataClass implements Insertable<Book> {
     this.description,
     required this.format,
     required this.filePath,
+    required this.itemType,
     this.fileSize,
     required this.totalChapters,
     this.language,
@@ -522,6 +547,7 @@ class Book extends DataClass implements Insertable<Book> {
     }
     map['format'] = Variable<String>(format);
     map['file_path'] = Variable<String>(filePath);
+    map['item_type'] = Variable<String>(itemType);
     if (!nullToAbsent || fileSize != null) {
       map['file_size'] = Variable<int>(fileSize);
     }
@@ -570,6 +596,7 @@ class Book extends DataClass implements Insertable<Book> {
           : Value(description),
       format: Value(format),
       filePath: Value(filePath),
+      itemType: Value(itemType),
       fileSize: fileSize == null && nullToAbsent
           ? const Value.absent()
           : Value(fileSize),
@@ -614,6 +641,7 @@ class Book extends DataClass implements Insertable<Book> {
       description: serializer.fromJson<String?>(json['description']),
       format: serializer.fromJson<String>(json['format']),
       filePath: serializer.fromJson<String>(json['filePath']),
+      itemType: serializer.fromJson<String>(json['itemType']),
       fileSize: serializer.fromJson<int?>(json['fileSize']),
       totalChapters: serializer.fromJson<int>(json['totalChapters']),
       language: serializer.fromJson<String?>(json['language']),
@@ -639,6 +667,7 @@ class Book extends DataClass implements Insertable<Book> {
       'description': serializer.toJson<String?>(description),
       'format': serializer.toJson<String>(format),
       'filePath': serializer.toJson<String>(filePath),
+      'itemType': serializer.toJson<String>(itemType),
       'fileSize': serializer.toJson<int?>(fileSize),
       'totalChapters': serializer.toJson<int>(totalChapters),
       'language': serializer.toJson<String?>(language),
@@ -662,6 +691,7 @@ class Book extends DataClass implements Insertable<Book> {
     Value<String?> description = const Value.absent(),
     String? format,
     String? filePath,
+    String? itemType,
     Value<int?> fileSize = const Value.absent(),
     int? totalChapters,
     Value<String?> language = const Value.absent(),
@@ -682,6 +712,7 @@ class Book extends DataClass implements Insertable<Book> {
     description: description.present ? description.value : this.description,
     format: format ?? this.format,
     filePath: filePath ?? this.filePath,
+    itemType: itemType ?? this.itemType,
     fileSize: fileSize.present ? fileSize.value : this.fileSize,
     totalChapters: totalChapters ?? this.totalChapters,
     language: language.present ? language.value : this.language,
@@ -706,6 +737,7 @@ class Book extends DataClass implements Insertable<Book> {
           : this.description,
       format: data.format.present ? data.format.value : this.format,
       filePath: data.filePath.present ? data.filePath.value : this.filePath,
+      itemType: data.itemType.present ? data.itemType.value : this.itemType,
       fileSize: data.fileSize.present ? data.fileSize.value : this.fileSize,
       totalChapters: data.totalChapters.present
           ? data.totalChapters.value
@@ -737,6 +769,7 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('description: $description, ')
           ..write('format: $format, ')
           ..write('filePath: $filePath, ')
+          ..write('itemType: $itemType, ')
           ..write('fileSize: $fileSize, ')
           ..write('totalChapters: $totalChapters, ')
           ..write('language: $language, ')
@@ -762,6 +795,7 @@ class Book extends DataClass implements Insertable<Book> {
     description,
     format,
     filePath,
+    itemType,
     fileSize,
     totalChapters,
     language,
@@ -786,6 +820,7 @@ class Book extends DataClass implements Insertable<Book> {
           other.description == this.description &&
           other.format == this.format &&
           other.filePath == this.filePath &&
+          other.itemType == this.itemType &&
           other.fileSize == this.fileSize &&
           other.totalChapters == this.totalChapters &&
           other.language == this.language &&
@@ -808,6 +843,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<String?> description;
   final Value<String> format;
   final Value<String> filePath;
+  final Value<String> itemType;
   final Value<int?> fileSize;
   final Value<int> totalChapters;
   final Value<String?> language;
@@ -829,6 +865,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.description = const Value.absent(),
     this.format = const Value.absent(),
     this.filePath = const Value.absent(),
+    this.itemType = const Value.absent(),
     this.fileSize = const Value.absent(),
     this.totalChapters = const Value.absent(),
     this.language = const Value.absent(),
@@ -851,6 +888,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.description = const Value.absent(),
     required String format,
     required String filePath,
+    this.itemType = const Value.absent(),
     this.fileSize = const Value.absent(),
     required int totalChapters,
     this.language = const Value.absent(),
@@ -879,6 +917,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<String>? description,
     Expression<String>? format,
     Expression<String>? filePath,
+    Expression<String>? itemType,
     Expression<int>? fileSize,
     Expression<int>? totalChapters,
     Expression<String>? language,
@@ -901,6 +940,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (description != null) 'description': description,
       if (format != null) 'format': format,
       if (filePath != null) 'file_path': filePath,
+      if (itemType != null) 'item_type': itemType,
       if (fileSize != null) 'file_size': fileSize,
       if (totalChapters != null) 'total_chapters': totalChapters,
       if (language != null) 'language': language,
@@ -925,6 +965,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Value<String?>? description,
     Value<String>? format,
     Value<String>? filePath,
+    Value<String>? itemType,
     Value<int?>? fileSize,
     Value<int>? totalChapters,
     Value<String?>? language,
@@ -947,6 +988,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       description: description ?? this.description,
       format: format ?? this.format,
       filePath: filePath ?? this.filePath,
+      itemType: itemType ?? this.itemType,
       fileSize: fileSize ?? this.fileSize,
       totalChapters: totalChapters ?? this.totalChapters,
       language: language ?? this.language,
@@ -986,6 +1028,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
     }
     if (filePath.present) {
       map['file_path'] = Variable<String>(filePath.value);
+    }
+    if (itemType.present) {
+      map['item_type'] = Variable<String>(itemType.value);
     }
     if (fileSize.present) {
       map['file_size'] = Variable<int>(fileSize.value);
@@ -1039,6 +1084,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('description: $description, ')
           ..write('format: $format, ')
           ..write('filePath: $filePath, ')
+          ..write('itemType: $itemType, ')
           ..write('fileSize: $fileSize, ')
           ..write('totalChapters: $totalChapters, ')
           ..write('language: $language, ')
@@ -3629,6 +3675,28 @@ class $DictionaryWordsTable extends DictionaryWords
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('wiktionary'),
+  );
+  static const VerificationMeta _sourceLabelMeta = const VerificationMeta(
+    'sourceLabel',
+  );
+  @override
+  late final GeneratedColumn<String> sourceLabel = GeneratedColumn<String>(
+    'source_label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Wiktionary'),
+  );
   static const VerificationMeta _phoneticMeta = const VerificationMeta(
     'phonetic',
   );
@@ -3759,6 +3827,8 @@ class $DictionaryWordsTable extends DictionaryWords
     word,
     language,
     languageLabel,
+    source,
+    sourceLabel,
     phonetic,
     partOfSpeech,
     definition,
@@ -3814,6 +3884,21 @@ class $DictionaryWordsTable extends DictionaryWords
       );
     } else if (isInserting) {
       context.missing(_languageLabelMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('source_label')) {
+      context.handle(
+        _sourceLabelMeta,
+        sourceLabel.isAcceptableOrUnknown(
+          data['source_label']!,
+          _sourceLabelMeta,
+        ),
+      );
     }
     if (data.containsKey('phonetic')) {
       context.handle(
@@ -3935,6 +4020,14 @@ class $DictionaryWordsTable extends DictionaryWords
         DriftSqlType.string,
         data['${effectivePrefix}language_label'],
       )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      sourceLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_label'],
+      )!,
       phonetic: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}phonetic'],
@@ -3993,6 +4086,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
   final String word;
   final String language;
   final String languageLabel;
+  final String source;
+  final String sourceLabel;
   final String? phonetic;
   final String partOfSpeech;
   final String definition;
@@ -4009,6 +4104,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     required this.word,
     required this.language,
     required this.languageLabel,
+    required this.source,
+    required this.sourceLabel,
     this.phonetic,
     required this.partOfSpeech,
     required this.definition,
@@ -4028,6 +4125,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     map['word'] = Variable<String>(word);
     map['language'] = Variable<String>(language);
     map['language_label'] = Variable<String>(languageLabel);
+    map['source'] = Variable<String>(source);
+    map['source_label'] = Variable<String>(sourceLabel);
     if (!nullToAbsent || phonetic != null) {
       map['phonetic'] = Variable<String>(phonetic);
     }
@@ -4058,6 +4157,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
       word: Value(word),
       language: Value(language),
       languageLabel: Value(languageLabel),
+      source: Value(source),
+      sourceLabel: Value(sourceLabel),
       phonetic: phonetic == null && nullToAbsent
           ? const Value.absent()
           : Value(phonetic),
@@ -4092,6 +4193,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
       word: serializer.fromJson<String>(json['word']),
       language: serializer.fromJson<String>(json['language']),
       languageLabel: serializer.fromJson<String>(json['languageLabel']),
+      source: serializer.fromJson<String>(json['source']),
+      sourceLabel: serializer.fromJson<String>(json['sourceLabel']),
       phonetic: serializer.fromJson<String?>(json['phonetic']),
       partOfSpeech: serializer.fromJson<String>(json['partOfSpeech']),
       definition: serializer.fromJson<String>(json['definition']),
@@ -4113,6 +4216,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
       'word': serializer.toJson<String>(word),
       'language': serializer.toJson<String>(language),
       'languageLabel': serializer.toJson<String>(languageLabel),
+      'source': serializer.toJson<String>(source),
+      'sourceLabel': serializer.toJson<String>(sourceLabel),
       'phonetic': serializer.toJson<String?>(phonetic),
       'partOfSpeech': serializer.toJson<String>(partOfSpeech),
       'definition': serializer.toJson<String>(definition),
@@ -4132,6 +4237,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     String? word,
     String? language,
     String? languageLabel,
+    String? source,
+    String? sourceLabel,
     Value<String?> phonetic = const Value.absent(),
     String? partOfSpeech,
     String? definition,
@@ -4148,6 +4255,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     word: word ?? this.word,
     language: language ?? this.language,
     languageLabel: languageLabel ?? this.languageLabel,
+    source: source ?? this.source,
+    sourceLabel: sourceLabel ?? this.sourceLabel,
     phonetic: phonetic.present ? phonetic.value : this.phonetic,
     partOfSpeech: partOfSpeech ?? this.partOfSpeech,
     definition: definition ?? this.definition,
@@ -4172,6 +4281,10 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
       languageLabel: data.languageLabel.present
           ? data.languageLabel.value
           : this.languageLabel,
+      source: data.source.present ? data.source.value : this.source,
+      sourceLabel: data.sourceLabel.present
+          ? data.sourceLabel.value
+          : this.sourceLabel,
       phonetic: data.phonetic.present ? data.phonetic.value : this.phonetic,
       partOfSpeech: data.partOfSpeech.present
           ? data.partOfSpeech.value
@@ -4209,6 +4322,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
           ..write('word: $word, ')
           ..write('language: $language, ')
           ..write('languageLabel: $languageLabel, ')
+          ..write('source: $source, ')
+          ..write('sourceLabel: $sourceLabel, ')
           ..write('phonetic: $phonetic, ')
           ..write('partOfSpeech: $partOfSpeech, ')
           ..write('definition: $definition, ')
@@ -4230,6 +4345,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
     word,
     language,
     languageLabel,
+    source,
+    sourceLabel,
     phonetic,
     partOfSpeech,
     definition,
@@ -4250,6 +4367,8 @@ class DictionaryWord extends DataClass implements Insertable<DictionaryWord> {
           other.word == this.word &&
           other.language == this.language &&
           other.languageLabel == this.languageLabel &&
+          other.source == this.source &&
+          other.sourceLabel == this.sourceLabel &&
           other.phonetic == this.phonetic &&
           other.partOfSpeech == this.partOfSpeech &&
           other.definition == this.definition &&
@@ -4268,6 +4387,8 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
   final Value<String> word;
   final Value<String> language;
   final Value<String> languageLabel;
+  final Value<String> source;
+  final Value<String> sourceLabel;
   final Value<String?> phonetic;
   final Value<String> partOfSpeech;
   final Value<String> definition;
@@ -4285,6 +4406,8 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     this.word = const Value.absent(),
     this.language = const Value.absent(),
     this.languageLabel = const Value.absent(),
+    this.source = const Value.absent(),
+    this.sourceLabel = const Value.absent(),
     this.phonetic = const Value.absent(),
     this.partOfSpeech = const Value.absent(),
     this.definition = const Value.absent(),
@@ -4303,6 +4426,8 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     required String word,
     required String language,
     required String languageLabel,
+    this.source = const Value.absent(),
+    this.sourceLabel = const Value.absent(),
     this.phonetic = const Value.absent(),
     required String partOfSpeech,
     required String definition,
@@ -4328,6 +4453,8 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     Expression<String>? word,
     Expression<String>? language,
     Expression<String>? languageLabel,
+    Expression<String>? source,
+    Expression<String>? sourceLabel,
     Expression<String>? phonetic,
     Expression<String>? partOfSpeech,
     Expression<String>? definition,
@@ -4346,6 +4473,8 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
       if (word != null) 'word': word,
       if (language != null) 'language': language,
       if (languageLabel != null) 'language_label': languageLabel,
+      if (source != null) 'source': source,
+      if (sourceLabel != null) 'source_label': sourceLabel,
       if (phonetic != null) 'phonetic': phonetic,
       if (partOfSpeech != null) 'part_of_speech': partOfSpeech,
       if (definition != null) 'definition': definition,
@@ -4366,6 +4495,8 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     Value<String>? word,
     Value<String>? language,
     Value<String>? languageLabel,
+    Value<String>? source,
+    Value<String>? sourceLabel,
     Value<String?>? phonetic,
     Value<String>? partOfSpeech,
     Value<String>? definition,
@@ -4384,6 +4515,8 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
       word: word ?? this.word,
       language: language ?? this.language,
       languageLabel: languageLabel ?? this.languageLabel,
+      source: source ?? this.source,
+      sourceLabel: sourceLabel ?? this.sourceLabel,
       phonetic: phonetic ?? this.phonetic,
       partOfSpeech: partOfSpeech ?? this.partOfSpeech,
       definition: definition ?? this.definition,
@@ -4413,6 +4546,12 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
     }
     if (languageLabel.present) {
       map['language_label'] = Variable<String>(languageLabel.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (sourceLabel.present) {
+      map['source_label'] = Variable<String>(sourceLabel.value);
     }
     if (phonetic.present) {
       map['phonetic'] = Variable<String>(phonetic.value);
@@ -4460,6 +4599,8 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
           ..write('word: $word, ')
           ..write('language: $language, ')
           ..write('languageLabel: $languageLabel, ')
+          ..write('source: $source, ')
+          ..write('sourceLabel: $sourceLabel, ')
           ..write('phonetic: $phonetic, ')
           ..write('partOfSpeech: $partOfSpeech, ')
           ..write('definition: $definition, ')
@@ -4515,6 +4656,7 @@ typedef $$BooksTableCreateCompanionBuilder =
       Value<String?> description,
       required String format,
       required String filePath,
+      Value<String> itemType,
       Value<int?> fileSize,
       required int totalChapters,
       Value<String?> language,
@@ -4538,6 +4680,7 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<String?> description,
       Value<String> format,
       Value<String> filePath,
+      Value<String> itemType,
       Value<int?> fileSize,
       Value<int> totalChapters,
       Value<String?> language,
@@ -4593,6 +4736,11 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<String> get filePath => $composableBuilder(
     column: $table.filePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get itemType => $composableBuilder(
+    column: $table.itemType,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4701,6 +4849,11 @@ class $$BooksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get itemType => $composableBuilder(
+    column: $table.itemType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get fileSize => $composableBuilder(
     column: $table.fileSize,
     builder: (column) => ColumnOrderings(column),
@@ -4794,6 +4947,9 @@ class $$BooksTableAnnotationComposer
   GeneratedColumn<String> get filePath =>
       $composableBuilder(column: $table.filePath, builder: (column) => column);
 
+  GeneratedColumn<String> get itemType =>
+      $composableBuilder(column: $table.itemType, builder: (column) => column);
+
   GeneratedColumn<int> get fileSize =>
       $composableBuilder(column: $table.fileSize, builder: (column) => column);
 
@@ -4872,6 +5028,7 @@ class $$BooksTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<String> format = const Value.absent(),
                 Value<String> filePath = const Value.absent(),
+                Value<String> itemType = const Value.absent(),
                 Value<int?> fileSize = const Value.absent(),
                 Value<int> totalChapters = const Value.absent(),
                 Value<String?> language = const Value.absent(),
@@ -4893,6 +5050,7 @@ class $$BooksTableTableManager
                 description: description,
                 format: format,
                 filePath: filePath,
+                itemType: itemType,
                 fileSize: fileSize,
                 totalChapters: totalChapters,
                 language: language,
@@ -4916,6 +5074,7 @@ class $$BooksTableTableManager
                 Value<String?> description = const Value.absent(),
                 required String format,
                 required String filePath,
+                Value<String> itemType = const Value.absent(),
                 Value<int?> fileSize = const Value.absent(),
                 required int totalChapters,
                 Value<String?> language = const Value.absent(),
@@ -4937,6 +5096,7 @@ class $$BooksTableTableManager
                 description: description,
                 format: format,
                 filePath: filePath,
+                itemType: itemType,
                 fileSize: fileSize,
                 totalChapters: totalChapters,
                 language: language,
@@ -6258,6 +6418,8 @@ typedef $$DictionaryWordsTableCreateCompanionBuilder =
       required String word,
       required String language,
       required String languageLabel,
+      Value<String> source,
+      Value<String> sourceLabel,
       Value<String?> phonetic,
       required String partOfSpeech,
       required String definition,
@@ -6277,6 +6439,8 @@ typedef $$DictionaryWordsTableUpdateCompanionBuilder =
       Value<String> word,
       Value<String> language,
       Value<String> languageLabel,
+      Value<String> source,
+      Value<String> sourceLabel,
       Value<String?> phonetic,
       Value<String> partOfSpeech,
       Value<String> definition,
@@ -6317,6 +6481,16 @@ class $$DictionaryWordsTableFilterComposer
 
   ColumnFilters<String> get languageLabel => $composableBuilder(
     column: $table.languageLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceLabel => $composableBuilder(
+    column: $table.sourceLabel,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6405,6 +6579,16 @@ class $$DictionaryWordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceLabel => $composableBuilder(
+    column: $table.sourceLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get phonetic => $composableBuilder(
     column: $table.phonetic,
     builder: (column) => ColumnOrderings(column),
@@ -6481,6 +6665,14 @@ class $$DictionaryWordsTableAnnotationComposer
 
   GeneratedColumn<String> get languageLabel => $composableBuilder(
     column: $table.languageLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceLabel => $composableBuilder(
+    column: $table.sourceLabel,
     builder: (column) => column,
   );
 
@@ -6575,6 +6767,8 @@ class $$DictionaryWordsTableTableManager
                 Value<String> word = const Value.absent(),
                 Value<String> language = const Value.absent(),
                 Value<String> languageLabel = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> sourceLabel = const Value.absent(),
                 Value<String?> phonetic = const Value.absent(),
                 Value<String> partOfSpeech = const Value.absent(),
                 Value<String> definition = const Value.absent(),
@@ -6592,6 +6786,8 @@ class $$DictionaryWordsTableTableManager
                 word: word,
                 language: language,
                 languageLabel: languageLabel,
+                source: source,
+                sourceLabel: sourceLabel,
                 phonetic: phonetic,
                 partOfSpeech: partOfSpeech,
                 definition: definition,
@@ -6611,6 +6807,8 @@ class $$DictionaryWordsTableTableManager
                 required String word,
                 required String language,
                 required String languageLabel,
+                Value<String> source = const Value.absent(),
+                Value<String> sourceLabel = const Value.absent(),
                 Value<String?> phonetic = const Value.absent(),
                 required String partOfSpeech,
                 required String definition,
@@ -6628,6 +6826,8 @@ class $$DictionaryWordsTableTableManager
                 word: word,
                 language: language,
                 languageLabel: languageLabel,
+                source: source,
+                sourceLabel: sourceLabel,
                 phonetic: phonetic,
                 partOfSpeech: partOfSpeech,
                 definition: definition,

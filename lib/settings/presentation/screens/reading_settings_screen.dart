@@ -124,7 +124,9 @@ class ReadingSettingsScreen extends ConsumerWidget {
                             max: 1.0,
                             divisions: 20,
                             label: settings.brightness.toStringAsFixed(2),
-                            onChanged: notifier.setBrightness,
+                            onChanged: settings.followSystemBrightness
+                                ? null
+                                : notifier.setBrightness,
                           ),
                         ),
                         Icon(Icons.brightness_high, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -136,6 +138,12 @@ class ReadingSettingsScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.sm),
               SettingsGroup(
                 children: [
+                  SwitchTile(
+                    title: 'Follow system brightness',
+                    subtitle: 'Use the device\'s brightness while reading',
+                    value: settings.followSystemBrightness,
+                    onChanged: notifier.setFollowSystemBrightness,
+                  ),
                   SwitchTile(
                     title: 'Auto brightness',
                     subtitle: 'Dim brightness when battery is low',

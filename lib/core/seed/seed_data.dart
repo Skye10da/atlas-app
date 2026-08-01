@@ -50,6 +50,7 @@ class SeedData {
             title: Value(sample.title),
             author: Value(sample.author),
             format: const Value('sample'),
+            itemType: const Value('book'),
             filePath: Value(contentDir.path),
             totalChapters: Value(sample.chapters.length),
             description: Value(sample.description),

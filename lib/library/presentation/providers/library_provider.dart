@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -146,10 +147,21 @@ class _LibraryImportActions {
     }
   }
 
-  Future<Result<String>> importUrl(BuildContext context) async {
+  Future<Result<ImportOutcome>> importUrl(
+    BuildContext context, {
+    String title = 'Import from URL',
+    String labelText = 'Book URL',
+    String hintText = 'https://example.com/book.epub',
+    String buttonLabel = 'Import',
+  }) async {
     final url = await showDialog<String>(
       context: context,
-      builder: (_) => const ImportUrlDialog(),
+      builder: (_) => ImportUrlDialog(
+        title: title,
+        labelText: labelText,
+        hintText: hintText,
+        buttonLabel: buttonLabel,
+      ),
     );
     if (url == null) return const Failure(CancelledException());
 
@@ -172,8 +184,8 @@ class _LibraryImportActions {
       return const Failure(CancelledException());
     }
 
-    final bookId = await importFuture;
-    return Success(bookId);
+    final outcome = await importFuture;
+    return Success(outcome);
   }
 }
 

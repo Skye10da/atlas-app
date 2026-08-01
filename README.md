@@ -62,4 +62,4 @@ flutter test
 
 ## Development
 
-This project is governed by the [Atlas Blueprint](https://github.com/anomalyco/atlas-blueprint) — an Engineering Operating System that defines architecture, standards, and workflows.
+This project is governed by the [Atlas Blueprint](https://github.com/Skye10da/atlas-blueprints) — an Engineering Operating System that defines architecture, standards, and workflows.

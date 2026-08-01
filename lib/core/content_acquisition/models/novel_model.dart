@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
+
 class NovelModel {
   const NovelModel({
     required this.sourceId,
@@ -14,6 +16,7 @@ class NovelModel {
     this.rating,
     required this.source,
     required this.sourceUrl,
+    this.category = ContentCategory.book,
     this.fileFormat,
     this.chapterCount = 0,
     this.lastUpdated,
@@ -31,6 +34,7 @@ class NovelModel {
   final double? rating;
   final String source;
   final String sourceUrl;
+  final ContentCategory category;
   final String? fileFormat;
   final int chapterCount;
   final DateTime? lastUpdated;
@@ -48,6 +52,7 @@ class NovelModel {
     double? rating,
     String? source,
     String? sourceUrl,
+    ContentCategory? category,
     String? fileFormat,
     int? chapterCount,
     DateTime? lastUpdated,
@@ -65,6 +70,7 @@ class NovelModel {
       rating: rating ?? this.rating,
       source: source ?? this.source,
       sourceUrl: sourceUrl ?? this.sourceUrl,
+      category: category ?? this.category,
       fileFormat: fileFormat ?? this.fileFormat,
       chapterCount: chapterCount ?? this.chapterCount,
       lastUpdated: lastUpdated ?? this.lastUpdated,

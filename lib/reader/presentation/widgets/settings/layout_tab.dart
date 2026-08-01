@@ -11,28 +11,36 @@ class LayoutTab extends StatelessWidget {
     required this.keepScreenAwake,
     required this.brightness,
     required this.autoOptimizeBrightness,
+    required this.followSystemBrightness,
     this.pageTurnAnimation,
     this.scrollAnimation,
+    this.chromeStyle = ReaderChromeStyle.translucent,
     required this.onReadingModeChanged,
     required this.onKeepScreenAwakeChanged,
     required this.onBrightnessChanged,
     required this.onAutoOptimizeChanged,
+    required this.onFollowSystemBrightnessChanged,
     this.onPageTurnAnimationChanged,
     this.onScrollAnimationChanged,
+    this.onChromeStyleChanged,
   });
 
   final ReadingMode readingMode;
   final bool keepScreenAwake;
   final double brightness;
   final bool autoOptimizeBrightness;
+  final bool followSystemBrightness;
   final PageTurnAnimation? pageTurnAnimation;
   final ScrollAnimation? scrollAnimation;
+  final ReaderChromeStyle chromeStyle;
   final ValueChanged<ReadingMode> onReadingModeChanged;
   final ValueChanged<bool> onKeepScreenAwakeChanged;
   final ValueChanged<double> onBrightnessChanged;
   final ValueChanged<bool> onAutoOptimizeChanged;
+  final ValueChanged<bool> onFollowSystemBrightnessChanged;
   final ValueChanged<PageTurnAnimation>? onPageTurnAnimationChanged;
   final ValueChanged<ScrollAnimation>? onScrollAnimationChanged;
+  final ValueChanged<ReaderChromeStyle>? onChromeStyleChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +62,24 @@ class LayoutTab extends StatelessWidget {
                 onSelected: (_) {
                   HapticFeedback.selectionClick();
                   onReadingModeChanged(m);
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Chrome Style', style: textTheme.labelLarge),
+          const SizedBox(height: AppSpacing.xs),
+          Wrap(
+            spacing: 8,
+            children: ReaderChromeStyle.values.map((s) {
+              final isSelected = chromeStyle == s;
+              return ChoiceChip(
+                avatar: Icon(s.icon, size: 16),
+                label: Text(s.label),
+                selected: isSelected,
+                onSelected: (_) {
+                  HapticFeedback.selectionClick();
+                  onChromeStyleChanged?.call(s);
                 },
               );
             }).toList(),
@@ -103,9 +129,25 @@ class LayoutTab extends StatelessWidget {
           const Divider(),
           const SizedBox(height: AppSpacing.sm),
           Text('Screen Brightness', style: textTheme.labelLarge),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('Follow System Brightness',
+                style: textTheme.labelLarge),
+            subtitle: Text('Use the device\'s brightness while reading',
+                style: textTheme.bodySmall),
+            value: followSystemBrightness,
+            onChanged: (v) {
+              HapticFeedback.selectionClick();
+              onFollowSystemBrightnessChanged(v);
+            },
+          ),
           Row(
             children: [
-              const Icon(Icons.brightness_low, size: 16),
+              Icon(Icons.brightness_low,
+                  size: 16,
+                  color: followSystemBrightness
+                      ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)
+                      : null),
               Expanded(
                 child: Slider(
                   value: brightness,
@@ -113,10 +155,16 @@ class LayoutTab extends StatelessWidget {
                   max: 1.0,
                   divisions: 20,
                   label: brightness.toStringAsFixed(2),
-                  onChanged: onBrightnessChanged,
+                  onChanged: followSystemBrightness
+                      ? null
+                      : onBrightnessChanged,
                 ),
               ),
-              const Icon(Icons.brightness_high, size: 16),
+              Icon(Icons.brightness_high,
+                  size: 16,
+                  color: followSystemBrightness
+                      ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)
+                      : null),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/core/router/navigation.dart';
+
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.navigationShell});
 
@@ -287,7 +289,7 @@ class AppScaffold extends StatelessWidget {
               leading: showBack
                   ? IconButton(
                       icon: const Icon(Icons.arrow_back),
-                      onPressed: () => context.pop(),
+                      onPressed: () => popOrGoToLibrary(context),
                     )
                   : null,
               actions: actions,

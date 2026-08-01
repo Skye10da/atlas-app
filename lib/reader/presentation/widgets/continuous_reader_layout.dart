@@ -5,14 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
+import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_content_loader.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_bar_surface.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_bottom_nav.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_chrome_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_command_palette.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_edge_regions.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_progress_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_right_panel.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
@@ -53,24 +59,35 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
       _ContinuousReaderLayoutState();
 }
 
-class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout> {
+class _ContinuousReaderLayoutState
+    extends ConsumerState<ContinuousReaderLayout> with ReaderChromeController {
   static const _snapScrollDuration = Duration(milliseconds: 300);
-  static const _rightPanelWidth = 280.0;
 
   final _scrollController = ScrollController();
+  final List<GlobalKey> _chapterKeys = [];
   double _lastScrollPos = 0;
   double _scrollOffset = 0;
-  bool _chromeVisible = true;
-  bool _rightPanelVisible = false;
-  bool _commandPaletteVisible = false;
-  Timer? _chromeTimer;
+  Timer? _autoScrollTimer;
+  double _autoScrollSpeed = 2.0;
+  bool _autoScrollActive = false;
   ScrollAnimation _animation = ScrollAnimation.smooth;
+  bool _jumpInFlight = false;
+  int _lastReportedChapterIndex = 0;
+
+  void _initChapterKeys() {
+    _chapterKeys
+      ..clear()
+      ..addAll(List.generate(widget.chapters.length, (_) => GlobalKey()));
+  }
 
   @override
   void initState() {
     super.initState();
     _animation = widget.settings.scrollAnimation;
+    _initChapterKeys();
+    _lastReportedChapterIndex = widget.currentChapterIndex;
     _scrollController.addListener(_onScroll);
+    initReaderChrome(isDarkTheme: widget.settings.theme.isDark);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialScrollProgress != null) {
         _restoreScrollProgress(widget.initialScrollProgress!);
@@ -78,7 +95,6 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
         _scrollToChapter(widget.currentChapterIndex);
       }
     });
-    _resetChromeTimer();
   }
 
   @override
@@ -87,58 +103,28 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     if (widget.settings.scrollAnimation != oldWidget.settings.scrollAnimation) {
       setState(() => _animation = widget.settings.scrollAnimation);
     }
-    final diff = (widget.currentChapterIndex - oldWidget.currentChapterIndex).abs();
-    if (diff > 1) {
+    if (widget.chapters.length != oldWidget.chapters.length) {
+      _initChapterKeys();
+    }
+    // Re-jump only when the parent moved to an index we did not report
+    // ourselves (e.g. the user picked a chapter from the panel/palette).
+    // Echoed reports from our own scroll already match _lastReportedChapterIndex
+    // and must not trigger a jump back, which would ping-pong on big books.
+    final target = widget.currentChapterIndex;
+    if (target != _lastReportedChapterIndex) {
       WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _scrollToChapter(widget.currentChapterIndex));
+        (_) => _scrollToChapter(target),
+      );
     }
   }
 
   @override
   void dispose() {
-    _chromeTimer?.cancel();
+    _autoScrollTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    disposeReaderChrome();
     super.dispose();
-  }
-
-  void _setFullscreen(bool fullscreen) {
-    SystemChrome.setEnabledSystemUIMode(
-      fullscreen ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
-    );
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness:
-          widget.settings.theme.isDark ? Brightness.light : Brightness.dark,
-      systemNavigationBarColor: widget.settings.theme.background,
-      systemNavigationBarIconBrightness:
-          widget.settings.theme.isDark ? Brightness.light : Brightness.dark,
-    ));
-  }
-
-  void _toggleChrome() {
-    HapticFeedback.lightImpact();
-    setState(() {
-      _chromeVisible = !_chromeVisible;
-    });
-    if (_chromeVisible) {
-      _setFullscreen(false);
-      _resetChromeTimer();
-    } else {
-      _setFullscreen(true);
-      _chromeTimer?.cancel();
-    }
-  }
-
-  void _resetChromeTimer() {
-    _chromeTimer?.cancel();
-    _chromeTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted) {
-        setState(() => _chromeVisible = false);
-        _setFullscreen(true);
-      }
-    });
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -146,11 +132,21 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     final isDesktop = MediaQuery.of(context).size.width >= 840;
     if (!isDesktop) return KeyEventResult.ignored;
 
+    final common = handleCommonReaderKeys(
+      event,
+      commandPaletteVisible: commandPaletteVisible,
+      onClosePalette: () => setState(() => commandPaletteVisible = false),
+      onToggleChrome: () =>
+          toggleChrome(isDarkTheme: widget.settings.theme.isDark),
+      onOpenPalette: () => setState(() => commandPaletteVisible = true),
+    );
+    if (common != KeyEventResult.ignored) return common;
+
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       if (!_scrollController.hasClients) return KeyEventResult.handled;
-      _resetChromeTimer();
-      final offset = _scrollController.offset -
-          MediaQuery.of(context).size.height * 0.4;
+      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      final offset =
+          _scrollController.offset - MediaQuery.of(context).size.height * 0.4;
       _scrollController.animateTo(
         offset.clamp(0.0, _scrollController.position.maxScrollExtent),
         duration: const Duration(milliseconds: 200),
@@ -160,9 +156,9 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       if (!_scrollController.hasClients) return KeyEventResult.handled;
-      _resetChromeTimer();
-      final offset = _scrollController.offset +
-          MediaQuery.of(context).size.height * 0.4;
+      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      final offset =
+          _scrollController.offset + MediaQuery.of(context).size.height * 0.4;
       _scrollController.animateTo(
         offset.clamp(0.0, _scrollController.position.maxScrollExtent),
         duration: const Duration(milliseconds: 200),
@@ -172,9 +168,9 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     }
     if (event.logicalKey == LogicalKeyboardKey.pageUp) {
       if (!_scrollController.hasClients) return KeyEventResult.handled;
-      _resetChromeTimer();
-      final offset = _scrollController.offset -
-          MediaQuery.of(context).size.height * 0.85;
+      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      final offset =
+          _scrollController.offset - MediaQuery.of(context).size.height * 0.85;
       _scrollController.animateTo(
         offset.clamp(0.0, _scrollController.position.maxScrollExtent),
         duration: const Duration(milliseconds: 200),
@@ -184,31 +180,14 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     }
     if (event.logicalKey == LogicalKeyboardKey.pageDown) {
       if (!_scrollController.hasClients) return KeyEventResult.handled;
-      _resetChromeTimer();
-      final offset = _scrollController.offset +
-          MediaQuery.of(context).size.height * 0.85;
+      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      final offset =
+          _scrollController.offset + MediaQuery.of(context).size.height * 0.85;
       _scrollController.animateTo(
         offset.clamp(0.0, _scrollController.position.maxScrollExtent),
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
       );
-      return KeyEventResult.handled;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.escape) {
-      if (_commandPaletteVisible) {
-        setState(() => _commandPaletteVisible = false);
-        return KeyEventResult.handled;
-      }
-      _toggleChrome();
-      return KeyEventResult.handled;
-    }
-
-    final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed ||
-        HardwareKeyboard.instance.isMetaPressed;
-    if (isCtrlOrCmd && event.logicalKey == LogicalKeyboardKey.keyK) {
-      if (!_commandPaletteVisible) {
-        setState(() => _commandPaletteVisible = true);
-      }
       return KeyEventResult.handled;
     }
 
@@ -219,7 +198,8 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     if (!_scrollController.hasClients) {
       if (retries > 0) {
         WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _scrollToChapter(index, retries: retries - 1));
+          (_) => _scrollToChapter(index, retries: retries - 1),
+        );
       }
       return;
     }
@@ -228,19 +208,129 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     if (total <= 0) {
       if (retries > 0) {
         WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _scrollToChapter(index, retries: retries - 1));
+          (_) => _scrollToChapter(index, retries: retries - 1),
+        );
       }
       return;
     }
-    final target = (index / widget.chapters.length) * total;
-    _scrollController.jumpTo(target.clamp(0.0, total));
+
+    _jumpInFlight = true;
+
+    // Prefer the chapter's real position when it has been laid out, so
+    // jumps land exactly at the chapter start regardless of how much
+    // content the earlier chapters hold.
+    final exact = _chapterRevealOffset(index);
+    if (exact != null) {
+      _jumpAndSync(exact);
+      _finishJump();
+      return;
+    }
+
+    // Chapter is far away and not built yet: jump to a proportional
+    // estimate, then refine once the list realizes the target block.
+    final estimate = (index / widget.chapters.length) * total;
+    _jumpAndSync(estimate);
+    _refineChapterJump(index, attempts: 8);
+  }
+
+  /// Ends a programmatic jump: re-enables chapter reporting and syncs the
+  /// settled chapter once the frame after the jump has laid out the blocks.
+  void _finishJump() {
+    _jumpInFlight = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _scrollController.hasClients) {
+        _syncCurrentChapter();
+      }
+    });
+  }
+
+  /// Returns the scroll offset that would align [index]'s chapter block with
+  /// the top of the viewport, or `null` if the block isn't laid out yet.
+  double? _chapterRevealOffset(int index) {
+    final ctx = _chapterKeys[index].currentContext;
+    if (ctx == null) return null;
+    final blockBox = ctx.findRenderObject();
+    final viewportBox = _scrollController.hasClients
+        ? _scrollController.position.context.storageContext.findRenderObject()
+        : null;
+    if (blockBox is! RenderBox || viewportBox is! RenderBox) return null;
+    final blockTop = blockBox.localToGlobal(Offset.zero).dy;
+    final viewportTop = viewportBox.localToGlobal(Offset.zero).dy;
+    return _scrollController.position.pixels + (blockTop - viewportTop);
+  }
+
+  void _refineChapterJump(int index, {required int attempts}) {
+    if (attempts <= 0) {
+      _finishJump();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) {
+        _finishJump();
+        return;
+      }
+      final exact = _chapterRevealOffset(index);
+      if (exact == null) {
+        _refineChapterJump(index, attempts: attempts - 1);
+        return;
+      }
+      _jumpAndSync(exact);
+      _finishJump();
+    });
+  }
+
+  void _toggleAutoScroll() {
+    if (_autoScrollActive) {
+      _stopAutoScroll();
+    } else {
+      _startAutoScroll();
+    }
+  }
+
+  void _startAutoScroll() {
+    _autoScrollTimer?.cancel();
+    setState(() {
+      _autoScrollActive = true;
+      chromeVisible = false;
+    });
+    setFullscreen(true, isDarkTheme: widget.settings.theme.isDark);
+    _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (!_scrollController.hasClients) return;
+      final pos = _scrollController.position;
+      if (pos.pixels >= pos.maxScrollExtent) {
+        _stopAutoScroll();
+        return;
+      }
+      _scrollController.jumpTo(
+        (pos.pixels + _autoScrollSpeed).clamp(0.0, pos.maxScrollExtent),
+      );
+    });
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    if (mounted) setState(() => _autoScrollActive = false);
+  }
+
+  void _setAutoScrollSpeed(double speed) {
+    _autoScrollSpeed = speed.clamp(1.0, 6.0);
+    if (mounted) setState(() {});
+  }
+
+  ScrollPhysics get _scrollPhysics {
+    final platform = Theme.of(context).platform;
+    return (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS)
+        ? const BouncingScrollPhysics()
+        : const ClampingScrollPhysics();
   }
 
   void _restoreScrollProgress(double progress, {int retries = 3}) {
     if (!_scrollController.hasClients) {
       if (retries > 0) {
         WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _restoreScrollProgress(progress, retries: retries - 1));
+          (_) => _restoreScrollProgress(progress, retries: retries - 1),
+        );
       }
       return;
     }
@@ -248,29 +338,56 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     if (total <= 0) {
       if (retries > 0) {
         WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _restoreScrollProgress(progress, retries: retries - 1));
+          (_) => _restoreScrollProgress(progress, retries: retries - 1),
+        );
       }
       return;
     }
-    _scrollController.jumpTo((progress * total).clamp(0.0, total));
+    _jumpInFlight = true;
+    _jumpAndSync(progress * total);
+    _finishJump();
   }
 
+  /// Finds the chapter whose block currently sits at the top of the
+  /// viewport by measuring the real layout offsets of the blocks that have
+  /// been built — not by assuming every chapter has the same height.
   int _currentChapterAtOffset(double scrollOffset) {
-    final total = _scrollController.position.maxScrollExtent;
-    final progress = total > 0 ? scrollOffset / total : 0.0;
-    return (progress * widget.chapters.length).floor().clamp(0, widget.chapters.length - 1);
+    int current = 0;
+    for (int i = 0; i < _chapterKeys.length; i++) {
+      final reveal = _chapterRevealOffset(i);
+      if (reveal != null && reveal <= scrollOffset + 1) {
+        current = i;
+      }
+    }
+    return current;
   }
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    _resetChromeTimer();
+    resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
     final pos = _scrollController.position;
     _scrollOffset = pos.pixels;
-    final progress = pos.maxScrollExtent > 0 ? pos.pixels / pos.maxScrollExtent : 0.0;
+    final progress = pos.maxScrollExtent > 0
+        ? pos.pixels / pos.maxScrollExtent
+        : 0.0;
     widget.onScrollProgress(progress);
 
-    final current = _currentChapterAtOffset(pos.pixels);
-    widget.onCurrentChapterChanged(current);
+    // Only report the current chapter once blocks are laid out — during a
+    // programmatic jump the viewport has no measured blocks yet, and a
+    // fallback of 0 would clobber the restored chapter in the parent.
+    // While a jump is in flight we also suppress reporting entirely so the
+    // provisional (wrong) index never propagates up and triggers a
+    // `didUpdateWidget` re-jump in the opposite direction.
+    if (_jumpInFlight) {
+      _lastScrollPos = pos.pixels;
+      return;
+    }
+    final hasMeasuredBlocks = _chapterKeys.any((k) => k.currentContext != null);
+    if (hasMeasuredBlocks) {
+      final current = _currentChapterAtOffset(pos.pixels);
+      _lastReportedChapterIndex = current;
+      widget.onCurrentChapterChanged(current);
+    }
 
     final delta = pos.pixels - _lastScrollPos;
     if (delta.abs() > 4) {
@@ -278,53 +395,55 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
       widget.onScrollDirectionChanged(direction);
       setState(() {
         if (direction == ScrollDirection.up) {
-          _chromeVisible = true;
-          _setFullscreen(false);
+          chromeVisible = true;
+          setFullscreen(false, isDarkTheme: widget.settings.theme.isDark);
         }
       });
     }
     _lastScrollPos = pos.pixels;
   }
 
-  bool get _isDesktop => MediaQuery.of(context).size.width >= 840;
-
-  void _toggleRightPanel() {
-    setState(() => _rightPanelVisible = !_rightPanelVisible);
+  void _jumpAndSync(double target) {
+    final total = _scrollController.position.maxScrollExtent;
+    _scrollController.jumpTo(target.clamp(0.0, total));
+    _syncCurrentChapter();
   }
 
-  void _hideRightPanel() {
-    if (_rightPanelVisible) setState(() => _rightPanelVisible = false);
+  /// Reports the chapter actually at the top of the viewport once its block
+  /// has been laid out, so programmatic jumps/restores don't leave the
+  /// parent's chapter state stale (or wrong).
+  void _syncCurrentChapter({int attempts = 3}) {
+    if (!mounted || !_scrollController.hasClients) return;
+    if (_jumpInFlight) return;
+    final hasMeasuredBlocks = _chapterKeys.any((k) => k.currentContext != null);
+    if (!hasMeasuredBlocks) {
+      if (attempts > 0) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _syncCurrentChapter(attempts: attempts - 1),
+        );
+      }
+      return;
+    }
+    final current = _currentChapterAtOffset(_scrollController.position.pixels);
+    _lastReportedChapterIndex = current;
+    widget.onCurrentChapterChanged(current);
   }
 
-  double? _brightnessDragStartY;
-  double? _brightnessDragStartValue;
-
-  void _onEdgeBrightnessStart(DragStartDetails details) {
-    _brightnessDragStartY = details.localPosition.dy;
-    _brightnessDragStartValue = widget.settings.brightness;
-  }
-
-  void _onEdgeBrightnessUpdate(DragUpdateDetails details) {
-    if (_brightnessDragStartY == null || _brightnessDragStartValue == null) return;
-    final delta = (details.localPosition.dy - _brightnessDragStartY!) / 300;
-    final newBrightness = (_brightnessDragStartValue! - delta).clamp(0.0, 1.0);
+  void _applyBrightness(double newBrightness) {
     final notifier = ref.read(readingSettingsProvider.notifier);
     notifier.setBrightness(newBrightness);
     final svc = ref.read(platformServiceProvider);
     svc.setBrightness(newBrightness, smooth: true);
   }
 
-  void _onEdgeBrightnessEnd(DragEndDetails details) {
-    _brightnessDragStartY = null;
-    _brightnessDragStartValue = null;
-  }
-
   bool _onScrollEnd(ScrollEndNotification notification) {
     if (_animation != ScrollAnimation.snap) return false;
     if (notification.dragDetails == null) return false;
     if (!_scrollController.hasClients) return false;
-    final page = (_scrollController.offset /
-        _scrollController.position.viewportDimension).round();
+    final page =
+        (_scrollController.offset /
+                _scrollController.position.viewportDimension)
+            .round();
     final target = page * _scrollController.position.viewportDimension;
     _scrollController.animateTo(
       target.clamp(0.0, _scrollController.position.maxScrollExtent),
@@ -338,81 +457,79 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     return switch (_animation) {
       ScrollAnimation.smooth => listView,
       ScrollAnimation.snap => NotificationListener<ScrollEndNotification>(
-          onNotification: _onScrollEnd,
-          child: listView,
-        ),
+        onNotification: _onScrollEnd,
+        child: listView,
+      ),
       ScrollAnimation.fadeEdges => ShaderMask(
-          shaderCallback: (rect) => const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
-            stops: [0, 0.06, 0.94, 1],
-          ).createShader(rect),
-          blendMode: BlendMode.dstIn,
-          child: listView,
-        ),
+        shaderCallback: (rect) => const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            Colors.white,
+            Colors.white,
+            Colors.transparent,
+          ],
+          stops: [0, 0.06, 0.94, 1],
+        ).createShader(rect),
+        blendMode: BlendMode.dstIn,
+        child: listView,
+      ),
       ScrollAnimation.parallax => listView,
       ScrollAnimation.glow => Scrollbar(
-          controller: _scrollController,
-          thumbVisibility: true,
-          thickness: 8,
-          radius: const Radius.circular(4),
-          child: Theme(
-            data: ThemeData(
-              scrollbarTheme: ScrollbarThemeData(
-                thumbColor: WidgetStateProperty.all(
-                  widget.settings.theme.accent.withValues(alpha: 0.8),
-                ),
-                radius: const Radius.circular(4),
-                thickness: WidgetStateProperty.all(8),
-                trackVisibility: WidgetStateProperty.all(true),
-                trackColor: WidgetStateProperty.all(
-                  widget.settings.theme.accent.withValues(alpha: 0.15),
-                ),
+        controller: _scrollController,
+        thumbVisibility: true,
+        thickness: 8,
+        radius: const Radius.circular(4),
+        child: Theme(
+          data: ThemeData(
+            scrollbarTheme: ScrollbarThemeData(
+              thumbColor: WidgetStateProperty.all(
+                widget.settings.theme.accent.withValues(alpha: 0.8),
+              ),
+              radius: const Radius.circular(4),
+              thickness: WidgetStateProperty.all(8),
+              trackVisibility: WidgetStateProperty.all(true),
+              trackColor: WidgetStateProperty.all(
+                widget.settings.theme.accent.withValues(alpha: 0.15),
               ),
             ),
-            child: listView,
           ),
+          child: listView,
         ),
+      ),
     };
   }
 
   Widget _wrapHeaderWithParallax(Widget header, int index) {
     if (_animation != ScrollAnimation.parallax) return header;
-    final offset = math.sin((index * math.pi * 0.3) + (_scrollOffset * 0.003)) * 6;
-    return Transform.translate(
-      offset: Offset(0, offset),
-      child: header,
-    );
+    final offset =
+        math.sin((index * math.pi * 0.3) + (_scrollOffset * 0.003)) * 6;
+    return Transform.translate(offset: Offset(0, offset), child: header);
   }
 
-  Widget _buildChapterBlock(ChapterEntity chapter, int index, {bool showHeaders = true}) {
+  Widget _buildChapterBlock(
+    ChapterEntity chapter,
+    int index, {
+    bool showHeaders = true,
+  }) {
     final vt = widget.settings.theme;
     final cs = ChapterStyle.forChapter(index);
-    final textStyle = TextStyle(
-      fontSize: widget.settings.fontSize,
-      height: widget.settings.lineHeight,
-      letterSpacing: widget.settings.letterSpacing,
-      color: vt.text,
-    );
 
     return Column(
+      key: _chapterKeys[index],
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (showHeaders) ...[
-          _wrapHeaderWithParallax(_buildChapterHeader(chapter, index, cs), index),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Center(
-              child: Text(
-                ChapterStyle.ornamentalDivider,
-                style: TextStyle(
-                  color: cs.accentColor.withValues(alpha: 0.4),
-                  fontSize: 16,
-                ),
-              ),
+          _wrapHeaderWithParallax(
+            ChapterHeaderBanner(
+              chapterNumber: index + 1,
+              title: chapter.title,
+              style: cs,
             ),
+            index,
           ),
+          ChapterOrnamentalDivider(accentColor: cs.accentColor),
         ],
         ChapterContentLoader(
           chapter: chapter,
@@ -427,79 +544,17 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
           chapterStyle: cs,
         ),
         if (showHeaders)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: Text(
-                ChapterStyle.ornamentalDivider,
-                style: TextStyle(
-                  color: cs.accentColor.withValues(alpha: 0.4),
-                  fontSize: 16,
-                ),
-              ),
-            ),
+          ChapterOrnamentalDivider(
+            accentColor: cs.accentColor,
+            verticalPadding: 24,
           ),
         if (showHeaders)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-            child: Column(
-              children: [
-                Divider(color: vt.text.withValues(alpha: 0.15)),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  '— End of Chapter ${index + 1} —',
-                  style: TextStyle(
-                    fontSize: textStyle.fontSize! * 0.85,
-                    color: vt.text.withValues(alpha: 0.5),
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
+          ChapterEndFooter(
+            chapterNumber: index + 1,
+            textColor: vt.text,
+            baseFontSize: widget.settings.fontSize,
           ),
       ],
-    );
-  }
-
-  Widget _buildChapterHeader(ChapterEntity chapter, int index, ChapterStyle cs) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-      decoration: BoxDecoration(
-        color: cs.bannerBackground.withValues(alpha: 0.3),
-        border: Border(
-          bottom: BorderSide(color: cs.accentColor.withValues(alpha: 0.2)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: cs.accentColor,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                '${index + 1}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(chapter.title, style: cs.titleStyle),
-          ),
-        ],
-      ),
     );
   }
 
@@ -511,33 +566,20 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
 
     return Scaffold(
       backgroundColor: vt.background,
-      appBar: _chromeVisible
-          ? AppBar(
-              backgroundColor: vt.surface,
-              foregroundColor: vt.text,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              toolbarHeight: 40,
-              title: Text(chapters[index].title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14)),
-              actions: [
-                if (_isDesktop) ...[
-                  IconButton(
-                    icon: Icon(
-                      _rightPanelVisible ? Icons.view_sidebar : Icons.view_sidebar_outlined,
-                      size: 18,
-                      color: vt.text,
-                    ),
-                    tooltip: 'Toggle panel',
-                    onPressed: _toggleRightPanel,
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                IconButton(
-                  icon: Icon(Icons.text_fields, size: 18, color: vt.text),
-                  onPressed: widget.onSettingsTap,
-                ),
-              ],
+      extendBodyBehindAppBar: true,
+      extendBody: true,
+      appBar: chromeVisible
+          ? ReaderBarSurface(
+              style: widget.settings.chromeStyle,
+              color: vt.surface,
+              child: ReaderChromeBar(
+                title: chapters[index].title,
+                textColor: vt.text,
+                showPanelToggle: isDesktop,
+                rightPanelVisible: rightPanelVisible,
+                onTogglePanel: toggleRightPanel,
+                onSettingsTap: widget.onSettingsTap,
+              ),
             )
           : null,
       body: Stack(
@@ -547,8 +589,8 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
             onKeyEvent: (node, event) {
               if (event is KeyDownEvent &&
                   event.logicalKey == LogicalKeyboardKey.escape) {
-                if (_rightPanelVisible) {
-                  _hideRightPanel();
+                if (rightPanelVisible) {
+                  hideRightPanel();
                   return KeyEventResult.handled;
                 }
               }
@@ -556,86 +598,90 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
             },
             child: GestureDetector(
               onTap: () {
-                if (_rightPanelVisible) {
-                  _hideRightPanel();
+                if (rightPanelVisible) {
+                  hideRightPanel();
                 }
-                _toggleChrome();
+                toggleChrome(isDarkTheme: widget.settings.theme.isDark);
               },
               child: _wrapWithAnimation(
                 ListView.builder(
                   controller: _scrollController,
+                  physics: _scrollPhysics,
                   itemCount: chapters.length,
-                  itemBuilder: (context, index) => _buildChapterBlock(chapters[index], index, showHeaders: _chromeVisible),
+                  itemBuilder: (context, index) => _buildChapterBlock(
+                    chapters[index],
+                    index,
+                    showHeaders: true,
+                  ),
                 ),
               ),
             ),
           ),
-          if (!_isDesktop && _chromeVisible)
+          if (!isDesktop && (chromeVisible || _autoScrollActive))
             Positioned(
-              top: 0,
+              top: chromeVisible ? MediaQuery.of(context).padding.top : 0,
               left: 0,
               right: 0,
               child: ReaderProgressBar(
-                progress: _scrollController.hasClients && _scrollController.position.maxScrollExtent > 0
-                    ? _scrollController.offset / _scrollController.position.maxScrollExtent
+                progress:
+                    _scrollController.hasClients &&
+                        _scrollController.position.maxScrollExtent > 0
+                    ? _scrollController.offset /
+                          _scrollController.position.maxScrollExtent
                     : 0.0,
                 color: widget.settings.theme.accent,
               ),
             ),
-          if (!_isDesktop)
+          if (!isDesktop)
+            BrightnessEdgeGestureRegion(
+              onVerticalDragStart: (details) => onEdgeBrightnessStart(
+                details,
+                followSystemBrightness: widget.settings.followSystemBrightness,
+                currentBrightness: widget.settings.brightness,
+              ),
+              onVerticalDragUpdate: (details) => onEdgeBrightnessUpdate(
+                details,
+                onChanged: _applyBrightness,
+              ),
+              onVerticalDragEnd: onEdgeBrightnessEnd,
+            ),
+          if (_autoScrollActive)
             Positioned(
               left: 0,
-              top: 0,
-              bottom: 0,
-              width: 40,
-              child: GestureDetector(
-                onVerticalDragStart: _onEdgeBrightnessStart,
-                onVerticalDragUpdate: _onEdgeBrightnessUpdate,
-                onVerticalDragEnd: _onEdgeBrightnessEnd,
-                behavior: HitTestBehavior.translucent,
-                child: Container(color: Colors.transparent),
-              ),
-            ),
-          if (_isDesktop) ...[
-            Positioned(
               right: 0,
-              top: 0,
-              bottom: 0,
-              width: 8,
-              child: MouseRegion(
-                onEnter: (_) {
-                  if (!_rightPanelVisible) {
-                    setState(() => _rightPanelVisible = true);
-                  }
-                },
-                cursor: _rightPanelVisible ? SystemMouseCursors.basic : SystemMouseCursors.click,
-                child: Container(color: Colors.transparent),
-              ),
-            ),
-            if (_rightPanelVisible)
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                width: _rightPanelWidth,
-                child: ReaderRightPanel(
-                  chapters: chapters,
-                  currentChapterIndex: index,
-                  bookmarkedChapterIds: widget.bookmarkedChapterIds,
-                  onChapterSelected: (idx) {
-                    widget.onChapterSelected(idx);
-                    WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => _scrollToChapter(idx),
-                    );
-                  },
-                  onBookmarkToggle: widget.onBookmarkToggle,
-                  isBookmarked: widget.isBookmarked,
-                  onClose: _hideRightPanel,
-                  settings: widget.settings,
+              bottom: 24,
+              child: Center(
+                child: _AutoScrollControl(
+                  speed: _autoScrollSpeed,
+                  onSpeedChanged: _setAutoScrollSpeed,
+                  onStop: _stopAutoScroll,
+                  accent: widget.settings.theme.accent,
                 ),
               ),
-          ],
-          if (_commandPaletteVisible)
+            ),
+          if (isDesktop)
+            DesktopRightPanelRegion(
+              visible: rightPanelVisible,
+              chromeVisible: chromeVisible,
+              panelWidth: ReaderChromeController.rightPanelWidth,
+              onHoverReveal: showRightPanelOnHover,
+              panel: ReaderRightPanel(
+                chapters: chapters,
+                currentChapterIndex: index,
+                bookmarkedChapterIds: widget.bookmarkedChapterIds,
+                onChapterSelected: (idx) {
+                  widget.onChapterSelected(idx);
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _scrollToChapter(idx),
+                  );
+                },
+                onBookmarkToggle: widget.onBookmarkToggle,
+                isBookmarked: widget.isBookmarked,
+                onClose: hideRightPanel,
+                settings: widget.settings,
+              ),
+            ),
+          if (commandPaletteVisible)
             ReaderCommandPalette(
               chapters: chapters,
               currentChapterIndex: index,
@@ -648,77 +694,104 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
               onToggleBookmark: widget.onBookmarkToggle,
               isBookmarked: widget.isBookmarked,
               onToggleSettings: widget.onSettingsTap,
-              onTogglePanel: _toggleRightPanel,
-              onClose: () => setState(() => _commandPaletteVisible = false),
+              onTogglePanel: toggleRightPanel,
+              onClose: () => setState(() => commandPaletteVisible = false),
             ),
         ],
       ),
-      bottomNavigationBar: _chromeVisible
-          ? ReaderBottomNav(
-              onSettingsTap: widget.onSettingsTap,
-              onChapterIndexTap: () => _showChapterIndex(context),
-              onBookmarkTap: widget.onBookmarkToggle,
-              isBookmarked: widget.isBookmarked,
-              currentChapterTitle: chapters[index].title,
-              currentChapterNumber: index,
-              totalChapters: chapters.length,
+      bottomNavigationBar: chromeVisible
+          ? ReaderBarSurface(
+              style: widget.settings.chromeStyle,
+              color: vt.surface,
+              child: ReaderBottomNav(
+                onSettingsTap: widget.onSettingsTap,
+                onChapterIndexTap: () => _showChapterIndex(context),
+                onBookmarkTap: widget.onBookmarkToggle,
+                isBookmarked: widget.isBookmarked,
+                currentChapterTitle: chapters[index].title,
+                currentChapterNumber: index,
+                totalChapters: chapters.length,
+                autoScrollActive: _autoScrollActive,
+                onAutoScrollToggle: _toggleAutoScroll,
+              ),
             )
           : null,
     );
   }
 
   void _showChapterIndex(BuildContext context) {
-    final currentIndex = widget.currentChapterIndex;
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text('Chapters', style: Theme.of(context).textTheme.titleMedium),
-          ),
-          const Divider(height: 1),
-          SizedBox(
-            height: MediaQuery.of(context).size.height * 0.4,
-            child: ListView.separated(
-              itemCount: widget.chapters.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
-              itemBuilder: (_, idx) {
-                final ch = widget.chapters[idx];
-                final isCurrent = idx == currentIndex;
-                return ListTile(
-                  leading: CircleAvatar(
-                    radius: 14,
-                    backgroundColor: isCurrent
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: Text(
-                      '${idx + 1}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isCurrent ? Theme.of(context).colorScheme.onPrimary : null,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    ch.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontWeight: isCurrent ? FontWeight.w600 : null),
-                  ),
-                  trailing: isCurrent
-                      ? Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary)
-                      : null,
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    widget.onChapterSelected(idx);
-                  },
-                );
-              },
+    ChapterIndexSheet.show(
+      context,
+      sheetId: 'continuous_chapter_index',
+      chapters: widget.chapters,
+      currentChapterIndex: widget.currentChapterIndex,
+      onChapterTap: widget.onChapterSelected,
+    );
+  }
+}
+
+class _AutoScrollControl extends StatelessWidget {
+  const _AutoScrollControl({
+    required this.speed,
+    required this.onSpeedChanged,
+    required this.onStop,
+    required this.accent,
+  });
+
+  final double speed;
+  final ValueChanged<double> onSpeedChanged;
+  final VoidCallback onStop;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final iconColor =
+        ThemeData.estimateBrightnessForColor(scheme.surface) == Brightness.dark
+        ? Colors.white
+        : Colors.black87;
+    return Material(
+      color: scheme.surface,
+      elevation: 4,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.remove),
+              iconSize: 20,
+              color: iconColor,
+              tooltip: 'Slower',
+              onPressed: () => onSpeedChanged(speed - 0.5),
             ),
-          ),
-        ],
+            Text(
+              '${(speed * 20).round()} px/s',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: iconColor,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add),
+              iconSize: 20,
+              color: iconColor,
+              tooltip: 'Faster',
+              onPressed: () => onSpeedChanged(speed + 0.5),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.close),
+              iconSize: 20,
+              color: accent,
+              tooltip: 'Stop auto-scroll',
+              onPressed: onStop,
+            ),
+          ],
+        ),
       ),
     );
   }

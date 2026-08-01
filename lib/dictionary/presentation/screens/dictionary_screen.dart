@@ -462,6 +462,30 @@ class _DismissBackground extends StatelessWidget {
   }
 }
 
+class _SourceBadge extends StatelessWidget {
+  const _SourceBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: colorScheme.onSecondaryContainer,
+            fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
 class _LanguageBadge extends StatelessWidget {
   const _LanguageBadge({required this.label});
 
@@ -544,6 +568,8 @@ class _WordCard extends StatelessWidget {
                         style: textTheme.titleSmall
                             ?.copyWith(fontWeight: FontWeight.bold)),
                   ),
+                  _SourceBadge(label: word.sourceLabel),
+                  const SizedBox(width: AppSpacing.xs),
                   _LanguageBadge(label: word.languageLabel),
                   const SizedBox(width: AppSpacing.xs),
                   IconButton(
@@ -602,6 +628,47 @@ class _WordCard extends StatelessWidget {
                                   color: colorScheme.onSurface.withValues(alpha: 0.6))),
                         ),
                       ),
+              ],
+              if (word.sourceSentence != null && word.sourceSentence!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.format_quote_rounded,
+                            size: 14,
+                            color:
+                                colorScheme.onSurface.withValues(alpha: 0.5)),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            word.sourceSentence!,
+                            style: textTheme.bodySmall?.copyWith(
+                                fontStyle: FontStyle.italic,
+                                color: colorScheme.onSurface
+                                    .withValues(alpha: 0.7)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (word.sourceTitle != null) ...[
+                const SizedBox(height: 2),
+                Text(word.sourceTitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.5))),
               ],
               Align(
                 alignment: Alignment.centerRight,

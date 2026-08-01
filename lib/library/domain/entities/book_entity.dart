@@ -1,3 +1,5 @@
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
+
 class BookEntity {
   const BookEntity({
     required this.id,
@@ -16,6 +18,7 @@ class BookEntity {
     this.sourceName,
     this.sourceId,
     this.sourceUrl,
+    this.itemType = ContentCategory.book,
     required this.createdAt,
     required this.updatedAt,
     this.lastOpenedAt,
@@ -38,10 +41,11 @@ class BookEntity {
   final String? sourceName;
   final String? sourceId;
   final String? sourceUrl;
+  final ContentCategory itemType;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastOpenedAt;
   final double? progress;
 
-  bool get isNovel => sourceName != null;
+  bool get isNovel => itemType == ContentCategory.novel;
 }

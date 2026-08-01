@@ -8,6 +8,7 @@ class Books extends Table {
   TextColumn get description => text().nullable()();
   TextColumn get format => text()();
   TextColumn get filePath => text()();
+  TextColumn get itemType => text().withDefault(const Constant('book'))();
   IntColumn get fileSize => integer().nullable()();
   IntColumn get totalChapters => integer()();
   TextColumn get language => text().nullable()();

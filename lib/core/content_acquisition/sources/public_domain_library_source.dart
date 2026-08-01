@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.dart';
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 
 class PublicDomainLibrarySource implements SearchableSource {
@@ -16,6 +17,9 @@ class PublicDomainLibrarySource implements SearchableSource {
 
   @override
   String get sourceName => 'Public Domain Library';
+
+  @override
+  ContentCategory get contentCategory => ContentCategory.book;
 
   @override
   bool canHandle(Uri uri) {

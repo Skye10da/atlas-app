@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/search/domain/entities/search_result_entity.dart';
@@ -35,6 +36,7 @@ final class DriftSearchRepository implements SearchRepositoryInterface {
           author: book.author,
           coverPath: book.coverPath,
           totalChapters: book.totalChapters,
+          isNovel: ContentCategory.fromName(book.itemType) == ContentCategory.novel,
         ));
       }
 
@@ -60,6 +62,7 @@ final class DriftSearchRepository implements SearchRepositoryInterface {
           chapterId: chapter.id,
           coverPath: book.coverPath,
           totalChapters: book.totalChapters,
+          isNovel: ContentCategory.fromName(book.itemType) == ContentCategory.novel,
         ));
       }
 

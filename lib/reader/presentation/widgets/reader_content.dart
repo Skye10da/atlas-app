@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
+import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/services/platform_service.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
@@ -60,7 +61,8 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     final os = oldWidget.settings;
     final ns = widget.settings;
     if (os.keepScreenAwake != ns.keepScreenAwake ||
-        os.brightness != ns.brightness) {
+        os.brightness != ns.brightness ||
+        os.followSystemBrightness != ns.followSystemBrightness) {
       _applySystemSettings();
     }
   }
@@ -70,7 +72,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     _platformService = svc;
     final s = widget.settings;
     svc.setKeepScreenOn(s.keepScreenAwake);
-    svc.setBrightness(s.brightness, smooth: true);
+    if (s.followSystemBrightness) {
+      svc.resetBrightness();
+    } else {
+      svc.setBrightness(s.brightness, smooth: true);
+    }
     if (s.autoOptimizeBrightness) {
       svc.optimizeForLowBattery();
     }
@@ -271,10 +277,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   void _goToPagedChapter(int index) {}
 
   void _showSettingsDrawer() {
-    showModalBottomSheet(
+    DraggableBottomSheet.show(
       context: context,
-      isScrollControlled: true,
-      builder: (ctx) => ReaderSettingsSheet(
+      id: 'reader_settings',
+      initialHeight: 0.8,
+      child: ReaderSettingsSheet(
         initialSettings: widget.settings,
       ),
     );

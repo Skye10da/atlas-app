@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -45,6 +46,7 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
           sourceName: book.sourceName,
           sourceId: book.sourceId,
           sourceUrl: book.sourceUrl,
+          itemType: ContentCategory.fromName(book.itemType),
           createdAt: book.createdAt,
           updatedAt: book.updatedAt,
           lastOpenedAt: book.lastOpenedAt,
@@ -94,6 +96,7 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
         sourceName: book.sourceName,
         sourceId: book.sourceId,
         sourceUrl: book.sourceUrl,
+        itemType: ContentCategory.fromName(book.itemType),
         createdAt: book.createdAt,
         updatedAt: book.updatedAt,
         lastOpenedAt: book.lastOpenedAt,

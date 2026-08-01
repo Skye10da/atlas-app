@@ -37,6 +37,17 @@ final liveBatteryLevelProvider = StreamProvider<double>((ref) {
   return controller.stream;
 });
 
+final chargingProvider = FutureProvider<bool>((ref) async {
+  final svc = ref.watch(platformServiceProvider);
+  return svc.isCharging();
+});
+
+final liveChargingProvider = StreamProvider<bool>((ref) async* {
+  final svc = ref.watch(platformServiceProvider);
+  yield await svc.isCharging();
+  yield* svc.onChargingChanged;
+});
+
 void _emitBatteryLevel(PlatformService svc, StreamController<double> controller) {
   svc.getBatteryLevel().then(controller.add).catchError((_) {});
 }
@@ -49,7 +60,11 @@ final httpClientProvider = Provider<http.Client>((ref) {
   return client;
 });
 
-final dictionaryServiceProvider = Provider<DictionaryService>((ref) {
+final dictionaryServiceProvider =
+    Provider.family<DictionaryService, DictionarySource>((ref, source) {
   final client = ref.watch(httpClientProvider);
-  return WiktionaryService(client: client);
+  return switch (source) {
+    DictionarySource.wiktionary => WiktionaryService(client: client),
+    DictionarySource.urbanDictionary => UrbanDictionaryService(client: client),
+  };
 });

@@ -14,12 +14,14 @@ class ReadingSettingsEntity {
     this.keepScreenAwake = false,
     this.brightness = 1.0,
     this.autoOptimizeBrightness = false,
+    this.followSystemBrightness = true,
     this.theme = ReadingViewTheme.light,
     this.readingMode = ReadingMode.page,
     this.textAlignment = TextAlignment.left,
     this.marginPreset = MarginPreset.normal,
     this.pageTurnAnimation = PageTurnAnimation.slide,
     this.scrollAnimation = ScrollAnimation.smooth,
+    this.chromeStyle = ReaderChromeStyle.translucent,
     this.themeMode = ThemeMode.system,
   });
 
@@ -32,12 +34,14 @@ class ReadingSettingsEntity {
   final bool keepScreenAwake;
   final double brightness;
   final bool autoOptimizeBrightness;
+  final bool followSystemBrightness;
   final ReadingViewTheme theme;
   final ReadingMode readingMode;
   final TextAlignment textAlignment;
   final MarginPreset marginPreset;
   final PageTurnAnimation pageTurnAnimation;
   final ScrollAnimation scrollAnimation;
+  final ReaderChromeStyle chromeStyle;
   final ThemeMode themeMode;
 
   ReadingSettingsEntity copyWith({
@@ -50,12 +54,14 @@ class ReadingSettingsEntity {
     bool? keepScreenAwake,
     double? brightness,
     bool? autoOptimizeBrightness,
+    bool? followSystemBrightness,
     ReadingViewTheme? theme,
     ReadingMode? readingMode,
     TextAlignment? textAlignment,
     MarginPreset? marginPreset,
     PageTurnAnimation? pageTurnAnimation,
     ScrollAnimation? scrollAnimation,
+    ReaderChromeStyle? chromeStyle,
     ThemeMode? themeMode,
   }) {
     return ReadingSettingsEntity(
@@ -68,12 +74,14 @@ class ReadingSettingsEntity {
       keepScreenAwake: keepScreenAwake ?? this.keepScreenAwake,
       brightness: brightness ?? this.brightness,
       autoOptimizeBrightness: autoOptimizeBrightness ?? this.autoOptimizeBrightness,
+      followSystemBrightness: followSystemBrightness ?? this.followSystemBrightness,
       theme: theme ?? this.theme,
       readingMode: readingMode ?? this.readingMode,
       textAlignment: textAlignment ?? this.textAlignment,
       marginPreset: marginPreset ?? this.marginPreset,
       pageTurnAnimation: pageTurnAnimation ?? this.pageTurnAnimation,
       scrollAnimation: scrollAnimation ?? this.scrollAnimation,
+      chromeStyle: chromeStyle ?? this.chromeStyle,
       themeMode: themeMode ?? this.themeMode,
     );
   }

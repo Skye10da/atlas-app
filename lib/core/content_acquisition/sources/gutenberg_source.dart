@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.dart';
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 
 class GutenbergSource implements SearchableSource {
@@ -15,6 +16,9 @@ class GutenbergSource implements SearchableSource {
 
   @override
   String get sourceName => 'Project Gutenberg';
+
+  @override
+  ContentCategory get contentCategory => ContentCategory.book;
 
   static const _gutendexBase = 'https://gutendex.com';
   static const _textBase = 'https://www.gutenberg.org/cache/epub';

@@ -9,6 +9,11 @@ class DictionaryWords extends Table {
 
   TextColumn get languageLabel => text()();
 
+  TextColumn get source => text().withDefault(const Constant('wiktionary'))();
+
+  TextColumn get sourceLabel =>
+      text().withDefault(const Constant('Wiktionary'))();
+
   TextColumn get phonetic => text().nullable()();
 
   TextColumn get partOfSpeech => text()();
