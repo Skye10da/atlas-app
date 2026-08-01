@@ -50,7 +50,7 @@ dependencies:
   screen_brightness_pro:
     git:
       url: https://github.com/Skye10da/screen_brightness_pro.git
-      ref: f7d0667
+      ref: 92eb2d5
   battery_plus: ^7.1.1
 
 dev_dependencies:
