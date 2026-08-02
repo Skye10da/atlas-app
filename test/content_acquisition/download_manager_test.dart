@@ -12,13 +12,12 @@ import 'package:atlas_app/core/content_acquisition/services/download_manager.dar
 class _FakeSource implements SourceAdapter {
   _FakeSource({
     this.failFirst = false,
-    this.delay = Duration.zero, this.onFetch,
+    this.delay = Duration.zero,
   });
 
   final bool failFirst;
-  bool failAlways;
+  bool failAlways = false;
   final Duration delay;
-  final void Function(String chapterId)? onFetch;
   int fetchCount = 0;
 
   @override
@@ -40,7 +39,6 @@ class _FakeSource implements SourceAdapter {
   @override
   Future<ChapterModel> getChapter(ChapterModel chapter) async {
     fetchCount++;
-    onFetch?.call(chapter.id);
     if (delay > Duration.zero) {
       await Future<void>.delayed(delay);
     }
@@ -185,7 +183,11 @@ void main() {
       final manager = DownloadManager(cacheManager: cache, workerCount: 1);
 
       final statuses = <DownloadStatus>[];
-      manager.events.listen((e) => statuses.add(e.status));
+      final ch1Events = <DownloadStatus>[];
+      manager.events.listen((e) {
+        statuses.add(e.status);
+        if (e.chapterId == 'ch1') ch1Events.add(e.status);
+      });
 
       manager.enqueue('book1', chapter(0), source);
       manager.enqueue('book1', chapter(1), source);
@@ -193,7 +195,7 @@ void main() {
 
       await manager.waitForIdle();
 
-      expect(statuses, isNot(contains(DownloadStatus.done)));
+      expect(ch1Events, [DownloadStatus.queued, DownloadStatus.cancelled]);
       expect(await cache.hasChapter('book1', 'ch1'), isFalse);
       expect(await cache.hasChapter('book1', 'ch0'), isTrue);
     });
