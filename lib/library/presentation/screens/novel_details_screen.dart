@@ -10,6 +10,7 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
+import 'package:atlas_app/library/presentation/widgets/novel/continue_reading_card.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/genre_tag_row.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/novel_hero_header.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/source_attribution.dart';
@@ -65,6 +66,8 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const SizedBox(height: AppSpacing.sm),
+                    ContinueReadingCard(book: book),
                     const SizedBox(height: AppSpacing.sm),
                     GenreTagRow(book: book),
                     const SizedBox(height: AppSpacing.lg),
@@ -220,10 +223,10 @@ class _ChapterPanelState extends ConsumerState<_ChapterPanel> {
               isLast: group == groups.last,
               colors: colors,
               downloadingSet: downloadingSet,
-              onTap: (chapterIndex) {
-                context.push('/reader/${widget.bookId}?chapter=$chapterIndex');
+              onTap: (chapterId) {
+                context.push('/reader/${widget.bookId}?chapterId=$chapterId');
               },
-              onDownload: (chapterIndex) => _downloadChapter(chapterIndex),
+              onDownload: (chapterId) => _downloadChapter(chapterId),
             );
           }).toList(),
         );
@@ -231,15 +234,15 @@ class _ChapterPanelState extends ConsumerState<_ChapterPanel> {
     );
   }
 
-  Future<void> _downloadChapter(int chapterIndex) async {
+  Future<void> _downloadChapter(String chapterId) async {
     final service = ref.read(chapterDownloadServiceProvider);
     final downloadingSet = ref.read(chapterDownloadingSetProvider.notifier);
     final chapters = await ref.read(novelChaptersProvider(widget.bookId).future);
-    final ch = chapters.firstWhere((c) => c.index == chapterIndex);
+    final ch = chapters.firstWhere((c) => c.id == chapterId);
 
     downloadingSet.update((set) => set..add(ch.id));
 
-    await service.downloadChapter(widget.bookId, chapterIndex);
+    await service.downloadChapter(widget.bookId, ch.index);
 
     downloadingSet.update((set) => set..remove(ch.id));
     ref.invalidate(novelChaptersProvider(widget.bookId));
@@ -284,8 +287,8 @@ class _ChapterGroup extends StatefulWidget {
   final bool isLast;
   final ColorScheme colors;
   final Set<String> downloadingSet;
-  final void Function(int chapterIndex) onTap;
-  final void Function(int chapterIndex) onDownload;
+  final void Function(String chapterId) onTap;
+  final void Function(String chapterId) onDownload;
 
   @override
   State<_ChapterGroup> createState() => _ChapterGroupState();
@@ -347,9 +350,9 @@ class _ChapterGroupState extends State<_ChapterGroup> {
             ...widget.chapters.map((ch) => _ChapterTile(
               chapter: ch,
               isDownloading: widget.downloadingSet.contains(ch.id),
-              onTap: () => widget.onTap(ch.index),
+              onTap: () => widget.onTap(ch.id),
               onDownload: ch.contentState != ContentState.availableOffline.index
-                  ? () => widget.onDownload(ch.index)
+                  ? () => widget.onDownload(ch.id)
                   : null,
             )),
         ],

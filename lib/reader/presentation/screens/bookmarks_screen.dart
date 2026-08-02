@@ -56,7 +56,7 @@ class BookmarksScreen extends ConsumerWidget {
                   ),
                   trailing: Icon(Icons.chevron_right,
                       size: 18, color: theme.colorScheme.onSurfaceVariant),
-                  onTap: () => context.push('/reader/${bm.bookId}?chapter=${bm.chapterId}'),
+                  onTap: () => context.push('/reader/${bm.bookId}?chapterId=${bm.chapterId}'),
                 ),
               );
             },

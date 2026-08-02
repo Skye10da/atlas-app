@@ -1200,6 +1200,40 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _checksumMeta = const VerificationMeta(
+    'checksum',
+  );
+  @override
+  late final GeneratedColumn<String> checksum = GeneratedColumn<String>(
+    'checksum',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _previousVersionRefMeta =
+      const VerificationMeta('previousVersionRef');
+  @override
+  late final GeneratedColumn<String> previousVersionRef =
+      GeneratedColumn<String>(
+        'previous_version_ref',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1211,6 +1245,9 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     contentState,
     pageCount,
     createdAt,
+    version,
+    checksum,
+    previousVersionRef,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1297,6 +1334,27 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    }
+    if (data.containsKey('checksum')) {
+      context.handle(
+        _checksumMeta,
+        checksum.isAcceptableOrUnknown(data['checksum']!, _checksumMeta),
+      );
+    }
+    if (data.containsKey('previous_version_ref')) {
+      context.handle(
+        _previousVersionRefMeta,
+        previousVersionRef.isAcceptableOrUnknown(
+          data['previous_version_ref']!,
+          _previousVersionRefMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1342,6 +1400,18 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      checksum: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checksum'],
+      ),
+      previousVersionRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}previous_version_ref'],
+      ),
     );
   }
 
@@ -1361,6 +1431,16 @@ class Chapter extends DataClass implements Insertable<Chapter> {
   final int contentState;
   final int pageCount;
   final DateTime createdAt;
+
+  /// Content versioning (CDA v2.2): bumped whenever the chapter's content
+  /// changes after a re-fetch.
+  final int version;
+
+  /// sha256(content) of the currently stored content.
+  final String? checksum;
+
+  /// Id of the previous content version, if this chapter has been re-fetched.
+  final String? previousVersionRef;
   const Chapter({
     required this.id,
     required this.bookId,
@@ -1371,6 +1451,9 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     required this.contentState,
     required this.pageCount,
     required this.createdAt,
+    required this.version,
+    this.checksum,
+    this.previousVersionRef,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1384,6 +1467,13 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     map['content_state'] = Variable<int>(contentState);
     map['page_count'] = Variable<int>(pageCount);
     map['created_at'] = Variable<DateTime>(createdAt);
+    map['version'] = Variable<int>(version);
+    if (!nullToAbsent || checksum != null) {
+      map['checksum'] = Variable<String>(checksum);
+    }
+    if (!nullToAbsent || previousVersionRef != null) {
+      map['previous_version_ref'] = Variable<String>(previousVersionRef);
+    }
     return map;
   }
 
@@ -1398,6 +1488,13 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       contentState: Value(contentState),
       pageCount: Value(pageCount),
       createdAt: Value(createdAt),
+      version: Value(version),
+      checksum: checksum == null && nullToAbsent
+          ? const Value.absent()
+          : Value(checksum),
+      previousVersionRef: previousVersionRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(previousVersionRef),
     );
   }
 
@@ -1416,6 +1513,11 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       contentState: serializer.fromJson<int>(json['contentState']),
       pageCount: serializer.fromJson<int>(json['pageCount']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      version: serializer.fromJson<int>(json['version']),
+      checksum: serializer.fromJson<String?>(json['checksum']),
+      previousVersionRef: serializer.fromJson<String?>(
+        json['previousVersionRef'],
+      ),
     );
   }
   @override
@@ -1431,6 +1533,9 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       'contentState': serializer.toJson<int>(contentState),
       'pageCount': serializer.toJson<int>(pageCount),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'version': serializer.toJson<int>(version),
+      'checksum': serializer.toJson<String?>(checksum),
+      'previousVersionRef': serializer.toJson<String?>(previousVersionRef),
     };
   }
 
@@ -1444,6 +1549,9 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     int? contentState,
     int? pageCount,
     DateTime? createdAt,
+    int? version,
+    Value<String?> checksum = const Value.absent(),
+    Value<String?> previousVersionRef = const Value.absent(),
   }) => Chapter(
     id: id ?? this.id,
     bookId: bookId ?? this.bookId,
@@ -1454,6 +1562,11 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     contentState: contentState ?? this.contentState,
     pageCount: pageCount ?? this.pageCount,
     createdAt: createdAt ?? this.createdAt,
+    version: version ?? this.version,
+    checksum: checksum.present ? checksum.value : this.checksum,
+    previousVersionRef: previousVersionRef.present
+        ? previousVersionRef.value
+        : this.previousVersionRef,
   );
   Chapter copyWithCompanion(ChaptersCompanion data) {
     return Chapter(
@@ -1470,6 +1583,11 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           : this.contentState,
       pageCount: data.pageCount.present ? data.pageCount.value : this.pageCount,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      version: data.version.present ? data.version.value : this.version,
+      checksum: data.checksum.present ? data.checksum.value : this.checksum,
+      previousVersionRef: data.previousVersionRef.present
+          ? data.previousVersionRef.value
+          : this.previousVersionRef,
     );
   }
 
@@ -1484,7 +1602,10 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           ..write('wordCount: $wordCount, ')
           ..write('contentState: $contentState, ')
           ..write('pageCount: $pageCount, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('version: $version, ')
+          ..write('checksum: $checksum, ')
+          ..write('previousVersionRef: $previousVersionRef')
           ..write(')'))
         .toString();
   }
@@ -1500,6 +1621,9 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     contentState,
     pageCount,
     createdAt,
+    version,
+    checksum,
+    previousVersionRef,
   );
   @override
   bool operator ==(Object other) =>
@@ -1513,7 +1637,10 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           other.wordCount == this.wordCount &&
           other.contentState == this.contentState &&
           other.pageCount == this.pageCount &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.version == this.version &&
+          other.checksum == this.checksum &&
+          other.previousVersionRef == this.previousVersionRef);
 }
 
 class ChaptersCompanion extends UpdateCompanion<Chapter> {
@@ -1526,6 +1653,9 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
   final Value<int> contentState;
   final Value<int> pageCount;
   final Value<DateTime> createdAt;
+  final Value<int> version;
+  final Value<String?> checksum;
+  final Value<String?> previousVersionRef;
   final Value<int> rowid;
   const ChaptersCompanion({
     this.id = const Value.absent(),
@@ -1537,6 +1667,9 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     this.contentState = const Value.absent(),
     this.pageCount = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.version = const Value.absent(),
+    this.checksum = const Value.absent(),
+    this.previousVersionRef = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ChaptersCompanion.insert({
@@ -1549,6 +1682,9 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     this.contentState = const Value.absent(),
     required int pageCount,
     required DateTime createdAt,
+    this.version = const Value.absent(),
+    this.checksum = const Value.absent(),
+    this.previousVersionRef = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        bookId = Value(bookId),
@@ -1568,6 +1704,9 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     Expression<int>? contentState,
     Expression<int>? pageCount,
     Expression<DateTime>? createdAt,
+    Expression<int>? version,
+    Expression<String>? checksum,
+    Expression<String>? previousVersionRef,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1580,6 +1719,10 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
       if (contentState != null) 'content_state': contentState,
       if (pageCount != null) 'page_count': pageCount,
       if (createdAt != null) 'created_at': createdAt,
+      if (version != null) 'version': version,
+      if (checksum != null) 'checksum': checksum,
+      if (previousVersionRef != null)
+        'previous_version_ref': previousVersionRef,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1594,6 +1737,9 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     Value<int>? contentState,
     Value<int>? pageCount,
     Value<DateTime>? createdAt,
+    Value<int>? version,
+    Value<String?>? checksum,
+    Value<String?>? previousVersionRef,
     Value<int>? rowid,
   }) {
     return ChaptersCompanion(
@@ -1606,6 +1752,9 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
       contentState: contentState ?? this.contentState,
       pageCount: pageCount ?? this.pageCount,
       createdAt: createdAt ?? this.createdAt,
+      version: version ?? this.version,
+      checksum: checksum ?? this.checksum,
+      previousVersionRef: previousVersionRef ?? this.previousVersionRef,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1640,6 +1789,15 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (checksum.present) {
+      map['checksum'] = Variable<String>(checksum.value);
+    }
+    if (previousVersionRef.present) {
+      map['previous_version_ref'] = Variable<String>(previousVersionRef.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1658,6 +1816,9 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
           ..write('contentState: $contentState, ')
           ..write('pageCount: $pageCount, ')
           ..write('createdAt: $createdAt, ')
+          ..write('version: $version, ')
+          ..write('checksum: $checksum, ')
+          ..write('previousVersionRef: $previousVersionRef, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5144,6 +5305,9 @@ typedef $$ChaptersTableCreateCompanionBuilder =
       Value<int> contentState,
       required int pageCount,
       required DateTime createdAt,
+      Value<int> version,
+      Value<String?> checksum,
+      Value<String?> previousVersionRef,
       Value<int> rowid,
     });
 typedef $$ChaptersTableUpdateCompanionBuilder =
@@ -5157,6 +5321,9 @@ typedef $$ChaptersTableUpdateCompanionBuilder =
       Value<int> contentState,
       Value<int> pageCount,
       Value<DateTime> createdAt,
+      Value<int> version,
+      Value<String?> checksum,
+      Value<String?> previousVersionRef,
       Value<int> rowid,
     });
 
@@ -5211,6 +5378,21 @@ class $$ChaptersTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checksum => $composableBuilder(
+    column: $table.checksum,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get previousVersionRef => $composableBuilder(
+    column: $table.previousVersionRef,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5268,6 +5450,21 @@ class $$ChaptersTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get checksum => $composableBuilder(
+    column: $table.checksum,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get previousVersionRef => $composableBuilder(
+    column: $table.previousVersionRef,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ChaptersTableAnnotationComposer
@@ -5309,6 +5506,17 @@ class $$ChaptersTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<String> get checksum =>
+      $composableBuilder(column: $table.checksum, builder: (column) => column);
+
+  GeneratedColumn<String> get previousVersionRef => $composableBuilder(
+    column: $table.previousVersionRef,
+    builder: (column) => column,
+  );
 }
 
 class $$ChaptersTableTableManager
@@ -5348,6 +5556,9 @@ class $$ChaptersTableTableManager
                 Value<int> contentState = const Value.absent(),
                 Value<int> pageCount = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                Value<String?> checksum = const Value.absent(),
+                Value<String?> previousVersionRef = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChaptersCompanion(
                 id: id,
@@ -5359,6 +5570,9 @@ class $$ChaptersTableTableManager
                 contentState: contentState,
                 pageCount: pageCount,
                 createdAt: createdAt,
+                version: version,
+                checksum: checksum,
+                previousVersionRef: previousVersionRef,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5372,6 +5586,9 @@ class $$ChaptersTableTableManager
                 Value<int> contentState = const Value.absent(),
                 required int pageCount,
                 required DateTime createdAt,
+                Value<int> version = const Value.absent(),
+                Value<String?> checksum = const Value.absent(),
+                Value<String?> previousVersionRef = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChaptersCompanion.insert(
                 id: id,
@@ -5383,6 +5600,9 @@ class $$ChaptersTableTableManager
                 contentState: contentState,
                 pageCount: pageCount,
                 createdAt: createdAt,
+                version: version,
+                checksum: checksum,
+                previousVersionRef: previousVersionRef,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

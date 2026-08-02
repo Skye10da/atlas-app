@@ -43,7 +43,7 @@ class BookDetailsScreen extends ConsumerWidget {
                 book: data.book,
                 chapters: data.chapters,
                 lastReadChapterIndex: data.lastReadChapterIndex,
-                onOpenReader: (chapterIndex) async => _openReader(bookId, ref, context, data, chapterIndex),
+                onOpenReader: (chapterId) async => _openReader(bookId, ref, context, data, chapterId),
                 onDelete: () => _deleteBook(bookId, ref, context),
                 onEditMetadata: (t, a) => _editMetadata(bookId, ref, t, a),
               )
@@ -51,7 +51,7 @@ class BookDetailsScreen extends ConsumerWidget {
                 book: data.book,
                 chapters: data.chapters,
                 lastReadChapterIndex: data.lastReadChapterIndex,
-                onOpenReader: (chapterIndex) async => _openReader(bookId, ref, context, data, chapterIndex),
+                onOpenReader: (chapterId) async => _openReader(bookId, ref, context, data, chapterId),
                 onDelete: () => _deleteBook(bookId, ref, context),
                 onEditMetadata: (t, a) => _editMetadata(bookId, ref, t, a),
               ),
@@ -66,15 +66,15 @@ class BookDetailsScreen extends ConsumerWidget {
   }
 }
 
-Future<void> _openReader(String bookId, WidgetRef ref, BuildContext context, _BookDetailsData data, int? chapterIndex) async {
+Future<void> _openReader(String bookId, WidgetRef ref, BuildContext context, _BookDetailsData data, String? chapterId) async {
   final navigator = GoRouter.of(context);
   final libRepo = DriftLibraryRepository(ref.read(databaseProvider));
   await libRepo.markAsOpened(bookId);
   final base = '/reader/${data.book.id}';
   final params = <String, String>{};
-  final ch = chapterIndex ?? data.lastReadChapterIndex;
-  if (ch != null && ch >= 0) {
-    params['chapter'] = ch.toString();
+  final id = chapterId ?? data.lastReadChapterId;
+  if (id != null) {
+    params['chapterId'] = id;
   }
   if (data.book.progress != null && data.book.progress! > 0) {
     params['progress'] = (data.book.progress! / 100).toStringAsFixed(4);
@@ -141,6 +141,7 @@ final _bookDetailsProvider =
     book: book,
     chapters: chapters,
     lastReadChapterIndex: lastReadChapterIndex >= 0 ? lastReadChapterIndex : null,
+    lastReadChapterId: lastReadChapterIndex >= 0 ? progressRow!.chapterId : null,
   ));
 });
 
@@ -149,10 +150,16 @@ class _BookDetailsData {
     required this.book,
     required this.chapters,
     this.lastReadChapterIndex,
+    this.lastReadChapterId,
   });
   final BookEntity book;
   final List<ChapterEntity> chapters;
+  // Display-only: which position to show as "read up to" in the chapter
+  // list. Never used for navigation — see lastReadChapterId for that.
   final int? lastReadChapterIndex;
+  // Navigation identity for "Continue Reading" — the chapter actually
+  // resumed is always resolved by id, never by a re-derived index.
+  final String? lastReadChapterId;
 }
 
 int _groupSize(int total) {
@@ -185,7 +192,7 @@ class _DesktopBookDetails extends StatelessWidget {
   final VoidCallback onDelete;
   final int? lastReadChapterIndex;
   final Future<void> Function(String title, String? author)? onEditMetadata;
-  final void Function(int? chapterIndex)? onOpenReader;
+  final void Function(String? chapterId)? onOpenReader;
 
   @override
   Widget build(BuildContext context) {
@@ -231,7 +238,7 @@ class _CoverPanel extends StatelessWidget {
   final double progress;
   final VoidCallback onDelete;
   final Future<void> Function(String title, String? author)? onEditMetadata;
-  final void Function(int? chapterIndex)? onOpenReader;
+  final void Function(String? chapterId)? onOpenReader;
 
   @override
   Widget build(BuildContext context) {
@@ -424,7 +431,7 @@ class _ChapterPanel extends StatefulWidget {
 
   final List<ChapterEntity> chapters;
   final int? lastReadChapterIndex;
-  final void Function(int? chapterIndex)? onOpenReader;
+  final void Function(String? chapterId)? onOpenReader;
 
   @override
   State<_ChapterPanel> createState() => _ChapterPanelState();
@@ -530,7 +537,7 @@ class _ChapterPanelState extends State<_ChapterPanel> {
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
-          onTap: () => widget.onOpenReader?.call(ch.index),
+          onTap: () => widget.onOpenReader?.call(ch.id),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
@@ -590,7 +597,7 @@ class _MobileBookDetails extends StatelessWidget {
   final VoidCallback onDelete;
   final int? lastReadChapterIndex;
   final Future<void> Function(String title, String? author)? onEditMetadata;
-  final void Function(int? chapterIndex)? onOpenReader;
+  final void Function(String? chapterId)? onOpenReader;
 
   @override
   Widget build(BuildContext context) {
@@ -811,7 +818,7 @@ class _MobileChapterGroupedList extends StatefulWidget {
 
   final List<ChapterEntity> chapters;
   final int? lastReadChapterIndex;
-  final void Function(int? chapterIndex)? onOpenReader;
+  final void Function(String? chapterId)? onOpenReader;
 
   @override
   State<_MobileChapterGroupedList> createState() => _MobileChapterGroupedListState();
@@ -918,7 +925,7 @@ class _MobileChapterGroupedListState extends State<_MobileChapterGroupedList> {
                 color: isRead ? cs.onSurfaceVariant : null,
               )),
           trailing: Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
-          onTap: () => widget.onOpenReader?.call(ch.index),
+          onTap: () => widget.onOpenReader?.call(ch.id),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         ),
       ),

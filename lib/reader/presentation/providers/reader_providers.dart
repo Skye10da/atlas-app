@@ -81,3 +81,16 @@ final novelChaptersProvider =
 });
 
 final chapterDownloadingSetProvider = StateProvider<Set<String>>((ref) => {});
+
+final lastReadChapterProvider =
+    FutureProvider.family<ChapterEntity?, String>((ref, bookId) async {
+  final db = ref.watch(databaseProvider);
+  final progress = await db.getReadingProgress(bookId);
+  if (progress == null) return null;
+
+  final chapters = await ref.watch(novelChaptersProvider(bookId).future);
+  for (final chapter in chapters) {
+    if (chapter.id == progress.chapterId) return chapter;
+  }
+  return null;
+});

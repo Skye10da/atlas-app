@@ -53,6 +53,21 @@ CREATE TABLE "reading_progress" (
 )
 ''';
 
+const _chaptersV7 = '''
+CREATE TABLE "chapters" (
+  "id" TEXT NOT NULL,
+  "book_id" TEXT NOT NULL,
+  "index" INTEGER NOT NULL,
+  "title" TEXT NOT NULL,
+  "content_path" TEXT NOT NULL,
+  "word_count" INTEGER NOT NULL,
+  "content_state" INTEGER NOT NULL DEFAULT 0,
+  "page_count" INTEGER NOT NULL,
+  "created_at" INTEGER NOT NULL,
+  PRIMARY KEY ("id")
+)
+''';
+
 void main() {
   group('v6 to v7 migration (item_type)', () {
     late Directory tempDir;
@@ -91,7 +106,7 @@ void main() {
         final version = await appDb
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(version.data['user_version'], 7);
+        expect(version.data['user_version'], 8);
 
         final result = await DriftLibraryRepository(appDb).getBooks();
         expect(result, isA<Success<List<BookEntity>>>());
@@ -119,6 +134,47 @@ void main() {
     test('backfills novel when item_type already exists on a v6 db', () async {
       final file = await createV6Db(withItemType: true);
       await expectMigratedBookCategories(file);
+    });
+  });
+
+  group('v7 to v8 migration (CDA content versioning)', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('atlas_migration');
+    });
+
+    tearDown(() async {
+      await tempDir.delete(recursive: true);
+    });
+
+    test('adds version/checksum/previousVersionRef columns to chapters',
+        () async {
+      final file = p.join(tempDir.path, 'atlas.db');
+      final db = sqlite3.sqlite3.open(file);
+      db.execute(_booksV6);
+      db.execute(_readingProgressV6);
+      db.execute(_chaptersV7);
+      db.execute('PRAGMA user_version = 7');
+      db.dispose();
+
+      final appDb = AppDatabase.open(NativeDatabase(File(file)));
+      try {
+        final version = await appDb
+            .customSelect('PRAGMA user_version')
+            .getSingle();
+        expect(version.data['user_version'], 8);
+
+        final cols =
+            await appDb.customSelect('PRAGMA table_info(chapters)').get();
+        final names = cols.map((r) => r.data['name']).toSet();
+        expect(
+            names,
+            containsAll(
+                ['version', 'checksum', 'previous_version_ref']));
+      } finally {
+        await appDb.close();
+      }
     });
   });
 }

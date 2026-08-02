@@ -40,7 +40,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   ChapterEntity? _currentChapter;
   List<ChapterEntity> _chapters = [];
   double _scrollProgress = 0.0;
-  int? _initialChapterIndex;
+  String? _initialChapterId;
   double? _initialScrollProgress;
   bool _readQueryParam = false;
   bool _loading = true;
@@ -97,11 +97,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
         return;
       }
       _chapters = loaded;
-      final targetIndex = _initialChapterIndex != null
-          ? _initialChapterIndex!.clamp(0, _chapters.length - 1)
-          : 0;
-      _currentChapter ??= _chapters[targetIndex];
-      _initialChapterIndex = null;
+      final byId = _initialChapterId != null
+          ? loaded.where((c) => c.id == _initialChapterId).toList()
+          : const <ChapterEntity>[];
+      _currentChapter ??= byId.isNotEmpty ? byId.first : loaded.first;
+      _initialChapterId = null;
     });
     await _loadBookmarks();
   }
@@ -155,9 +155,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     super.didChangeDependencies();
     if (!_readQueryParam) {
       final params = GoRouterState.of(context).uri.queryParameters;
-      final chapterParam = params['chapter'];
-      _initialChapterIndex =
-          chapterParam != null ? int.tryParse(chapterParam) : null;
+      _initialChapterId = params['chapterId'];
       final progressParam = params['progress'];
       _initialScrollProgress =
           progressParam != null ? double.tryParse(progressParam) : null;
@@ -274,7 +272,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     _scrollProgress = progress;
   }
 
-  void _goToPagedChapter(int index) {}
+  void _goToPagedChapter(int index) {
+    if (_currentChapter?.id != _chapters[index].id) {
+      setState(() => _currentChapter = _chapters[index]);
+    }
+  }
 
   void _showSettingsDrawer() {
     DraggableBottomSheet.show(

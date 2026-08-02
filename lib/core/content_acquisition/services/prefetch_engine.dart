@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:atlas_app/core/content_acquisition/adapters/source_adapter.dart';
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
-import 'package:atlas_app/core/content_acquisition/services/download_engine.dart';
+import 'package:atlas_app/core/content_acquisition/services/download_manager.dart';
 
 class PrefetchEngine {
-  PrefetchEngine({required this.downloadEngine});
+  PrefetchEngine({required this.downloadManager});
 
-  final DownloadEngine downloadEngine;
+  final DownloadManager downloadManager;
   final Map<String, _PrefetchState> _states = {};
   Timer? _debounce;
 
@@ -24,7 +24,12 @@ class PrefetchEngine {
       for (int i = 1; i <= prefetchAhead; i++) {
         final idx = currentIndex + i;
         if (idx >= state.chapters.length) break;
-        downloadEngine.enqueue(bookId, state.chapters[idx], state.source);
+        downloadManager.enqueue(
+          bookId,
+          state.chapters[idx],
+          state.source,
+          priority: DownloadPriority.background,
+        );
       }
     });
   }

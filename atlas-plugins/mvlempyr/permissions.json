@@ -1,0 +1,6 @@
+{
+  "allowOfflineCache": false,
+  "maxConcurrentRequests": 1,
+  "requestDelayMs": [800, 2000],
+  "respectRobotsTxt": false
+}

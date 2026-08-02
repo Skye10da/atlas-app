@@ -271,6 +271,17 @@ class _ContinuousReaderLayoutState
       }
       final exact = _chapterRevealOffset(index);
       if (exact == null) {
+        // The target chapter's block still hasn't been built by the
+        // sliver, which means our last jump landed too far away for it
+        // to come into range. Re-estimate against the *current*
+        // maxScrollExtent (which gets more accurate as more chapters are
+        // laid out) and jump again, instead of re-polling a guess that
+        // will never resolve on its own.
+        final total = _scrollController.position.maxScrollExtent;
+        if (total > 0) {
+          final reestimate = (index / widget.chapters.length) * total;
+          _jumpAndSync(reestimate);
+        }
         _refineChapterJump(index, attempts: attempts - 1);
         return;
       }
@@ -725,7 +736,10 @@ class _ContinuousReaderLayoutState
       sheetId: 'continuous_chapter_index',
       chapters: widget.chapters,
       currentChapterIndex: widget.currentChapterIndex,
-      onChapterTap: widget.onChapterSelected,
+      onChapterTap: (idx) {
+        widget.onChapterSelected(idx);
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToChapter(idx));
+      },
     );
   }
 }

@@ -1,0 +1,8 @@
+{
+  "chapter": {
+    "url": "https://www.mvlempyr.io/chapter/12345-1",
+    "method": "chapterContent",
+    "title": "Chapter One",
+    "textContains": ["First paragraph.", "Second paragraph."]
+  }
+}

@@ -11,6 +11,16 @@ class Chapters extends Table {
   IntColumn get pageCount => integer()();
   DateTimeColumn get createdAt => dateTime()();
 
+  /// Content versioning (CDA v2.2): bumped whenever the chapter's content
+  /// changes after a re-fetch.
+  IntColumn get version => integer().withDefault(const Constant(1))();
+
+  /// sha256(content) of the currently stored content.
+  TextColumn get checksum => text().nullable()();
+
+  /// Id of the previous content version, if this chapter has been re-fetched.
+  TextColumn get previousVersionRef => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 

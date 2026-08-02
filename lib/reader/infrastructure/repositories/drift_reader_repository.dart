@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
+import 'package:atlas_app/core/content_engine/models/content_hasher.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -36,6 +37,9 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
                 pageCount: c.pageCount,
                 contentState: c.contentState,
                 totalChapters: totalChapters,
+                version: c.version,
+                checksum: c.checksum,
+                previousVersionRef: c.previousVersionRef,
               ))
           .toList();
 
@@ -52,12 +56,34 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
         ..where((c) => c.bookId.equals(bookId))
         ..where((c) => c.index.equals(chapterIndex))).getSingle();
 
+      const hasher = ContentHasher();
+      final newChecksum = hasher.sha256Of(content);
       final file = File(row.contentPath);
-      await file.writeAsString(content);
+      var nextVersion = row.version;
+      var previousVersionRef = row.previousVersionRef;
+
+      final changed = row.checksum == null || row.checksum != newChecksum;
+      if (changed) {
+        if (row.checksum != null) {
+          // Preserve the old version rather than silently overwriting.
+          final archive = File('${row.contentPath}.v${row.version}');
+          if (file.existsSync() && !archive.existsSync()) {
+            await file.copy(archive.path);
+          }
+          nextVersion = row.version + 1;
+          previousVersionRef = row.id;
+        }
+        await file.writeAsString(content);
+      }
 
       await (_db.update(_db.chapters)
         ..where((c) => c.id.equals(row.id)))
-        .write(ChaptersCompanion(contentState: Value(ContentState.availableOffline.index)));
+        .write(ChaptersCompanion(
+          contentState: Value(ContentState.availableOffline.index),
+          version: Value(nextVersion),
+          checksum: Value(newChecksum),
+          previousVersionRef: Value(previousVersionRef),
+        ));
 
       return const Success(null);
     } catch (e, st) {

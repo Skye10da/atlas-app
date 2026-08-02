@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
-import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -12,9 +11,10 @@ import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
 import 'package:atlas_app/core/content_acquisition/services/cache_manager.dart';
-import 'package:atlas_app/core/content_acquisition/services/download_engine.dart';
+import 'package:atlas_app/core/content_acquisition/services/download_manager.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 import 'package:atlas_app/core/content_acquisition/services/prefetch_engine.dart';
+import 'package:atlas_app/core/content_engine/image/image_pipeline.dart';
 import 'package:atlas_app/core/database/database.dart';
 
 class ImportOutcome {
@@ -27,17 +27,22 @@ class ContentAcquisitionEngine {
   ContentAcquisitionEngine({
     required this.registry,
     required this.db,
-  }) : cacheManager = CacheManager(),
-       downloadEngine = DownloadEngine(cacheManager: CacheManager()),
-       importService = ImportService(registry),
-       prefetchEngine = PrefetchEngine(downloadEngine: DownloadEngine(cacheManager: CacheManager()));
+    CacheManager? cacheManager,
+    DownloadManager? downloadManager,
+    this.imagePipeline,
+  })  : cacheManager = cacheManager ?? CacheManager(),
+        downloadManager = downloadManager ?? DownloadManager(),
+        importService = ImportService(registry) {
+    prefetchEngine = PrefetchEngine(downloadManager: this.downloadManager);
+  }
 
   final SourceRegistry registry;
   final AppDatabase db;
   final ImportService importService;
   final CacheManager cacheManager;
-  final DownloadEngine downloadEngine;
-  final PrefetchEngine prefetchEngine;
+  final DownloadManager downloadManager;
+  final ImagePipeline? imagePipeline;
+  late final PrefetchEngine prefetchEngine;
   final Map<String, _BookSourceState> _activeBooks = {};
 
   Future<ImportOutcome> importAndSave(String url) async {
@@ -64,16 +69,11 @@ class ContentAcquisitionEngine {
     if (!bookDir.existsSync()) await bookDir.create(recursive: true);
 
     String? coverPath;
-    Uint8List? coverBytes = novel.coverBytes;
+    final Uint8List? coverBytes = novel.coverBytes;
     if (coverBytes == null && novel.coverUrl != null) {
-      try {
-        final coverResponse = await http.get(Uri.parse(novel.coverUrl!));
-        if (coverResponse.statusCode == 200) {
-          coverBytes = coverResponse.bodyBytes;
-        }
-      } catch (_) {}
+      coverPath = await _downloadCover(novel.coverUrl!, bookDir.path);
     }
-    if (coverBytes != null) {
+    if (coverPath == null && coverBytes != null) {
       coverPath = p.join(bookDir.path, 'cover.jpg');
       await File(coverPath).writeAsBytes(coverBytes);
     }
@@ -139,22 +139,67 @@ class ContentAcquisitionEngine {
   Future<void> downloadChapter(String bookId, int chapterIndex) async {
     final state = _activeBooks[bookId];
     if (state == null || chapterIndex >= state.chapters.length) return;
-    downloadEngine.enqueue(bookId, state.chapters[chapterIndex], state.source);
+    downloadManager.enqueue(bookId, state.chapters[chapterIndex], state.source);
   }
 
   Future<void> downloadAllChapters(String bookId) async {
     final state = _activeBooks[bookId];
     if (state == null) return;
-    downloadEngine.enqueueMany(bookId, state.chapters, state.source);
+    downloadManager.enqueueMany(bookId, state.chapters, state.source);
   }
 
   void onChapterRead(String bookId, int chapterIndex) {
     prefetchEngine.onChapterRead(bookId, chapterIndex);
   }
 
+  /// Re-enqueues chapters whose last-known state was downloading/queued, for
+  /// books that were imported this session. Returns how many were re-enqueued.
+  Future<int> resumeDownloads() async {
+    var resumed = 0;
+    for (final entry in _activeBooks.entries) {
+      final bookId = entry.key;
+      final state = entry.value;
+      final interrupted = <ChapterModel>[];
+      for (final chapter in state.chapters) {
+        if (await downloadManager.isDownloaded(bookId, chapter.id)) continue;
+        final row = await (db.select(db.chapters)
+              ..where((c) => c.bookId.equals(bookId))
+              ..where((c) => c.index.equals(chapter.index)))
+            .getSingleOrNull();
+        final storedState = row?.contentState;
+        final needsResume = storedState == ContentState.queued.index ||
+            storedState == ContentState.downloading.index ||
+            storedState == ContentState.discovered.index;
+        if (needsResume) interrupted.add(chapter);
+      }
+      if (interrupted.isNotEmpty) {
+        downloadManager.enqueueMany(bookId, interrupted, state.source);
+        resumed += interrupted.length;
+      }
+    }
+    return resumed;
+  }
+
   String _normalizeId(String title) {
     final id = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'_+'), '_').replaceAll(RegExp(r'^_|_$'), '');
     return id.length > 48 ? '${id.substring(0, 48)}_${id.hashCode.abs()}' : id;
+  }
+
+  /// Downloads a cover through the [ImagePipeline] when one is wired in
+  /// (content-addressed, deduped), copying the result into the book dir.
+  /// Falls back to null on any failure so a missing cover never blocks import.
+  Future<String?> _downloadCover(String url, String bookDirPath) async {
+    final pipeline = imagePipeline;
+    if (pipeline == null) return null;
+    try {
+      final stored = await pipeline.download(Uri.parse(url));
+      if (stored == null) return null;
+      final coverPath = p.join(bookDirPath, 'cover.jpg');
+      await File(stored).copy(coverPath);
+      return coverPath;
+    } catch (_) {
+      return null;
+    }
   }
 }
 

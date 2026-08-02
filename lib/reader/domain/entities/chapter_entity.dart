@@ -9,6 +9,9 @@ class ChapterEntity {
     this.pageCount = 0,
     this.totalChapters = 0,
     this.contentState = 0,
+    this.version = 1,
+    this.checksum,
+    this.previousVersionRef,
   });
 
   final String id;
@@ -20,6 +23,12 @@ class ChapterEntity {
   final int pageCount;
   final int totalChapters;
   final int contentState;
+
+  /// Content versioning (CDA v2.2). Bumped whenever content changes on
+  /// re-fetch; [previousVersionRef] points at the superseded version.
+  final int version;
+  final String? checksum;
+  final String? previousVersionRef;
 
   bool get hasNextChapter => index < totalChapters - 1;
   bool get hasPrevChapter => index > 0;

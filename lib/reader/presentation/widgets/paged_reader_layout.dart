@@ -410,11 +410,39 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       }
     }
 
+    // Capture where the reader currently sits, in chapter-relative terms,
+    // using this build's *pre-recompute* page counts — so that if a
+    // background pagination pass (below) changes how many pages a
+    // preceding chapter actually has, we can re-express the same logical
+    // position in the new page-index space instead of leaving the global
+    // page pointer stranded on whatever content now happens to live there.
+    final oldTotalPages = _totalPages;
+    int? anchorChapter;
+    int? anchorLocalPage;
+    if (!_pendingChapterJump && oldTotalPages > 0) {
+      final (ch, pg) = _globalToLocal(_currentGlobalPage);
+      anchorChapter = ch;
+      anchorLocalPage = pg;
+    }
+
     _totalPages = 0;
     for (int i = 0; i < chapters.length; i++) {
       _totalPages += _pagesFor(i);
     }
-    if (needsRepaginate && _currentGlobalPage >= _totalPages) {
+
+    if (anchorChapter != null && _totalPages != oldTotalPages) {
+      final newGlobalPage =
+          _localToGlobal(anchorChapter, anchorLocalPage!).clamp(0, _totalPages - 1);
+      if (newGlobalPage != _currentGlobalPage) {
+        _currentGlobalPage = newGlobalPage;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(
+                isWideDesktop ? newGlobalPage ~/ 2 : newGlobalPage);
+          }
+        });
+      }
+    } else if (needsRepaginate && _currentGlobalPage >= _totalPages) {
       _currentGlobalPage = 0;
     }
 
@@ -426,7 +454,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       } else {
         target = 0;
         for (int i = 0; i < widget.currentChapterIndex && i < widget.chapters.length; i++) {
-          target += _pageCache[i]?.length ?? 0;
+          target += _pagesFor(i);
         }
         target = target.clamp(0, _totalPages - 1);
       }

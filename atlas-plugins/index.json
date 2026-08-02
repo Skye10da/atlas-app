@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    {
+      "id": "mvlempyr",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "3e34f32f8ac84fcddb1f979c614d04a768b9d048e468541c73fec3870f702ae9",
+        "plugin.json": "a30c7994a43e09c35ebc3321ee0c1e68f2c96af22a30a1e5c058c21c267880dc",
+        "README.md": "86807dabfa01e9b981db174e94400622fc95c2d88b371c5fbda3cba08e73cb10"
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "plugins": [
+    {
+      "id": "mvlempyr",
+      "name": "MVLEMPYR",
+      "sourceName": "MVLEMPYR",
+      "version": "1.0.0",
+      "templateId": "mvlempyr",
+      "transport": "http",
+      "baseUrl": "https://www.mvlempyr.io",
+      "capabilities": [
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    }
+  ]
+}

@@ -4,14 +4,19 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class CacheManager {
-  CacheManager();
+  CacheManager({String? basePath}) : _basePath = basePath;
 
+  final String? _basePath;
   String? _resolvedPath;
 
   Future<String> get _path async {
     if (_resolvedPath != null) return _resolvedPath!;
-    final dir = await getApplicationDocumentsDirectory();
-    _resolvedPath = p.join(dir.path, 'cache');
+    if (_basePath != null) {
+      _resolvedPath = _basePath;
+    } else {
+      final dir = await getApplicationDocumentsDirectory();
+      _resolvedPath = p.join(dir.path, 'cache');
+    }
     return _resolvedPath!;
   }
 
@@ -52,6 +57,17 @@ class CacheManager {
       if (entity is File) size += await entity.length();
     }
     return size;
+  }
+
+  /// Returns the book ids currently present in the txt cache directory.
+  Future<List<String>> bookIds() async {
+    final dir = Directory(await _path);
+    if (!dir.existsSync()) return const [];
+    return dir
+        .listSync()
+        .whereType<Directory>()
+        .map((d) => p.basename(d.path))
+        .toList();
   }
 
   Future<void> clearBook(String bookId) async {

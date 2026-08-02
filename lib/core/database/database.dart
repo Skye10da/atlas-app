@@ -34,7 +34,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -91,6 +91,18 @@ class AppDatabase extends _$AppDatabase {
             await migrator.database.customStatement(
               "UPDATE books SET item_type = 'novel' WHERE source_name = 'MVLEMPYR'",
             );
+          }
+          if (from <= 7) {
+            // CDA v2.2 content versioning.
+            try {
+              await migrator.addColumn(chapters, chapters.version);
+            } catch (_) {}
+            try {
+              await migrator.addColumn(chapters, chapters.checksum);
+            } catch (_) {}
+            try {
+              await migrator.addColumn(chapters, chapters.previousVersionRef);
+            } catch (_) {}
           }
         },
       );
