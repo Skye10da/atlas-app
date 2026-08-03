@@ -86,9 +86,9 @@ void main() {
 
       expect(chapters, hasLength(2));
       expect(chapters[0].title, 'Ch 1');
-      expect(chapters[0].contentUrl, '/chapter/1');
-      expect(chapters[0].id, '/chapter/1#ch0');
-      expect(chapters[1].id, '/chapter/2#ch1');
+      expect(chapters[0].contentUrl, 'https://example.com/chapter/1');
+      expect(chapters[0].id, 'https://example.com/chapter/1#ch0');
+      expect(chapters[1].id, 'https://example.com/chapter/2#ch1');
     });
   });
 

@@ -1,0 +1,16 @@
+{
+  "search": {
+    "resultItem": ".row.top-item",
+    "title": ".s-title a@text",
+    "detailUrl": ".s-title a@href"
+  },
+  "chapterList": {
+    "item": "#list-chapter li",
+    "title": ".chapter-text@text",
+    "url": "a@href"
+  },
+  "chapterContent": {
+    "container": "#chapter-content",
+    "title": ".chapter-title"
+  }
+}

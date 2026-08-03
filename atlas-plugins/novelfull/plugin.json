@@ -1,0 +1,12 @@
+{
+  "id": "novelfull",
+  "name": "NovelFull",
+  "sourceName": "NovelFull",
+  "version": "1.0.0",
+  "templateId": "novelfull",
+  "transport": "http",
+  "baseUrl": "https://novelfull.net",
+  "language": "en",
+  "customUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "capabilities": ["search", "chapterList", "chapterContent", "cover"]
+}

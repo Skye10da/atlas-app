@@ -1,0 +1,13 @@
+{
+  "search": {
+    "path": "/fictions/search",
+    "queryParam": "title",
+    "resultItem": ".fiction-list-item",
+    "title": "h2.fiction-title a@text",
+    "detailUrl": "h2.fiction-title a@href"
+  },
+  "chapterContent": {
+    "container": ".chapter-inner.chapter-content",
+    "title": "h1.font-white.break-word"
+  }
+}

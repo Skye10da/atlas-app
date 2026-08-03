@@ -77,7 +77,31 @@ void main() {
       expect(results, hasLength(1));
       expect(results.single.title, 'Novel X');
       expect(results.single.url, 'https://example.com/novel/x');
-      expect(results.single.coverUrl, '/cover-x.jpg');
+      expect(results.single.coverUrl, 'https://example.com/cover-x.jpg');
+    });
+
+    test('drives a custom search endpoint via path and queryParam', () async {
+      final transport = FakeTransport()
+        ..addHtml('https://example.com/fictions/search?title=mother', '''
+        <html><body>
+          <div class="fiction-list-item">
+            <h2 class="fiction-title"><a href="/fiction/1/mother">Mother</a></h2>
+          </div>
+        </body></html>''');
+      const selectors = SelectorSet(search: SearchSelectors(
+        resultItem: '.fiction-list-item',
+        title: 'h2.fiction-title a@text',
+        detailUrl: 'h2.fiction-title a@href',
+        path: '/fictions/search',
+        queryParam: 'title',
+      ));
+      final context = buildContext(transport: transport, selectors: selectors);
+
+      final results = await const HtmlTemplate().search(context, 'mother');
+
+      expect(results, hasLength(1));
+      expect(results.single.title, 'Mother');
+      expect(results.single.url, 'https://example.com/fiction/1/mother');
     });
 
     test('throws PluginCapabilityException without search selectors', () async {
@@ -85,6 +109,88 @@ void main() {
 
       await expectLater(
         const HtmlTemplate().search(context, 'test'),
+        throwsA(isA<PluginCapabilityException>()),
+      );
+    });
+  });
+
+  group('HtmlTemplate.chapterList', () {
+    test('walks paginated index pages, dedupes and resolves URLs', () async {
+      final transport = FakeTransport()
+        ..addHtml('https://example.com/novel/x', '''
+        <html><body><ul class="cl">
+          <li><a href="/novel/x/ch/1">Chapter 1</a></li>
+          <li><a href="/novel/x/ch/2">Chapter 2</a></li>
+        </ul></body></html>''')
+        ..addHtml('https://example.com/novel/x?page=2', '''
+        <html><body><ul class="cl">
+          <li><a href="/novel/x/ch/3">Chapter 3</a></li>
+          <li><a href="/novel/x/ch/2">Chapter 2</a></li>
+        </ul></body></html>''');
+      const selectors = SelectorSet(chapterList: ChapterListSelectors(
+        item: '.cl li a',
+        title: '@text',
+        url: '@href',
+        pageParam: 'page',
+        maxPages: 5,
+      ));
+      final context = buildContext(transport: transport, selectors: selectors);
+
+      final refs =
+          await const HtmlTemplate().chapterList(context, 'https://example.com/novel/x');
+
+      expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2', 'Chapter 3']);
+      expect(refs.first.url, 'https://example.com/novel/x/ch/1');
+    });
+
+    test('stops walking when a page adds no new chapters', () async {
+      final transport = FakeTransport()
+        ..addHtml('https://example.com/novel/x', '''
+        <html><body><ul class="cl">
+          <li><a href="/novel/x/ch/1">Chapter 1</a></li>
+        </ul></body></html>''');
+      const selectors = SelectorSet(chapterList: ChapterListSelectors(
+        item: '.cl li a',
+        title: '@text',
+        url: '@href',
+        maxPages: 50,
+      ));
+      final context = buildContext(transport: transport, selectors: selectors);
+
+      final refs =
+          await const HtmlTemplate().chapterList(context, 'https://example.com/novel/x');
+
+      expect(refs, hasLength(1));
+      expect(transport.htmlCalls, 2);
+    });
+
+    test('reverses the merged list when configured', () async {
+      final transport = FakeTransport()
+        ..addHtml('https://example.com/novel/x', '''
+        <html><body><ul class="cl">
+          <li><a href="/novel/x/ch/2">Chapter 2</a></li>
+          <li><a href="/novel/x/ch/1">Chapter 1</a></li>
+        </ul></body></html>''');
+      const selectors = SelectorSet(chapterList: ChapterListSelectors(
+        item: '.cl li a',
+        title: '@text',
+        url: '@href',
+        reverse: true,
+      ));
+      final context = buildContext(transport: transport, selectors: selectors);
+
+      final refs =
+          await const HtmlTemplate().chapterList(context, 'https://example.com/novel/x');
+
+      expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2']);
+    });
+
+    test('throws PluginCapabilityException without chapterList selectors',
+        () async {
+      final context = buildContext(transport: FakeTransport());
+
+      await expectLater(
+        const HtmlTemplate().chapterList(context, 'https://example.com/novel/x'),
         throwsA(isA<PluginCapabilityException>()),
       );
     });

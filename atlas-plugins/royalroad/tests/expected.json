@@ -1,0 +1,14 @@
+{
+  "novel": {
+    "url": "https://www.royalroad.com/fiction/21220/mother-of-learning",
+    "method": "metadata",
+    "title": "Mother of Learning",
+    "textContains": ["Zorian is a teenage mage of humble birth"]
+  },
+  "chapter": {
+    "url": "https://www.royalroad.com/fiction/21220/mother-of-learning/chapter/301778/1-good-morning-brother",
+    "method": "chapterContent",
+    "title": "1. Good Morning Brother",
+    "textContains": ["Zorian's eyes abruptly shot open", "sharp pain went through his head"]
+  }
+}

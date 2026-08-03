@@ -1,0 +1,21 @@
+{
+  "search": {
+    "path": "/search",
+    "queryParam": "keyword",
+    "resultItem": ".col-content .con",
+    "title": ".txt h3.tit a@text",
+    "detailUrl": ".txt h3.tit a@href",
+    "coverUrl": ".pic img@src"
+  },
+  "chapterList": {
+    "item": "#idData li a",
+    "title": "@text",
+    "url": "@href",
+    "pageParam": "page",
+    "maxPages": 75
+  },
+  "chapterContent": {
+    "container": ".m-read",
+    "title": ".m-read .top .chapter"
+  }
+}

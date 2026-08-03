@@ -1,0 +1,14 @@
+{
+  "novel": {
+    "url": "https://novelfull.net/martial-peak.html",
+    "method": "metadata",
+    "title": "Martial Peak",
+    "textContains": ["The journey to the martial peak is a lonely"]
+  },
+  "chapter": {
+    "url": "https://novelfull.net/martial-peak/chapter-1-the-servant-who-sweeps.html",
+    "method": "chapterContent",
+    "title": "Chapter 1 - The servant who sweeps",
+    "textContains": ["A new day begins, and Kai Yang woke up", "Sky Tower School is a very unique school"]
+  }
+}

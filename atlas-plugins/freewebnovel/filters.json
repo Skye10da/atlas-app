@@ -1,0 +1,4 @@
+{
+  "extraStripSelectors": [".m-read .top", ".m-read .ul-list7"],
+  "disableDefaultStrips": false
+}

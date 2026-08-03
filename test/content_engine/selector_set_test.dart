@@ -35,9 +35,30 @@ void main() {
       expect(results, hasLength(2));
       expect(results[0].title, 'Novel A');
       expect(results[0].url, 'https://example.com/novel/slug-a');
-      expect(results[0].coverUrl, '/cover-a.jpg');
+      expect(results[0].coverUrl, 'https://example.com/cover-a.jpg');
       expect(results[1].title, 'Novel B');
       expect(results[1].url, 'https://example.com/novel/slug-b');
+    });
+
+    test('parses search path and queryParam from JSON', () {
+      final selectors = SelectorSet.fromJson({
+        'search': {
+          'resultItem': '.item',
+          'path': '/fictions/search',
+          'queryParam': 'title',
+        },
+      });
+
+      expect(selectors.search!.path, '/fictions/search');
+      expect(selectors.search!.queryParam, 'title');
+      expect(selectors.search!.resultItem, '.item');
+    });
+
+    test('defaults queryParam to s when absent', () {
+      const selectors = SelectorSet(search: SearchSelectors(resultItem: '.x'));
+
+      expect(selectors.search!.queryParam, 's');
+      expect(selectors.search!.path, isNull);
     });
   });
 
@@ -65,6 +86,29 @@ void main() {
       expect(refs[0].url, '/chapter/1');
       expect(refs[1].title, 'Chapter 2');
       expect(refs[1].url, '/chapter/2');
+    });
+
+    test('parses pagination and reverse fields from JSON', () {
+      final selectors = SelectorSet.fromJson({
+        'chapterList': {
+          'item': '#idData li a',
+          'pageParam': 'page',
+          'maxPages': 7,
+          'reverse': true,
+        },
+      });
+
+      expect(selectors.chapterList!.pageParam, 'page');
+      expect(selectors.chapterList!.maxPages, 7);
+      expect(selectors.chapterList!.reverse, isTrue);
+    });
+
+    test('defaults pagination fields', () {
+      const selectors = SelectorSet(chapterList: ChapterListSelectors(item: 'li'));
+
+      expect(selectors.chapterList!.pageParam, 'page');
+      expect(selectors.chapterList!.maxPages, 1);
+      expect(selectors.chapterList!.reverse, isFalse);
     });
   });
 

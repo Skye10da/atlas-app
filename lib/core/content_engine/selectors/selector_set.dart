@@ -8,6 +8,8 @@ class SearchSelectors {
     this.title = '@text',
     this.coverUrl,
     this.detailUrl,
+    this.path,
+    this.queryParam = 's',
   });
 
   factory SearchSelectors.fromJson(Map<String, Object?> json) => SearchSelectors(
@@ -15,12 +17,22 @@ class SearchSelectors {
         title: (json['title'] as String?) ?? '@text',
         coverUrl: json['coverUrl'] as String?,
         detailUrl: json['detailUrl'] as String?,
+        path: json['path'] as String?,
+        queryParam: (json['queryParam'] as String?) ?? 's',
       );
 
   final String resultItem;
   final String title;
   final String? coverUrl;
   final String? detailUrl;
+
+  /// Site search path relative to `baseUrl`, e.g. `/search` or
+  /// `/fictions/search`. When null, the generic template falls back to the
+  /// WordPress-convention `?s=` query on the bare base URL.
+  final String? path;
+
+  /// Name of the query parameter carrying the search term (default `s`).
+  final String queryParam;
 }
 
 class ChapterListSelectors {
@@ -28,6 +40,9 @@ class ChapterListSelectors {
     required this.item,
     this.title = '@text',
     this.url = '@href',
+    this.reverse = false,
+    this.pageParam = 'page',
+    this.maxPages = 1,
   });
 
   factory ChapterListSelectors.fromJson(Map<String, Object?> json) =>
@@ -35,11 +50,24 @@ class ChapterListSelectors {
         item: (json['item'] as String?) ?? '',
         title: (json['title'] as String?) ?? '@text',
         url: (json['url'] as String?) ?? '@href',
+        reverse: json['reverse'] is bool ? json['reverse'] as bool : false,
+        pageParam: (json['pageParam'] as String?) ?? 'page',
+        maxPages: json['maxPages'] is num ? (json['maxPages'] as num).toInt() : 1,
       );
 
   final String item;
   final String title;
   final String url;
+
+  /// When true, reverses the merged chapter list — for sites that render the
+  /// newest chapter first but should present chapters oldest→newest.
+  final bool reverse;
+
+  /// Query parameter used to walk additional index pages (default `page`).
+  final String pageParam;
+
+  /// Number of index pages to walk (`?pageParam=N`), default 1 (single page).
+  final int maxPages;
 }
 
 class ChapterContentSelectors {
@@ -102,11 +130,17 @@ class SelectorSet {
       final detail = _extract(item, selectors.detailUrl ?? '@href') ??
           _extract(item, 'a@href');
       if (title == null || title.isEmpty || detail == null) continue;
+      String? coverUrl;
+      if (selectors.coverUrl != null) {
+        final raw = _extract(item, selectors.coverUrl!);
+        if (raw != null && raw.isNotEmpty) {
+          coverUrl = _resolveUrl(raw, baseUrl);
+        }
+      }
       results.add(SearchResult(
         title: title,
         url: _resolveUrl(detail, baseUrl),
-        coverUrl:
-            selectors.coverUrl != null ? _extract(item, selectors.coverUrl!) : null,
+        coverUrl: coverUrl,
       ));
     }
     return results;

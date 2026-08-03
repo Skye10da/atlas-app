@@ -1,0 +1,14 @@
+{
+  "novel": {
+    "url": "https://freewebnovel.com/novel/defying-the-lycan-king",
+    "method": "metadata",
+    "title": "Defying the Lycan King",
+    "textContains": ["She has spent her life believing she's cursed"]
+  },
+  "chapter": {
+    "url": "https://freewebnovel.com/novel/defying-the-lycan-king/chapter-1",
+    "method": "chapterContent",
+    "title": "Chapter 1: The Hated One",
+    "textContains": ["brilliant white glow", "battle raging only seconds before"]
+  }
+}

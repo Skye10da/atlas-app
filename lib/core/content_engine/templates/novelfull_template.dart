@@ -1,0 +1,265 @@
+import 'package:html/dom.dart';
+
+import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
+import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
+import 'package:atlas_app/core/content_engine/templates/html_template.dart';
+import 'package:atlas_app/core/content_engine/templates/template.dart';
+import 'package:atlas_app/core/content_engine/templates/template_models.dart';
+
+/// Template for NovelFull (novelfull.net).
+///
+/// A classic server-rendered Yii novel site: chapter lists are paginated at
+/// ~100 entries per page and the search form posts to `/search?keyword=`.
+/// The generic [HtmlTemplate] handles plain pages, but its one-shot chapter
+/// list and WordPress-style `?s=` search don't match this site, so this
+/// subclass:
+///
+///  * pulls the complete chapter list from the site's own `ajax-chapter-option`
+///    endpoint (keyed by the `data-novel-id` on the novel page), one request
+///    instead of dozens, with the paginated list as a fallback,
+///  * drives the site's real search endpoint,
+///  * extracts the richer metadata (author, genres, status, real synopsis)
+///    from the novel info panel.
+///
+/// Everything else (chapter content + shared clean/normalize tail) is
+/// inherited from [HtmlTemplate].
+class NovelfullTemplate extends HtmlTemplate {
+  const NovelfullTemplate();
+
+  /// Upper bound on pages walked by the pagination fallback, so a pathological
+  /// site can't trigger an unbounded request loop.
+  static const _maxPages = 200;
+
+  @override
+  String get templateId => 'novelfull';
+
+  @override
+  Set<PluginCapability> get supportedCapabilities =>
+      PluginCapability.values.toSet();
+
+  @override
+  Future<List<SearchResult>> search(
+    PluginContext context,
+    String query,
+  ) async {
+    final selectors = context.selectors;
+    if (selectors?.search == null) {
+      throw const PluginCapabilityException(
+        PluginCapability.search,
+        'No search selectors configured for this plugin',
+      );
+    }
+    final uri = Uri.parse(context.plugin.baseUrl)
+        .replace(path: '/search', queryParameters: {'keyword': query});
+    final html =
+        await context.transport.fetchHtml(uri, headers: context.plugin.requestHeaders);
+    final doc = HtmlTemplate.parser.parse(html);
+    return selectors!.applySearch(doc, baseUrl: context.plugin.baseUrl);
+  }
+
+  @override
+  Future<List<ChapterRef>> chapterList(
+    PluginContext context,
+    String novelUrl,
+  ) async {
+    final selectors = context.selectors;
+    if (selectors == null || selectors.chapterList == null) {
+      throw const PluginCapabilityException(
+        PluginCapability.chapterList,
+        'No chapter-list selectors configured for this plugin',
+      );
+    }
+
+    final seen = <String>{};
+    final entries = <(int, ChapterRef)>[];
+
+    final novelPage = await _fetchPage(context, novelUrl, 1);
+    final novelId = novelPage
+        .querySelector('#rating[data-novel-id]')
+        ?.attributes['data-novel-id'];
+    if (novelId == null ||
+        !await _collectFromAjax(context, novelId, seen, entries)) {
+      _collectChapters(context, novelPage, selectors, seen, entries);
+      final totalPages = _maxPage(novelPage);
+      for (var page = 2; page <= totalPages && page <= _maxPages; page++) {
+        final doc = await _fetchPage(context, novelUrl, page);
+        _collectChapters(context, doc, selectors, seen, entries);
+      }
+    }
+
+    entries.sort((a, b) => a.$1.compareTo(b.$1));
+    return entries.map((e) => e.$2).toList();
+  }
+
+  /// Fetches the complete chapter list from the site's own AJAX endpoint
+  /// (`ajax-chapter-option?novelId=...`), which replies with a `<select>` of
+  /// `<option value="/slug/chapter-N-...">`. Returns false when the endpoint
+  /// can't be reached or returns nothing usable, so the caller can fall back
+  /// to walking the paginated list.
+  Future<bool> _collectFromAjax(
+    PluginContext context,
+    String novelId,
+    Set<String> seen,
+    List<(int, ChapterRef)> entries,
+  ) async {
+    final uri = Uri.parse(context.plugin.baseUrl)
+        .replace(path: '/ajax-chapter-option', queryParameters: {
+      'novelId': novelId,
+    });
+    final String html;
+    try {
+      html = await context.transport
+          .fetchHtml(uri, headers: context.plugin.requestHeaders);
+    } on Object {
+      return false;
+    }
+    final doc = HtmlTemplate.parser.parse(html);
+    final options = doc.querySelectorAll('select > option[value]');
+    if (options.isEmpty) return false;
+
+    final base = Uri.parse(context.plugin.baseUrl);
+    for (final option in options) {
+      final url = base.resolve(option.attributes['value']!).toString();
+      if (!seen.add(url)) continue;
+      entries.add((
+        _chapterNumber(url) ?? entries.length + 1,
+        ChapterRef(title: option.text.trim(), url: url),
+      ));
+    }
+    return true;
+  }
+
+  @override
+  Future<NovelMetadata> metadata(
+    PluginContext context,
+    String novelUrl,
+  ) async {
+    final html = await context.transport.fetchHtml(
+      Uri.parse(novelUrl),
+      headers: context.plugin.requestHeaders,
+    );
+    return _extractMetadata(HtmlTemplate.parser.parse(html), context);
+  }
+
+  Future<Document> _fetchPage(
+    PluginContext context,
+    String novelUrl,
+    int page,
+  ) async {
+    final uri = page <= 1
+        ? Uri.parse(novelUrl)
+        : Uri.parse(novelUrl).replace(queryParameters: {'page': '$page'});
+    final html =
+        await context.transport.fetchHtml(uri, headers: context.plugin.requestHeaders);
+    return HtmlTemplate.parser.parse(html);
+  }
+
+  void _collectChapters(
+    PluginContext context,
+    Document doc,
+    SelectorSet selectors,
+    Set<String> seen,
+    List<(int, ChapterRef)> entries,
+  ) {
+    final base = Uri.parse(context.plugin.baseUrl);
+    for (final ref in selectors.applyChapterList(doc)) {
+      final url = base.resolve(ref.url).toString();
+      if (!seen.add(url)) continue;
+      entries.add((_chapterNumber(url) ?? entries.length + 1, ChapterRef(
+            title: ref.title,
+            url: url,
+          )));
+    }
+  }
+
+  /// Highest page number referenced by the pagination bar. The bar only shows
+  /// a window around the current page, so this is a bound on the *next* pages
+  /// to walk, never an accurate total count.
+  int _maxPage(Document doc) {
+    var max = 1;
+    for (final a in doc.querySelectorAll('ul.pagination a[href]')) {
+      final href = a.attributes['href'] ?? '';
+      final match = RegExp(r'[?&]page=(\d+)').firstMatch(href);
+      if (match == null) continue;
+      final n = int.tryParse(match.group(1)!);
+      if (n != null && n > max) max = n;
+    }
+    return max;
+  }
+
+  /// Chapter number from a `/slug/chapter-123-title.html` URL. Resolving by
+  /// URL keeps the merge order correct even when the page lists are rendered
+  /// newest-first.
+  int? _chapterNumber(String url) {
+    final path = Uri.parse(url).path;
+    final match = RegExp(r'/chapter-(\d+)-').firstMatch(path);
+    return match != null ? int.tryParse(match.group(1)!) : null;
+  }
+
+  NovelMetadata _extractMetadata(Document doc, PluginContext context) {
+    String? meta(String selector) =>
+        doc.querySelector(selector)?.attributes['content']?.trim();
+
+    final title = meta('meta[property="og:title"]') ??
+        doc.querySelector('.desc h3.title')?.text.trim();
+
+    final author =
+        meta('meta[property="og:novel:author"]') ?? _infoValue(doc, 'Author');
+
+    return NovelMetadata(
+      title: title?.trim() ?? 'Untitled',
+      author: author,
+      description: _description(doc) ??
+          meta('meta[name="description"]') ??
+          meta('meta[property="og:description"]'),
+      coverUrl: meta('meta[property="og:image"]') ??
+          meta('meta[name="twitter:image"]'),
+      language: context.plugin.language,
+      genres: _infoList(doc, 'Genres'),
+      status: _infoValue(doc, 'Status'),
+    );
+  }
+
+  /// The real synopsis lives in `.desc-text` (`og:description` on this site is
+  /// boilerplate). Prefer its first paragraph, fall back to the full text with
+  /// the "See more" toggle stripped off.
+  String? _description(Document doc) {
+    final paragraph = doc.querySelector('.desc-text p');
+    if (paragraph != null) {
+      final text = paragraph.text.trim();
+      if (text.isNotEmpty) return text;
+    }
+    final block = doc.querySelector('.desc-text');
+    if (block == null) return null;
+    final text = block.text.trim().replaceFirst(RegExp(r'\s*See more\s*$'), '');
+    return text.isEmpty ? null : text;
+  }
+
+  /// Text of the info row whose `<h3>` reads "<label>:" — e.g. `Status:`
+  /// → "Ongoing".
+  String? _infoValue(Document doc, String label) {
+    for (final div in doc.querySelectorAll('.col-info-desc .info div')) {
+      final h3 = div.querySelector('h3');
+      if (h3 == null || h3.text.trim() != '$label:') continue;
+      h3.remove();
+      final value = div.text.trim();
+      if (value.isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  /// Links of the info row whose `<h3>` reads "<label>:" — e.g. the genre
+  /// tags under `Genres:`.
+  List<String> _infoList(Document doc, String label) {
+    for (final div in doc.querySelectorAll('.col-info-desc .info div')) {
+      final h3 = div.querySelector('h3');
+      if (h3 == null || h3.text.trim() != '$label:') continue;
+      return div
+          .querySelectorAll('a')
+          .map((a) => a.text.trim())
+          .where((t) => t.isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+}

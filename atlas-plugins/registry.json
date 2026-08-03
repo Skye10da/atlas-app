@@ -1,6 +1,21 @@
 {
   "plugins": [
     {
+      "id": "freewebnovel",
+      "name": "FreeWebNovel",
+      "sourceName": "FreeWebNovel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://freewebnovel.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
       "id": "mvlempyr",
       "name": "MVLEMPYR",
       "sourceName": "MVLEMPYR",
@@ -9,6 +24,36 @@
       "transport": "http",
       "baseUrl": "https://www.mvlempyr.io",
       "capabilities": [
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "novelfull",
+      "name": "NovelFull",
+      "sourceName": "NovelFull",
+      "version": "1.0.0",
+      "templateId": "novelfull",
+      "transport": "http",
+      "baseUrl": "https://novelfull.net",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "royalroad",
+      "name": "Royal Road",
+      "sourceName": "Royal Road",
+      "version": "1.0.0",
+      "templateId": "royalroad",
+      "transport": "http",
+      "baseUrl": "https://www.royalroad.com",
+      "capabilities": [
+        "search",
         "chapterList",
         "chapterContent",
         "cover"
