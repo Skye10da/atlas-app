@@ -49,12 +49,22 @@ class NovelfullTemplate extends HtmlTemplate {
         'No search selectors configured for this plugin',
       );
     }
-    final uri = Uri.parse(context.plugin.baseUrl)
-        .replace(path: '/search', queryParameters: {'keyword': query});
+    // Novelfull-family sites drive search through a `keyword` query param.
+    // `selectors.search.path`/`queryParam` let a data-only plugin point at a
+    // different endpoint (e.g. `/novel-list/search`); the default `s` value
+    // means the site didn't opt out of the conventional `keyword` name.
+    final search = selectors!.search!;
+    final path = search.path ?? '/search';
+    final queryParam =
+        search.queryParam == 's' ? 'keyword' : search.queryParam;
+    final uri = Uri.parse(context.plugin.baseUrl).replace(
+      path: path.startsWith('/') ? path : '/$path',
+      queryParameters: {queryParam: query},
+    );
     final html =
         await context.transport.fetchHtml(uri, headers: context.plugin.requestHeaders);
     final doc = HtmlTemplate.parser.parse(html);
-    return selectors!.applySearch(doc, baseUrl: context.plugin.baseUrl);
+    return selectors.applySearch(doc, baseUrl: context.plugin.baseUrl);
   }
 
   @override
@@ -91,29 +101,57 @@ class NovelfullTemplate extends HtmlTemplate {
     return entries.map((e) => e.$2).toList();
   }
 
-  /// Fetches the complete chapter list from the site's own AJAX endpoint
-  /// (`ajax-chapter-option?novelId=...`), which replies with a `<select>` of
-  /// `<option value="/slug/chapter-N-...">`. Returns false when the endpoint
-  /// can't be reached or returns nothing usable, so the caller can fall back
-  /// to walking the paginated list.
+  /// Fetches the complete chapter list from the site's own AJAX endpoint.
+  ///
+  /// Two shapes are supported:
+  ///
+  ///  * `chapterList.ajaxPath` configured — the response is a list-shaped
+  ///    fragment matching the `chapterList.item` selector, so it is parsed with
+  ///    [SelectorSet.applyChapterList] (used by readnovelfull's
+  ///    `/ajax/chapter-archive?novelId=...`).
+  ///  * otherwise the legacy `ajax-chapter-option?novelId=...` endpoint, which
+  ///    replies with a `<select>` of `<option value="/slug/chapter-N-...">`.
+  ///
+  /// Returns false when the endpoint can't be reached or returns nothing
+  /// usable, so the caller can fall back to walking the paginated list.
   Future<bool> _collectFromAjax(
     PluginContext context,
     String novelId,
     Set<String> seen,
     List<(int, ChapterRef)> entries,
   ) async {
-    final uri = Uri.parse(context.plugin.baseUrl)
-        .replace(path: '/ajax-chapter-option', queryParameters: {
-      'novelId': novelId,
-    });
+    final selectors = context.selectors;
+    final chapterList = selectors?.chapterList;
+    final ajaxPath = chapterList?.ajaxPath;
     final String html;
     try {
-      html = await context.transport
-          .fetchHtml(uri, headers: context.plugin.requestHeaders);
+      html = await context.transport.fetchHtml(
+        Uri.parse(context.plugin.baseUrl).replace(
+          path: ajaxPath != null && ajaxPath.isNotEmpty
+              ? (ajaxPath.startsWith('/') ? ajaxPath : '/$ajaxPath')
+              : '/ajax-chapter-option',
+          queryParameters: {'novelId': novelId},
+        ),
+        headers: context.plugin.requestHeaders,
+      );
     } on Object {
       return false;
     }
     final doc = HtmlTemplate.parser.parse(html);
+    if (ajaxPath != null && ajaxPath.isNotEmpty) {
+      final base = Uri.parse(context.plugin.baseUrl);
+      var added = 0;
+      for (final ref in selectors!.applyChapterList(doc)) {
+        final url = base.resolve(ref.url).toString();
+        if (!seen.add(url)) continue;
+        entries.add((
+          _chapterNumber(url) ?? entries.length + 1,
+          ChapterRef(title: ref.title, url: url),
+        ));
+        added++;
+      }
+      return added > 0;
+    }
     final options = doc.querySelectorAll('select > option[value]');
     if (options.isEmpty) return false;
 
@@ -197,28 +235,34 @@ class NovelfullTemplate extends HtmlTemplate {
   }
 
   NovelMetadata _extractMetadata(Document doc, PluginContext context) {
-    String? meta(String selector) =>
-        doc.querySelector(selector)?.attributes['content']?.trim();
+    // Novelfull-family clones disagree on whether og: tags are emitted with
+    // `property=` (novelfull.net) or `name=` (readnovelfull); check both.
+    String? metaTag(String key) =>
+        _metaContent(doc, 'property', key) ?? _metaContent(doc, 'name', key);
 
-    final title = meta('meta[property="og:title"]') ??
+    final title = metaTag('og:title') ??
         doc.querySelector('.desc h3.title')?.text.trim();
 
-    final author =
-        meta('meta[property="og:novel:author"]') ?? _infoValue(doc, 'Author');
+    final author = metaTag('og:novel:author') ?? _infoValue(doc, 'Author');
+
+    final genres = _infoList(doc, 'Genres');
+    final genresFallback = genres.isNotEmpty ? genres : _infoList(doc, 'Genre');
 
     return NovelMetadata(
       title: title?.trim() ?? 'Untitled',
       author: author,
       description: _description(doc) ??
-          meta('meta[name="description"]') ??
-          meta('meta[property="og:description"]'),
-      coverUrl: meta('meta[property="og:image"]') ??
-          meta('meta[name="twitter:image"]'),
+          metaTag('description') ??
+          metaTag('og:description'),
+      coverUrl: metaTag('og:image') ?? metaTag('twitter:image'),
       language: context.plugin.language,
-      genres: _infoList(doc, 'Genres'),
+      genres: genresFallback,
       status: _infoValue(doc, 'Status'),
     );
   }
+
+  String? _metaContent(Document doc, String attr, String key) =>
+      doc.querySelector('meta[$attr="$key"]')?.attributes['content']?.trim();
 
   /// The real synopsis lives in `.desc-text` (`og:description` on this site is
   /// boilerplate). Prefer its first paragraph, fall back to the full text with
@@ -236,13 +280,14 @@ class NovelfullTemplate extends HtmlTemplate {
   }
 
   /// Text of the info row whose `<h3>` reads "<label>:" — e.g. `Status:`
-  /// → "Ongoing".
+  /// → "Ongoing". Row elements are `div`s on novelfull.net and `li`s on
+  /// readnovelfull.
   String? _infoValue(Document doc, String label) {
-    for (final div in doc.querySelectorAll('.col-info-desc .info div')) {
-      final h3 = div.querySelector('h3');
+    for (final row in _infoRows(doc)) {
+      final h3 = row.querySelector('h3');
       if (h3 == null || h3.text.trim() != '$label:') continue;
       h3.remove();
-      final value = div.text.trim();
+      final value = row.text.trim();
       if (value.isNotEmpty) return value;
     }
     return null;
@@ -251,10 +296,10 @@ class NovelfullTemplate extends HtmlTemplate {
   /// Links of the info row whose `<h3>` reads "<label>:" — e.g. the genre
   /// tags under `Genres:`.
   List<String> _infoList(Document doc, String label) {
-    for (final div in doc.querySelectorAll('.col-info-desc .info div')) {
-      final h3 = div.querySelector('h3');
+    for (final row in _infoRows(doc)) {
+      final h3 = row.querySelector('h3');
       if (h3 == null || h3.text.trim() != '$label:') continue;
-      return div
+      return row
           .querySelectorAll('a')
           .map((a) => a.text.trim())
           .where((t) => t.isNotEmpty)
@@ -262,4 +307,7 @@ class NovelfullTemplate extends HtmlTemplate {
     }
     return const [];
   }
+
+  List<Element> _infoRows(Document doc) =>
+      doc.querySelectorAll('.col-info-desc .info div, .col-info-desc .info li');
 }

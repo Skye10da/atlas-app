@@ -43,6 +43,7 @@ class ChapterListSelectors {
     this.reverse = false,
     this.pageParam = 'page',
     this.maxPages = 1,
+    this.ajaxPath,
   });
 
   factory ChapterListSelectors.fromJson(Map<String, Object?> json) =>
@@ -53,6 +54,7 @@ class ChapterListSelectors {
         reverse: json['reverse'] is bool ? json['reverse'] as bool : false,
         pageParam: (json['pageParam'] as String?) ?? 'page',
         maxPages: json['maxPages'] is num ? (json['maxPages'] as num).toInt() : 1,
+        ajaxPath: json['ajaxPath'] as String?,
       );
 
   final String item;
@@ -68,6 +70,12 @@ class ChapterListSelectors {
 
   /// Number of index pages to walk (`?pageParam=N`), default 1 (single page).
   final int maxPages;
+
+  /// Optional site AJAX endpoint that returns the complete chapter list in one
+  /// request (e.g. `/ajax/chapter-archive`). Templates that support it fetch
+  /// `<baseUrl><ajaxPath>?novelId=...` and parse the response with [item] —
+  /// the response is expected to be a list-shaped fragment of [item] elements.
+  final String? ajaxPath;
 }
 
 class ChapterContentSelectors {

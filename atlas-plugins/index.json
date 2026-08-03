@@ -33,6 +33,17 @@
       }
     },
     {
+      "id": "readnovelfull",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "0068034c35164fb0c3490f0afc18190ca12fbbc8730dcacc01714a6d197fc07d",
+        "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
+        "plugin.json": "f5b698f9d559aaaee860a8a4b7c72bf9068d3740682558821f82702d88a67798",
+        "README.md": "62a11357824671397268f28040fdceee2b6208ea1dad5107f6152e6f78ab11c1",
+        "selectors.json": "a56874fe81418f541d470ec3b3a956e1270217fd337911464cab298f40fea5be"
+      }
+    },
+    {
       "id": "royalroad",
       "version": "1.0.0",
       "checksums": {

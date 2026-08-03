@@ -45,6 +45,21 @@
       ]
     },
     {
+      "id": "readnovelfull",
+      "name": "ReadNovelFull",
+      "sourceName": "ReadNovelFull",
+      "version": "1.0.0",
+      "templateId": "novelfull",
+      "transport": "http",
+      "baseUrl": "https://readnovelfull.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
       "id": "royalroad",
       "name": "Royal Road",
       "sourceName": "Royal Road",

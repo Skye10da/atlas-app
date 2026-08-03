@@ -1,0 +1,14 @@
+{
+  "novel": {
+    "url": "https://readnovelfull.com/lord-of-the-realm.html",
+    "method": "metadata",
+    "title": "Lord of the Realm",
+    "textContains": ["Steampunk, magic and secret arts"]
+  },
+  "chapter": {
+    "url": "https://readnovelfull.com/lord-of-the-realm/chapter-1-forbidden-love.html",
+    "method": "chapterContent",
+    "title": "Chapter 1: Forbidden love",
+    "textContains": ["The first light of dawn", "Frostvale"]
+  }
+}

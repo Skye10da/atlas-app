@@ -103,12 +103,25 @@ void main() {
       expect(selectors.chapterList!.reverse, isTrue);
     });
 
+    test('parses an ajaxPath for a single-request chapter archive', () {
+      final selectors = SelectorSet.fromJson({
+        'chapterList': {
+          'item': 'ul.list-chapter li',
+          'ajaxPath': '/ajax/chapter-archive',
+        },
+      });
+
+      expect(selectors.chapterList!.ajaxPath, '/ajax/chapter-archive');
+      expect(selectors.chapterList!.item, 'ul.list-chapter li');
+    });
+
     test('defaults pagination fields', () {
       const selectors = SelectorSet(chapterList: ChapterListSelectors(item: 'li'));
 
       expect(selectors.chapterList!.pageParam, 'page');
       expect(selectors.chapterList!.maxPages, 1);
       expect(selectors.chapterList!.reverse, isFalse);
+      expect(selectors.chapterList!.ajaxPath, isNull);
     });
   });
 

@@ -1,0 +1,19 @@
+{
+  "search": {
+    "path": "/novel-list/search",
+    "queryParam": "keyword",
+    "resultItem": ".list-novel .row",
+    "title": ".novel-title a@text",
+    "detailUrl": ".novel-title a@href"
+  },
+  "chapterList": {
+    "ajaxPath": "/ajax/chapter-archive",
+    "item": "ul.list-chapter li",
+    "title": ".nchr-text@text",
+    "url": "a@href"
+  },
+  "chapterContent": {
+    "container": "#chr-content",
+    "title": ".chr-title"
+  }
+}
