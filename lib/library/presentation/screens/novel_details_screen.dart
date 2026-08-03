@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:atlas_app/library/presentation/widgets/novel/continue_reading_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +11,6 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
-import 'package:atlas_app/library/presentation/widgets/novel/continue_reading_card.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/genre_tag_row.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/novel_hero_header.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/source_attribution.dart';

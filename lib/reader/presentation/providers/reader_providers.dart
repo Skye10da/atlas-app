@@ -15,9 +15,33 @@ final readerRepositoryProvider = Provider((ref) {
   return DriftReaderRepository(db);
 });
 
+/// The stages a chapter goes through while its shimmer is shown. The stages are
+/// advanced by real work as content is fetched, read and prepared for display.
+enum ChapterLoadPhase { gettingText, processing, preparing, done }
+
+extension ChapterLoadPhaseX on ChapterLoadPhase {
+  String get label => switch (this) {
+    ChapterLoadPhase.gettingText => 'Getting text',
+    ChapterLoadPhase.processing => 'Processing text',
+    ChapterLoadPhase.preparing => 'Preparing reader',
+    ChapterLoadPhase.done => 'Done',
+  };
+}
+
+/// Publishes the current load stage for a chapter so its shimmer + status
+/// overlay can reflect real backend progress.
+final chapterLoadPhaseProvider =
+    StateProvider.family<ChapterLoadPhase, ChapterEntity>(
+      (ref, chapter) => ChapterLoadPhase.gettingText,
+    );
+
 final readerChapterContentProvider =
     FutureProvider.family<String, ChapterEntity>((ref, chapter) async {
   final repo = ref.watch(readerRepositoryProvider);
+  void publish(ChapterLoadPhase phase) =>
+      ref.read(chapterLoadPhaseProvider(chapter).notifier).state = phase;
+
+  publish(ChapterLoadPhase.gettingText);
 
   if (!File(chapter.contentPath).existsSync()) {
     final downloadService = ref.watch(chapterDownloadServiceProvider);
@@ -30,7 +54,9 @@ final readerChapterContentProvider =
     }
   }
 
+  publish(ChapterLoadPhase.processing);
   final result = await repo.getChapterContent(chapter.contentPath);
+  publish(ChapterLoadPhase.preparing);
   return switch (result) {
     Success(value: final content) => content,
     Failure() => 'Failed to load chapter content.',

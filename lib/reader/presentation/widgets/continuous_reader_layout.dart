@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_content_loader.dart';
@@ -72,6 +73,7 @@ class _ContinuousReaderLayoutState
   bool _autoScrollActive = false;
   ScrollAnimation _animation = ScrollAnimation.smooth;
   bool _jumpInFlight = false;
+  bool _applyingGate = false;
   int _lastReportedChapterIndex = 0;
 
   void _initChapterKeys() {
@@ -312,9 +314,13 @@ class _ContinuousReaderLayoutState
         _stopAutoScroll();
         return;
       }
-      _scrollController.jumpTo(
-        (pos.pixels + _autoScrollSpeed).clamp(0.0, pos.maxScrollExtent),
-      );
+      var target =
+          (pos.pixels + _autoScrollSpeed).clamp(0.0, pos.maxScrollExtent);
+      final gate = _scrollGate();
+      if (gate != null && target > gate) {
+        target = gate.clamp(0.0, pos.maxScrollExtent);
+      }
+      _scrollController.jumpTo(target);
     });
   }
 
@@ -373,11 +379,47 @@ class _ContinuousReaderLayoutState
     return current;
   }
 
+  bool _isChapterLoading(int index) {
+    if (index < 0 || index >= widget.chapters.length) return false;
+    return ref.read(
+          readerChapterContentProvider(widget.chapters[index]),
+        ) is AsyncLoading;
+  }
+
+  /// Returns the scroll offset at which the first not-yet-loaded (shimmering)
+  /// chapter block begins, or `null` when every built chapter is ready. This
+  /// is the boundary the reader is held at so it can't scroll into unloaded
+  /// content while the shimmer is in effect. Only built blocks are considered
+  /// — unbuilt (far-away) chapters aren't reachable yet, so reading their
+  /// provider here can't kick off any new loads.
+  double? _scrollGate() {
+    for (var i = 0; i < widget.chapters.length; i++) {
+      if (_chapterKeys[i].currentContext == null) break;
+      if (_isChapterLoading(i)) {
+        final reveal = _chapterRevealOffset(i);
+        if (reveal != null) return reveal;
+      }
+    }
+    return null;
+  }
+
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
     final pos = _scrollController.position;
     _scrollOffset = pos.pixels;
+
+    // While the next chapter's content is still shimmering, hold the reader
+    // at the boundary so the unloaded region can't be scrolled into.
+    final gate = _scrollGate();
+    if (gate != null && pos.pixels > gate + 1 && !_applyingGate) {
+      _applyingGate = true;
+      _scrollController.jumpTo(gate.clamp(0.0, pos.maxScrollExtent));
+      _applyingGate = false;
+      _lastScrollPos = pos.pixels;
+      return;
+    }
+
     final progress = pos.maxScrollExtent > 0
         ? pos.pixels / pos.maxScrollExtent
         : 0.0;
@@ -715,6 +757,7 @@ class _ContinuousReaderLayoutState
               style: widget.settings.chromeStyle,
               color: vt.surface,
               child: ReaderBottomNav(
+                textColor: vt.text,
                 onSettingsTap: widget.onSettingsTap,
                 onChapterIndexTap: () => _showChapterIndex(context),
                 onBookmarkTap: widget.onBookmarkToggle,

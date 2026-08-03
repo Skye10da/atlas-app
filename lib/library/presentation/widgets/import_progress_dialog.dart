@@ -1,11 +1,20 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class ImportProgressDialog extends StatefulWidget {
-  const ImportProgressDialog({super.key, required this.future});
+  const ImportProgressDialog({
+    super.key,
+    required this.future,
+    this.progress,
+  });
 
   final Future<void> future;
+
+  /// Optional real import progress (0.0 → 1.0). When null, the ring's sweep
+  /// animation drives the displayed percentage.
+  final ValueListenable<double>? progress;
 
   @override
   State<ImportProgressDialog> createState() => _ImportProgressDialogState();
@@ -23,6 +32,7 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat();
+    widget.progress?.addListener(_onProgress);
     widget.future.then((_) {
       if (!mounted) return;
       _controller.stop();
@@ -44,8 +54,13 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
     });
   }
 
+  void _onProgress() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    widget.progress?.removeListener(_onProgress);
     _controller.dispose();
     super.dispose();
   }
@@ -65,12 +80,35 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
           children: [
             AnimatedBuilder(
               animation: _controller,
-              builder: (ctx, _) => _ProgressPainter(
-                progress: _controller.value,
-                done: _done,
-                color: _done ? const Color(0xFF34C759) : cs.primary,
-                size: 72,
-              ),
+              builder: (ctx, _) {
+                final real = widget.progress?.value;
+                final percent = (real ??
+                        _controller.value)
+                    .clamp(0.0, 1.0) *
+                    100;
+                return SizedBox(
+                  width: 96,
+                  height: 96,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      _ProgressPainter(
+                        progress: _controller.value,
+                        done: _done,
+                        color: _done ? const Color(0xFF34C759) : cs.primary,
+                        size: 72,
+                      ),
+                      Text(
+                        _done ? '100%' : '${percent.round()}%',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: _done ? const Color(0xFF34C759) : cs.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 20),
             Text(

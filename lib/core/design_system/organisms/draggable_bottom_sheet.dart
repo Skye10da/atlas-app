@@ -107,8 +107,6 @@ class _DraggableSheetState extends State<_DraggableSheet> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final contentMaxHeight =
-        (_height - _handleHeight).clamp(0.0, double.infinity);
     return Align(
       alignment: Alignment.bottomCenter,
       child: Material(
@@ -118,19 +116,21 @@ class _DraggableSheetState extends State<_DraggableSheet> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _SheetHandle(
-              onVerticalDragStart: _onDragStart,
-              onVerticalDragUpdate: _onDragUpdate,
-              onVerticalDragEnd: _onDragEnd,
-            ),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: contentMaxHeight),
-              child: widget.child,
-            ),
-          ],
+        child: SizedBox(
+          height: _height,
+          width: double.infinity,
+          child: Column(
+            children: [
+              _SheetHandle(
+                onVerticalDragStart: _onDragStart,
+                onVerticalDragUpdate: _onDragUpdate,
+                onVerticalDragEnd: _onDragEnd,
+              ),
+              Flexible(
+                child: widget.child,
+              ),
+            ],
+          ),
         ),
       ),
     );

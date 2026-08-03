@@ -123,13 +123,18 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
       if (confirmed != true || !mounted) return;
 
       final engine = ref.read(contentAcquisitionEngineProvider);
-      final importFuture = engine.importAndSave(result.importUrl);
+      final progress = ValueNotifier<double>(0);
+      final importFuture = engine.importAndSave(
+        result.importUrl,
+        onProgress: (p) => progress.value = p,
+      );
 
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (_) => ImportProgressDialog(
           future: importFuture.then((_) {}, onError: (_) {}),
+          progress: progress,
         ),
       );
 

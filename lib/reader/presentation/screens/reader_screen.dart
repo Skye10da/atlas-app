@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/database/providers.dart';
-import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_content.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 
@@ -31,8 +32,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final settingsAsync = ref.watch(readingSettingsProvider);
 
     return settingsAsync.when(
-      loading: () => const Scaffold(body: AppLoading()),
-      error: (_, _) => const Scaffold(body: AppLoading()),
+      loading: () => _readerShimmer,
+      error: (_, _) => _readerShimmer,
       data: (settings) => ReaderContent(
         repo: repo,
         bookId: widget.bookId,
@@ -40,4 +41,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       ),
     );
   }
+
+  Widget get _readerShimmer => Scaffold(
+    backgroundColor: ReadingViewTheme.light.background,
+    body: const ChapterShimmer(vt: ReadingViewTheme.light),
+  );
 }

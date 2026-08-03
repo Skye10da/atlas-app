@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -14,6 +13,7 @@ import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/domain/repository_interfaces/reader_repository_interface.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/continuous_reader_layout.dart';
 import 'package:atlas_app/reader/presentation/widgets/paged_reader_layout.dart';
@@ -178,7 +178,10 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: AppLoading());
+      return Scaffold(
+        backgroundColor: ReadingViewTheme.light.background,
+        body: const ChapterShimmer(vt: ReadingViewTheme.light),
+      );
     }
     if (_errorMessage != null) {
       return Scaffold(

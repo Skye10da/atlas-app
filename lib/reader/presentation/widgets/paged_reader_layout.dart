@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -19,6 +18,7 @@ import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/pager.dart';
@@ -128,9 +128,11 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     } else if (x > width * 2 / 3) {
       if (_currentGlobalPage < _totalPages - 1) {
         final target = (spreadBefore + 1) * 2;
-        _pageController.animateToPage(target ~/ 2,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut);
+        if (_canAdvanceTo(target)) {
+          _pageController.animateToPage(target ~/ 2,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut);
+        }
       }
     } else {
       toggleChrome(isDarkTheme: widget.settings.theme.isDark);
@@ -148,7 +150,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         );
       }
     } else if (x > width * 2 / 3) {
-      if (_currentGlobalPage < _totalPages - 1) {
+      if (_currentGlobalPage < _totalPages - 1 &&
+          _canAdvanceTo(_currentGlobalPage + 1)) {
         _pageController.nextPage(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
@@ -216,10 +219,12 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       if (_currentGlobalPage < _totalPages - 1) {
         if (isWideDesktop) {
           final target = _currentGlobalPage + 2;
-          _pageController.animateToPage(target ~/ 2,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut);
-        } else {
+          if (_canAdvanceTo(target)) {
+            _pageController.animateToPage(target ~/ 2,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut);
+          }
+        } else if (_canAdvanceTo(_currentGlobalPage + 1)) {
           _pageController.nextPage(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut);
@@ -313,6 +318,33 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     return widget.chapters[index].pageCount;
   }
 
+  /// The deepest global page the reader may navigate to. When a chapter is
+  /// still loading, only its *first* page may be entered — so its shimmer and
+  /// status overlay can be shown — and no page beyond that is reachable until
+  /// its content has been paginated.
+  int _maxNavigableGlobalPage() {
+    var lastReady = -1;
+    for (var i = 0; i < widget.chapters.length; i++) {
+      if (_pageCache[i] != null) {
+        lastReady = i;
+      } else {
+        break;
+      }
+    }
+    if (lastReady == -1 || widget.chapters.isEmpty) return 0;
+    if (lastReady == widget.chapters.length - 1) {
+      return _localToGlobal(lastReady, math.max(0, _pagesFor(lastReady) - 1));
+    }
+    return _localToGlobal(lastReady + 1, 0);
+  }
+
+  /// Whether advancing to [globalPage] is allowed given the chapters that
+  /// still have their shimmer active.
+  bool _canAdvanceTo(int globalPage) {
+    if (globalPage >= _totalPages) return false;
+    return globalPage <= _maxNavigableGlobalPage();
+  }
+
   void _ensureChapterLoaded(int index) {
     if (_loadedChapters.contains(index)) return;
     _loadedChapters.add(index);
@@ -362,6 +394,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       if (!mounted) return;
       _paginateChapter(index, content);
       _recomputeTotalPages();
+      ref.read(chapterLoadPhaseProvider(widget.chapters[index]).notifier).state =
+          ChapterLoadPhase.done;
       setState(() {});
     });
   }
@@ -372,6 +406,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       _schedulePagination(index, content);
     } else {
       _recomputeTotalPages();
+      ref.read(chapterLoadPhaseProvider(widget.chapters[index]).notifier).state =
+          ChapterLoadPhase.done;
     }
     if (mounted) setState(() {});
   }
@@ -488,7 +524,21 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
             ],
           ),
         ),
-        body: const Center(child: AppLoading()),
+        body: Stack(
+          children: [
+            const Positioned.fill(child: SizedBox.expand()),
+            ChapterShimmer(
+              vt: vt,
+              showHeaders: true,
+              fontSize: widget.settings.fontSize,
+              lineHeight: widget.settings.lineHeight,
+            ),
+            ReaderLoadingOverlay(
+              chapter: chapters[currentIndex],
+              vt: vt,
+            ),
+          ],
+        ),
       );
     }
 
@@ -515,6 +565,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
               style: widget.settings.chromeStyle,
               color: vt.surface,
               child: ReaderBottomNav(
+                textColor: vt.text,
                 onSettingsTap: widget.onSettingsTap,
                 onChapterIndexTap: () => _showChapterIndex(context),
                 onBookmarkTap: widget.onBookmarkToggle,
@@ -565,7 +616,18 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                   child: PageView.builder(
                     controller: _pageController,
                     onPageChanged: (pageIndex) {
-                      _currentGlobalPage = isWideDesktop ? pageIndex * 2 : pageIndex;
+                      var global = isWideDesktop ? pageIndex * 2 : pageIndex;
+                      final maxAllowed = _maxNavigableGlobalPage();
+                      if (global > maxAllowed) {
+                        global = maxAllowed;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && _pageController.hasClients) {
+                            _pageController.jumpToPage(
+                                isWideDesktop ? maxAllowed ~/ 2 : maxAllowed);
+                          }
+                        });
+                      }
+                      _currentGlobalPage = global;
                       final (chIdx, _) = _globalToLocal(_currentGlobalPage);
                       _ensureChapterLoaded(chIdx);
                       if (chIdx + 1 < chapters.length) {
@@ -753,11 +815,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       if (_loadedChapters.add(chIdx)) {
         _ensureChapterLoaded(chIdx);
       }
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: CircularProgressIndicator(color: vt.accent),
-        ),
+      return Stack(
+        children: [
+          const Positioned.fill(child: SizedBox.expand()),
+          ChapterShimmer(
+            vt: vt,
+            showHeaders: pageInChapter == 0,
+            fontSize: widget.settings.fontSize,
+            lineHeight: widget.settings.lineHeight,
+          ),
+          ReaderLoadingOverlay(chapter: chapters[chIdx], vt: vt),
+        ],
       );
     }
     final clampedPage = pageInChapter.clamp(0, pages.length - 1);
@@ -800,8 +868,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     Widget side(int globalPage, int chIdx) {
       if (_pageCache[chIdx] == null) {
         _ensureChapterLoaded(chIdx);
-        return Center(
-          child: CircularProgressIndicator(color: vt.accent),
+        return Stack(
+          children: [
+            const Positioned.fill(child: SizedBox.expand()),
+            ChapterShimmer(
+              vt: vt,
+              showHeaders: _isFirstPageOfChapter(globalPage),
+              fontSize: widget.settings.fontSize,
+              lineHeight: widget.settings.lineHeight,
+            ),
+            ReaderLoadingOverlay(chapter: chapters[chIdx], vt: vt),
+          ],
         );
       }
       return _PagedPageView(

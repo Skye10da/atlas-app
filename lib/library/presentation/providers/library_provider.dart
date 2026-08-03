@@ -166,7 +166,11 @@ class _LibraryImportActions {
     if (url == null) return const Failure(CancelledException());
 
     final engine = _ref.read(contentAcquisitionEngineProvider);
-    final importFuture = engine.importAndSave(url);
+    final progress = ValueNotifier<double>(0);
+    final importFuture = engine.importAndSave(
+      url,
+      onProgress: (p) => progress.value = p,
+    );
 
     if (!context.mounted) {
       try { await importFuture; } catch (_) {}
@@ -176,7 +180,10 @@ class _LibraryImportActions {
     final succeeded = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => ImportProgressDialog(future: importFuture),
+      builder: (_) => ImportProgressDialog(
+        future: importFuture,
+        progress: progress,
+      ),
     );
 
     if (succeeded != true) {

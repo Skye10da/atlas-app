@@ -8,6 +8,7 @@ import 'package:atlas_app/core/services/platform_service_provider.dart';
 class ReaderBottomNav extends ConsumerWidget {
   const ReaderBottomNav({
     super.key,
+    required this.textColor,
     required this.onSettingsTap,
     required this.onChapterIndexTap,
     required this.onBookmarkTap,
@@ -19,6 +20,7 @@ class ReaderBottomNav extends ConsumerWidget {
     this.onAutoScrollToggle,
   });
 
+  final Color textColor;
   final VoidCallback onSettingsTap;
   final VoidCallback onChapterIndexTap;
   final VoidCallback onBookmarkTap;
@@ -50,6 +52,7 @@ class ReaderBottomNav extends ConsumerWidget {
               _NavIconButton(
                 icon: Icons.settings,
                 label: 'Settings',
+                textColor: textColor,
                 onTap: onSettingsTap,
               ),
               _NavIconButton(
@@ -57,11 +60,13 @@ class ReaderBottomNav extends ConsumerWidget {
                 label: currentChapterNumber != null
                     ? '${currentChapterNumber! + 1}/${totalChapters ?? 0}'
                     : 'Chapters',
+                textColor: textColor,
                 onTap: onChapterIndexTap,
               ),
               _NavIconButton(
                 icon: isBookmarked ? Icons.bookmark : Icons.bookmark_border,
                 label: isBookmarked ? 'Bookmarked' : 'Bookmark',
+                textColor: textColor,
                 onTap: () {
                   HapticFeedback.selectionClick();
                   onBookmarkTap();
@@ -73,9 +78,10 @@ class ReaderBottomNav extends ConsumerWidget {
                       ? Icons.pause_circle_filled
                       : Icons.play_circle_outline,
                   label: autoScrollActive ? 'Pause' : 'Auto-scroll',
+                  textColor: textColor,
                   onTap: onAutoScrollToggle!,
                 ),
-              _BatteryIndicator(level: batteryLevel, charging: charging),
+              _BatteryIndicator(level: batteryLevel, charging: charging, textColor: textColor),
             ],
           ),
         ),
@@ -88,16 +94,17 @@ class _NavIconButton extends StatelessWidget {
   const _NavIconButton({
     required this.icon,
     required this.label,
+    required this.textColor,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
+  final Color textColor;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -106,13 +113,13 @@ class _NavIconButton extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 22, color: colorScheme.onSurface),
+            Icon(icon, size: 22, color: textColor),
             const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
                 fontSize: 10,
-                color: colorScheme.onSurface.withValues(alpha: 0.8),
+                color: textColor.withValues(alpha: 0.8),
               ),
             ),
           ],
@@ -123,14 +130,18 @@ class _NavIconButton extends StatelessWidget {
 }
 
 class _BatteryIndicator extends StatelessWidget {
-  const _BatteryIndicator({required this.level, this.charging = false});
+  const _BatteryIndicator({
+    required this.level,
+    required this.textColor,
+    this.charging = false,
+  });
 
   final double? level;
+  final Color textColor;
   final bool charging;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final pct = level != null ? (level! * 100).round() : null;
 
     final IconData icon;
@@ -153,13 +164,13 @@ class _BatteryIndicator extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20, color: colorScheme.onSurface),
+          Icon(icon, size: 20, color: textColor),
           const SizedBox(height: 2),
           Text(
             label,
             style: TextStyle(
               fontSize: 10,
-              color: colorScheme.onSurface.withValues(alpha: 0.8),
+              color: textColor.withValues(alpha: 0.8),
             ),
           ),
         ],

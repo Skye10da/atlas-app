@@ -59,6 +59,9 @@ dependencies:
       ref: "4966010"
   battery_plus: ^7.1.1
 
+  # Skeleton / shimmer loading
+  skeletonizer: ^2.1.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

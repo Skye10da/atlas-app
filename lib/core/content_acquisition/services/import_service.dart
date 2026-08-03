@@ -3,6 +3,9 @@ import 'package:atlas_app/core/content_acquisition/adapters/source_registry.dart
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 
+/// Reports 0.0 → 1.0 as an import advances through its phases.
+typedef ImportProgressCallback = void Function(double progress);
+
 class ImportResult {
   const ImportResult({
     required this.novel,
@@ -26,16 +29,22 @@ class ImportService {
     return registry.resolve(uri);
   }
 
-  Future<ImportResult> import(String url) async {
+  Future<ImportResult> import(
+    String url, {
+    ImportProgressCallback? onProgress,
+  }) async {
     final uri = Uri.parse(url);
     final source = registry.resolve(uri);
     if (source == null) {
       throw ImportException('No source plugin available for: $url');
     }
 
+    onProgress?.call(0.0);
     try {
       final novel = await source.getMetadata(uri);
+      onProgress?.call(0.5);
       final chapters = await source.getChapters(novel);
+      onProgress?.call(0.8);
       return ImportResult(novel: novel, chapters: chapters, source: source);
     } on ImportRedirect {
       rethrow;

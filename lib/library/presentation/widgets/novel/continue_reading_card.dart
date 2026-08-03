@@ -21,7 +21,7 @@ class ContinueReadingCard extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
       data: (chapter) {
-        if (chapter == null || progress <= 0) return const SizedBox.shrink();
+        final isContinue = chapter != null && progress > 0;
 
         final colors = Theme.of(context).colorScheme;
         final textTheme = Theme.of(context).textTheme;
@@ -38,34 +38,38 @@ class ContinueReadingCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Continue Reading',
-                  style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Chapter ${chapter.index + 1} · ${chapter.title}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
+                  isContinue ? 'Continue Reading' : 'Start Reading',
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: (progress / 100).clamp(0.0, 1.0),
-                    minHeight: 4,
-                    backgroundColor: colors.surfaceContainerHighest,
+                if (isContinue) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Chapter ${chapter.index + 1} · ${chapter.title}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: AppSpacing.sm),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: (progress / 100).clamp(0.0, 1.0),
+                      minHeight: 4,
+                      backgroundColor: colors.surfaceContainerHighest,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.sm),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: () => _openReader(context, chapter),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Continue Reading'),
+                    onPressed: () => _openReader(context, chapter, isContinue),
+                    icon: Icon(isContinue ? Icons.play_arrow : Icons.menu_book),
+                    label: Text(isContinue ? 'Continue Reading' : 'Start'),
                   ),
                 ),
               ],
@@ -76,11 +80,19 @@ class ContinueReadingCard extends ConsumerWidget {
     );
   }
 
-  void _openReader(BuildContext context, ChapterEntity chapter) {
-    final progress = book.progress ?? 0;
+  void _openReader(
+    BuildContext context,
+    ChapterEntity? chapter,
+    bool isContinue,
+  ) {
     final base = '/reader/${book.id}';
+    if (!isContinue) {
+      context.push(base);
+      return;
+    }
+    final progress = book.progress ?? 0;
     final params = <String, String>{};
-    params['chapterId'] = chapter.id;
+    params['chapterId'] = chapter!.id;
     if (progress > 0) {
       params['progress'] = (progress / 100).toStringAsFixed(4);
     }

@@ -45,8 +45,11 @@ class ContentAcquisitionEngine {
   late final PrefetchEngine prefetchEngine;
   final Map<String, _BookSourceState> _activeBooks = {};
 
-  Future<ImportOutcome> importAndSave(String url) async {
-    final result = await importService.import(url);
+  Future<ImportOutcome> importAndSave(
+    String url, {
+    ImportProgressCallback? onProgress,
+  }) async {
+    final result = await importService.import(url, onProgress: onProgress);
     final novel = result.novel;
     final chapters = result.chapters;
     final category = novel.category;
@@ -78,7 +81,8 @@ class ContentAcquisitionEngine {
       await File(coverPath).writeAsBytes(coverBytes);
     }
 
-    for (final ch in chapters) {
+    for (var i = 0; i < chapters.length; i++) {
+      final ch = chapters[i];
       final chapterId = '${bookId}_ch${ch.index}';
       final contentPath = p.join(bookDir.path, '${ch.index}.txt');
 
@@ -99,6 +103,8 @@ class ContentAcquisitionEngine {
         contentState: Value(ch.content != null ? ContentState.availableOffline.index : ContentState.discovered.index),
         createdAt: Value(DateTime.now()),
       ));
+
+      onProgress?.call(0.8 + 0.2 * ((i + 1) / chapters.length));
     }
 
     final chapterIndex = chapters.map((ch) => {
