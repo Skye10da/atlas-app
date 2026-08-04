@@ -73,7 +73,6 @@ class _DraggableSheetState extends State<_DraggableSheet> {
   late double _height;
   double _maxHeight = 0;
   bool _initialized = false;
-  double? _dragStartHeight;
 
   @override
   void initState() {
@@ -91,17 +90,21 @@ class _DraggableSheetState extends State<_DraggableSheet> {
         .clamp(widget.minHeight, _maxHeight);
   }
 
-  void _onDragStart(DragStartDetails _) => _dragStartHeight = _height;
+  void _onDragStart(DragStartDetails _) {}
 
   void _onDragUpdate(DragUpdateDetails details) {
-    final start = _dragStartHeight ?? _height;
-    final next = (start - details.delta.dy).clamp(widget.minHeight, _maxHeight);
-    setState(() => _height = next);
+    // details.delta is the movement since the *previous* update callback,
+    // not since the drag started — so each frame's delta must be applied
+    // to the current height, not repeatedly re-applied against a fixed
+    // drag-start height (which is what discarded almost all movement and
+    // made the sheet feel undraggable).
+    setState(() {
+      _height = (_height - details.delta.dy).clamp(widget.minHeight, _maxHeight);
+    });
   }
 
   void _onDragEnd(DragEndDetails _) {
     widget.remembered[widget.id] = _height;
-    _dragStartHeight = null;
   }
 
   @override

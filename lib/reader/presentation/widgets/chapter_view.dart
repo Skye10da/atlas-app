@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderBox, RenderEditable;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +8,8 @@ import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.da
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
+import 'package:atlas_app/reader/speech/parser/sentence_splitter.dart';
+import 'package:atlas_app/reader/speech/speech_models.dart';
 
 enum ReadingViewTheme {
   light,
@@ -117,6 +120,9 @@ class ChapterView extends ConsumerStatefulWidget {
     this.onAddNote,
     this.onShare,
     this.onSearchWeb,
+    this.activeSpeechItem,
+    this.onNarrationOutOfSyncChanged,
+    this.onRegisterNarrationReveal,
   });
 
   final String content;
@@ -149,13 +155,62 @@ class ChapterView extends ConsumerStatefulWidget {
   /// Omit to hide the search action.
   final void Function(String text)? onSearchWeb;
 
+  /// The sentence currently being narrated, if this chapter is narrating.
+  /// When set, that sentence is rendered with a background tint. Omit for no
+  /// narration highlighting.
+  final SpeechItem? activeSpeechItem;
+
+  /// Reports whether this chapter is narrating but its highlighted sentence is
+  /// currently out of the visible viewport (true) or back in sync (false).
+  /// Used by the parent to show/hide a "jump to narration" affordance.
+  final ValueChanged<bool>? onNarrationOutOfSyncChanged;
+
+  /// Lets the parent obtain a handle to scroll this view's narration sentence
+  /// into view on demand. Invoked with the reveal callback while this chapter
+  /// is the active narrator (and only then, never with `null`). The callback
+  /// should be treated as opaque and safe to invoke at any time.
+  final void Function(void Function() reveal)? onRegisterNarrationReveal;
+
   @override
   ConsumerState<ChapterView> createState() => _ChapterViewState();
 }
 
-class _ChapterViewState extends ConsumerState<ChapterView> {
+class _ChapterViewState extends ConsumerState<ChapterView>
+    with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
+  final _textKey = GlobalKey();
   double _lastScrollPos = 0;
+  bool _didInitNarration = false;
+  bool _lastReportedOutOfSync = false;
+  bool _revealAnimating = false;
+  ScrollPosition? _listenedPosition;
+
+  static final _paragraphBreak = RegExp(r'\n\s*\n');
+
+  /// Matches quoted dialogue/text — straight double quotes and typographic
+  /// (curly) double quotes. Single quotes are deliberately excluded since
+  /// they're far more often apostrophes/contractions than actual quotation.
+  static final _quotePattern = RegExp('"[^"]*"|\u201C[^\u201D]*\u201D');
+
+  List<(int, int)>? _cachedQuoteRanges;
+  String? _cachedQuoteRangesFor;
+
+  /// Fades the narration highlight in on each new sentence rather than
+  /// popping it on instantly. Created in [initState] (not lazily) so there's
+  /// always a controller to dispose in [dispose]; a lazy initializer that
+  /// first ran during unmount would call `createTicker` against a deactivated
+  /// widget and crash.
+  late final AnimationController _highlightController;
+
+  @override
+  void initState() {
+    super.initState();
+    _highlightController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+      value: widget.activeSpeechItem != null ? 1.0 : 0.0,
+    );
+  }
 
   EdgeInsets get _padding => switch (widget.marginPreset) {
     MarginPreset.narrow => const EdgeInsets.symmetric(
@@ -171,8 +226,42 @@ class _ChapterViewState extends ConsumerState<ChapterView> {
 
   @override
   void dispose() {
+    _listenedPosition?.removeListener(_onOuterScroll);
     _scrollController.dispose();
+    _highlightController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInitNarration) return;
+    _didInitNarration = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _ensureScrollListener();
+      _registerNarrationReveal();
+      _refreshOutOfSync();
+    });
+  }
+
+  @override
+  void didUpdateWidget(ChapterView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _ensureScrollListener();
+      _registerNarrationReveal();
+      if (widget.activeSpeechItem == null) {
+        _highlightController.value = 0.0;
+        _refreshOutOfSync();
+      } else if (oldWidget.activeSpeechItem?.text != widget.activeSpeechItem?.text) {
+        _highlightController.forward(from: 0.0);
+        _followActive();
+      } else {
+        _refreshOutOfSync();
+      }
+    });
   }
 
   void _handleScroll(ScrollNotification notification) {
@@ -189,6 +278,192 @@ class _ChapterViewState extends ConsumerState<ChapterView> {
       }
       _lastScrollPos = metrics.pixels;
     }
+  }
+
+  /// Attaches a listener to the nearest scrollable's position so manual
+  /// scrolls (which may put the narrated sentence out of view) update the
+  /// "jump to narration" affordance live.
+  void _ensureScrollListener() {
+    final scrollable = Scrollable.maybeOf(context);
+    if (scrollable == null) return;
+    final position = scrollable.position;
+    if (_listenedPosition == position) return;
+    _listenedPosition?.removeListener(_onOuterScroll);
+    _listenedPosition = position;
+    position.addListener(_onOuterScroll);
+  }
+
+  void _onOuterScroll() {
+    if (_revealAnimating) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshOutOfSync();
+    });
+  }
+
+  /// Reports the current sync state to the parent, skipping when unchanged.
+  void _reportOutOfSync(bool outOfSync) {
+    if (!mounted || _lastReportedOutOfSync == outOfSync) return;
+    _lastReportedOutOfSync = outOfSync;
+    widget.onNarrationOutOfSyncChanged?.call(outOfSync);
+  }
+
+  void _refreshOutOfSync() {
+    final narrating = widget.activeSpeechItem != null;
+    _reportOutOfSync(narrating && !_isActiveSentenceVisible());
+  }
+
+  /// Registers this view's reveal handle with the parent while it is the
+  /// active narrator (so the overlay button can call it). Only non-null
+  /// handles are ever forwarded; leaving narration is conveyed via the
+  /// out-of-sync report instead, so parallel post-frame callbacks can't
+  /// wipe a newly registered handle with a stale `null`.
+  void _registerNarrationReveal() {
+    if (widget.activeSpeechItem == null) return;
+    widget.onRegisterNarrationReveal?.call(_followActive);
+  }
+
+  /// [SelectableText] composes its actual [RenderEditable] inside gesture/
+  /// tap-region wrapper widgets (e.g. TextFieldTapRegion, MouseRegion) that
+  /// are themselves RenderObjectWidgets — so `context.findRenderObject()`
+  /// on the SelectableText's own key returns the *outer* wrapper's render
+  /// object, never the RenderEditable itself. Walk the subtree to find the
+  /// real one instead of assuming it's the first render object encountered.
+  RenderEditable? _findRenderEditable() {
+    final context = _textKey.currentContext;
+    if (context == null) return null;
+    RenderEditable? found;
+    void visitor(Element element) {
+      if (found != null) return;
+      final renderObject = element.renderObject;
+      if (renderObject is RenderEditable) {
+        found = renderObject;
+        return;
+      }
+      element.visitChildren(visitor);
+    }
+    context.visitChildElements(visitor);
+    return found;
+  }
+
+  bool _isActiveSentenceVisible() {
+    final info = _activeSentenceViewport();
+    if (info == null) return false;
+    const margin = 24.0;
+    return info.$2 >= info.$5 + margin && info.$2 <= info.$6 - margin;
+  }
+
+  /// Scrolls the nearest scrollable so the currently narrated sentence stays
+  /// in view (following the speech), reusing the same text lookup the
+  /// highlight does. No-op when the sentence is already fully visible.
+  void _followActive() {
+    if (!mounted || _revealAnimating) return;
+    if (_isActiveSentenceVisible()) {
+      _reportOutOfSync(false);
+      return;
+    }
+    final item = widget.activeSpeechItem;
+    final idx = _activeTextOffset();
+    final scrollable = Scrollable.maybeOf(context);
+    final render = _findRenderEditable();
+    final viewport = render != null
+        ? RenderAbstractViewport.maybeOf(render)
+        : null;
+    if (item == null || idx == null || idx < 0 || scrollable == null ||
+        render == null || viewport == null) {
+      return;
+    }
+
+    final edge = render.getLocalRectForCaret(TextPosition(offset: idx)).top;
+    final revealed = viewport.getOffsetToReveal(
+      render,
+      0.0,
+      rect: Rect.fromLTWH(0, edge, 0, 0),
+    );
+    final position = scrollable.position;
+    const margin = 24.0;
+    final target = (revealed.offset - margin).clamp(0.0, position.maxScrollExtent);
+    _revealAnimating = true;
+    _reportOutOfSync(false);
+    position.animateTo(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    ).whenComplete(() {
+      _revealAnimating = false;
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _refreshOutOfSync();
+        });
+      }
+    });
+  }
+
+  /// Returns `(idx, caretGlobalTop, render, viewport, vpTop, vpBottom)` for the
+  /// active sentence, or `null` when there is nothing to reveal.
+  (int, double, RenderEditable, RenderAbstractViewport, double, double)?
+  _activeSentenceViewport() {
+    final item = widget.activeSpeechItem;
+    if (item == null) return null;
+    final idx = _activeTextOffset();
+    if (idx == null || idx < 0) return null;
+
+    final scrollable = Scrollable.maybeOf(context);
+    final render = _findRenderEditable();
+    if (scrollable == null || render == null) return null;
+    final viewport = RenderAbstractViewport.maybeOf(render);
+    final viewportBox = scrollable.position.context.storageContext.findRenderObject()
+        as RenderBox?;
+    if (viewport == null || viewportBox == null) return null;
+
+    final caretTop = render.getLocalRectForCaret(TextPosition(offset: idx)).top;
+    final caretGlobalTop = render.localToGlobal(Offset(0, caretTop)).dy;
+    final vpTop = viewportBox.localToGlobal(Offset.zero).dy;
+    final vpBottom = vpTop + viewportBox.size.height;
+    return (idx, caretGlobalTop, render, viewport, vpTop, vpBottom);
+  }
+
+  /// Resolves the character offset in [ChapterView.content] where the
+  /// currently narrated sentence begins, using the sentence's own
+  /// paragraph + sentence indexes rather than a naive text search — so a
+  /// name or phrase that also appears earlier in the chapter doesn't pull
+  /// the highlight/scroll back to the wrong (first) occurrence.
+  int? _activeTextOffset() {
+    final item = widget.activeSpeechItem;
+    if (item == null) return null;
+    final content = widget.content;
+
+    // Replicate SpeechSessionBuilder's paragraph split (trimmed, non-empty)
+    // and record each paragraph's start offset in the raw content.
+    final segments = <(int, String)>[];
+    var segStart = 0;
+    for (final match in _paragraphBreak.allMatches(content)) {
+      final seg = content.substring(segStart, match.start);
+      if (seg.trim().isNotEmpty) segments.add((segStart, seg));
+      segStart = match.end;
+    }
+    final tail = content.substring(segStart);
+    if (tail.trim().isNotEmpty) segments.add((segStart, tail));
+
+    if (item.paragraphIndex >= segments.length) return null;
+    final (segStartOffset, segRaw) = segments[item.paragraphIndex];
+    final paraTrim = segRaw.trim();
+    if (paraTrim.isEmpty) return null;
+    final paraOffsetInSeg = segRaw.indexOf(paraTrim);
+
+    final spans = const SentenceSplitter().splitParagraphSpans(paraTrim);
+    if (spans.isEmpty) return null;
+    final span = spans[item.sentenceIndex.clamp(0, spans.length - 1)];
+    final start = segStartOffset + paraOffsetInSeg + span.offset;
+
+    if (content.startsWith(item.text, start)) return start;
+
+    // The exact sentence couldn't be pinned (e.g. it was hard-split into a
+    // piece longer than the per-item cap) — fall back to locating the text
+    // inside the correct paragraph before doing a whole-chapter search.
+    final inParagraph = paraTrim.indexOf(item.text);
+    if (inParagraph >= 0) return segStartOffset + paraOffsetInSeg + inParagraph;
+    final anywhere = content.indexOf(item.text);
+    return anywhere >= 0 ? anywhere : null;
   }
 
   @override
@@ -226,24 +501,132 @@ class _ChapterViewState extends ConsumerState<ChapterView> {
     final ds = widget.dropCapStyle;
     final c = widget.content;
 
+    final active = widget.activeSpeechItem;
+    if (active != null) {
+      return _narrationHighlighted(c, textStyle);
+    }
+
     if (ds != null && c.isNotEmpty) {
       return SelectableText.rich(
         TextSpan(
           children: [
             TextSpan(text: c.substring(0, 1), style: ds),
-            TextSpan(text: c.substring(1), style: textStyle),
+            ..._quoteAwareSpans(c, 1, c.length, textStyle),
           ],
         ),
+        key: _textKey,
         textAlign: widget.textAlignment.flutterTextAlign,
         contextMenuBuilder: _contextMenuBuilder(c),
       );
     }
 
-    return SelectableText(
-      c,
-      style: textStyle,
+    return SelectableText.rich(
+      TextSpan(children: _quoteAwareSpans(c, 0, c.length, textStyle)),
+      key: _textKey,
       textAlign: widget.textAlignment.flutterTextAlign,
       contextMenuBuilder: _contextMenuBuilder(c),
+    );
+  }
+
+  /// Returns [content]'s `[start, end)` range as TextSpans, italicizing any
+  /// portion that falls inside a quoted span. [extraStyle] (if given) is
+  /// merged on top of each resulting span's style — used to layer the
+  /// narration highlight's background on top of quote-italic styling
+  /// rather than one silently overriding the other.
+  List<TextSpan> _quoteAwareSpans(
+    String content,
+    int start,
+    int end,
+    TextStyle style, {
+    TextStyle? extraStyle,
+  }) {
+    if (start >= end) return const [];
+    final spans = <TextSpan>[];
+    final quoteStyle = style.copyWith(fontStyle: FontStyle.italic);
+    var cursor = start;
+    for (final range in _quoteRanges(content)) {
+      if (range.$2 <= start || range.$1 >= end) continue;
+      final segStart = range.$1.clamp(start, end);
+      final segEnd = range.$2.clamp(start, end);
+      if (segStart > cursor) {
+        spans.add(TextSpan(
+          text: content.substring(cursor, segStart),
+          style: extraStyle != null ? style.merge(extraStyle) : style,
+        ));
+      }
+      spans.add(TextSpan(
+        text: content.substring(segStart, segEnd),
+        style: extraStyle != null ? quoteStyle.merge(extraStyle) : quoteStyle,
+      ));
+      cursor = segEnd;
+    }
+    if (cursor < end) {
+      spans.add(TextSpan(
+        text: content.substring(cursor, end),
+        style: extraStyle != null ? style.merge(extraStyle) : style,
+      ));
+    }
+    return spans;
+  }
+
+  /// Quoted-text ranges (start, end) within [content], cached since this is
+  /// recomputed on every rebuild while narrating (once per sentence).
+  List<(int, int)> _quoteRanges(String content) {
+    if (_cachedQuoteRangesFor == content && _cachedQuoteRanges != null) {
+      return _cachedQuoteRanges!;
+    }
+    final ranges = [
+      for (final m in _quotePattern.allMatches(content)) (m.start, m.end),
+    ];
+    _cachedQuoteRangesFor = content;
+    _cachedQuoteRanges = ranges;
+    return ranges;
+  }
+
+  /// Renders the whole chapter as a [TextSpan], tinting the currently
+  /// narrated sentence's substring (fading the tint in via
+  /// [_highlightController] rather than snapping it on) and italicizing any
+  /// quoted text throughout. Falls back to plain rendering when the
+  /// sentence can't be located (e.g. it crosses a paragraph break).
+  Widget _narrationHighlighted(String content, TextStyle textStyle) {
+    final item = widget.activeSpeechItem;
+    final idx = _activeTextOffset() ?? -1;
+    if (item == null || idx < 0) {
+      return SelectableText.rich(
+        TextSpan(children: _quoteAwareSpans(content, 0, content.length, textStyle)),
+        key: _textKey,
+        textAlign: widget.textAlignment.flutterTextAlign,
+        contextMenuBuilder: _contextMenuBuilder(content),
+      );
+    }
+    final highlightEnd = idx + item.text.length;
+    return AnimatedBuilder(
+      animation: _highlightController,
+      builder: (context, _) {
+        final highlightStyle = TextStyle(
+          backgroundColor: widget.theme.accent.withValues(
+            alpha: 0.25 * _highlightController.value,
+          ),
+        );
+        return SelectableText.rich(
+          TextSpan(
+            children: [
+              ..._quoteAwareSpans(content, 0, idx, textStyle),
+              ..._quoteAwareSpans(
+                content,
+                idx,
+                highlightEnd,
+                textStyle,
+                extraStyle: highlightStyle,
+              ),
+              ..._quoteAwareSpans(content, highlightEnd, content.length, textStyle),
+            ],
+          ),
+          key: _textKey,
+          textAlign: widget.textAlignment.flutterTextAlign,
+          contextMenuBuilder: _contextMenuBuilder(content),
+        );
+      },
     );
   }
 

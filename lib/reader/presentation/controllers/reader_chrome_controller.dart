@@ -19,6 +19,10 @@ mixin ReaderChromeController<T extends StatefulWidget> on State<T> {
   bool rightPanelVisible = false;
   bool commandPaletteVisible = false;
 
+  /// When true, the right side panel shows the Now Playing narration UI
+  /// (desktop) instead of the reader chapters/bookmarks/settings panel.
+  bool narrationPanelVisible = false;
+
   Timer? _chromeTimer;
   double? _brightnessDragStartY;
   double? _brightnessDragStartValue;
@@ -75,14 +79,49 @@ mixin ReaderChromeController<T extends StatefulWidget> on State<T> {
     });
   }
 
-  void toggleRightPanel() => setState(() => rightPanelVisible = !rightPanelVisible);
+  void toggleRightPanel() => setState(() {
+      rightPanelVisible = !rightPanelVisible;
+      if (rightPanelVisible) narrationPanelVisible = false;
+    });
 
+  /// Shows the Now Playing UI in the right side panel (desktop), replacing
+  /// any reader panel already open.
+  void openNarrationPanel() => setState(() {
+        narrationPanelVisible = true;
+        rightPanelVisible = false;
+      });
+
+  /// Toggles the Now Playing panel, mirroring how Listen behaves on mobile
+  /// (tapping again closes it).
+  void toggleNarrationPanel() {
+    if (narrationPanelVisible) {
+      setState(() => narrationPanelVisible = false);
+    } else {
+      openNarrationPanel();
+    }
+  }
+
+  void closeNarrationPanel() {
+    if (narrationPanelVisible) {
+      setState(() => narrationPanelVisible = false);
+    }
+  }
+
+  /// Closes whichever side panel is open (reader or Now Playing). Used by
+  /// click-outside-to-dismiss on desktop and the Escape key.
   void hideRightPanel() {
-    if (rightPanelVisible) setState(() => rightPanelVisible = false);
+    if (rightPanelVisible || narrationPanelVisible) {
+      setState(() {
+        rightPanelVisible = false;
+        narrationPanelVisible = false;
+      });
+    }
   }
 
   void showRightPanelOnHover() {
-    if (!rightPanelVisible) setState(() => rightPanelVisible = true);
+    if (!rightPanelVisible && !narrationPanelVisible) {
+      setState(() => rightPanelVisible = true);
+    }
   }
 
   void onEdgeBrightnessStart(

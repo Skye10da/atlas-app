@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
@@ -20,6 +21,8 @@ class ChapterContentLoader extends ConsumerWidget {
     this.marginPreset = MarginPreset.normal,
     this.scrollable = true,
     this.chapterStyle,
+    this.onNarrationOutOfSyncChanged,
+    this.onRegisterNarrationReveal,
   });
 
   final ChapterEntity chapter;
@@ -33,10 +36,24 @@ class ChapterContentLoader extends ConsumerWidget {
   final bool scrollable;
   final ChapterStyle? chapterStyle;
 
+  /// Whether this chapter is narrating but its highlighted sentence has
+  /// scrolled out of view. See [ChapterView.onNarrationOutOfSyncChanged].
+  final ValueChanged<bool>? onNarrationOutOfSyncChanged;
+
+  /// Opt-in handle to scroll this chapter's narration into view; see
+  /// [ChapterView.onRegisterNarrationReveal].
+  final void Function(void Function() reveal)? onRegisterNarrationReveal;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final contentAsync =
         ref.watch(readerChapterContentProvider(chapter));
+
+    final activeItem = ref.watch(activeSpeechItemProvider);
+    final activeForThisChapter =
+        activeItem != null && activeItem.chapterId == chapter.id
+        ? activeItem
+        : null;
 
     return contentAsync.when(
       loading: () => Stack(
@@ -77,6 +94,9 @@ class ChapterContentLoader extends ConsumerWidget {
             scrollable: scrollable,
             dropCapStyle: chapterStyle?.dropCapStyle,
             chapterTitle: chapter.title,
+            activeSpeechItem: activeForThisChapter,
+            onNarrationOutOfSyncChanged: onNarrationOutOfSyncChanged,
+            onRegisterNarrationReveal: onRegisterNarrationReveal,
           ),
         );
       },

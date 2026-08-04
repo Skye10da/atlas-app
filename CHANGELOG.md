@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.3] - 2026-08-04
+
+### Added
+- **Narration / Text-to-Speech (Listen-to-read)** with an Apple Music–style Now Playing experience:
+  - `SpeechEngine` with session building, sentence splitting, word-boundary tracking, a narratable sentence queue, and a playback controller; powered by a `flutter_tts` driver with installed-voice discovery and a persistent voice cache.
+  - Speech persistence & recovery: `RecoveryStore` (resume position across restarts) and `SharedPrefsRecoveryStore`.
+  - Now Playing UI (shared `NowPlayingSheet`): cover art, karaoke-style lyrics, queue progress, and transport controls — shown as a draggable sheet on mobile and in the desktop right side panel (`NowPlayingPanel`, replacing the reader panel).
+  - Persistent narration mini player that stays visible while scrolling during playback, plus an inline speed control (0.5×–2×) shared across every surface.
+  - Live karaoke highlight: the current spoken word is highlighted in the chapter text as narration progresses (`activeWordBoundaryProvider`).
+  - Narration settings (voice, rate, pitch) moved into the Now Playing sheet behind a discreet toggle.
+  - Background audio support: Android `audio_service` foreground service + `MediaButtonReceiver` and iOS `UIBackgroundModes: audio`.
+- Reader bottom navigation redesigned: battery pinned to the bottom-right as a compact pill, the **Listen** button now occupies the battery’s former slot, and the progress bar + battery share a single bottom line.
+- New dependencies: `flutter_tts` and `audio_service`.
+
+### Changed
+- Narratable content is threaded with book title/cover through the bottom nav, Now Playing, and mini player; speech settings apply live while the engine is running.
+- Desktop right side panel now toggles between the reader panels and the Now Playing narration panel (click-outside / Escape dismisses whichever is open).
+- Draggable bottom sheet drag handling corrected to apply each frame’s delta against current height instead of a fixed drag-start height (previously discarded most movement).
+- `main.dart` bootstrap now also boots the Speech subsystem (audio_service, voice cache, driver validation).
+
+### Fixed
+- Now Playing UI layout overflows on short desktop windows (fill-then-scroll cover sizing).
+- Deactivated-widget crash in the chapter view by creating the highlight controller eagerly in `initState`.
+- Narration voice picker assertion when the persisted voice is not among installed voices; narrow-panel overflow in the settings tab.
 
 ### Added
 - **Content Acquisition Engine (Phase 1/2)** — unified download and import pipeline:

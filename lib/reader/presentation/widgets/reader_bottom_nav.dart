@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
+import 'package:atlas_app/reader/presentation/widgets/now_playing_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_progress_bar.dart';
 
 class ReaderBottomNav extends ConsumerWidget {
   const ReaderBottomNav({
@@ -18,6 +21,11 @@ class ReaderBottomNav extends ConsumerWidget {
     this.totalChapters,
     this.autoScrollActive = false,
     this.onAutoScrollToggle,
+    this.bookTitle,
+    this.coverPath,
+    this.progress,
+    this.progressColor,
+    this.onListenTap,
   });
 
   final Color textColor;
@@ -30,6 +38,32 @@ class ReaderBottomNav extends ConsumerWidget {
   final int? totalChapters;
   final bool autoScrollActive;
   final VoidCallback? onAutoScrollToggle;
+  final String? bookTitle;
+  final String? coverPath;
+
+  /// Normalized reading progress (0..1). Passed as a listenable so the bar
+  /// tracks scrolling without rebuilding the whole nav.
+  final ValueListenable<double>? progress;
+  final Color? progressColor;
+
+  /// Overrides the Listen button action (e.g. desktop opens the narration
+  /// panel instead of the bottom sheet). Falls back to [NowPlayingSheet.show].
+  final VoidCallback? onListenTap;
+
+  void _openNowPlaying(BuildContext context) {
+    HapticFeedback.selectionClick();
+    final custom = onListenTap;
+    if (custom != null) {
+      custom();
+      return;
+    }
+    NowPlayingSheet.show(
+      context,
+      chapterTitle: currentChapterTitle,
+      bookTitle: bookTitle,
+      coverPath: coverPath,
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,47 +78,101 @@ class ReaderBottomNav extends ConsumerWidget {
       color: Colors.transparent,
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavIconButton(
-                icon: Icons.settings,
-                label: 'Settings',
-                textColor: textColor,
-                onTap: onSettingsTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _NavIconButton(
+                    icon: Icons.settings,
+                    label: 'Settings',
+                    textColor: textColor,
+                    onTap: onSettingsTap,
+                  ),
+                  _NavIconButton(
+                    icon: Icons.list,
+                    label: currentChapterNumber != null
+                        ? '${currentChapterNumber! + 1}/${totalChapters ?? 0}'
+                        : 'Chapters',
+                    textColor: textColor,
+                    onTap: onChapterIndexTap,
+                  ),
+                  _NavIconButton(
+                    icon: isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                    label: isBookmarked ? 'Bookmarked' : 'Bookmark',
+                    textColor: textColor,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onBookmarkTap();
+                    },
+                  ),
+                  if (onAutoScrollToggle != null)
+                    _NavIconButton(
+                      icon: autoScrollActive
+                          ? Icons.pause_circle_filled
+                          : Icons.play_circle_outline,
+                      label: autoScrollActive ? 'Pause' : 'Auto-scroll',
+                      textColor: textColor,
+                      onTap: onAutoScrollToggle!,
+                    ),
+                  _NavIconButton(
+                    icon: Icons.headphones,
+                    label: 'Listen',
+                    textColor: textColor,
+                    onTap: () => _openNowPlaying(context),
+                  ),
+                ],
               ),
-              _NavIconButton(
-                icon: Icons.list,
-                label: currentChapterNumber != null
-                    ? '${currentChapterNumber! + 1}/${totalChapters ?? 0}'
-                    : 'Chapters',
-                textColor: textColor,
-                onTap: onChapterIndexTap,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.sm,
+                right: AppSpacing.sm,
+                bottom: 2,
+                top: 4,
               ),
-              _NavIconButton(
-                icon: isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                label: isBookmarked ? 'Bookmarked' : 'Bookmark',
-                textColor: textColor,
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onBookmarkTap();
-                },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _ProgressTrack(
+                      progress: progress,
+                      color: progressColor ?? textColor,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  _BatteryIndicator(
+                    level: batteryLevel,
+                    charging: charging,
+                    textColor: textColor,
+                  ),
+                ],
               ),
-              if (onAutoScrollToggle != null)
-                _NavIconButton(
-                  icon: autoScrollActive
-                      ? Icons.pause_circle_filled
-                      : Icons.play_circle_outline,
-                  label: autoScrollActive ? 'Pause' : 'Auto-scroll',
-                  textColor: textColor,
-                  onTap: onAutoScrollToggle!,
-                ),
-              _BatteryIndicator(level: batteryLevel, charging: charging, textColor: textColor),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProgressTrack extends StatelessWidget {
+  const _ProgressTrack({required this.progress, required this.color});
+
+  final ValueListenable<double>? progress;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final listenable = progress;
+    if (listenable == null) return const SizedBox.shrink();
+    return ValueListenableBuilder<double>(
+      valueListenable: listenable,
+      builder: (context, value, _) => ReaderProgressBar(
+        progress: value,
+        color: color,
       ),
     );
   }
@@ -159,18 +247,23 @@ class _BatteryIndicator extends StatelessWidget {
 
     final label = pct != null ? '$pct%' : 'Battery';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Column(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: textColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+      ),
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20, color: textColor),
-          const SizedBox(height: 2),
+          Icon(icon, size: 14, color: textColor.withValues(alpha: 0.9)),
+          const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
-              color: textColor.withValues(alpha: 0.8),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: textColor.withValues(alpha: 0.9),
             ),
           ),
         ],

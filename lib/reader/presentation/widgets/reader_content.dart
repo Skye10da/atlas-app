@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide WordBoundary;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,15 +9,21 @@ import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.da
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/services/platform_service.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
+import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/domain/repository_interfaces/reader_repository_interface.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/continuous_reader_layout.dart';
 import 'package:atlas_app/reader/presentation/widgets/paged_reader_layout.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/reader_settings_sheet.dart';
+import 'package:atlas_app/reader/speech/speech_events.dart';
+import 'package:atlas_app/reader/speech/speech_session_builder.dart';
+import 'package:atlas_app/reader/speech/speech_session.dart';
+import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 
 class ReaderContent extends ConsumerStatefulWidget {
@@ -38,6 +44,14 @@ class ReaderContent extends ConsumerStatefulWidget {
 
 class _ReaderContentState extends ConsumerState<ReaderContent> {
   ChapterEntity? _currentChapter;
+
+  /// Source of truth for which chapter is active — set directly by every
+  /// selection path (never re-derived via chapters.indexOf(_currentChapter),
+  /// which was doing an equality search that could resolve to the wrong
+  /// chapter whenever two ChapterEntitys compared equal, and fed that wrong
+  /// index into both the reader layouts' scroll/page position *and* their
+  /// app bar title — a single bad index explaining both symptoms at once).
+  int _currentChapterIndex = 0;
   List<ChapterEntity> _chapters = [];
   double _scrollProgress = 0.0;
   String? _initialChapterId;
@@ -49,10 +63,83 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   Timer? _saveDebounceTimer;
   PlatformService? _platformService;
 
+  String? _bookLanguage;
+  String? _bookTitle;
+  String? _bookCoverPath;
+  SpeechCheckpoint? _restoredCheckpoint;
+  StreamSubscription<SpeechEvent>? _speechSub;
+  final _sessionBuilder = const SpeechSessionBuilder();
+
   @override
   void initState() {
     super.initState();
+    _speechSub = ref
+        .read(speechEngineProvider)
+        .events
+        .listen(_onSpeechEvent);
     _loadChapters();
+  }
+
+  void _onSpeechEvent(SpeechEvent event) {
+    switch (event) {
+      case ChapterFinished(:final chapterId):
+        _advanceFromNarration(chapterId);
+      case SentenceStarted(:final item):
+        ref.read(activeWordBoundaryProvider.notifier).state = null;
+        if (item.bookId == widget.bookId) {
+          ref.read(activeSpeechItemProvider.notifier).state = item;
+        }
+      case WordBoundary(:final item, :final start, :final end, :final word):
+        ref.read(activeWordBoundaryProvider.notifier).state =
+            WordBoundary(item, start, end, word);
+      case SpeechStopped() || SpeechCompleted():
+        ref.read(activeSpeechItemProvider.notifier).state = null;
+        ref.read(activeWordBoundaryProvider.notifier).state = null;
+      default:
+        break;
+    }
+  }
+
+  void _advanceFromNarration(String finishedChapterId) {
+    if (!mounted) return;
+    final autoAdvance =
+        ref.read(narrationSettingsProvider).value?.autoAdvanceChapter ?? true;
+    if (!autoAdvance) return;
+    final idx = _chapters.indexWhere((c) => c.id == finishedChapterId);
+    if (idx < 0 || idx >= _chapters.length - 1) return;
+    final next = _chapters[idx + 1];
+    setState(() {
+      _currentChapter = next;
+      _currentChapterIndex = idx + 1;
+    });
+    _saveProgress(next);
+  }
+
+  /// (Re)builds and loads the SpeechSession for [chapter] once its content is
+  /// available, seeking to a restored checkpoint when applicable. Idempotent
+  /// per chapter.
+  Future<void> _syncSpeechSession(ChapterEntity chapter, String content) async {
+    final engine = ref.read(speechEngineProvider);
+    if (engine.session?.chapterId == chapter.id) return;
+
+    final settings =
+        ref.read(narrationSettingsProvider).value ??
+        const NarrationSettings();
+    final checkpoint = _restoredCheckpoint;
+    final restoreHere =
+        checkpoint != null &&
+        checkpoint.bookId == widget.bookId &&
+        checkpoint.chapterId == chapter.id;
+
+    final session = _sessionBuilder.build(
+      bookId: widget.bookId,
+      chapter: chapter,
+      content: content,
+      language: _bookLanguage ?? 'en',
+      settings: settings,
+      sentenceIndex: restoreHere ? checkpoint.sentenceIndex : 0,
+    );
+    await engine.loadSession(session);
   }
 
   @override
@@ -97,13 +184,36 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
         return;
       }
       _chapters = loaded;
-      final byId = _initialChapterId != null
-          ? loaded.where((c) => c.id == _initialChapterId).toList()
-          : const <ChapterEntity>[];
-      _currentChapter ??= byId.isNotEmpty ? byId.first : loaded.first;
+      final initialIndex = _initialChapterId != null
+          ? loaded.indexWhere((c) => c.id == _initialChapterId)
+          : -1;
+      if (_currentChapter == null) {
+        _currentChapterIndex = initialIndex >= 0 ? initialIndex : 0;
+        _currentChapter = loaded[_currentChapterIndex];
+      }
       _initialChapterId = null;
     });
     await _loadBookmarks();
+    await _loadNarrationContext();
+  }
+
+  Future<void> _loadNarrationContext() async {
+    if (!mounted) return;
+    final bookResult = await widget.repo.getBookById(widget.bookId);
+    if (bookResult is Success<BookEntity>) {
+      _bookLanguage = bookResult.value.language;
+      _bookTitle = bookResult.value.title;
+      _bookCoverPath = bookResult.value.coverPath;
+    }
+    final checkpoint =
+        await ref.read(speechRecoveryStoreProvider).load(widget.bookId);
+    if (!mounted) return;
+    setState(() {
+      _restoredCheckpoint =
+          checkpoint != null && _chapters.any((c) => c.id == checkpoint.chapterId)
+          ? checkpoint
+          : null;
+    });
   }
 
   Future<void> _loadBookmarks() async {
@@ -166,6 +276,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
 
   @override
   void dispose() {
+    _speechSub?.cancel();
     _saveDebounceTimer?.cancel();
     if (_currentChapter != null) {
       _saveProgress(_currentChapter!);
@@ -195,6 +306,16 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     final chapters = _chapters;
     final settings = widget.settings;
 
+    final currentChapter = _currentChapter;
+    if (currentChapter != null) {
+      final content = ref.watch(readerChapterContentProvider(currentChapter)).valueOrNull;
+      if (content != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _syncSpeechSession(currentChapter, content);
+        });
+      }
+    }
+
     final isBookmarked = _currentChapter != null &&
         _bookmarkedChapterIds.contains(_currentChapter!.id);
 
@@ -205,9 +326,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       return ContinuousReaderLayout(
         chapters: chapters,
         settings: settings,
-        currentChapterIndex: _currentChapter != null
-            ? chapters.indexOf(_currentChapter!)
-            : 0,
+        currentChapterIndex: _currentChapterIndex,
         bookmarkedChapterIds: _bookmarkedChapterIds,
         initialScrollProgress: savedProgress,
         onScrollProgress: _onContinuousScrollProgress,
@@ -215,10 +334,15 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
         onScrollDirectionChanged: _onScrollDirectionChanged,
         onSettingsTap: _showSettingsDrawer,
         onChapterSelected: (idx) {
-          setState(() => _currentChapter = _chapters[idx]);
+          setState(() {
+            _currentChapter = _chapters[idx];
+            _currentChapterIndex = idx;
+          });
         },
         isBookmarked: isBookmarked,
         onBookmarkToggle: _toggleBookmark,
+        bookTitle: _bookTitle,
+        coverPath: _bookCoverPath,
       );
     }
 
@@ -234,6 +358,8 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       onSettingsTap: _showSettingsDrawer,
       isBookmarked: isBookmarked,
       onBookmarkToggle: _toggleBookmark,
+      bookTitle: _bookTitle,
+      coverPath: _bookCoverPath,
     );
   }
 

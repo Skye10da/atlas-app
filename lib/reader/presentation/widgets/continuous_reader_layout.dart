@@ -20,7 +20,9 @@ import 'package:atlas_app/reader/presentation/widgets/reader_bottom_nav.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_chrome_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_command_palette.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_edge_regions.dart';
-import 'package:atlas_app/reader/presentation/widgets/reader_progress_bar.dart';
+import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
+import 'package:atlas_app/reader/presentation/widgets/now_playing_panel.dart';
+import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_right_panel.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
@@ -40,6 +42,8 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
     required this.onChapterSelected,
     required this.isBookmarked,
     required this.onBookmarkToggle,
+    this.bookTitle,
+    this.coverPath,
   });
 
   final List<ChapterEntity> chapters;
@@ -54,6 +58,8 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
   final void Function(int) onChapterSelected;
   final bool isBookmarked;
   final VoidCallback onBookmarkToggle;
+  final String? bookTitle;
+  final String? coverPath;
 
   @override
   ConsumerState<ContinuousReaderLayout> createState() =>
@@ -75,6 +81,9 @@ class _ContinuousReaderLayoutState
   bool _jumpInFlight = false;
   bool _applyingGate = false;
   int _lastReportedChapterIndex = 0;
+  bool _narrationOutOfSync = false;
+  final Map<int, void Function()> _narrationReveals = {};
+  final ValueNotifier<double> _progress = ValueNotifier<double>(0.0);
 
   void _initChapterKeys() {
     _chapterKeys
@@ -125,6 +134,7 @@ class _ContinuousReaderLayoutState
     _autoScrollTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _progress.dispose();
     disposeReaderChrome();
     super.dispose();
   }
@@ -423,6 +433,7 @@ class _ContinuousReaderLayoutState
     final progress = pos.maxScrollExtent > 0
         ? pos.pixels / pos.maxScrollExtent
         : 0.0;
+    _progress.value = progress.clamp(0.0, 1.0);
     widget.onScrollProgress(progress);
 
     // Only report the current chapter once blocks are laid out — during a
@@ -561,6 +572,48 @@ class _ContinuousReaderLayoutState
     return Transform.translate(offset: Offset(0, offset), child: header);
   }
 
+  /// Finds the index of the chapter currently being narrated, if any.
+  int? get _narratingChapterIndex {
+    final item = ref.read(activeSpeechItemProvider);
+    if (item == null) return null;
+    for (var i = 0; i < widget.chapters.length; i++) {
+      if (widget.chapters[i].id == item.chapterId) return i;
+    }
+    return null;
+  }
+
+  /// Scrolls the reader back to the currently narrated sentence. The reveal
+  /// handle is registered by the narrating chapter's [ChapterView]; if that
+  /// chapter's block has been disposed (scrolled out of the list cache) the
+  /// stored handle is dead, so we first jump to the chapter and re-acquire a
+  /// live handle once its view has been rebuilt.
+  void _revealNarration() {
+    final index = _narratingChapterIndex;
+    if (index == null || !_scrollController.hasClients) return;
+    final handle = _narrationReveals[index];
+    if (handle != null && _chapterKeys[index].currentContext != null) {
+      handle();
+      return;
+    }
+    _scrollToChapter(index);
+    _acquireNarrationReveal(index, attempts: 20);
+  }
+
+  /// Polls across frames for the narrating chapter's view to rebuild and
+  /// register its reveal handle, then scrolls to the sentence.
+  void _acquireNarrationReveal(int index, {required int attempts}) {
+    if (attempts <= 0) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final handle = _narrationReveals[index];
+      if (handle != null && _chapterKeys[index].currentContext != null) {
+        handle();
+        return;
+      }
+      _acquireNarrationReveal(index, attempts: attempts - 1);
+    });
+  }
+
   Widget _buildChapterBlock(
     ChapterEntity chapter,
     int index, {
@@ -595,6 +648,14 @@ class _ContinuousReaderLayoutState
           marginPreset: widget.settings.marginPreset,
           scrollable: false,
           chapterStyle: cs,
+          onNarrationOutOfSyncChanged: (outOfSync) {
+            if (mounted && _narrationOutOfSync != outOfSync) {
+              setState(() => _narrationOutOfSync = outOfSync);
+            }
+          },
+          onRegisterNarrationReveal: (reveal) {
+            _narrationReveals[index] = reveal;
+          },
         ),
         if (showHeaders)
           ChapterOrnamentalDivider(
@@ -642,7 +703,7 @@ class _ContinuousReaderLayoutState
             onKeyEvent: (node, event) {
               if (event is KeyDownEvent &&
                   event.logicalKey == LogicalKeyboardKey.escape) {
-                if (rightPanelVisible) {
+                if (rightPanelVisible || narrationPanelVisible) {
                   hideRightPanel();
                   return KeyEventResult.handled;
                 }
@@ -651,8 +712,9 @@ class _ContinuousReaderLayoutState
             },
             child: GestureDetector(
               onTap: () {
-                if (rightPanelVisible) {
+                if (rightPanelVisible || narrationPanelVisible) {
                   hideRightPanel();
+                  return;
                 }
                 toggleChrome(isDarkTheme: widget.settings.theme.isDark);
               },
@@ -670,21 +732,6 @@ class _ContinuousReaderLayoutState
               ),
             ),
           ),
-          if (!isDesktop && (chromeVisible || _autoScrollActive))
-            Positioned(
-              top: chromeVisible ? MediaQuery.of(context).padding.top : 0,
-              left: 0,
-              right: 0,
-              child: ReaderProgressBar(
-                progress:
-                    _scrollController.hasClients &&
-                        _scrollController.position.maxScrollExtent > 0
-                    ? _scrollController.offset /
-                          _scrollController.position.maxScrollExtent
-                    : 0.0,
-                color: widget.settings.theme.accent,
-              ),
-            ),
           if (!isDesktop)
             BrightnessEdgeGestureRegion(
               onVerticalDragStart: (details) => onEdgeBrightnessStart(
@@ -712,27 +759,44 @@ class _ContinuousReaderLayoutState
                 ),
               ),
             ),
+          if (_narrationOutOfSync && _narratingChapterIndex != null)
+            Positioned(
+              right: 16,
+              bottom: isDesktop ? 24 : 88,
+              child: _NarrationSyncButton(
+                accent: widget.settings.theme.accent,
+                onPressed: _revealNarration,
+              ),
+            ),
           if (isDesktop)
             DesktopRightPanelRegion(
-              visible: rightPanelVisible,
+              visible: rightPanelVisible || narrationPanelVisible,
               chromeVisible: chromeVisible,
               panelWidth: ReaderChromeController.rightPanelWidth,
               onHoverReveal: showRightPanelOnHover,
-              panel: ReaderRightPanel(
-                chapters: chapters,
-                currentChapterIndex: index,
-                bookmarkedChapterIds: widget.bookmarkedChapterIds,
-                onChapterSelected: (idx) {
-                  widget.onChapterSelected(idx);
-                  WidgetsBinding.instance.addPostFrameCallback(
-                    (_) => _scrollToChapter(idx),
-                  );
-                },
-                onBookmarkToggle: widget.onBookmarkToggle,
-                isBookmarked: widget.isBookmarked,
-                onClose: hideRightPanel,
-                settings: widget.settings,
-              ),
+              panel: narrationPanelVisible
+                  ? NowPlayingPanel(
+                      bookTitle: widget.bookTitle,
+                      coverPath: widget.coverPath,
+                      chapterTitle: chapters[index].title,
+                      accent: widget.settings.theme.accent,
+                      onClose: closeNarrationPanel,
+                    )
+                  : ReaderRightPanel(
+                      chapters: chapters,
+                      currentChapterIndex: index,
+                      bookmarkedChapterIds: widget.bookmarkedChapterIds,
+                      onChapterSelected: (idx) {
+                        widget.onChapterSelected(idx);
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _scrollToChapter(idx),
+                        );
+                      },
+                      onBookmarkToggle: widget.onBookmarkToggle,
+                      isBookmarked: widget.isBookmarked,
+                      onClose: hideRightPanel,
+                      settings: widget.settings,
+                    ),
             ),
           if (commandPaletteVisible)
             ReaderCommandPalette(
@@ -749,6 +813,18 @@ class _ContinuousReaderLayoutState
               onToggleSettings: widget.onSettingsTap,
               onTogglePanel: toggleRightPanel,
               onClose: () => setState(() => commandPaletteVisible = false),
+            ),
+          if (!narrationPanelVisible)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: NarrationMiniPlayer(
+                bookTitle: widget.bookTitle,
+                coverPath: widget.coverPath,
+                chapterTitle: chapters[index].title,
+                accent: widget.settings.theme.accent,
+              ),
             ),
         ],
       ),
@@ -767,6 +843,11 @@ class _ContinuousReaderLayoutState
                 totalChapters: chapters.length,
                 autoScrollActive: _autoScrollActive,
                 onAutoScrollToggle: _toggleAutoScroll,
+                bookTitle: widget.bookTitle,
+                coverPath: widget.coverPath,
+                progress: _progress,
+                progressColor: widget.settings.theme.accent,
+                onListenTap: isDesktop ? toggleNarrationPanel : null,
               ),
             )
           : null,
@@ -848,6 +929,53 @@ class _AutoScrollControl extends StatelessWidget {
               onPressed: onStop,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A small floating pill shown while narration is active but the highlighted
+/// sentence has scrolled out of view. Tapping it scrolls the reader back to
+/// the current narration position.
+class _NarrationSyncButton extends StatelessWidget {
+  const _NarrationSyncButton({
+    required this.accent,
+    required this.onPressed,
+  });
+
+  final Color accent;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = ThemeData.estimateBrightnessForColor(scheme.surface) ==
+        Brightness.dark;
+    return Material(
+      color: scheme.surface,
+      elevation: 6,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.volume_up_rounded, size: 18, color: accent),
+              const SizedBox(width: 8),
+              Text(
+                'Jump to narration',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

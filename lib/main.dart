@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/router/app_router.dart';
 import 'package:atlas_app/core/theme/app_theme.dart';
+import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 
@@ -34,10 +35,12 @@ class AtlasApp extends ConsumerWidget {
     );
   }
 
-  /// One-time background startup: kicks off plugin discovery and starts the
-  /// maintenance scheduler. Safe to call repeatedly; both are idempotent.
+  /// One-time background startup: kicks off plugin discovery, starts the
+  /// maintenance scheduler, and boots the Speech subsystem (audio_service,
+  /// voice cache, driver validation). Safe to call repeatedly; all idempotent.
   void _bootstrap(WidgetRef ref) {
     ref.read(pluginSourcesProvider);
     ref.read(taskSchedulerProvider).start();
+    ref.read(speechStartupProvider);
   }
 }

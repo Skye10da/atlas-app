@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,7 +40,9 @@ final readerChapterContentProvider =
     FutureProvider.family<String, ChapterEntity>((ref, chapter) async {
   final repo = ref.watch(readerRepositoryProvider);
   void publish(ChapterLoadPhase phase) =>
-      ref.read(chapterLoadPhaseProvider(chapter).notifier).state = phase;
+      scheduleMicrotask(() {
+        ref.read(chapterLoadPhaseProvider(chapter).notifier).state = phase;
+      });
 
   publish(ChapterLoadPhase.gettingText);
 
