@@ -6,7 +6,9 @@ import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/epub_import_service.dart';
+import 'package:atlas_app/core/import/pdf_import_service.dart';
 import 'package:atlas_app/core/seed/seed_data.dart';
+import 'package:atlas_app/library/application/atlas_source_import_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/domain/entities/bookshelf_layout.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
@@ -41,9 +43,12 @@ final libraryRepositoryProvider = Provider((ref) {
   return DriftLibraryRepository(db);
 });
 
-final libraryBooksProvider = FutureProvider<Result<List<BookEntity>>>((ref) {
+/// Reactive shelf source: re-emits whenever a book or its reading-progress row
+/// changes, so the library reflects new imports, deletes and reader progress
+/// immediately without opening/closing dialogs or manual invalidation.
+final libraryBooksProvider = StreamProvider<Result<List<BookEntity>>>((ref) {
   final repo = ref.watch(libraryRepositoryProvider);
-  return repo.getBooks();
+  return repo.watchBooks();
 });
 
 final filteredLibraryProvider = Provider<List<BookEntity>>((ref) {
@@ -113,6 +118,15 @@ final libraryImportServiceProvider = Provider((ref) {
   return EpubImportService(db);
 });
 
+final pdfImportServiceProvider = Provider((ref) {
+  final db = ref.watch(databaseProvider);
+  return PdfImportService(db);
+});
+
+final atlasSourceImportServiceProvider = Provider((ref) {
+  return const AtlasSourceImportService();
+});
+
 final libraryImportProvider = Provider((ref) {
   return _LibraryImportActions(ref);
 });
@@ -133,13 +147,76 @@ class _LibraryImportActions {
     _ref.read(_libraryImportingProvider.notifier).state = ImportProgress(stage: stage, message: message);
   }
 
-  Future<Result<void>> import() async {
+  Future<Result<String?>> import() async {
     _setStage(ImportStage.processing, 'Importing EPUB...');
     try {
       final service = _ref.read(libraryImportServiceProvider);
       final result = await service.pickAndImport();
       if (result is Success) _setStage(ImportStage.done, 'Done');
       return result;
+    } finally {
+      if (_ref.read(_libraryImportingProvider).stage != ImportStage.done) {
+        _setStage(ImportStage.idle);
+      }
+    }
+  }
+
+  Future<Result<String?>> importPdf() async {
+    _setStage(ImportStage.processing, 'Importing PDF...');
+    try {
+      final service = _ref.read(pdfImportServiceProvider);
+      final result = await service.pickAndImport();
+      if (result is Success) _setStage(ImportStage.done, 'Done');
+      return result;
+    } finally {
+      if (_ref.read(_libraryImportingProvider).stage != ImportStage.done) {
+        _setStage(ImportStage.idle);
+      }
+    }
+  }
+
+  /// Picks a `.atlas` source-link package and re-imports the linked novel
+  /// through its original source, mirroring the URL-import progress dialog.
+  Future<Result<ImportOutcome>> importAtlas(BuildContext context) async {
+    _setStage(ImportStage.processing, 'Importing Atlas package...');
+    try {
+      final service = _ref.read(atlasSourceImportServiceProvider);
+      final pickResult = await service.pickSourceUrl();
+      if (pickResult is Failure<String?>) {
+        return Failure<ImportOutcome>(pickResult.error);
+      }
+      final sourceUrl = (pickResult as Success<String?>).value;
+      if (sourceUrl == null) return const Failure(CancelledException());
+
+      final engine = _ref.read(contentAcquisitionEngineProvider);
+      final progress = ValueNotifier<double>(0);
+      final importFuture = engine.importAndSave(
+        sourceUrl,
+        onProgress: (p) => progress.value = p,
+      );
+
+      if (!context.mounted) {
+        try { await importFuture; } catch (_) {}
+        return const Failure(CancelledException());
+      }
+
+      final succeeded = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ImportProgressDialog(
+          future: importFuture,
+          progress: progress,
+        ),
+      );
+
+      if (succeeded != true) {
+        try { await importFuture; } catch (_) {}
+        return const Failure(CancelledException());
+      }
+
+      final outcome = await importFuture;
+      _setStage(ImportStage.done, 'Done');
+      return Success(outcome);
     } finally {
       if (_ref.read(_libraryImportingProvider).stage != ImportStage.done) {
         _setStage(ImportStage.idle);

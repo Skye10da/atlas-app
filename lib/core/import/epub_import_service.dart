@@ -1,10 +1,13 @@
-﻿import 'dart:io';
+﻿import 'dart:convert';
+import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
 import 'package:epub_plus/epub_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:xml/xml.dart' as xml;
 
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -14,7 +17,9 @@ class EpubImportService {
 
   final AppDatabase _db;
 
-  Future<Result<void>> pickAndImport() async {
+  /// Prompts the user to pick an EPUB and imports it. Returns the imported
+  /// book id, or `null` when the picker was cancelled (a success result).
+  Future<Result<String?>> pickAndImport() async {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -38,13 +43,25 @@ class EpubImportService {
     }
   }
 
-  Future<Result<void>> _importFromBytes(List<int> bytes, String fileName) async {
+  /// Imports an EPUB from raw bytes. Public entry point so the pipeline can be
+  /// exercised without the file picker. Resolves to the imported book id.
+  Future<Result<String>> importBytes(List<int> bytes, String fileName) {
+    return _importFromBytes(bytes, fileName);
+  }
+
+  Future<Result<String>> _importFromBytes(List<int> bytes, String fileName) async {
     try {
-      final book = await EpubReader.readBook(bytes);
+      final book = await _readBookResilient(bytes);
 
       final title = book.title ?? fileName.replaceAll('.epub', '');
       final author = book.author ?? 'Unknown Author';
       final bookId = _normalizeId(title);
+
+      final meta = book.schema?.package?.metadata;
+      final description = meta?.description;
+      final language = meta?.languages.isNotEmpty == true ? meta!.languages.first : null;
+      final tags = meta?.subjects.isNotEmpty == true ? meta!.subjects : null;
+      final sourceUrl = meta?.sources.isNotEmpty == true ? meta!.sources.first : null;
 
       final existing = await (_db.select(_db.books)..where((b) => b.id.equals(bookId))).get();
       if (existing.isNotEmpty) {
@@ -144,6 +161,10 @@ class EpubImportService {
         id: Value(bookId),
         title: Value(title),
         author: Value(author),
+        description: description != null ? Value(description) : const Value(null),
+        language: language != null ? Value(language) : const Value(null),
+        tags: tags != null ? Value(tags.join(',')) : const Value(null),
+        sourceUrl: sourceUrl != null ? Value(sourceUrl) : const Value(null),
         format: const Value('epub'),
         itemType: const Value('book'),
         filePath: Value(bookDir.path),
@@ -153,7 +174,7 @@ class EpubImportService {
         updatedAt: Value(DateTime.now()),
       ));
 
-      return const Success(null);
+      return Success(bookId);
     } on Exception catch (e) {
       return Failure(ValidationException('Failed to import epub: $e'));
     }
@@ -198,4 +219,181 @@ class EpubImportService {
   String _normalizeId(String title) {
     return title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
   }
+
+  /// Reads an EPUB, preferring the strict epub_plus parser. Some EPUB3 files
+  /// omit `properties="nav"` on their navigation item (including older Atlas
+  /// exports), which makes [EpubReader.readBook] throw "TOC item not found".
+  /// Those fall back to [EpubReader]-independent parsing driven by the spine.
+  Future<EpubBook> _readBookResilient(List<int> bytes) async {
+    try {
+      return await EpubReader.readBook(bytes);
+    } on Exception {
+      return _readBookFromSpine(bytes);
+    }
+  }
+
+  /// Parses an EPUB from its package document + spine order, ignoring the
+  /// navigation file entirely, so TOC-less or non-standard EPUB3 books import.
+  EpubBook _readBookFromSpine(List<int> bytes) {
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final containerEntry = _archiveFile(archive, 'META-INF/container.xml');
+    if (containerEntry == null) {
+      throw const FormatException('EPUB container.xml not found');
+    }
+    final containerDoc = xml.XmlDocument.parse(utf8.decode(containerEntry.content));
+    final rootFilePath = containerDoc
+        .findAllElements('rootfile')
+        .firstOrNull
+        ?.getAttribute('full-path');
+    if (rootFilePath == null || rootFilePath.isEmpty) {
+      throw const FormatException('EPUB rootfile not found');
+    }
+    final rootDir = rootFilePath.contains('/')
+        ? '${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}/'
+        : '';
+    final opfEntry = _archiveFile(archive, rootFilePath);
+    if (opfEntry == null) {
+      throw const FormatException('EPUB package document not found');
+    }
+    final opfDoc = xml.XmlDocument.parse(utf8.decode(opfEntry.content));
+
+    // Metadata elements are typically dc:-prefixed (dc:title, dc:creator), so
+    // match on local name (namespace: '*') rather than the qualified name that
+    // findAllElements defaults to.
+    final metaNode = opfDoc.findAllElements('metadata').firstOrNull;
+    final title = metaNode?.findAllElements('title', namespace: '*').firstOrNull?.innerText;
+    final author = metaNode?.findAllElements('creator', namespace: '*').firstOrNull?.innerText;
+    final description =
+        metaNode?.findAllElements('description', namespace: '*').firstOrNull?.innerText;
+    final language =
+        metaNode?.findAllElements('language', namespace: '*').firstOrNull?.innerText;
+    final subjects = metaNode
+        ?.findAllElements('subject', namespace: '*')
+        .map((e) => e.innerText)
+        .toList();
+    final source = metaNode?.findAllElements('source', namespace: '*').firstOrNull?.innerText;
+
+    final items = <String, _ManifestItem>{};
+    final manifestItems = <EpubManifestItem>[];
+    final html = <String, EpubTextContentFile>{};
+    final images = <String, EpubByteContentFile>{};
+
+    for (final item in opfDoc.findAllElements('item')) {
+      final id = item.getAttribute('id');
+      if (id == null) continue;
+      final href = item.getAttribute('href') ?? '';
+      final mediaType = item.getAttribute('media-type') ?? '';
+      items[id] = _ManifestItem(
+        href: href,
+        mediaType: mediaType,
+        properties: item.getAttribute('properties'),
+      );
+      manifestItems.add(
+        EpubManifestItem(
+          id: id,
+          href: href,
+          mediaType: mediaType,
+          properties: item.getAttribute('properties'),
+        ),
+      );
+      if (href.isEmpty) continue;
+      final entry = _archiveFile(archive, rootDir + href);
+      if (entry == null) continue;
+      if (mediaType.contains('xhtml')) {
+        html[href] = EpubTextContentFile(
+          fileName: href,
+          contentMimeType: mediaType,
+          content: utf8.decode(entry.content),
+        );
+      } else if (mediaType.startsWith('image/')) {
+        images[href] = EpubByteContentFile(
+          fileName: href,
+          contentMimeType: mediaType,
+          content: entry.content,
+        );
+      }
+    }
+
+    final spineOrder = <String>[];
+    for (final itemRef in opfDoc.findAllElements('itemref')) {
+      final idRef = itemRef.getAttribute('idref');
+      if (idRef != null) spineOrder.add(idRef);
+    }
+
+    final chapters = <EpubChapter>[];
+    for (final idRef in spineOrder) {
+      final item = items[idRef];
+      if (item == null || !item.mediaType.contains('xhtml')) continue;
+      final contentFile = html[item.href];
+      if (contentFile?.content == null) continue;
+      chapters.add(
+        EpubChapter(
+          title: _chapterTitleFromHtml(contentFile!.content!) ??
+              'Chapter ${chapters.length + 1}',
+          contentFileName: item.href,
+          htmlContent: contentFile.content,
+        ),
+      );
+    }
+
+    if (chapters.isEmpty) {
+      throw const FormatException('No readable chapters found in EPUB');
+    }
+
+    return EpubBook(
+      title: title ?? 'Untitled',
+      author: author ?? 'Unknown Author',
+      authors: author != null ? [author] : const [],
+      schema: EpubSchema(
+        contentDirectoryPath: rootDir.isEmpty ? null : rootDir.substring(0, rootDir.length - 1),
+        package: EpubPackage(
+          version: EpubVersion.epub3,
+          metadata: EpubMetadata(
+            titles: title != null ? [title] : const [],
+            creators: [
+              EpubMetadataCreator(creator: author ?? 'Unknown Author', role: 'aut'),
+            ],
+            description: description,
+            subjects: subjects ?? const [],
+            sources: source != null ? [source] : const [],
+            languages: language != null ? [language] : const [],
+          ),
+          manifest: EpubManifest(items: manifestItems),
+        ),
+      ),
+      content: EpubContent(
+        html: html,
+        images: images,
+        allFiles: {...html, ...images},
+      ),
+      chapters: chapters,
+    );
+  }
+
+  String? _chapterTitleFromHtml(String htmlContent) {
+    final match = RegExp(
+      r'<title[^>]*>(.*?)</title>',
+      dotAll: true,
+      caseSensitive: false,
+    ).firstMatch(htmlContent);
+    final raw = match?.group(1);
+    if (raw == null) return null;
+    final cleaned = _stripHtml(raw).trim();
+    return cleaned.isEmpty ? null : cleaned;
+  }
+
+  ArchiveFile? _archiveFile(Archive archive, String name) {
+    for (final file in archive.files) {
+      if (file.name == name) return file;
+    }
+    return null;
+  }
+}
+
+class _ManifestItem {
+  const _ManifestItem({required this.href, required this.mediaType, this.properties});
+
+  final String href;
+  final String mediaType;
+  final String? properties;
 }

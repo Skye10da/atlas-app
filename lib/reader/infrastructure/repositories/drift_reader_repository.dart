@@ -9,6 +9,7 @@ import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/domain/entities/reading_progress_snapshot.dart';
 import 'package:atlas_app/reader/domain/repository_interfaces/reader_repository_interface.dart';
 
 final class DriftReaderRepository implements ReaderRepositoryInterface {
@@ -130,6 +131,26 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to save progress', e), st);
+    }
+  }
+
+  @override
+  Future<Result<ReadingProgressSnapshot?>> getReadingProgress(
+      String bookId) async {
+    try {
+      final row = await (_db.select(_db.readingProgress)
+            ..where((p) => p.id.equals(bookId)))
+          .getSingleOrNull();
+      if (row == null) return const Success(null);
+      return Success(ReadingProgressSnapshot(
+        bookId: row.bookId,
+        chapterId: row.chapterId,
+        percentage: row.percentage,
+        position: row.position,
+        totalPositions: row.totalPositions,
+      ));
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to load reading progress', e), st);
     }
   }
 

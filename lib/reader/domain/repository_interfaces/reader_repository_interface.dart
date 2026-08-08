@@ -2,6 +2,7 @@ import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/domain/entities/reading_progress_snapshot.dart';
 
 abstract interface class ReaderRepositoryInterface {
   Future<Result<List<ChapterEntity>>> getChapters(String bookId);
@@ -14,6 +15,7 @@ abstract interface class ReaderRepositoryInterface {
     required int position,
     required int totalPositions,
   });
+  Future<Result<ReadingProgressSnapshot?>> getReadingProgress(String bookId);
   Future<Result<BookEntity>> getBookById(String id);
   Future<Result<void>> updateChapterContent(String bookId, int chapterIndex, String content);
 

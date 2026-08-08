@@ -9,11 +9,13 @@ class TextTab extends StatelessWidget {
     super.key,
     required this.fontSize,
     this.fontFamily,
+    this.fontWeight,
     required this.lineHeight,
     required this.letterSpacing,
     required this.textAlignment,
     required this.onFontSizeChanged,
     required this.onFontFamilyChanged,
+    required this.onFontWeightChanged,
     required this.onLineHeightChanged,
     required this.onLetterSpacingChanged,
     required this.onTextAlignmentChanged,
@@ -21,11 +23,14 @@ class TextTab extends StatelessWidget {
 
   final double fontSize;
   final String? fontFamily;
+  /// Numeric reader body-text weight; `null` keeps the family default.
+  final int? fontWeight;
   final double lineHeight;
   final double letterSpacing;
   final TextAlignment textAlignment;
   final ValueChanged<double> onFontSizeChanged;
   final ValueChanged<String?> onFontFamilyChanged;
+  final ValueChanged<int?> onFontWeightChanged;
   final ValueChanged<double> onLineHeightChanged;
   final ValueChanged<double> onLetterSpacingChanged;
   final ValueChanged<TextAlignment> onTextAlignmentChanged;
@@ -89,6 +94,32 @@ class TextTab extends StatelessWidget {
                 },
               );
             }),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('Font Weight', style: textTheme.labelLarge),
+          const SizedBox(height: AppSpacing.xs),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final w in const <int?>[null, 400, 500, 600, 700])
+                ChoiceChip(
+                  label: Text(
+                    switch (w) {
+                      null => 'Regular',
+                      500 => 'Medium',
+                      600 => 'SemiBold',
+                      700 => 'Bold',
+                      _ => '$w',
+                    },
+                  ),
+                  selected: fontWeight == w,
+                  onSelected: (_) {
+                    HapticFeedback.selectionClick();
+                    onFontWeightChanged(w);
+                  },
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Text('Line Height', style: textTheme.labelLarge),

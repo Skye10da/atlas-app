@@ -9,6 +9,7 @@ class ReadingSettingsEntity {
     this.brand = AppBrand.violet,
     this.fontSize = 18.0,
     this.fontFamily,
+    this.fontWeight,
     this.lineHeight = 1.8,
     this.letterSpacing = 0.0,
     this.keepScreenAwake = false,
@@ -29,6 +30,9 @@ class ReadingSettingsEntity {
   final AppBrand brand;
   final double fontSize;
   final String? fontFamily;
+  /// Numeric weight for the reader body text (e.g. 400, 500, 700). `null`
+  /// keeps the family's default Regular weight.
+  final int? fontWeight;
   final double lineHeight;
   final double letterSpacing;
   final bool keepScreenAwake;
@@ -49,6 +53,7 @@ class ReadingSettingsEntity {
     AppBrand? brand,
     double? fontSize,
     String? fontFamily,
+    int? fontWeight,
     double? lineHeight,
     double? letterSpacing,
     bool? keepScreenAwake,
@@ -69,6 +74,7 @@ class ReadingSettingsEntity {
       brand: brand ?? this.brand,
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
+      fontWeight: fontWeight ?? this.fontWeight,
       lineHeight: lineHeight ?? this.lineHeight,
       letterSpacing: letterSpacing ?? this.letterSpacing,
       keepScreenAwake: keepScreenAwake ?? this.keepScreenAwake,

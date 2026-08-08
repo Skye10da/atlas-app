@@ -16,7 +16,10 @@ namespace {
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
 
-constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+// App-specific class so a second launch can locate the running window and
+// forward "Open with Atlas" documents to it. Keep in sync with
+// kMainWindowClassName in main.cpp.
+constexpr const wchar_t kWindowClassName[] = L"AtlasMainWindow";
 
 /// Registry key for app theme preference.
 ///

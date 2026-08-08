@@ -8,6 +8,7 @@ class ImportProgressDialog extends StatefulWidget {
     super.key,
     required this.future,
     this.progress,
+    this.label = 'Importing...',
   });
 
   final Future<void> future;
@@ -15,6 +16,9 @@ class ImportProgressDialog extends StatefulWidget {
   /// Optional real import progress (0.0 → 1.0). When null, the ring's sweep
   /// animation drives the displayed percentage.
   final ValueListenable<double>? progress;
+
+  /// Status text shown under the progress ring.
+  final String label;
 
   @override
   State<ImportProgressDialog> createState() => _ImportProgressDialogState();
@@ -112,7 +116,7 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
             ),
             const SizedBox(height: 20),
             Text(
-              _done ? 'Done' : 'Importing...',
+              _done ? 'Done' : widget.label,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: cs.onSurfaceVariant,
               ),

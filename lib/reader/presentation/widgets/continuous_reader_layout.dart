@@ -4,11 +4,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_content_loader.dart';
@@ -35,6 +37,8 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
     required this.currentChapterIndex,
     required this.bookmarkedChapterIds,
     this.initialScrollProgress,
+    this.restorePosition,
+    this.onPositionChanged,
     required this.onScrollProgress,
     required this.onCurrentChapterChanged,
     required this.onScrollDirectionChanged,
@@ -51,6 +55,15 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
   final int currentChapterIndex;
   final Set<String> bookmarkedChapterIds;
   final double? initialScrollProgress;
+
+  /// A flat sentence index (from [onPositionChanged]) to resume at on open.
+  /// `null` or `0` means "resume at the top of the current chapter".
+  final int? restorePosition;
+
+  /// Reports the current reading position as a flat sentence index into the
+  /// chapter's rebuildable sentence sequence (plus the total), for persisting
+  /// exact-position resume. Omit to disable position reporting.
+  final void Function(int sentenceIndex, int totalSentences)? onPositionChanged;
   final void Function(double) onScrollProgress;
   final void Function(int) onCurrentChapterChanged;
   final void Function(ScrollDirection) onScrollDirectionChanged;
@@ -70,10 +83,15 @@ class _ContinuousReaderLayoutState
     extends ConsumerState<ContinuousReaderLayout> with ReaderChromeController {
   static const _snapScrollDuration = Duration(milliseconds: 300);
 
-  final _scrollController = ScrollController();
-  final List<GlobalKey> _chapterKeys = [];
-  double _lastScrollPos = 0;
+  final _itemScrollController = ItemScrollController();
+  final _scrollOffsetController = ScrollOffsetController();
+  final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
+  final ScrollOffsetListener _scrollOffsetListener =
+      ScrollOffsetListener.create();
+  StreamSubscription<double>? _scrollOffsetSubscription;
   double _scrollOffset = 0;
+  double _accumulatedOffset = 0;
   Timer? _autoScrollTimer;
   double _autoScrollSpeed = 2.0;
   bool _autoScrollActive = false;
@@ -84,26 +102,43 @@ class _ContinuousReaderLayoutState
   bool _narrationOutOfSync = false;
   final Map<int, void Function()> _narrationReveals = {};
   final ValueNotifier<double> _progress = ValueNotifier<double>(0.0);
+  static const _resolver = ChapterPositionResolver();
 
-  void _initChapterKeys() {
-    _chapterKeys
-      ..clear()
-      ..addAll(List.generate(widget.chapters.length, (_) => GlobalKey()));
-  }
+  /// The chapter the exact-position resume applies to — the chapter the reader
+  /// opened on, so a later navigation never re-fires the resume reveal.
+  late final int _resumeChapterIndex = widget.currentChapterIndex;
+  int? _pendingRestoreCharOffset;
+  bool _restoreApplied = false;
+  ({int index, int total})? _lastReportedPosition;
 
   @override
   void initState() {
     super.initState();
     _animation = widget.settings.scrollAnimation;
-    _initChapterKeys();
     _lastReportedChapterIndex = widget.currentChapterIndex;
-    _scrollController.addListener(_onScroll);
+    _itemPositionsListener.itemPositions.addListener(_onPositionsChanged);
+    _scrollOffsetSubscription =
+        _scrollOffsetListener.changes.listen(_onScrollOffsetChange);
     initReaderChrome(isDarkTheme: widget.settings.theme.isDark);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.initialScrollProgress != null) {
+      // widget.currentChapterIndex is always the reliable resume chapter
+      // (reader_content.dart tracks it directly, never derived). Using
+      // initialScrollProgress to pick a DIFFERENT chapter here — via
+      // (progress * chapters.length).floor(), which assumes every chapter
+      // is the same length — could disagree with it for any book with
+      // non-uniform chapter sizes, landing the reader on the wrong chapter
+      // while _pendingRestoreCharOffset sits ready to reveal a precise
+      // position inside the chapter this widget was actually told to open.
+      // initialScrollProgress is now only a last-resort fallback for the
+      // (should be unreachable in practice) case where currentChapterIndex
+      // itself is out of range.
+      if (widget.currentChapterIndex >= 0 &&
+          widget.currentChapterIndex < widget.chapters.length) {
+        _scrollToChapter(widget.currentChapterIndex);
+      } else if (widget.initialScrollProgress != null) {
         _restoreScrollProgress(widget.initialScrollProgress!);
       } else {
-        _scrollToChapter(widget.currentChapterIndex);
+        _scrollToChapter(0);
       }
     });
   }
@@ -113,9 +148,6 @@ class _ContinuousReaderLayoutState
     super.didUpdateWidget(oldWidget);
     if (widget.settings.scrollAnimation != oldWidget.settings.scrollAnimation) {
       setState(() => _animation = widget.settings.scrollAnimation);
-    }
-    if (widget.chapters.length != oldWidget.chapters.length) {
-      _initChapterKeys();
     }
     // Re-jump only when the parent moved to an index we did not report
     // ourselves (e.g. the user picked a chapter from the panel/palette).
@@ -132,8 +164,8 @@ class _ContinuousReaderLayoutState
   @override
   void dispose() {
     _autoScrollTimer?.cancel();
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
+    _itemPositionsListener.itemPositions.removeListener(_onPositionsChanged);
+    _scrollOffsetSubscription?.cancel();
     _progress.dispose();
     disposeReaderChrome();
     super.dispose();
@@ -155,50 +187,50 @@ class _ContinuousReaderLayoutState
     if (common != KeyEventResult.ignored) return common;
 
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      if (!_scrollController.hasClients) return KeyEventResult.handled;
+      if (!_itemScrollController.isAttached) return KeyEventResult.handled;
       resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
-      final offset =
-          _scrollController.offset - MediaQuery.of(context).size.height * 0.4;
-      _scrollController.animateTo(
-        offset.clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
+      unawaited(
+        _scrollOffsetController.animateScroll(
+          offset: -MediaQuery.of(context).size.height * 0.4,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+        ),
       );
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      if (!_scrollController.hasClients) return KeyEventResult.handled;
+      if (!_itemScrollController.isAttached) return KeyEventResult.handled;
       resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
-      final offset =
-          _scrollController.offset + MediaQuery.of(context).size.height * 0.4;
-      _scrollController.animateTo(
-        offset.clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
+      unawaited(
+        _scrollOffsetController.animateScroll(
+          offset: MediaQuery.of(context).size.height * 0.4,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+        ),
       );
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.pageUp) {
-      if (!_scrollController.hasClients) return KeyEventResult.handled;
+      if (!_itemScrollController.isAttached) return KeyEventResult.handled;
       resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
-      final offset =
-          _scrollController.offset - MediaQuery.of(context).size.height * 0.85;
-      _scrollController.animateTo(
-        offset.clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
+      unawaited(
+        _scrollOffsetController.animateScroll(
+          offset: -MediaQuery.of(context).size.height * 0.85,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+        ),
       );
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.pageDown) {
-      if (!_scrollController.hasClients) return KeyEventResult.handled;
+      if (!_itemScrollController.isAttached) return KeyEventResult.handled;
       resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
-      final offset =
-          _scrollController.offset + MediaQuery.of(context).size.height * 0.85;
-      _scrollController.animateTo(
-        offset.clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
+      unawaited(
+        _scrollOffsetController.animateScroll(
+          offset: MediaQuery.of(context).size.height * 0.85,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+        ),
       );
       return KeyEventResult.handled;
     }
@@ -206,100 +238,43 @@ class _ContinuousReaderLayoutState
     return KeyEventResult.ignored;
   }
 
-  void _scrollToChapter(int index, {int retries = 3}) {
-    if (!_scrollController.hasClients) {
-      if (retries > 0) {
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _scrollToChapter(index, retries: retries - 1),
-        );
-      }
-      return;
-    }
+  Future<void> _scrollToChapter(int index, {bool animate = true}) async {
     if (index < 0 || index >= widget.chapters.length) return;
-    final total = _scrollController.position.maxScrollExtent;
-    if (total <= 0) {
-      if (retries > 0) {
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _scrollToChapter(index, retries: retries - 1),
-        );
-      }
-      return;
-    }
-
+    if (!_itemScrollController.isAttached) return;
     _jumpInFlight = true;
-
-    // Prefer the chapter's real position when it has been laid out, so
-    // jumps land exactly at the chapter start regardless of how much
-    // content the earlier chapters hold.
-    final exact = _chapterRevealOffset(index);
-    if (exact != null) {
-      _jumpAndSync(exact);
-      _finishJump();
-      return;
+    // Only animate when the target is already within the currently-tracked
+    // viewport; the package then scrolls directly on its single active list.
+    // For any target outside it (a far jump) the package would run its
+    // primary/secondary cross-fade transition, which reads the secondary
+    // list's controller before it is guaranteed to have a scroll position
+    // attached — a source of ScrollController crashes. "Jump" for those.
+    final canAnimate = animate && _isNearCurrentViewport(index);
+    if (canAnimate) {
+      await _itemScrollController.scrollTo(
+        index: index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      _itemScrollController.jumpTo(index: index);
     }
-
-    // Chapter is far away and not built yet: jump to a proportional
-    // estimate, then refine once the list realizes the target block.
-    final estimate = (index / widget.chapters.length) * total;
-    _jumpAndSync(estimate);
-    _refineChapterJump(index, attempts: 8);
-  }
-
-  /// Ends a programmatic jump: re-enables chapter reporting and syncs the
-  /// settled chapter once the frame after the jump has laid out the blocks.
-  void _finishJump() {
     _jumpInFlight = false;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _scrollController.hasClients) {
-        _syncCurrentChapter();
-      }
-    });
+    if (mounted) _syncCurrentChapter();
   }
 
-  /// Returns the scroll offset that would align [index]'s chapter block with
-  /// the top of the viewport, or `null` if the block isn't laid out yet.
-  double? _chapterRevealOffset(int index) {
-    final ctx = _chapterKeys[index].currentContext;
-    if (ctx == null) return null;
-    final blockBox = ctx.findRenderObject();
-    final viewportBox = _scrollController.hasClients
-        ? _scrollController.position.context.storageContext.findRenderObject()
-        : null;
-    if (blockBox is! RenderBox || viewportBox is! RenderBox) return null;
-    final blockTop = blockBox.localToGlobal(Offset.zero).dy;
-    final viewportTop = viewportBox.localToGlobal(Offset.zero).dy;
-    return _scrollController.position.pixels + (blockTop - viewportTop);
-  }
-
-  void _refineChapterJump(int index, {required int attempts}) {
-    if (attempts <= 0) {
-      _finishJump();
-      return;
+  /// Whether [index] is on or adjacent to the chapters currently laid out in
+  /// the viewport, i.e. a jump that never needs the package's far-distance
+  /// two-list transition.
+  bool _isNearCurrentViewport(int index) {
+    final positions = _itemPositionsListener.itemPositions.value;
+    if (positions.isEmpty) return false;
+    var min = widget.chapters.length;
+    var max = -1;
+    for (final p in positions) {
+      if (p.index < min) min = p.index;
+      if (p.index > max) max = p.index;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) {
-        _finishJump();
-        return;
-      }
-      final exact = _chapterRevealOffset(index);
-      if (exact == null) {
-        // The target chapter's block still hasn't been built by the
-        // sliver, which means our last jump landed too far away for it
-        // to come into range. Re-estimate against the *current*
-        // maxScrollExtent (which gets more accurate as more chapters are
-        // laid out) and jump again, instead of re-polling a guess that
-        // will never resolve on its own.
-        final total = _scrollController.position.maxScrollExtent;
-        if (total > 0) {
-          final reestimate = (index / widget.chapters.length) * total;
-          _jumpAndSync(reestimate);
-        }
-        _refineChapterJump(index, attempts: attempts - 1);
-        return;
-      }
-      _jumpAndSync(exact);
-      _finishJump();
-    });
+    return index >= min - 1 && index <= max + 1;
   }
 
   void _toggleAutoScroll() {
@@ -318,19 +293,18 @@ class _ContinuousReaderLayoutState
     });
     setFullscreen(true, isDarkTheme: widget.settings.theme.isDark);
     _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      if (!_scrollController.hasClients) return;
-      final pos = _scrollController.position;
-      if (pos.pixels >= pos.maxScrollExtent) {
+      if (!mounted || !_itemScrollController.isAttached) return;
+      if (_progress.value >= 0.99) {
         _stopAutoScroll();
         return;
       }
-      var target =
-          (pos.pixels + _autoScrollSpeed).clamp(0.0, pos.maxScrollExtent);
-      final gate = _scrollGate();
-      if (gate != null && target > gate) {
-        target = gate.clamp(0.0, pos.maxScrollExtent);
-      }
-      _scrollController.jumpTo(target);
+      unawaited(
+        _scrollOffsetController.animateScroll(
+          offset: _autoScrollSpeed,
+          duration: const Duration(milliseconds: 50),
+          curve: Curves.linear,
+        ),
+      );
     });
   }
 
@@ -352,8 +326,8 @@ class _ContinuousReaderLayoutState
         : const ClampingScrollPhysics();
   }
 
-  void _restoreScrollProgress(double progress, {int retries = 3}) {
-    if (!_scrollController.hasClients) {
+  void _restoreScrollProgress(double progress, {int retries = 5}) {
+    if (!_itemScrollController.isAttached) {
       if (retries > 0) {
         WidgetsBinding.instance.addPostFrameCallback(
           (_) => _restoreScrollProgress(progress, retries: retries - 1),
@@ -361,32 +335,10 @@ class _ContinuousReaderLayoutState
       }
       return;
     }
-    final total = _scrollController.position.maxScrollExtent;
-    if (total <= 0) {
-      if (retries > 0) {
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _restoreScrollProgress(progress, retries: retries - 1),
-        );
-      }
-      return;
-    }
-    _jumpInFlight = true;
-    _jumpAndSync(progress * total);
-    _finishJump();
-  }
-
-  /// Finds the chapter whose block currently sits at the top of the
-  /// viewport by measuring the real layout offsets of the blocks that have
-  /// been built — not by assuming every chapter has the same height.
-  int _currentChapterAtOffset(double scrollOffset) {
-    int current = 0;
-    for (int i = 0; i < _chapterKeys.length; i++) {
-      final reveal = _chapterRevealOffset(i);
-      if (reveal != null && reveal <= scrollOffset + 1) {
-        current = i;
-      }
-    }
-    return current;
+    final index = (progress * widget.chapters.length)
+        .floor()
+        .clamp(0, widget.chapters.length - 1);
+    _scrollToChapter(index, animate: false);
   }
 
   bool _isChapterLoading(int index) {
@@ -396,64 +348,131 @@ class _ContinuousReaderLayoutState
         ) is AsyncLoading;
   }
 
-  /// Returns the scroll offset at which the first not-yet-loaded (shimmering)
-  /// chapter block begins, or `null` when every built chapter is ready. This
-  /// is the boundary the reader is held at so it can't scroll into unloaded
-  /// content while the shimmer is in effect. Only built blocks are considered
-  /// — unbuilt (far-away) chapters aren't reachable yet, so reading their
-  /// provider here can't kick off any new loads.
-  double? _scrollGate() {
-    for (var i = 0; i < widget.chapters.length; i++) {
-      if (_chapterKeys[i].currentContext == null) break;
-      if (_isChapterLoading(i)) {
-        final reveal = _chapterRevealOffset(i);
-        if (reveal != null) return reveal;
-      }
-    }
-    return null;
+  /// The index of the chapter whose block is currently considered "on top",
+  /// matching the rule ScrollablePositionedList itself uses to track the
+  /// topmost item, or `null` when nothing is laid out yet.
+  int? _currentChapterFromPositions(Iterable<ItemPosition> positions) {
+    final visible = positions
+        .where((p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0);
+    if (visible.isEmpty) return null;
+    return visible
+        .reduce((a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b)
+        .index;
   }
 
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
-    final pos = _scrollController.position;
-    _scrollOffset = pos.pixels;
+  /// Approximates whole-book progress from the currently tracked item
+  /// positions. Each chapter counts as a fixed 1/N slice rather than being
+  /// weighted by its actual rendered height — coarser than the old
+  /// pixel-accurate value, intentionally.
+  double _progressFromPositions(Iterable<ItemPosition> positions) {
+    final total = widget.chapters.length;
+    if (total == 0) return 0.0;
+    final visible = positions
+        .where((p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0);
+    if (visible.isEmpty) return _progress.value;
+    final top = visible.reduce(
+      (a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b,
+    );
+    final withinItem = (-top.itemLeadingEdge).clamp(0.0, 1.0);
+    return ((top.index + withinItem) / total).clamp(0.0, 1.0);
+  }
 
-    // While the next chapter's content is still shimmering, hold the reader
-    // at the boundary so the unloaded region can't be scrolled into.
-    final gate = _scrollGate();
-    if (gate != null && pos.pixels > gate + 1 && !_applyingGate) {
-      _applyingGate = true;
-      _scrollController.jumpTo(gate.clamp(0.0, pos.maxScrollExtent));
-      _applyingGate = false;
-      _lastScrollPos = pos.pixels;
-      return;
+  /// Holds the reader at the boundary of the first not-yet-loaded (shimmering)
+  /// chapter so the unloaded region can't be scrolled into while the shimmer
+  /// is in effect. Only built (tracked) chapters are considered — far-away,
+  /// unbuilt chapters aren't reachable yet.
+  void _applyScrollGateIfNeeded(Iterable<ItemPosition> positions) {
+    if (_applyingGate) return;
+    for (final p in positions) {
+      if (_isChapterLoading(p.index) && p.itemLeadingEdge < 0) {
+        _applyingGate = true;
+        if (_itemScrollController.isAttached) {
+          _itemScrollController.jumpTo(index: p.index, alignment: 0);
+        }
+        _applyingGate = false;
+        return;
+      }
     }
+  }
 
-    final progress = pos.maxScrollExtent > 0
-        ? pos.pixels / pos.maxScrollExtent
-        : 0.0;
-    _progress.value = progress.clamp(0.0, 1.0);
+  void _onPositionsChanged() {
+    final positions = _itemPositionsListener.itemPositions.value;
+    if (positions.isEmpty) return;
+
+    final progress = _progressFromPositions(positions);
+    _progress.value = progress;
     widget.onScrollProgress(progress);
+    _reportPosition(positions);
 
-    // Only report the current chapter once blocks are laid out — during a
-    // programmatic jump the viewport has no measured blocks yet, and a
-    // fallback of 0 would clobber the restored chapter in the parent.
-    // While a jump is in flight we also suppress reporting entirely so the
-    // provisional (wrong) index never propagates up and triggers a
-    // `didUpdateWidget` re-jump in the opposite direction.
-    if (_jumpInFlight) {
-      _lastScrollPos = pos.pixels;
-      return;
-    }
-    final hasMeasuredBlocks = _chapterKeys.any((k) => k.currentContext != null);
-    if (hasMeasuredBlocks) {
-      final current = _currentChapterAtOffset(pos.pixels);
+    // While a programmatic jump is in flight, the provisional (intermediate)
+    // positions must never propagate up and trigger a `didUpdateWidget`
+    // re-jump in the opposite direction.
+    if (_jumpInFlight) return;
+
+    final current = _currentChapterFromPositions(positions);
+    if (current != null && current != _lastReportedChapterIndex) {
       _lastReportedChapterIndex = current;
       widget.onCurrentChapterChanged(current);
     }
+    _applyScrollGateIfNeeded(positions);
+  }
 
-    final delta = pos.pixels - _lastScrollPos;
+  /// Reports the current reading position as a flat sentence index + total,
+  /// derived from the topmost chapter's `itemLeadingEdge` fraction — an
+  /// approximation (the chapter block includes its header/footer, so the
+  /// viewport fraction is mapped to the content length). Cheap to compute and
+  /// only forwarded upstream when the index actually changes.
+  void _reportPosition(Iterable<ItemPosition> positions) {
+    final onPosition = widget.onPositionChanged;
+    if (onPosition == null) return;
+    final total = widget.chapters.length;
+    if (total == 0) return;
+    final visible = positions
+        .where((p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0);
+    if (visible.isEmpty) return;
+    final top = visible.reduce(
+      (a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b,
+    );
+    final content = ref
+        .read(readerChapterContentProvider(widget.chapters[top.index]))
+        .valueOrNull;
+    if (content == null || content.isEmpty) return;
+    final within = (-top.itemLeadingEdge).clamp(0.0, 1.0);
+    final charOffset = (within * content.length).round().clamp(0, content.length);
+    final resolved = _resolver.resolve(content, charOffset);
+    final last = _lastReportedPosition;
+    if (last != null &&
+        last.index == resolved.index &&
+        last.total == resolved.total) {
+      return;
+    }
+    _lastReportedPosition = (index: resolved.index, total: resolved.total);
+    onPosition(resolved.index, resolved.total);
+  }
+
+  /// Resolves the resume sentence to a character offset once the resume
+  /// chapter's content is available, so its ChapterView can reveal it.
+  int? _resolveRestoreCharOffset() {
+    final pos = widget.restorePosition;
+    if (pos == null ||
+        pos <= 0 ||
+        _resumeChapterIndex < 0 ||
+        _resumeChapterIndex >= widget.chapters.length) {
+      return null;
+    }
+    final content = ref
+        .read(readerChapterContentProvider(widget.chapters[_resumeChapterIndex]))
+        .valueOrNull;
+    if (content == null || content.isEmpty) return null;
+    return _resolver.charOffsetForSentenceIndex(content, pos);
+  }
+
+  void _onScrollOffsetChange(double delta) {
+    if (!mounted) return;
+    _accumulatedOffset += delta;
+    _scrollOffset = _accumulatedOffset;
+    resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+    if (_jumpInFlight) return;
     if (delta.abs() > 4) {
       final direction = delta > 0 ? ScrollDirection.down : ScrollDirection.up;
       widget.onScrollDirectionChanged(direction);
@@ -464,31 +483,17 @@ class _ContinuousReaderLayoutState
         }
       });
     }
-    _lastScrollPos = pos.pixels;
   }
 
-  void _jumpAndSync(double target) {
-    final total = _scrollController.position.maxScrollExtent;
-    _scrollController.jumpTo(target.clamp(0.0, total));
-    _syncCurrentChapter();
-  }
-
-  /// Reports the chapter actually at the top of the viewport once its block
-  /// has been laid out, so programmatic jumps/restores don't leave the
-  /// parent's chapter state stale (or wrong).
-  void _syncCurrentChapter({int attempts = 3}) {
-    if (!mounted || !_scrollController.hasClients) return;
-    if (_jumpInFlight) return;
-    final hasMeasuredBlocks = _chapterKeys.any((k) => k.currentContext != null);
-    if (!hasMeasuredBlocks) {
-      if (attempts > 0) {
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _syncCurrentChapter(attempts: attempts - 1),
-        );
-      }
-      return;
-    }
-    final current = _currentChapterAtOffset(_scrollController.position.pixels);
+  /// Reports the chapter actually on top once its block has been laid out, so
+  /// programmatic jumps/restores don't leave the parent's chapter state stale
+  /// (or wrong).
+  void _syncCurrentChapter() {
+    if (!mounted || _jumpInFlight) return;
+    final current = _currentChapterFromPositions(
+      _itemPositionsListener.itemPositions.value,
+    );
+    if (current == null) return;
     _lastReportedChapterIndex = current;
     widget.onCurrentChapterChanged(current);
   }
@@ -503,16 +508,16 @@ class _ContinuousReaderLayoutState
   bool _onScrollEnd(ScrollEndNotification notification) {
     if (_animation != ScrollAnimation.snap) return false;
     if (notification.dragDetails == null) return false;
-    if (!_scrollController.hasClients) return false;
-    final page =
-        (_scrollController.offset /
-                _scrollController.position.viewportDimension)
-            .round();
-    final target = page * _scrollController.position.viewportDimension;
-    _scrollController.animateTo(
-      target.clamp(0.0, _scrollController.position.maxScrollExtent),
-      duration: _snapScrollDuration,
-      curve: Curves.easeOut,
+    if (!_itemScrollController.isAttached) return false;
+    final viewport = MediaQuery.of(context).size.height;
+    final page = (_scrollOffset / viewport).round();
+    final target = page * viewport;
+    unawaited(
+      _scrollOffsetController.animateScroll(
+        offset: target - _scrollOffset,
+        duration: _snapScrollDuration,
+        curve: Curves.easeOut,
+      ),
     );
     return true;
   }
@@ -540,27 +545,29 @@ class _ContinuousReaderLayoutState
         child: listView,
       ),
       ScrollAnimation.parallax => listView,
-      ScrollAnimation.glow => Scrollbar(
-        controller: _scrollController,
-        thumbVisibility: true,
-        thickness: 8,
-        radius: const Radius.circular(4),
-        child: Theme(
-          data: ThemeData(
-            scrollbarTheme: ScrollbarThemeData(
-              thumbColor: WidgetStateProperty.all(
-                widget.settings.theme.accent.withValues(alpha: 0.8),
-              ),
-              radius: const Radius.circular(4),
-              thickness: WidgetStateProperty.all(8),
-              trackVisibility: WidgetStateProperty.all(true),
-              trackColor: WidgetStateProperty.all(
-                widget.settings.theme.accent.withValues(alpha: 0.15),
+      ScrollAnimation.glow => Stack(
+        children: [
+          Positioned.fill(child: listView),
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: ValueListenableBuilder<double>(
+                valueListenable: _progress,
+                builder: (context, progress, _) => SizedBox(
+                  width: 8,
+                  child: CustomPaint(
+                    painter: _GlowScrollbarPainter(
+                      progress: progress,
+                      color: widget.settings.theme.accent,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-          child: listView,
-        ),
+        ],
       ),
     };
   }
@@ -589,9 +596,9 @@ class _ContinuousReaderLayoutState
   /// live handle once its view has been rebuilt.
   void _revealNarration() {
     final index = _narratingChapterIndex;
-    if (index == null || !_scrollController.hasClients) return;
+    if (index == null || !_itemScrollController.isAttached) return;
     final handle = _narrationReveals[index];
-    if (handle != null && _chapterKeys[index].currentContext != null) {
+    if (handle != null) {
       handle();
       return;
     }
@@ -606,7 +613,7 @@ class _ContinuousReaderLayoutState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final handle = _narrationReveals[index];
-      if (handle != null && _chapterKeys[index].currentContext != null) {
+      if (handle != null) {
         handle();
         return;
       }
@@ -618,12 +625,13 @@ class _ContinuousReaderLayoutState
     ChapterEntity chapter,
     int index, {
     bool showHeaders = true,
+    int? restoreCharOffset,
+    void Function()? onRestoreRevealed,
   }) {
     final vt = widget.settings.theme;
     final cs = ChapterStyle.forChapter(index);
 
     return Column(
-      key: _chapterKeys[index],
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (showHeaders) ...[
@@ -641,6 +649,7 @@ class _ContinuousReaderLayoutState
           chapter: chapter,
           fontSize: widget.settings.fontSize,
           fontFamily: widget.settings.fontFamily,
+          fontWeight: widget.settings.fontWeight,
           lineHeight: widget.settings.lineHeight,
           letterSpacing: widget.settings.letterSpacing,
           vt: vt,
@@ -648,6 +657,8 @@ class _ContinuousReaderLayoutState
           marginPreset: widget.settings.marginPreset,
           scrollable: false,
           chapterStyle: cs,
+          restoreCharOffset: restoreCharOffset,
+          onRestoreRevealed: onRestoreRevealed,
           onNarrationOutOfSyncChanged: (outOfSync) {
             if (mounted && _narrationOutOfSync != outOfSync) {
               setState(() => _narrationOutOfSync = outOfSync);
@@ -677,6 +688,13 @@ class _ContinuousReaderLayoutState
     final vt = widget.settings.theme;
     final chapters = widget.chapters;
     final index = widget.currentChapterIndex;
+
+    // Resolve the resume sentence to a character offset once its chapter's
+    // content is available; the target ChapterView reveals it once, then we
+    // clear it so it never re-fires on a later build/navigation.
+    if (!_restoreApplied && _pendingRestoreCharOffset == null) {
+      _pendingRestoreCharOffset = _resolveRestoreCharOffset();
+    }
 
     return Scaffold(
       backgroundColor: vt.background,
@@ -719,14 +737,27 @@ class _ContinuousReaderLayoutState
                 toggleChrome(isDarkTheme: widget.settings.theme.isDark);
               },
               child: _wrapWithAnimation(
-                ListView.builder(
-                  controller: _scrollController,
+                ScrollablePositionedList.builder(
+                  itemScrollController: _itemScrollController,
+                  scrollOffsetController: _scrollOffsetController,
+                  itemPositionsListener: _itemPositionsListener,
+                  scrollOffsetListener: _scrollOffsetListener,
                   physics: _scrollPhysics,
                   itemCount: chapters.length,
                   itemBuilder: (context, index) => _buildChapterBlock(
                     chapters[index],
                     index,
                     showHeaders: true,
+                    restoreCharOffset:
+                        index == _resumeChapterIndex ? _pendingRestoreCharOffset : null,
+                    onRestoreRevealed: () {
+                      if (mounted) {
+                        setState(() {
+                          _pendingRestoreCharOffset = null;
+                          _restoreApplied = true;
+                        });
+                      }
+                    },
                   ),
                 ),
               ),
@@ -866,6 +897,43 @@ class _ContinuousReaderLayoutState
       },
     );
   }
+}
+
+/// Non-interactive progress indicator for glow scrollbar mode, driven by the
+/// reader's whole-book progress. Replaces the old draggable [Scrollbar], which
+/// has no controller to bind to in [ScrollablePositionedList].
+class _GlowScrollbarPainter extends CustomPainter {
+  const _GlowScrollbarPainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final track = Paint()..color = color.withValues(alpha: 0.15);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Offset.zero & size,
+        const Radius.circular(4),
+      ),
+      track,
+    );
+    if (progress <= 0) return;
+    final thumbHeight = (size.height * 0.15).clamp(24.0, size.height);
+    final thumbTop = (size.height - thumbHeight) * progress.clamp(0.0, 1.0);
+    final thumb = Paint()..color = color.withValues(alpha: 0.8);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, thumbTop, size.width, thumbHeight),
+        const Radius.circular(4),
+      ),
+      thumb,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GlowScrollbarPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color;
 }
 
 class _AutoScrollControl extends StatelessWidget {

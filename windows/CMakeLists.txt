@@ -1,4 +1,6 @@
 # Project-level configuration.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+set(ENV{CMAKE_POLICY_VERSION_MINIMUM} 3.5)
 cmake_minimum_required(VERSION 3.14)
 project(atlas_app LANGUAGES CXX)
 

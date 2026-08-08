@@ -71,6 +71,18 @@ class ReadingSettingsScreen extends ConsumerWidget {
                     ],
                     onChanged: notifier.setFontFamily,
                   ),
+                  ChoiceTile<int?>(
+                    title: 'Font Weight',
+                    value: settings.fontWeight,
+                    options: [
+                      (null, 'Regular'),
+                      (400, '400'),
+                      (500, 'Medium'),
+                      (600, 'SemiBold'),
+                      (700, 'Bold'),
+                    ],
+                    onChanged: notifier.setFontWeight,
+                  ),
                   ChoiceTile<TextAlignment>(
                     title: 'Text Alignment',
                     value: settings.textAlignment,

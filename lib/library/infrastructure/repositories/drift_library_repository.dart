@@ -17,47 +17,64 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
   @override
   Future<Result<List<BookEntity>>> getBooks() async {
     try {
-      final rows = await (_db.select(_db.books).join(
-        [
-          leftOuterJoin(
-            _db.readingProgress,
-            _db.readingProgress.bookId.equalsExp(_db.books.id),
-          ),
-        ],
-      )).get();
-
-      final books = rows.map((row) {
-        final book = row.readTable(_db.books);
-        final progress = row.readTableOrNull(_db.readingProgress);
-        return BookEntity(
-          id: book.id,
-          title: book.title,
-          author: book.author,
-          coverPath: book.coverPath,
-          format: book.format,
-          totalChapters: book.totalChapters,
-          description: book.description,
-          language: book.language,
-          tags: _parseTags(book.tags),
-          rating: book.rating,
-          status: book.status,
-          fileSize: book.fileSize,
-          filePath: book.filePath,
-          sourceName: book.sourceName,
-          sourceId: book.sourceId,
-          sourceUrl: book.sourceUrl,
-          itemType: ContentCategory.fromName(book.itemType),
-          createdAt: book.createdAt,
-          updatedAt: book.updatedAt,
-          lastOpenedAt: book.lastOpenedAt,
-          progress: progress?.percentage,
-        );
-      }).toList();
-
-      return Success(books);
+      final rows = await _booksQuery().get();
+      return Success(rows.map(_toBookEntity).toList());
     } catch (e, st) {
       return Failure(DatabaseException('Failed to load books', e), st);
     }
+  }
+
+  @override
+  Stream<Result<List<BookEntity>>> watchBooks() {
+    return _booksQuery().watch().map((rows) {
+      try {
+        return Success<List<BookEntity>>(rows.map(_toBookEntity).toList());
+      } catch (e, st) {
+        return Failure<List<BookEntity>>(
+          DatabaseException('Failed to load books', e),
+          st,
+        );
+      }
+    });
+  }
+
+  JoinedSelectStatement<HasResultSet, dynamic> _booksQuery() {
+    return _db.select(_db.books).join(
+      [
+        leftOuterJoin(
+          _db.readingProgress,
+          _db.readingProgress.bookId.equalsExp(_db.books.id),
+        ),
+      ],
+    );
+  }
+
+  BookEntity _toBookEntity(TypedResult row) {
+    final book = row.readTable(_db.books);
+    final progress = row.readTableOrNull(_db.readingProgress);
+    return BookEntity(
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      coverPath: book.coverPath,
+      format: book.format,
+      totalChapters: book.totalChapters,
+      description: book.description,
+      language: book.language,
+      tags: _parseTags(book.tags),
+      rating: book.rating,
+      status: book.status,
+      fileSize: book.fileSize,
+      filePath: book.filePath,
+      sourceName: book.sourceName,
+      sourceId: book.sourceId,
+      sourceUrl: book.sourceUrl,
+      itemType: ContentCategory.fromName(book.itemType),
+      createdAt: book.createdAt,
+      updatedAt: book.updatedAt,
+      lastOpenedAt: book.lastOpenedAt,
+      progress: progress?.percentage,
+    );
   }
 
   @override

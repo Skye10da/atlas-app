@@ -67,13 +67,13 @@ class _NowPlayingSheetState extends ConsumerState<NowPlayingSheet> {
     final hasSession = queue != null && queue.isNotEmpty;
 
     final status =
-        ref.watch(narrationStatusProvider).valueOrNull ??
-        NarrationStatus.idle;
+        ref.watch(narrationStatusProvider).valueOrNull ?? NarrationStatus.idle;
     final activeItem = ref.watch(activeSpeechItemProvider);
     final boundary = ref.watch(activeWordBoundaryProvider);
 
     final title = widget.chapterTitle ?? widget.bookTitle ?? 'Listen';
-    final subtitle = widget.bookTitle != null && widget.bookTitle != widget.chapterTitle
+    final subtitle =
+        widget.bookTitle != null && widget.bookTitle != widget.chapterTitle
         ? widget.bookTitle
         : null;
 
@@ -289,13 +289,13 @@ class _Lyrics extends StatelessWidget {
     }
 
     final dim = TextStyle(
-      fontSize: 18,
+      fontSize: 13,
       height: 1.5,
       fontWeight: FontWeight.w500,
       color: colorScheme.onSurface.withValues(alpha: 0.45),
     );
     final highlight = TextStyle(
-      fontSize: 20,
+      fontSize: 14,
       fontWeight: FontWeight.w800,
       color: colorScheme.primary,
     );
@@ -353,7 +353,7 @@ class _QueueProgress extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           'Sentence ${cursor + 1} of $length',
-          style: TextStyle(fontSize: 12, color: color),
+          style: TextStyle(fontSize: 14, color: color),
         ),
       ],
     );
@@ -393,6 +393,18 @@ class _TransportControls extends ConsumerWidget {
       height: 76,
       child: Row(
         children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _SettingsToggleButton(
+                expanded: settingsExpanded,
+                accent: accent,
+                color: color,
+                onTap: onToggleSettings,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+            ],
+          ),
           Expanded(
             child: FittedBox(
               fit: BoxFit.scaleDown,
@@ -405,7 +417,8 @@ class _TransportControls extends ConsumerWidget {
                     tooltip: 'Restart paragraph',
                     color: color,
                     enabled: restartIndex != null,
-                    onTap: () => unawaited(_restartParagraph(engine, restartIndex)),
+                    onTap: () =>
+                        unawaited(_restartParagraph(engine, restartIndex)),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   _TransportButton(
@@ -425,7 +438,9 @@ class _TransportControls extends ConsumerWidget {
                     },
                     size: 56,
                     iconColor: accent,
-                    tooltip: status == NarrationStatus.playing ? 'Pause' : 'Play',
+                    tooltip: status == NarrationStatus.playing
+                        ? 'Pause'
+                        : 'Play',
                     color: color,
                     onTap: () => unawaited(_toggle(engine, status)),
                   ),
@@ -454,14 +469,8 @@ class _TransportControls extends ConsumerWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              NarrationSpeedControl(accent: accent, color: color),
               const SizedBox(width: AppSpacing.xs),
-              _SettingsToggleButton(
-                expanded: settingsExpanded,
-                accent: accent,
-                color: color,
-                onTap: onToggleSettings,
-              ),
+              NarrationSpeedControl(accent: accent, color: color),
             ],
           ),
         ],
@@ -585,9 +594,6 @@ class _TransportButton extends StatelessWidget {
     );
     final label = tooltip;
     if (label == null) return button;
-    return Tooltip(
-      message: label,
-      child: button,
-    );
+    return Tooltip(message: label, child: button);
   }
 }

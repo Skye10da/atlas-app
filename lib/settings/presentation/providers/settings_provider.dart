@@ -55,6 +55,13 @@ class ReadingSettingsNotifier extends StateNotifier<AsyncValue<ReadingSettingsEn
     await _repo.save(updated);
   }
 
+  Future<void> setFontWeight(int? weight) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(fontWeight: weight);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
   Future<void> setLineHeight(double height) async {
     final current = state.valueOrNull ?? const ReadingSettingsEntity();
     final updated = current.copyWith(lineHeight: height.clamp(1.0, 2.0));

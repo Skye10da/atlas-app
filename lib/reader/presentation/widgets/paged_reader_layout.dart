@@ -16,6 +16,7 @@ import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
+import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
@@ -54,6 +55,8 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
     this.onAddNote,
     this.onShare,
     this.onSearchWeb,
+    this.restorePosition,
+    this.onPositionChanged,
   });
 
   final List<ChapterEntity> chapters;
@@ -69,6 +72,15 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
   final VoidCallback onBookmarkToggle;
   final String? bookTitle;
   final String? coverPath;
+
+  /// A flat sentence index (from [onPositionChanged]) to resume at on open.
+  /// `null` or `0` means "resume at the top of the current chapter".
+  final int? restorePosition;
+
+  /// Reports the current reading position as a flat sentence index into the
+  /// chapter's rebuildable sentence sequence (plus the total), for persisting
+  /// exact-position resume. Omit to disable position reporting.
+  final void Function(int sentenceIndex, int totalSentences)? onPositionChanged;
 
   /// Called with the selected text and chosen color when the reader taps a
   /// highlight swatch in the context menu. Omit to hide highlighting.
@@ -105,6 +117,10 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   double _layoutHeight = 0;
   int? _neighborPrefetchScheduledFor;
   static const double _maxReadingWidth = 720.0;
+
+  /// The chapter the exact-position resume applies to — the chapter the reader
+  /// opened on, so a later chapter selection never re-fires the resume.
+  late final int _resumeChapterIndex = widget.currentChapterIndex;
 
   @override
   void initState() {
@@ -253,7 +269,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     // chapter mid-animation.
     final w = _layoutWidth.round();
     final h = _layoutHeight.round();
-    return '${s.fontSize}_${s.fontFamily}_${s.lineHeight}_${s.marginPreset.name}_${s.textAlignment.name}_${w}x$h';
+    return '${s.fontSize}_${s.fontFamily}_${s.fontWeight}_${s.lineHeight}_${s.marginPreset.name}_${s.textAlignment.name}_${w}x$h';
   }
 
   bool _needsRepagination() {
@@ -308,6 +324,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       height: s.lineHeight,
       letterSpacing: s.letterSpacing,
       color: s.theme.text,
+      fontWeight: s.fontWeight != null ? FontWeight(s.fontWeight!) : null,
     );
     final textStyle = s.fontFamily != null
         ? GoogleFonts.getFont(s.fontFamily!, textStyle: baseStyle)
@@ -324,27 +341,174 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   int _pagesFor(int index) {
     final cached = _pageCache[index];
     if (cached != null) return cached.length;
-    return widget.chapters[index].pageCount;
+    final chapter = widget.chapters[index];
+    if (chapter.pageCount > 0) return chapter.pageCount;
+    // Not yet paginated this session AND no persisted estimate — treating
+    // this as 0 pages (the old behavior) silently collapsed every global
+    // page-index computation that summed over unpaginated preceding
+    // chapters, which is what made jumping to a chapter beyond the first
+    // land back on chapter 1 (studied in novel_reader's per-chapter-only
+    // pagination model, which sidesteps this by never summing across
+    // chapters at all — see reading_area.dart's ValueKey('chapter_$i')
+    // pattern). A word-count estimate keeps Atlas's cross-chapter cache
+    // and prefetch, while avoiding the confident-zero collapse.
+    return _estimatedPageCount(chapter.wordCount);
+  }
+
+  /// ~275 words/page is a standard paperback-equivalent estimate. Only used
+  /// until real pagination (which accounts for the reader's actual font
+  /// size, margins, and viewport) replaces it — this is a placeholder for
+  /// jump-target math, never for rendering.
+  int _estimatedPageCount(int wordCount) {
+    if (wordCount <= 0) return 1;
+    return math.max(1, (wordCount / 275).ceil());
+  }
+
+  static const ChapterPositionResolver _resolver = ChapterPositionResolver();
+
+  /// Whether an exact resume was requested (a saved sentence index > 0).
+  bool get _hasPendingRestore =>
+      widget.restorePosition != null && widget.restorePosition! > 0;
+
+  /// Character offset of [localPage]'s first character within chapter
+  /// [chapterIndex]'s paginated content (0 for the first page).
+  int _pageStartOffset(int chapterIndex, int localPage) {
+    final cache = _pageCache[chapterIndex];
+    if (cache == null || localPage <= 0) return 0;
+    var offset = 0;
+    final upto = math.min(localPage, cache.length);
+    for (var i = 0; i < upto; i++) {
+      offset += cache[i].length;
+    }
+    return offset;
+  }
+
+  /// The local page of [chapterIndex] that contains [charOffset], or the last
+  /// page when the offset is past the end.
+  int _localPageForCharOffset(int chapterIndex, int charOffset) {
+    final cache = _pageCache[chapterIndex];
+    if (cache == null || cache.isEmpty) return 0;
+    var start = 0;
+    for (var i = 0; i < cache.length; i++) {
+      final end = start + cache[i].length;
+      if (charOffset < end) return i;
+      start = end;
+    }
+    return cache.length - 1;
+  }
+
+  /// Resolves the exact resume sentence ([widget.restorePosition]) to a local
+  /// page in [chapterIndex], or `null` until that chapter's content has been
+  /// paginated.
+  int? _restoreLocalPage(int chapterIndex) {
+    final pos = widget.restorePosition;
+    if (pos == null || pos <= 0) return null;
+    final content = _contentCache[chapterIndex];
+    if (content == null || content.isEmpty) return null;
+    final cache = _pageCache[chapterIndex];
+    if (cache == null || cache.isEmpty) return null;
+    final charOffset = _resolver.charOffsetForSentenceIndex(content, pos);
+    if (charOffset == null) return null;
+    return _localPageForCharOffset(chapterIndex, charOffset);
+  }
+
+  /// Reports the flat sentence index at the top of the current page so the
+  /// parent can persist an exact-position resume.
+  void _reportPositionFromCurrentPage() {
+    final onPosition = widget.onPositionChanged;
+    if (onPosition == null) return;
+    final (chIdx, localPage) = _globalToLocal(_currentGlobalPage);
+    final content = _contentCache[chIdx];
+    if (content == null || content.isEmpty) return;
+    final offset = _pageStartOffset(chIdx, localPage);
+    final resolved = _resolver.resolve(content, offset);
+    onPosition(resolved.index, resolved.total);
+  }
+
+  /// Jumps the controller to [target] global page. Retries across a few
+  /// frames if the PageView hasn't attached yet (common right after this
+  /// layout is freshly created, e.g. on a reading-mode switch) — a single
+  /// unconditional postFrameCallback would otherwise silently drop the jump
+  /// whenever `hasClients` isn't true on that exact frame, leaving the
+  /// PageView stuck on its default page 0 with no retry, since callers
+  /// already consider the pending jump "handled" by the time this runs.
+  void _jumpControllerTo(int target, {int retries = 5}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(isWideDesktop ? target ~/ 2 : target);
+        return;
+      }
+      if (retries > 0) {
+        _jumpControllerTo(target, retries: retries - 1);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(PagedReaderLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentChapterIndex == oldWidget.currentChapterIndex) return;
+    // Only an explicit chapter selection (index sheet / palette / panel)
+    // should re-anchor the pages here. Natural paging across a chapter
+    // boundary also changes `currentChapterIndex`, but the PageView has
+    // already positioned itself — jumping would snap the reader back to
+    // page 0 of the chapter they just left behind.
+    final explicit = _pendingExplicitChapter;
+    _pendingExplicitChapter = null;
+    if (explicit != widget.currentChapterIndex) return;
+    final targetIndex = widget.currentChapterIndex;
+    if (_pageCache[targetIndex] == null) {
+      // Not paginated yet: defer so the jump lands on real content instead of
+      // being clamped back to the nearest loaded chapter. `build` fires the
+      // jump once pagination completes.
+      _pendingJumpToChapter = targetIndex;
+      return;
+    }
+    final target = _localToGlobal(targetIndex, 0);
+    _currentGlobalPage = target;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _pageController.hasClients) {
+        _pageController.animateToPage(
+          isWideDesktop ? target ~/ 2 : target,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+    _reportPositionFromCurrentPage();
   }
 
   /// The deepest global page the reader may navigate to. When a chapter is
   /// still loading, only its *first* page may be entered — so its shimmer and
   /// status overlay can be shown — and no page beyond that is reachable until
-  /// its content has been paginated.
+  /// its content has been paginated. Chapters that ARE paginated are always
+  /// navigable, even when reached out of order by an explicit jump — otherwise
+  /// leaping from 21 → 40 would be clamped back to the nearest loaded chapter.
   int _maxNavigableGlobalPage() {
-    var lastReady = -1;
-    for (var i = 0; i < widget.chapters.length; i++) {
-      if (_pageCache[i] != null) {
-        lastReady = i;
-      } else {
-        break;
+    int maxPage = 0;
+    if (widget.chapters.isNotEmpty) {
+      var lastReady = -1;
+      for (var i = 0; i < widget.chapters.length; i++) {
+        if (_pageCache[i] != null) {
+          lastReady = i;
+        } else {
+          break;
+        }
       }
+      maxPage = lastReady == -1
+          ? 0
+          : lastReady == widget.chapters.length - 1
+              ? _localToGlobal(lastReady, math.max(0, _pagesFor(lastReady) - 1))
+              : _localToGlobal(lastReady + 1, 0);
     }
-    if (lastReady == -1 || widget.chapters.isEmpty) return 0;
-    if (lastReady == widget.chapters.length - 1) {
-      return _localToGlobal(lastReady, math.max(0, _pagesFor(lastReady) - 1));
+    for (var i = 0; i < widget.chapters.length; i++) {
+      final cache = _pageCache[i];
+      if (cache == null || cache.isEmpty) continue;
+      final end = _localToGlobal(i, cache.length - 1);
+      if (end > maxPage) maxPage = end;
     }
-    return _localToGlobal(lastReady + 1, 0);
+    return maxPage;
   }
 
   /// Whether advancing to [globalPage] is allowed given the chapters that
@@ -455,6 +619,16 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       }
     }
 
+    // A deferred explicit jump can fire now that its chapter is paginated.
+    final pendingJump = _pendingJumpToChapter;
+    if (pendingJump != null && _pageCache[pendingJump] != null) {
+      _pendingJumpToChapter = null;
+      final target = _localToGlobal(pendingJump, 0);
+      _currentGlobalPage = target;
+      _jumpControllerTo(target);
+      _reportPositionFromCurrentPage();
+    }
+
     // Capture where the reader currently sits, in chapter-relative terms,
     // using this build's *pre-recompute* page counts — so that if a
     // background pagination pass (below) changes how many pages a
@@ -475,6 +649,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       _totalPages += _pagesFor(i);
     }
 
+
     if (anchorChapter != null && _totalPages != oldTotalPages) {
       final newGlobalPage =
           _localToGlobal(anchorChapter, anchorLocalPage!).clamp(0, _totalPages - 1);
@@ -491,26 +666,35 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       _currentGlobalPage = 0;
     }
 
-    if (_pendingChapterJump && _totalPages > 0) {
-      _pendingChapterJump = false;
-      int target;
-      if (widget.initialProgress != null) {
-        target = (widget.initialProgress! * _totalPages).round().clamp(0, _totalPages - 1);
-      } else {
-        target = 0;
-        for (int i = 0; i < widget.currentChapterIndex && i < widget.chapters.length; i++) {
-          target += _pagesFor(i);
-        }
-        target = target.clamp(0, _totalPages - 1);
+    if (_pendingChapterJump) {
+      // Exact-position resume: resolve the saved sentence index to a page
+      // within the chapter we opened on. Kept armed until that chapter's
+      // content has been paginated, so a slow/async load never strands the
+      // reader on chapter one — and never approximated from a whole-book
+      // percentage, which is what used to land on the wrong chapter.
+      final resumePage = _restoreLocalPage(_resumeChapterIndex);
+      if (resumePage != null) {
+        _pendingChapterJump = false;
+        final target = _localToGlobal(_resumeChapterIndex, resumePage);
+        _currentGlobalPage = target;
+        _progress.value =
+            _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0;
+        widget.onProgressChanged(
+            _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
+        _jumpControllerTo(target);
+      } else if (!_hasPendingRestore && _totalPages > 0) {
+        // No exact resume (legacy row or no saved position): land on the top
+        // of the current chapter, never a whole-book estimate. When a resume
+        // IS pending but not yet resolvable, stay armed for the next build.
+        _pendingChapterJump = false;
+        final target = _localToGlobal(widget.currentChapterIndex, 0);
+        _currentGlobalPage = target;
+        _progress.value =
+            _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0;
+        widget.onProgressChanged(
+            _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
+        _jumpControllerTo(target);
       }
-      _currentGlobalPage = target;
-      _progress.value = _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0;
-      widget.onProgressChanged(_totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_pageController.hasClients) {
-          _pageController.jumpToPage(isWideDesktop ? target ~/ 2 : target);
-        }
-      });
     }
 
     _progress.value =
@@ -634,6 +818,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                   child: PageView.builder(
                     controller: _pageController,
                     onPageChanged: (pageIndex) {
+                      // Any page change supersedes a deferred leap.
+                      _pendingJumpToChapter = null;
                       var global = isWideDesktop ? pageIndex * 2 : pageIndex;
                       final maxAllowed = _maxNavigableGlobalPage();
                       if (global > maxAllowed) {
@@ -653,6 +839,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                       if (chIdx + 1 < chapters.length) {
                         _ensureChapterLoaded(chIdx + 1);
                       }
+                      // Report the exact sentence position for the page we've
+                      // just landed on BEFORE notifying the parent of the
+                      // chapter/page change. The parent's onPageChanged
+                      // handler persists progress synchronously using
+                      // whatever position was last reported — if that
+                      // notification fired first, the save would always
+                      // capture the *previous* page's position (one turn
+                      // behind), and when the turn also crossed a chapter
+                      // boundary, that stale position would be persisted
+                      // under the *new* chapter's id, corrupting resume.
+                      _reportPositionFromCurrentPage();
                       widget.onPageChanged(chIdx);
                       widget.onProgressChanged(
                           _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
@@ -700,11 +897,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                           currentChapterIndex: currentIndex,
                           bookmarkedChapterIds: widget.bookmarkedChapterIds,
                           onChapterSelected: (idx) {
-                            widget.onChapterSelected(idx);
-                            final target = _localToGlobal(idx, 0);
-                            _pageController.animateToPage(target,
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut);
+                            _selectChapterExplicitly(idx);
                           },
                           onBookmarkToggle: widget.onBookmarkToggle,
                           isBookmarked: widget.isBookmarked,
@@ -717,11 +910,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                   chapters: chapters,
                   currentChapterIndex: currentIndex,
                   onChapterSelected: (idx) {
-                    widget.onChapterSelected(idx);
-                    final target = _localToGlobal(idx, 0);
-                    _pageController.animateToPage(target ~/ 2,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut);
+                    _selectChapterExplicitly(idx);
                   },
                   onToggleBookmark: widget.onBookmarkToggle,
                   isBookmarked: widget.isBookmarked,
@@ -821,6 +1010,24 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     );
   }
 
+  /// The chapter an explicit selection (index sheet / palette / panel) asked
+  /// to jump to, consumed by [didUpdateWidget]. Distinct from natural paging,
+  /// which must never re-anchor the pages.
+  int? _pendingExplicitChapter;
+
+  /// A chapter the reader selected but whose content hasn't paginated yet.
+  /// The jump fires as soon as it does, so a far leap (e.g. 21 → 40) is never
+  /// swallowed by the navigation gate.
+  int? _pendingJumpToChapter;
+
+  /// Forwards an explicit chapter selection, marking it so [didUpdateWidget]
+  /// anchors the pages once the parent rebuilds with the new index.
+  void _selectChapterExplicitly(int idx) {
+    _pendingExplicitChapter = idx;
+    _ensureChapterLoaded(idx);
+    widget.onChapterSelected(idx);
+  }
+
   void _showChapterIndex(BuildContext context) {
     final (curChIdx, _) = _globalToLocal(_currentGlobalPage);
     ChapterIndexSheet.show(
@@ -829,11 +1036,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       chapters: widget.chapters,
       currentChapterIndex: curChIdx,
       onChapterTap: (idx) {
-        final target = _localToGlobal(idx, 0);
-        final pageToJump = isWideDesktop ? target ~/ 2 : target;
-        _pageController.animateToPage(pageToJump,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut);
+        _selectChapterExplicitly(idx);
       },
     );
   }
@@ -874,6 +1077,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         height: widget.settings.lineHeight,
         letterSpacing: widget.settings.letterSpacing,
         color: vt.text,
+        fontWeight: widget.settings.fontWeight != null
+            ? FontWeight(widget.settings.fontWeight!)
+            : null,
       ),
       fontFamily: widget.settings.fontFamily,
       textAlignment: widget.settings.textAlignment,
@@ -922,6 +1128,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
           height: widget.settings.lineHeight,
           letterSpacing: widget.settings.letterSpacing,
           color: vt.text,
+          fontWeight: widget.settings.fontWeight != null
+              ? FontWeight(widget.settings.fontWeight!)
+              : null,
         ),
         fontFamily: widget.settings.fontFamily,
         textAlignment: widget.settings.textAlignment,

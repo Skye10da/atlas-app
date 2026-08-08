@@ -12,6 +12,7 @@ import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/domain/entities/reading_progress_snapshot.dart';
 import 'package:atlas_app/reader/domain/repository_interfaces/reader_repository_interface.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
@@ -56,12 +57,20 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   double _scrollProgress = 0.0;
   String? _initialChapterId;
   double? _initialScrollProgress;
+  int? _initialPosition;
   bool _readQueryParam = false;
   bool _loading = true;
   String? _errorMessage;
   Set<String> _bookmarkedChapterIds = {};
   Timer? _saveDebounceTimer;
   PlatformService? _platformService;
+
+  /// Last reported reading position (flat sentence index + total) for the
+  /// current chapter, used by [_saveProgress] instead of the old hardcoded
+  /// `0`. Reset on each chapter change so a stale chapter's index is never
+  /// persisted under another chapter.
+  int _currentSentenceIndex = 0;
+  int _currentSentenceTotal = 0;
 
   String? _bookLanguage;
   String? _bookTitle;
@@ -108,6 +117,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     final idx = _chapters.indexWhere((c) => c.id == finishedChapterId);
     if (idx < 0 || idx >= _chapters.length - 1) return;
     final next = _chapters[idx + 1];
+    _resetPosition();
     setState(() {
       _currentChapter = next;
       _currentChapterIndex = idx + 1;
@@ -195,6 +205,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     });
     await _loadBookmarks();
     await _loadNarrationContext();
+    await _loadReadingProgress();
   }
 
   Future<void> _loadNarrationContext() async {
@@ -214,6 +225,15 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
           ? checkpoint
           : null;
     });
+  }
+
+  Future<void> _loadReadingProgress() async {
+    final result = await widget.repo.getReadingProgress(widget.bookId);
+    if (!mounted) return;
+    if (result is Success<ReadingProgressSnapshot?>) {
+      final snap = result.value;
+      setState(() => _initialPosition = snap?.position);
+    }
   }
 
   Future<void> _loadBookmarks() async {
@@ -278,6 +298,12 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   void dispose() {
     _speechSub?.cancel();
     _saveDebounceTimer?.cancel();
+    // Best-effort fallback only (e.g. the widget is torn down by something
+    // other than the user popping the reader route, such as a hot restart).
+    // dispose() cannot be awaited by our caller, so this write can still
+    // lose the race against a screen that refreshes as soon as the route
+    // pops. The PopScope in build() is what guarantees the save actually
+    // lands before a normal back-navigation completes — see _handlePop.
     if (_currentChapter != null) {
       _saveProgress(_currentChapter!);
     }
@@ -286,8 +312,40 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     super.dispose();
   }
 
+  bool _popInProgress = false;
+
+  /// Flushes the current reading position to the database and then performs
+  /// the pop ourselves, so that anything awaiting the pushed route's Future
+  /// (e.g. `await navigator.push(route)` on the details screen) only resolves
+  /// once the save has actually landed — closing the race that let the
+  /// details/library screens read the old progress right after returning
+  /// from the reader.
+  Future<void> _handlePop() async {
+    if (_popInProgress) return;
+    _popInProgress = true;
+    _saveDebounceTimer?.cancel();
+    final chapter = _currentChapter;
+    if (chapter != null) {
+      await _saveProgress(chapter);
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handlePop();
+      },
+      child: _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     if (_loading) {
       return Scaffold(
         backgroundColor: ReadingViewTheme.light.background,
@@ -322,6 +380,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     final savedProgress = _scrollProgress > 0
         ? _scrollProgress
         : _initialScrollProgress;
+    // The live sentence index (relative to the current chapter) is preferred
+    // when it has been reported, so a mid-book mode switch carries the reader
+    // forward instead of snapping back to the chapter-1-era resume point.
+    final resumePosition =
+        _currentSentenceIndex > 0 ? _currentSentenceIndex : _initialPosition;
     if (settings.readingMode == ReadingMode.continuous) {
       return ContinuousReaderLayout(
         chapters: chapters,
@@ -329,11 +392,14 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
         currentChapterIndex: _currentChapterIndex,
         bookmarkedChapterIds: _bookmarkedChapterIds,
         initialScrollProgress: savedProgress,
+        restorePosition: resumePosition,
+        onPositionChanged: _onPositionChanged,
         onScrollProgress: _onContinuousScrollProgress,
         onCurrentChapterChanged: _onContinuousChapterChanged,
         onScrollDirectionChanged: _onScrollDirectionChanged,
         onSettingsTap: _showSettingsDrawer,
         onChapterSelected: (idx) {
+          _resetPosition();
           setState(() {
             _currentChapter = _chapters[idx];
             _currentChapterIndex = idx;
@@ -349,9 +415,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     return PagedReaderLayout(
       chapters: chapters,
       settings: settings,
-      currentChapterIndex: chapters.indexOf(_currentChapter!),
+      currentChapterIndex: _currentChapterIndex,
       bookmarkedChapterIds: _bookmarkedChapterIds,
       initialProgress: savedProgress,
+      restorePosition: resumePosition,
+      onPositionChanged: _onPositionChanged,
       onPageChanged: _onPagedPageChanged,
       onProgressChanged: _onPagedProgressChanged,
       onChapterSelected: _goToPagedChapter,
@@ -369,7 +437,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
 
   void _onContinuousChapterChanged(int index) {
     if (_currentChapter?.id != _chapters[index].id) {
-      setState(() => _currentChapter = _chapters[index]);
+      _resetPosition();
+      setState(() {
+        _currentChapter = _chapters[index];
+        _currentChapterIndex = index;
+      });
       _saveProgress(_chapters[index]);
     }
   }
@@ -381,19 +453,40 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     });
   }
 
-  void _saveProgress(ChapterEntity chapter) async {
+  void _resetPosition() {
+    _currentSentenceIndex = 0;
+    _currentSentenceTotal = 0;
+  }
+
+  /// Stores the reader's current reading position so [_saveProgress] can
+  /// persist it instead of the old hardcoded `0`. Called by both layouts as
+  /// the user pages/scrolls.
+  void _onPositionChanged(int sentenceIndex, int totalSentences) {
+    _currentSentenceIndex = sentenceIndex;
+    _currentSentenceTotal = totalSentences;
+  }
+
+  Future<void> _saveProgress(ChapterEntity chapter) async {
     await widget.repo.saveProgress(
       userId: 'local',
       bookId: widget.bookId,
       chapterId: chapter.id,
       percentage: _scrollProgress * 100,
-      position: 0,
-      totalPositions: 0,
+      position: _currentSentenceIndex,
+      totalPositions: _currentSentenceTotal,
     );
   }
 
   void _onPagedPageChanged(int chapterIndex) {
-    setState(() => _currentChapter = _chapters[chapterIndex]);
+    // PagedReaderLayout reports the new page's exact sentence position (via
+    // _onPositionChanged, which updates _currentSentenceIndex/_currentSentenceTotal)
+    // BEFORE invoking this callback, so _saveProgress below always persists
+    // the freshly reported position for whichever chapter we just landed on
+    // — never a stale index left over from the chapter we paged away from.
+    setState(() {
+      _currentChapter = _chapters[chapterIndex];
+      _currentChapterIndex = chapterIndex;
+    });
     _saveProgress(_chapters[chapterIndex]);
   }
 
@@ -403,7 +496,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
 
   void _goToPagedChapter(int index) {
     if (_currentChapter?.id != _chapters[index].id) {
-      setState(() => _currentChapter = _chapters[index]);
+      _resetPosition();
+      setState(() {
+        _currentChapter = _chapters[index];
+        _currentChapterIndex = index;
+      });
     }
   }
 

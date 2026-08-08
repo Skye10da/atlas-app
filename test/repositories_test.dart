@@ -9,6 +9,7 @@ import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
+import 'package:atlas_app/reader/domain/entities/reading_progress_snapshot.dart';
 import 'package:atlas_app/reader/infrastructure/repositories/drift_reader_repository.dart';
 
 AppDatabase _createDb() => AppDatabase.memory();
@@ -100,6 +101,37 @@ void main() {
         final result = await repo.getBooks();
         final books = (result as Success).value;
         expect(books[0].progress, 42.5);
+      });
+    });
+
+    group('watchBooks', () {
+      test('re-emits when a book is added and when progress changes', () async {
+        final events = <Result<List<BookEntity>>>[];
+        final sub = repo.watchBooks().listen(events.add);
+
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(events, hasLength(1));
+        expect((events.first as Success).value, isEmpty);
+
+        await db.into(db.books).insert(_book(id: 'b1', title: 'Alpha'));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(events, hasLength(2));
+        expect((events.last as Success).value, hasLength(1));
+
+        await db.into(db.readingProgress).insert(ReadingProgressCompanion(
+              id: const Value('b1'),
+              bookId: const Value('b1'),
+              chapterId: const Value('ch1'),
+              percentage: const Value(66.5),
+              position: const Value(0),
+              totalPositions: const Value(0),
+              lastReadAt: Value(DateTime.now()),
+              readingTimeSeconds: const Value(0),
+            ));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect((events.last as Success).value.single.progress, 66.5);
+
+        await sub.cancel();
       });
     });
 
@@ -280,6 +312,34 @@ void main() {
 
         final progress = await db.getReadingProgress('b1');
         expect(progress!.percentage, closeTo(90.0, 0.01));
+      });
+
+      test('persists exact-position resume fields read back via getReadingProgress',
+          () async {
+        await repo.saveProgress(
+          userId: 'local',
+          bookId: 'b1',
+          chapterId: 'ch7',
+          percentage: 55.5,
+          position: 128,
+          totalPositions: 240,
+        );
+
+        final result = await repo.getReadingProgress('b1');
+        expect(result, isA<Success<ReadingProgressSnapshot?>>());
+        final snapshot = (result as Success).value;
+        expect(snapshot, isNotNull);
+        expect(snapshot!.bookId, 'b1');
+        expect(snapshot.chapterId, 'ch7');
+        expect(snapshot.percentage, closeTo(55.5, 0.01));
+        expect(snapshot.position, 128);
+        expect(snapshot.totalPositions, 240);
+      });
+
+      test('getReadingProgress returns null snapshot for unknown book', () async {
+        final result = await repo.getReadingProgress('missing');
+        expect(result, isA<Success<ReadingProgressSnapshot?>>());
+        expect((result as Success).value, isNull);
       });
     });
 

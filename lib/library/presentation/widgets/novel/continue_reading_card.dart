@@ -8,9 +8,14 @@ import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 
 class ContinueReadingCard extends ConsumerWidget {
-  const ContinueReadingCard({super.key, required this.book});
+  const ContinueReadingCard({super.key, required this.book, this.onReturn});
 
   final BookEntity book;
+
+  /// Called after the reader route has been popped (and its progress save
+  /// has landed), so the caller can refresh any book data it's holding
+  /// (e.g. a whole-book progress percentage) that this card doesn't own.
+  final VoidCallback? onReturn;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,6 +30,8 @@ class ContinueReadingCard extends ConsumerWidget {
 
         final colors = Theme.of(context).colorScheme;
         final textTheme = Theme.of(context).textTheme;
+        void openReader() =>
+            _openReader(context, ref, chapter, isContinue);
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -67,7 +74,7 @@ class ContinueReadingCard extends ConsumerWidget {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: () => _openReader(context, chapter, isContinue),
+                    onPressed: openReader,
                     icon: Icon(isContinue ? Icons.play_arrow : Icons.menu_book),
                     label: Text(isContinue ? 'Continue Reading' : 'Start'),
                   ),
@@ -80,23 +87,33 @@ class ContinueReadingCard extends ConsumerWidget {
     );
   }
 
-  void _openReader(
+  /// Pushes the reader and, once it's popped, refreshes anything that
+  /// depends on this book's reading progress. `context.push` returns a
+  /// Future that resolves only when the pushed route is actually removed
+  /// from the navigator, which — now that the reader flushes its progress
+  /// save before completing its own pop — happens after the write has
+  /// landed, so the invalidation below is guaranteed to see fresh data
+  /// instead of racing the save.
+  Future<void> _openReader(
     BuildContext context,
+    WidgetRef ref,
     ChapterEntity? chapter,
     bool isContinue,
-  ) {
+  ) async {
     final base = '/reader/${book.id}';
-    if (!isContinue) {
-      context.push(base);
-      return;
+    String route = base;
+    if (isContinue) {
+      final progress = book.progress ?? 0;
+      final params = <String, String>{'chapterId': chapter!.id};
+      if (progress > 0) {
+        params['progress'] = (progress / 100).toStringAsFixed(4);
+      }
+      final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
+      route = query.isNotEmpty ? '$base?$query' : base;
     }
-    final progress = book.progress ?? 0;
-    final params = <String, String>{};
-    params['chapterId'] = chapter!.id;
-    if (progress > 0) {
-      params['progress'] = (progress / 100).toStringAsFixed(4);
-    }
-    final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
-    context.push(query.isNotEmpty ? '$base?$query' : base);
+    await context.push(route);
+    if (!context.mounted) return;
+    ref.invalidate(lastReadChapterProvider(book.id));
+    onReturn?.call();
   }
 }

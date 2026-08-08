@@ -8,6 +8,7 @@ import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.da
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
+import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
 import 'package:atlas_app/reader/speech/parser/sentence_splitter.dart';
 import 'package:atlas_app/reader/speech/speech_models.dart';
 
@@ -106,6 +107,7 @@ class ChapterView extends ConsumerStatefulWidget {
     required this.content,
     this.fontSize = 18.0,
     this.fontFamily,
+    this.fontWeight,
     this.lineHeight = 1.8,
     this.letterSpacing = 0.0,
     this.theme = ReadingViewTheme.light,
@@ -121,6 +123,8 @@ class ChapterView extends ConsumerStatefulWidget {
     this.onShare,
     this.onSearchWeb,
     this.activeSpeechItem,
+    this.restoreCharOffset,
+    this.onRestoreRevealed,
     this.onNarrationOutOfSyncChanged,
     this.onRegisterNarrationReveal,
   });
@@ -128,6 +132,8 @@ class ChapterView extends ConsumerStatefulWidget {
   final String content;
   final double fontSize;
   final String? fontFamily;
+  /// Numeric reader body-text weight; `null` keeps the family default.
+  final int? fontWeight;
   final double lineHeight;
   final double letterSpacing;
   final ReadingViewTheme theme;
@@ -160,6 +166,14 @@ class ChapterView extends ConsumerStatefulWidget {
   /// narration highlighting.
   final SpeechItem? activeSpeechItem;
 
+  /// A character offset (into [content]) to reveal once on open — a one-shot
+  /// exact-position resume. Omit for none.
+  final int? restoreCharOffset;
+
+  /// Called once [restoreCharOffset] has been revealed so the parent can clear
+  /// it and avoid a repeat reveal on every rebuild.
+  final void Function()? onRestoreRevealed;
+
   /// Reports whether this chapter is narrating but its highlighted sentence is
   /// currently out of the visible viewport (true) or back in sync (false).
   /// Used by the parent to show/hide a "jump to narration" affordance.
@@ -183,9 +197,8 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   bool _didInitNarration = false;
   bool _lastReportedOutOfSync = false;
   bool _revealAnimating = false;
+  bool _didRestoreReveal = false;
   ScrollPosition? _listenedPosition;
-
-  static final _paragraphBreak = RegExp(r'\n\s*\n');
 
   /// Matches quoted dialogue/text — straight double quotes and typographic
   /// (curly) double quotes. Single quotes are deliberately excluded since
@@ -241,6 +254,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       if (!mounted) return;
       _ensureScrollListener();
       _registerNarrationReveal();
+      _revealRestoreIfNeeded();
       _refreshOutOfSync();
     });
   }
@@ -252,6 +266,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       if (!mounted) return;
       _ensureScrollListener();
       _registerNarrationReveal();
+      _revealRestoreIfNeeded();
       if (widget.activeSpeechItem == null) {
         _highlightController.value = 0.0;
         _refreshOutOfSync();
@@ -398,6 +413,42 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     });
   }
 
+  /// One-shot exact-position resume: scrolls this chapter's nearest scrollable
+  /// so the character at [widget.restoreCharOffset] is in view, then calls
+  /// [widget.onRestoreRevealed] so the parent clears the offset and nothing
+  /// re-fires on a later rebuild or navigation. No-op once applied, while no
+  /// offset is set, or before layout settles.
+  void _revealRestoreIfNeeded() {
+    if (_didRestoreReveal) return;
+    final offset = widget.restoreCharOffset;
+    if (offset == null || offset < 0) return;
+    final content = widget.content;
+    if (content.isEmpty) return;
+
+    final scrollable = Scrollable.maybeOf(context);
+    final render = _findRenderEditable();
+    final viewport = render != null
+        ? RenderAbstractViewport.maybeOf(render)
+        : null;
+    if (scrollable == null || render == null || viewport == null) return;
+
+    _didRestoreReveal = true;
+    final edge = render
+        .getLocalRectForCaret(TextPosition(offset: offset.clamp(0, content.length)))
+        .top;
+    final revealed = viewport.getOffsetToReveal(
+      render,
+      0.0,
+      rect: Rect.fromLTWH(0, edge, 0, 0),
+    );
+    final position = scrollable.position;
+    final target = (revealed.offset - 24.0).clamp(0.0, position.maxScrollExtent);
+    _revealAnimating = true;
+    position.jumpTo(target);
+    _revealAnimating = false;
+    widget.onRestoreRevealed?.call();
+  }
+
   /// Returns `(idx, caretGlobalTop, render, viewport, vpTop, vpBottom)` for the
   /// active sentence, or `null` when there is nothing to reveal.
   (int, double, RenderEditable, RenderAbstractViewport, double, double)?
@@ -432,28 +483,20 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     if (item == null) return null;
     final content = widget.content;
 
-    // Replicate SpeechSessionBuilder's paragraph split (trimmed, non-empty)
-    // and record each paragraph's start offset in the raw content.
-    final segments = <(int, String)>[];
-    var segStart = 0;
-    for (final match in _paragraphBreak.allMatches(content)) {
-      final seg = content.substring(segStart, match.start);
-      if (seg.trim().isNotEmpty) segments.add((segStart, seg));
-      segStart = match.end;
-    }
-    final tail = content.substring(segStart);
-    if (tail.trim().isNotEmpty) segments.add((segStart, tail));
-
+    // Reuse the shared paragraph segmentation (trimmed, non-empty, each
+    // recording its start offset in the raw content) — the same one
+    // ChapterPositionResolver uses for reading-position persistence.
+    final segments = const ChapterPositionResolver().paragraphsOf(content);
     if (item.paragraphIndex >= segments.length) return null;
-    final (segStartOffset, segRaw) = segments[item.paragraphIndex];
-    final paraTrim = segRaw.trim();
+    final para = segments[item.paragraphIndex];
+    final paraTrim = para.text.trim();
     if (paraTrim.isEmpty) return null;
-    final paraOffsetInSeg = segRaw.indexOf(paraTrim);
+    final paraOffsetInSeg = para.text.indexOf(paraTrim);
 
     final spans = const SentenceSplitter().splitParagraphSpans(paraTrim);
     if (spans.isEmpty) return null;
     final span = spans[item.sentenceIndex.clamp(0, spans.length - 1)];
-    final start = segStartOffset + paraOffsetInSeg + span.offset;
+    final start = para.offset + paraOffsetInSeg + span.offset;
 
     if (content.startsWith(item.text, start)) return start;
 
@@ -461,7 +504,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     // piece longer than the per-item cap) — fall back to locating the text
     // inside the correct paragraph before doing a whole-chapter search.
     final inParagraph = paraTrim.indexOf(item.text);
-    if (inParagraph >= 0) return segStartOffset + paraOffsetInSeg + inParagraph;
+    if (inParagraph >= 0) return para.offset + paraOffsetInSeg + inParagraph;
     final anywhere = content.indexOf(item.text);
     return anywhere >= 0 ? anywhere : null;
   }
@@ -473,6 +516,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       height: widget.lineHeight,
       letterSpacing: widget.letterSpacing,
       color: widget.theme.text,
+      fontWeight: widget.fontWeight != null ? FontWeight(widget.fontWeight!) : null,
     );
 
     final content = _buildText(baseStyle);

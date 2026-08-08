@@ -14,6 +14,7 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
   static const _keyThemeMode = 'app_theme_mode';
   static const _keyFontSize = 'reader_font_size';
   static const _keyFontFamily = 'reader_font_family';
+  static const _keyFontWeight = 'reader_font_weight';
   static const _keyLineHeight = 'reader_line_height';
   static const _keyLetterSpacing = 'reader_letter_spacing';
   static const _keyKeepAwake = 'reader_keep_awake';
@@ -48,6 +49,7 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
       },
       fontSize: prefs.getDouble(_keyFontSize) ?? 18.0,
       fontFamily: prefs.getString(_keyFontFamily),
+      fontWeight: prefs.getInt(_keyFontWeight),
       lineHeight: (prefs.getDouble(_keyLineHeight) ?? 1.8).clamp(1.0, 2.0),
       letterSpacing: prefs.getDouble(_keyLetterSpacing) ?? 0.0,
       keepScreenAwake: prefs.getBool(_keyKeepAwake) ?? false,
@@ -121,6 +123,11 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
       await prefs.setString(_keyFontFamily, settings.fontFamily!);
     } else {
       await prefs.remove(_keyFontFamily);
+    }
+    if (settings.fontWeight != null) {
+      await prefs.setInt(_keyFontWeight, settings.fontWeight!);
+    } else {
+      await prefs.remove(_keyFontWeight);
     }
     await prefs.setDouble(_keyLineHeight, settings.lineHeight);
     await prefs.setDouble(_keyLetterSpacing, settings.letterSpacing);

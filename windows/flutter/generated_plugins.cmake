@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
   flutter_tts
+  pdfx
   screen_brightness_pro
   sqlite3_flutter_libs
 )

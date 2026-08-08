@@ -10,6 +10,14 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+      let channel = FlutterMethodChannel(
+        name: AppDelegate.fileOpenChannelName,
+        binaryMessenger: flutterViewController.binaryMessenger
+      )
+      appDelegate.installFileOpenChannel(channel)
+    }
+
     super.awakeFromNib()
   }
 }

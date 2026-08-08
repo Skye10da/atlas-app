@@ -1,5 +1,7 @@
 #include "flutter_window.h"
 
+#include <flutter/standard_method_codec.h>
+#include <string>
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
@@ -26,6 +28,13 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  // Bridge that lets a later-launched Atlas hand this window a document opened
+  // via the shell. Dart listens on this channel (FileOpenController).
+  file_open_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "com.atlasapp/file_open",
+          &flutter::StandardMethodCodec::GetInstance());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
@@ -62,6 +71,22 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_COPYDATA: {
+      // A second Atlas instance handed us a document to open. The payload is
+      // only valid for the duration of this call, so copy it out immediately
+      // before forwarding it to Dart.
+      const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
+      if (data != nullptr && data->cbData > 0 && data->lpData != nullptr) {
+        const auto* bytes = static_cast<const char*>(data->lpData);
+        std::string path(bytes, data->cbData - 1);
+        if (!path.empty() && file_open_channel_ != nullptr) {
+          file_open_channel_->InvokeMethod(
+              "onFileOpened",
+              std::make_unique<flutter::EncodableValue>(path));
+        }
+      }
+      return TRUE;
+    }
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

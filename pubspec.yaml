@@ -46,6 +46,10 @@ dependencies:
   # HTML DOM parsing (content engine)
   html: ^0.15.5
 
+  # ZIP + XML parsing (resilient EPUB import)
+  archive: ^4.0.9
+  xml: ^6.6.1
+
   # Hashing (content versioning / plugin verification)
   crypto: ^3.0.6
 
@@ -63,6 +67,10 @@ dependencies:
   skeletonizer: ^2.1.3
   flutter_tts: ^4.2.5
   audio_service: ^0.18.19
+
+  # Indexed chapter navigation (replaces pixel-offset jump estimation)
+  scrollable_positioned_list: ^0.3.8
+  pdfx: ^2.9.2
 
 dev_dependencies:
   flutter_test:
@@ -85,3 +93,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/fonts/

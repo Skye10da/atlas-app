@@ -52,7 +52,11 @@ class BookCover extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
-          format == 'epub' ? Icons.description : Icons.book,
+          switch (format) {
+            'epub' => Icons.description,
+            'pdf' => Icons.picture_as_pdf,
+            _ => Icons.book,
+          },
           size: width * 0.4,
           color: AppColors.onSurfaceVariant,
         ),

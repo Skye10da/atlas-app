@@ -24,6 +24,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
   late TabController _tabController;
   late double _fontSize;
   late String? _fontFamily;
+  late int? _fontWeight;
   late double _lineHeight;
   late double _letterSpacing;
   late ReadingViewTheme _theme;
@@ -45,6 +46,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
     final s = widget.initialSettings;
     _fontSize = s.fontSize;
     _fontFamily = s.fontFamily;
+    _fontWeight = s.fontWeight;
     _lineHeight = s.lineHeight;
     _letterSpacing = s.letterSpacing;
     _theme = s.theme;
@@ -131,6 +133,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
                   TextTab(
                     fontSize: _fontSize,
                     fontFamily: _fontFamily,
+                    fontWeight: _fontWeight,
                     textAlignment: _textAlignment,
                     lineHeight: _lineHeight,
                     letterSpacing: _letterSpacing,
@@ -141,6 +144,10 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
                     onFontFamilyChanged: (v) {
                       setState(() => _fontFamily = v);
                       notifier.setFontFamily(v);
+                    },
+                    onFontWeightChanged: (v) {
+                      setState(() => _fontWeight = v);
+                      notifier.setFontWeight(v);
                     },
                     onTextAlignmentChanged: (v) {
                       setState(() => _textAlignment = v);

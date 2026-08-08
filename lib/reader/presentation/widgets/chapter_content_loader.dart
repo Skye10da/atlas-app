@@ -14,6 +14,7 @@ class ChapterContentLoader extends ConsumerWidget {
     required this.chapter,
     required this.fontSize,
     this.fontFamily,
+    this.fontWeight,
     required this.lineHeight,
     required this.letterSpacing,
     required this.vt,
@@ -21,6 +22,8 @@ class ChapterContentLoader extends ConsumerWidget {
     this.marginPreset = MarginPreset.normal,
     this.scrollable = true,
     this.chapterStyle,
+    this.restoreCharOffset,
+    this.onRestoreRevealed,
     this.onNarrationOutOfSyncChanged,
     this.onRegisterNarrationReveal,
   });
@@ -28,6 +31,8 @@ class ChapterContentLoader extends ConsumerWidget {
   final ChapterEntity chapter;
   final double fontSize;
   final String? fontFamily;
+  /// Numeric reader body-text weight; `null` keeps the family default.
+  final int? fontWeight;
   final double lineHeight;
   final double letterSpacing;
   final ReadingViewTheme vt;
@@ -35,6 +40,14 @@ class ChapterContentLoader extends ConsumerWidget {
   final MarginPreset marginPreset;
   final bool scrollable;
   final ChapterStyle? chapterStyle;
+
+  /// Character offset (into [chapter]'s content) to reveal on open — a
+  /// one-shot exact-position resume. Omit for no resume.
+  final int? restoreCharOffset;
+
+  /// Called once the resume offset has been revealed, letting the parent clear
+  /// it so it doesn't re-fire. Omit to disable.
+  final void Function()? onRestoreRevealed;
 
   /// Whether this chapter is narrating but its highlighted sentence has
   /// scrolled out of view. See [ChapterView.onNarrationOutOfSyncChanged].
@@ -86,6 +99,7 @@ class ChapterContentLoader extends ConsumerWidget {
             content: content,
             fontSize: fontSize,
             fontFamily: fontFamily,
+            fontWeight: fontWeight,
             lineHeight: lineHeight,
             letterSpacing: letterSpacing,
             theme: vt,
@@ -94,6 +108,8 @@ class ChapterContentLoader extends ConsumerWidget {
             scrollable: scrollable,
             dropCapStyle: chapterStyle?.dropCapStyle,
             chapterTitle: chapter.title,
+            restoreCharOffset: restoreCharOffset,
+            onRestoreRevealed: onRestoreRevealed,
             activeSpeechItem: activeForThisChapter,
             onNarrationOutOfSyncChanged: onNarrationOutOfSyncChanged,
             onRegisterNarrationReveal: onRegisterNarrationReveal,

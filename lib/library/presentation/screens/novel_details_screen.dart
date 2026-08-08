@@ -1,6 +1,8 @@
 import 'dart:math';
 
+import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/continue_reading_card.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,13 +31,34 @@ class NovelDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
+  // Held in state (instead of created fresh inline in every `build`) so it
+  // can be explicitly refreshed after returning from the reader. Popping
+  // back onto this screen doesn't itself trigger a rebuild, so a future
+  // built inline in `build()` would otherwise keep showing the snapshot
+  // that was current when the reader was opened — stale chapter/progress —
+  // until some unrelated rebuild happened to occur.
+  late Future<Result<BookEntity>> _bookFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _bookFuture = _fetchBook();
+  }
+
+  Future<Result<BookEntity>> _fetchBook() {
+    final db = ref.read(databaseProvider);
+    return DriftLibraryRepository(db).getBookById(widget.bookId);
+  }
+
+  void _refreshBook() {
+    if (!mounted) return;
+    setState(() => _bookFuture = _fetchBook());
+  }
+
   @override
   Widget build(BuildContext context) {
-    final db = ref.watch(databaseProvider);
-    final repo = DriftLibraryRepository(db);
-
     return FutureBuilder<Result<BookEntity>>(
-      future: repo.getBookById(widget.bookId),
+      future: _bookFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: AppLoading());
@@ -61,13 +84,21 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                   background: NovelHeroHeader(book: book),
                 ),
                 backgroundColor: Theme.of(context).colorScheme.surface,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.file_upload_outlined),
+                    tooltip: 'Export',
+                    onPressed: () => _exportNovel(book),
+                  ),
+                  const SizedBox(width: 4),
+                ],
               ),
               SliverToBoxAdapter(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: AppSpacing.sm),
-                    ContinueReadingCard(book: book),
+                    ContinueReadingCard(book: book, onReturn: _refreshBook),
                     const SizedBox(height: AppSpacing.sm),
                     GenreTagRow(book: book),
                     const SizedBox(height: AppSpacing.lg),
@@ -80,7 +111,7 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                       totalChapters: book.totalChapters,
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    _ChapterPanel(bookId: widget.bookId),
+                    _ChapterPanel(bookId: widget.bookId, onReturn: _refreshBook),
                     const SizedBox(height: AppSpacing.xxl),
                   ],
                 ),
@@ -89,6 +120,123 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _exportNovel(BookEntity book) async {
+    final format = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => _ExportFormatSheet(book: book),
+    );
+    if (format == null || !mounted) return;
+
+    final dir = await FilePicker.platform.getDirectoryPath();
+    if (dir == null || !mounted) return;
+
+    final service = ref.read(novelExportServiceProvider);
+    final progress = ValueNotifier<double>(0);
+
+    final Future<Result<String>> exportFuture;
+    if (format == 'epub') {
+      exportFuture = service.exportToEpub(
+        bookId: book.id,
+        outputDirectory: dir,
+        onFetchProgress: (done, total) =>
+            progress.value = total == 0 ? 1 : done / total,
+      );
+    } else {
+      exportFuture = service.exportSourceLink(
+        bookId: book.id,
+        outputDirectory: dir,
+      );
+    }
+
+    if (!mounted) {
+      try { await exportFuture; } catch (_) {}
+      return;
+    }
+
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ImportProgressDialog(
+        future: exportFuture,
+        progress: progress,
+        label: 'Exporting...',
+      ),
+    );
+
+    if (!mounted) return;
+    final result = await exportFuture;
+    final message = switch (result) {
+      Success(value: final path) => 'Exported to $path',
+      Failure(error: final error) => error.userMessage,
+    };
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _ExportFormatSheet extends StatelessWidget {
+  const _ExportFormatSheet({required this.book});
+
+  final BookEntity book;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Export ${book.title}',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _listTile(
+              icon: Icons.menu_book_rounded,
+              iconColor: cs.primary,
+              title: 'EPUB (full text)',
+              subtitle: 'Self-contained offline file with every chapter.',
+              onTap: () => Navigator.of(context).pop('epub'),
+            ),
+            _listTile(
+              icon: Icons.link_rounded,
+              iconColor: cs.tertiary,
+              title: 'Atlas link (.atlas)',
+              subtitle:
+                  'Lightweight package relinking to the original source; '
+                  'chapters re-fetch on demand.',
+              onTap: () => Navigator.of(context).pop('atlas'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _listTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: iconColor),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle),
+      onTap: onTap,
     );
   }
 }
@@ -187,9 +335,10 @@ class _ChapterSectionHeader extends ConsumerWidget {
 }
 
 class _ChapterPanel extends ConsumerStatefulWidget {
-  const _ChapterPanel({required this.bookId});
+  const _ChapterPanel({required this.bookId, this.onReturn});
 
   final String bookId;
+  final VoidCallback? onReturn;
 
   @override
   ConsumerState<_ChapterPanel> createState() => _ChapterPanelState();
@@ -223,8 +372,10 @@ class _ChapterPanelState extends ConsumerState<_ChapterPanel> {
               isLast: group == groups.last,
               colors: colors,
               downloadingSet: downloadingSet,
-              onTap: (chapterId) {
-                context.push('/reader/${widget.bookId}?chapterId=$chapterId');
+              onTap: (chapterId) async {
+                await context.push(
+                    '/reader/${widget.bookId}?chapterId=$chapterId');
+                widget.onReturn?.call();
               },
               onDownload: (chapterId) => _downloadChapter(chapterId),
             );

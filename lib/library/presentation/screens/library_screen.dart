@@ -100,8 +100,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             onSelected: (value) {
               if (value == 'file') {
                 _importBook();
+              } else if (value == 'pdf') {
+                _importPdf();
               } else if (value == 'link') {
                 _importBookFromUrl();
+              } else if (value == 'atlas') {
+                _importAtlas();
               }
             },
             itemBuilder: (_) => const [
@@ -110,8 +114,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 child: Text('From device (.epub)'),
               ),
               PopupMenuItem(
+                value: 'pdf',
+                child: Text('From device (.pdf)'),
+              ),
+              PopupMenuItem(
                 value: 'link',
                 child: Text('From link'),
+              ),
+              PopupMenuItem(
+                value: 'atlas',
+                child: Text('From Atlas package (.atlas)'),
               ),
             ],
           ),
@@ -384,10 +396,41 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final result = await actions.import();
     ref.invalidate(libraryBooksProvider);
 
-    if (result is Failure && mounted) {
+    if (result is Failure<String?> && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result.error.userMessage)),
       );
+    }
+  }
+
+  Future<void> _importPdf() async {
+    final actions = ref.read(libraryImportProvider);
+    final result = await actions.importPdf();
+    ref.invalidate(libraryBooksProvider);
+
+    if (result is Failure<String?> && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.error.userMessage)),
+      );
+    }
+  }
+
+  Future<void> _importAtlas() async {
+    final actions = ref.read(libraryImportProvider);
+    final result = await actions.importAtlas(context);
+    ref.invalidate(libraryBooksProvider);
+
+    if (result is Failure<ImportOutcome> && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.error.userMessage)),
+      );
+      return;
+    }
+    if (result is Success<ImportOutcome> && mounted) {
+      final route = result.value.category == ContentCategory.novel
+          ? '/novel/${result.value.bookId}'
+          : '/book/${result.value.bookId}';
+      await context.push(route);
     }
   }
 

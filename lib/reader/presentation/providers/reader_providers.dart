@@ -7,6 +7,7 @@ import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/reader/application/chapter_download_service.dart';
+import 'package:atlas_app/reader/application/novel_export_service.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/infrastructure/repositories/drift_reader_repository.dart';
@@ -96,6 +97,16 @@ final chapterDownloadServiceProvider = Provider((ref) {
     sourceRegistry: registry,
     readerRepo: readerRepo,
     db: db,
+  );
+});
+
+final novelExportServiceProvider = Provider((ref) {
+  final imagePipeline = ref.watch(imagePipelineProvider);
+  return NovelExportService(
+    readerRepo: ref.watch(readerRepositoryProvider),
+    chapterDownloadService: ref.watch(chapterDownloadServiceProvider),
+    sourceRegistry: ref.watch(sourceRegistryProvider),
+    imagePipeline: imagePipeline,
   );
 });
 
