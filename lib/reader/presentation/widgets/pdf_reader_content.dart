@@ -16,6 +16,7 @@ import 'package:atlas_app/reader/infrastructure/repositories/drift_reader_reposi
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_password_dialog.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_reader_panel.dart';
+import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_settings_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_viewer_models.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
@@ -584,6 +585,11 @@ await DraggableBottomSheet.show(
               tooltip: 'Search, outline, pages & markers',
               onPressed: () => setState(() => _showPanel = !_showPanel),
             ),
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Reading settings',
+              onPressed: _showSettingsSheet,
+            ),
           ],
           const SizedBox(width: 4),
         ],
@@ -613,6 +619,15 @@ await DraggableBottomSheet.show(
         ],
       ),
       bottomNavigationBar: _totalPages > 0 ? _buildBottomBar(nightMode) : null,
+    );
+  }
+
+  void _showSettingsSheet() {
+    DraggableBottomSheet.show(
+      context: context,
+      id: 'pdf_reader_settings',
+      initialHeight: 0.6,
+      child: const PdfSettingsSheet(),
     );
   }
 
