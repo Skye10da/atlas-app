@@ -7,7 +7,6 @@ import 'package:atlas_app/core/router/transitions.dart';
 import 'package:atlas_app/library/presentation/screens/book_details_screen.dart';
 import 'package:atlas_app/library/presentation/screens/library_screen.dart';
 import 'package:atlas_app/library/presentation/screens/novel_details_screen.dart';
-import 'package:atlas_app/library/presentation/screens/source_browser_screen.dart';
 import 'package:atlas_app/library/presentation/screens/source_search_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/bookmarks_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/reader_screen.dart';
@@ -35,10 +34,7 @@ abstract final class AppRouter {
         path: '/sources',
         name: 'sources',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => buildPageTransition(
-          child: const SourceBrowserScreen(),
-          key: state.uri.toString(),
-        ),
+        redirect: (context, state) => '/web',
       ),
       GoRoute(
         path: '/sources/:name',
@@ -53,10 +49,13 @@ abstract final class AppRouter {
         path: '/browser',
         name: 'browser',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => buildPageTransition(
-          child: BrowserScreen(initialUrl: state.uri.queryParameters['url']),
-          key: state.uri.toString(),
-        ),
+        redirect: (context, state) {
+          final url = state.uri.queryParameters['url'];
+          final suffix = url != null && url.isNotEmpty
+              ? '?url=${Uri.encodeQueryComponent(url)}'
+              : '';
+          return '/web$suffix';
+        },
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -86,6 +85,19 @@ abstract final class AppRouter {
                 pageBuilder: (context, state) => buildPageTransition(
                   child: NovelDetailsScreen(bookId: state.pathParameters['bookId']!),
                   key: 'novel_${state.pathParameters['bookId']!}',
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/web',
+                name: 'web',
+                pageBuilder: (context, state) => buildPageTransition(
+                  child:
+                      BrowserScreen(initialUrl: state.uri.queryParameters['url']),
+                  key: 'web',
                 ),
               ),
             ],

@@ -80,6 +80,10 @@ class _AppShellState extends State<AppShell> {
             label: 'Library',
           ),
           NavigationDestination(
+            icon: Icon(Icons.public),
+            label: 'Web',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.bookmark_border),
             label: 'Bookmarks',
           ),
@@ -169,6 +173,7 @@ class _DesktopSidebar extends StatelessWidget {
   List<Widget> _buildNavItems(BuildContext context) {
     final items = <(IconData, String)>[
       (Icons.library_books, 'Library'),
+      (Icons.public, 'Web'),
       (Icons.bookmark_border, 'Bookmarks'),
       (Icons.search, 'Search'),
       (Icons.menu_book, 'Dictionary'),
