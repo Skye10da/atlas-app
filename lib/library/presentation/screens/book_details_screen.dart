@@ -72,13 +72,26 @@ Future<void> _openReader(String bookId, WidgetRef ref, BuildContext context, _Bo
   await libRepo.markAsOpened(bookId);
   final base = '/reader/${data.book.id}';
   final params = <String, String>{};
-  final id = chapterId ?? data.lastReadChapterId;
-  if (id != null) {
-    params['chapterId'] = id;
+
+  // PDFs render page-based: a tapped chapter (whose `pageCount` stores the
+  // outline/page-range destination) becomes a `page` target, and resuming
+  // uses the saved reading position inside the viewer.
+  if (data.book.format == 'pdf') {
+    final target = chapterId ?? data.lastReadChapterId;
+    final chapter = data.chapters.where((c) => c.id == target).firstOrNull;
+    if (chapter != null && chapter.pageCount > 0) {
+      params['page'] = '${chapter.pageCount}';
+    }
+  } else {
+    final id = chapterId ?? data.lastReadChapterId;
+    if (id != null) {
+      params['chapterId'] = id;
+    }
+    if (data.book.progress != null && data.book.progress! > 0) {
+      params['progress'] = (data.book.progress! / 100).toStringAsFixed(4);
+    }
   }
-  if (data.book.progress != null && data.book.progress! > 0) {
-    params['progress'] = (data.book.progress! / 100).toStringAsFixed(4);
-  }
+
   final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
   final route = query.isNotEmpty ? '$base?$query' : base;
   await navigator.push(route);

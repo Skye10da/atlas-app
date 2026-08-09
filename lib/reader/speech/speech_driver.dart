@@ -19,6 +19,13 @@ abstract class SpeechDriver {
     required double pitch,
     required double volume,
     String? voiceId,
+
+    /// Optional BCP-47 language tag (e.g. 'fr-FR') for the configured voice.
+    /// When set, the driver switches the underlying TTS language before
+    /// applying [voiceId], so per-language pronunciation works for one-off
+    /// reads (e.g. a dictionary word in a foreign language). Null keeps the
+    /// driver's current language (the narration default).
+    String? language,
   });
 
   /// Speak a single SpeechItem. Drivers should treat each call as a fresh

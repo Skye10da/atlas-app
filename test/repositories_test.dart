@@ -18,6 +18,7 @@ BooksCompanion _book({
   required String id,
   String title = 'Test Book',
   String? author,
+  String format = 'epub',
   int totalChapters = 10,
   DateTime? createdAt,
   DateTime? updatedAt,
@@ -26,7 +27,7 @@ BooksCompanion _book({
       id: Value(id),
       title: Value(title),
       author: author != null ? Value(author) : const Value.absent(),
-      format: const Value('epub'),
+      format: Value(format),
       filePath: const Value('/fake/path'),
       totalChapters: Value(totalChapters),
       createdAt: Value(createdAt ?? DateTime(2025, 1, 1)),
@@ -169,6 +170,15 @@ void main() {
         final result = await repo.getBookById('b1');
         final book = (result as Success).value;
         expect(book.progress, 75.0);
+      });
+
+      test('preserves format and filePath so readers can route PDFs', () async {
+        await db.into(db.books).insert(_book(id: 'pdf', format: 'pdf'));
+
+        final result = await repo.getBookById('pdf');
+        final book = (result as Success).value;
+        expect(book.format, 'pdf');
+        expect(book.filePath, '/fake/path');
       });
     });
 

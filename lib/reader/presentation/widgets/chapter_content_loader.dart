@@ -26,6 +26,12 @@ class ChapterContentLoader extends ConsumerWidget {
     this.onRestoreRevealed,
     this.onNarrationOutOfSyncChanged,
     this.onRegisterNarrationReveal,
+    this.onHighlight,
+    this.onAddNote,
+    this.onShare,
+    this.onSearchWeb,
+    this.onListen,
+    this.onErase,
   });
 
   final ChapterEntity chapter;
@@ -56,6 +62,14 @@ class ChapterContentLoader extends ConsumerWidget {
   /// Opt-in handle to scroll this chapter's narration into view; see
   /// [ChapterView.onRegisterNarrationReveal].
   final void Function(void Function() reveal)? onRegisterNarrationReveal;
+
+  /// Context-menu callbacks forwarded to [ChapterView].
+  final void Function(String text, Color color, int start, int end)? onHighlight;
+  final void Function(String text, String? sentence)? onAddNote;
+  final void Function(String text)? onShare;
+  final void Function(String text)? onSearchWeb;
+  final void Function(String text, String? sentence, int start, int end)? onListen;
+  final void Function(int start, int end)? onErase;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -97,6 +111,8 @@ class ChapterContentLoader extends ConsumerWidget {
           color: vt.background,
           child: ChapterView(
             content: content,
+            bookId: chapter.bookId,
+            chapterId: chapter.id,
             fontSize: fontSize,
             fontFamily: fontFamily,
             fontWeight: fontWeight,
@@ -113,6 +129,12 @@ class ChapterContentLoader extends ConsumerWidget {
             activeSpeechItem: activeForThisChapter,
             onNarrationOutOfSyncChanged: onNarrationOutOfSyncChanged,
             onRegisterNarrationReveal: onRegisterNarrationReveal,
+            onHighlight: onHighlight,
+            onAddNote: onAddNote,
+            onShare: onShare,
+            onSearchWeb: onSearchWeb,
+            onListen: onListen,
+            onErase: onErase,
           ),
         );
       },

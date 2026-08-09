@@ -9,6 +9,7 @@ import 'package:atlas_app/core/services/dictionary_service.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/dictionary/domain/entities/dictionary_word_entity.dart';
 import 'package:atlas_app/dictionary/presentation/providers/dictionary_providers.dart';
+import 'package:atlas_app/reader/speech/selection_speaker.dart';
 
 class WordLookupSheet extends ConsumerStatefulWidget {
   const WordLookupSheet({
@@ -39,6 +40,7 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
   bool _loading = true;
   String? _error;
   bool _saved = false;
+  bool _speaking = false;
   late final TextEditingController _contextController =
       TextEditingController(text: widget.sourceSentence ?? '');
 
@@ -57,7 +59,12 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
   @override
   void dispose() {
     _contextController.dispose();
+    if (_speaking) asyncStop();
     super.dispose();
+  }
+
+  void asyncStop() {
+    const SelectionSpeaker().stop(ref).catchError((_) {});
   }
 
   void _checkSaved() {
@@ -151,6 +158,44 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
     );
   }
 
+  Future<void> _speak() async {
+    const speaker = SelectionSpeaker();
+    if (_speaking) {
+      setState(() => _speaking = false);
+      await speaker.stop(ref);
+      return;
+    }
+
+    final result = _result;
+    if (result == null) return;
+    final firstSense = result.senses.isNotEmpty ? result.senses.first : null;
+    final firstExample =
+        firstSense != null && firstSense.examples.isNotEmpty
+            ? firstSense.examples.first
+            : null;
+    final text = [
+      result.word,
+      ?firstSense?.definition,
+      ?firstExample,
+    ].join('. ');
+    if (text.trim().isEmpty) return;
+
+    final locale = localeForLanguageCode(_language);
+    final voiceId = await resolveVoiceIdForLanguage(ref, _language);
+    if (!mounted) return;
+
+    setState(() => _speaking = true);
+    await speaker.speak(
+      ref: ref,
+      bookId: 'dictionary',
+      chapterId: '${widget.word}_$_language',
+      text: text,
+      language: locale,
+      voiceId: voiceId,
+    );
+    if (mounted) setState(() => _speaking = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -174,6 +219,11 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
                 child: Text(widget.word,
                     style: textTheme.headlineSmall
                         ?.copyWith(fontWeight: FontWeight.bold)),
+              ),
+              _SpeakButton(
+                speaking: _speaking,
+                enabled: _result != null,
+                onPressed: _speak,
               ),
               _SaveButton(
                 saved: _saved,
@@ -267,6 +317,32 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SpeakButton extends StatelessWidget {
+  const _SpeakButton({
+    required this.speaking,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool speaking;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return IconButton(
+      icon: Icon(
+        speaking ? Icons.stop_circle_outlined : Icons.volume_up_rounded,
+        key: ValueKey(speaking),
+      ),
+      tooltip: speaking ? 'Stop reading' : 'Read aloud',
+      onPressed: enabled ? onPressed : null,
+      color: speaking ? colorScheme.primary : null,
     );
   }
 }

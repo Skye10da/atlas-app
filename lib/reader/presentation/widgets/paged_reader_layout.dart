@@ -13,7 +13,9 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
+import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
@@ -55,6 +57,8 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
     this.onAddNote,
     this.onShare,
     this.onSearchWeb,
+    this.onListen,
+    this.onErase,
     this.restorePosition,
     this.onPositionChanged,
   });
@@ -84,7 +88,7 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
 
   /// Called with the selected text and chosen color when the reader taps a
   /// highlight swatch in the context menu. Omit to hide highlighting.
-  final void Function(String text, Color color)? onHighlight;
+  final void Function(String text, Color color, int start, int end)? onHighlight;
 
   /// Called with the selected text (and surrounding sentence, if available)
   /// when the reader taps "Note". Omit to hide the note action.
@@ -97,6 +101,15 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
   /// Called with the selected text when the reader taps "Search the web".
   /// Omit to hide the search action.
   final void Function(String text)? onSearchWeb;
+
+  /// Called to speak the selected sentence once ("Listen"). Omit to hide the
+  /// listen action.
+  final void Function(String text, String? sentence, int start, int end)?
+      onListen;
+
+  /// Called to remove any stored highlight overlapping the selection. Omit to
+  /// hide the erase action.
+  final void Function(int start, int end)? onErase;
 
   @override
   ConsumerState<PagedReaderLayout> createState() => _PagedReaderLayoutState();
@@ -381,6 +394,13 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       offset += cache[i].length;
     }
     return offset;
+  }
+
+  List<HighlightEntry> _highlightsFor(ChapterEntity chapter) {
+    return ref
+        .watch(annotationsProvider(chapter.bookId))
+        .highlights[chapter.id] ??
+        const [];
   }
 
   /// The local page of [chapterIndex] that contains [charOffset], or the last
@@ -1065,11 +1085,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     final content = pages[clampedPage];
     final isFirstOfChapter = clampedPage == 0;
     final isLastOfChapter = clampedPage == pages.length - 1;
+    final chapter = chapters[chIdx];
+    final pageStartOffset = _pageStartOffset(chIdx, clampedPage);
 
     final pageWidget = _PagedPageView(
       content: content,
-      chapterTitle: chapters[chIdx].title,
+      chapterTitle: chapter.title,
       chapterIndex: chIdx,
+      bookId: chapter.bookId,
+      chapterId: chapter.id,
+      pageStartOffset: pageStartOffset,
+      highlights: _highlightsFor(chapter),
       isFirstPageOfChapter: isFirstOfChapter,
       isLastPageOfChapter: isLastOfChapter,
       textStyle: TextStyle(
@@ -1091,6 +1117,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       onAddNote: widget.onAddNote,
       onShare: widget.onShare,
       onSearchWeb: widget.onSearchWeb,
+      onListen: widget.onListen,
+      onErase: widget.onErase,
     );
     return _wrapWithPageAnimation(pageWidget, globalPage);
   }
@@ -1117,10 +1145,16 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
           ],
         );
       }
+      final (_, pageInChapter) = _globalToLocal(globalPage);
+      final chapter = chapters[chIdx];
       return _PagedPageView(
         content: _pageContentAt(globalPage),
-        chapterTitle: chapters[chIdx].title,
+        chapterTitle: chapter.title,
         chapterIndex: chIdx,
+        bookId: chapter.bookId,
+        chapterId: chapter.id,
+        pageStartOffset: _pageStartOffset(chIdx, pageInChapter),
+        highlights: _highlightsFor(chapter),
         isFirstPageOfChapter: _isFirstPageOfChapter(globalPage),
         isLastPageOfChapter: _isLastPageOfChapter(globalPage),
         textStyle: TextStyle(
@@ -1142,6 +1176,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         onAddNote: widget.onAddNote,
         onShare: widget.onShare,
         onSearchWeb: widget.onSearchWeb,
+        onListen: widget.onListen,
+        onErase: widget.onErase,
       );
     }
 
@@ -1178,6 +1214,10 @@ class _PagedPageView extends StatelessWidget {
     required this.content,
     required this.chapterTitle,
     required this.chapterIndex,
+    this.bookId,
+    this.chapterId,
+    this.pageStartOffset = 0,
+    this.highlights = const [],
     required this.isFirstPageOfChapter,
     required this.isLastPageOfChapter,
     required this.textStyle,
@@ -1191,11 +1231,27 @@ class _PagedPageView extends StatelessWidget {
     this.onAddNote,
     this.onShare,
     this.onSearchWeb,
+    this.onListen,
+    this.onErase,
   });
 
   final String content;
   final String chapterTitle;
   final int chapterIndex;
+
+  /// Book/chapter identity for storing page-relative selections back as
+  /// chapter-relative highlights. Omit to disable highlight handling.
+  final String? bookId;
+  final String? chapterId;
+
+  /// Character offset of this page within its chapter's content, so
+  /// page-local selection offsets can be mapped to chapter-global offsets.
+  final int pageStartOffset;
+
+  /// Stored highlights for this chapter; those intersecting this page's slice
+  /// are rendered as backgrounds.
+  final List<HighlightEntry> highlights;
+
   final bool isFirstPageOfChapter;
   final bool isLastPageOfChapter;
   final TextStyle textStyle;
@@ -1205,10 +1261,12 @@ class _PagedPageView extends StatelessWidget {
   final ReadingViewTheme vt;
   final bool showHeaders;
   final ChapterStyle? chapterStyle;
-  final void Function(String text, Color color)? onHighlight;
+  final void Function(String text, Color color, int start, int end)? onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
+  final void Function(String text, String? sentence, int start, int end)? onListen;
+  final void Function(int start, int end)? onErase;
 
   EdgeInsets get _padding => switch (marginPreset) {
     MarginPreset.narrow => const EdgeInsets.symmetric(
@@ -1266,28 +1324,106 @@ class _PagedPageView extends StatelessWidget {
 
   Widget _buildText(TextStyle resolvedStyle, ChapterStyle? cs) {
     final c = content;
-
     final contextMenu = _contextMenuBuilder(c);
+    final pageHighlights = _pageHighlights(c);
+
+    final spans = _pageSpans(c, resolvedStyle, pageHighlights);
 
     if (cs != null && isFirstPageOfChapter && c.isNotEmpty) {
-      final ds = cs.dropCapStyle;
       return SelectableText.rich(
         TextSpan(
           children: [
-            TextSpan(text: c.substring(0, 1), style: ds),
-            TextSpan(text: c.substring(1), style: resolvedStyle),
+            TextSpan(text: c.substring(0, 1), style: cs.dropCapStyle),
+            ..._restSpans(c, resolvedStyle, pageHighlights),
           ],
         ),
         textAlign: textAlignment.flutterTextAlign,
         contextMenuBuilder: contextMenu,
       );
     }
-    return SelectableText(
-      c,
-      style: resolvedStyle,
+    return SelectableText.rich(
+      TextSpan(children: spans),
       textAlign: textAlignment.flutterTextAlign,
       contextMenuBuilder: contextMenu,
     );
+  }
+
+  /// Highlights whose chapter-global range intersects this page's slice,
+  /// translated into page-local coordinates (may be empty).
+  List<HighlightEntry> _pageHighlights(String pageContent) {
+    if (chapterId == null || pageStartOffset >= pageContent.length) {
+      return const [];
+    }
+    final out = <HighlightEntry>[];
+    for (final h in highlights) {
+      final localStart = h.start - pageStartOffset;
+      final localEnd = h.end - pageStartOffset;
+      if (localEnd <= 0 || localStart >= pageContent.length) continue;
+      out.add(HighlightEntry(
+        chapterId: h.chapterId,
+        start: localStart.clamp(0, pageContent.length),
+        end: localEnd.clamp(0, pageContent.length),
+        text: h.text,
+        colorValue: h.colorValue,
+      ));
+    }
+    return out;
+  }
+
+  /// Plain body spans (drop-cap first char excluded) with highlight layering.
+  List<TextSpan> _restSpans(
+    String c,
+    TextStyle resolvedStyle,
+    List<HighlightEntry> pageHighlights,
+  ) {
+    final spans = <TextSpan>[];
+    var cursor = 1;
+    for (final h in pageHighlights) {
+      if (h.end <= 1) continue;
+      final start = h.start < 1 ? 1 : h.start;
+      final end = h.end;
+      if (start > cursor) {
+        spans.add(TextSpan(text: c.substring(cursor, start), style: resolvedStyle));
+      }
+      spans.add(TextSpan(
+        text: c.substring(start, end > c.length ? c.length : end),
+        style: resolvedStyle.copyWith(
+          backgroundColor: h.color.withValues(alpha: 0.30),
+        ),
+      ));
+      cursor = end > c.length ? c.length : end;
+    }
+    if (cursor < c.length) {
+      spans.add(TextSpan(text: c.substring(cursor), style: resolvedStyle));
+    }
+    return spans;
+  }
+
+  /// Whole-page spans with highlight layering (first char kept plain).
+  List<TextSpan> _pageSpans(
+    String c,
+    TextStyle resolvedStyle,
+    List<HighlightEntry> pageHighlights,
+  ) {
+    if (pageHighlights.isEmpty) return [TextSpan(text: c, style: resolvedStyle)];
+    final spans = <TextSpan>[];
+    var cursor = 0;
+    for (final h in pageHighlights) {
+      if (h.start > cursor) {
+        spans.add(TextSpan(text: c.substring(cursor, h.start), style: resolvedStyle));
+      }
+      spans.add(TextSpan(
+        text: c.substring(h.start, h.end > c.length ? c.length : h.end),
+        style: resolvedStyle.copyWith(
+          backgroundColor: h.color.withValues(alpha: 0.30),
+        ),
+      ));
+      cursor = h.end > c.length ? c.length : h.end;
+    }
+    if (cursor < c.length) {
+      spans.add(TextSpan(text: c.substring(cursor), style: resolvedStyle));
+    }
+    return spans;
   }
 
   static const _highlightPalette = [
@@ -1310,12 +1446,20 @@ class _PagedPageView extends StatelessWidget {
             hasSelection && word.isNotEmpty ? _sentenceAround(fullText, sel) : null;
         final showSelectionActions = hasSelection && word.isNotEmpty;
         final srcTitle = chapterTitle;
+        final chapterOffset = pageStartOffset;
+        final globalStart = chapterOffset + sel.start;
+        final globalEnd = chapterOffset + sel.end;
+        final hasOverlappingHighlight = highlights.any(
+          (h) => h.overlaps(globalStart, globalEnd),
+        );
+        final eraseEnabled =
+            showSelectionActions && hasOverlappingHighlight && onErase != null;
 
         return AppContextMenu(
           anchor: anchor,
           highlightColors: showSelectionActions ? _highlightPalette : const [],
           onHighlightSelected: showSelectionActions && onHighlight != null
-              ? (color) => onHighlight!(word, color)
+              ? (color) => onHighlight!(word, color, globalStart, globalEnd)
               : null,
           quickActions: [
             AppContextMenuAction(
@@ -1334,6 +1478,13 @@ class _PagedPageView extends StatelessWidget {
                 icon: Icons.edit_note_rounded,
                 onPressed: () => onAddNote!(word, sentence),
               ),
+            if (showSelectionActions && onListen != null)
+              AppContextMenuAction(
+                label: 'Listen',
+                icon: Icons.play_circle_outline_rounded,
+                onPressed: () =>
+                    onListen!(word, sentence, globalStart, globalEnd),
+              ),
             if (showSelectionActions && onShare != null)
               AppContextMenuAction(
                 label: 'Share',
@@ -1344,9 +1495,16 @@ class _PagedPageView extends StatelessWidget {
           listActions: [
             if (showSelectionActions)
               AppContextMenuAction(
-                label: 'Define "$word"',
+                label: 'Look up "$word"',
                 icon: Icons.translate_rounded,
                 onPressed: () => _showDefine(ctx, word, sentence: sentence, sourceTitle: srcTitle),
+              ),
+            if (eraseEnabled)
+              AppContextMenuAction(
+                label: 'Erase highlight',
+                icon: Icons.format_color_reset_rounded,
+                destructive: true,
+                onPressed: () => onErase!(globalStart, globalEnd),
               ),
             if (showSelectionActions && onSearchWeb != null)
               AppContextMenuAction(

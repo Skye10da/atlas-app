@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-08-09
+
+### Added
+- **Reader annotations** — highlight and take notes directly in your books:
+  - In-memory annotation store (`ReaderAnnotationsController`) keyed per book/chapter — the same chapter can carry multiple non-overlapping highlights, notes are edited, erased, and navigated from a notes panel.
+  - **Chapter reader context menus** (long-press selection): **Highlight…** (color picker), **Erase highlight**, **Add note**, **Listen**, and **Look up** (renamed from "Define"), on both the continuous and paged layouts.
+  - **PDF reader context menu** (via pdfrx `customizeContextMenuItems`): Highlight…, Erase highlight, Add note, Listen, and Look up — highlighted passages are layered on the page and a **Notes** tab lists saved notes, jumping to their page on tap.
+- **Read-aloud for dictionary lookups**: a speaker button in the word-lookup sheet reads the word, its first definition, and an example sentence aloud in the word's language.
+  - The TTS driver now sets the system language (`setLanguage`) per request, and `resolveVoiceIdForLanguage` picks a matching per-language voice from the installed-voice catalog (Chinese prefers a mainland/TW regional voice when available).
+- **OS file import (“Open with Atlas”)**: EPUB/PDF/Atlas packages handed to the app by the OS are imported — Windows shell associations plus Android/iOS/macOS document types and channels, single-instance forwarding on Windows (a second launch forwards the file to the running window and exits), deterministic cold/warm delivery, and temporary sandbox copies are deleted after import.
+- **Interactive PDF importing**: the first page is rendered to a cover (`cover.png`) and the PDF outline becomes chapter rows, so PDF books get cover art and a navigable chapter list on the details screen.
+- **PDF viewer**: render-only, page-based navigation using pdfrx/PDFium, with Search, Outline, Markers, Pages, and Notes panels, night mode, and external links opened via `url_launcher`. PDFs opened via book route resume at the saved page and can be jumped to from tapped outline chapters.
+- Reactive library shelf — `watchBooks` reflects imports, progress updates, and removals automatically.
+- **Novel export**: chapters exported to a reader-friendly EPUB or an `.atlas` source-link package (with cover and source metadata), plus a chapter-position resolver for indexed navigation.
+- Bundled typography: EB Garamond, Inter, and JetBrains Mono font families.
+
+### Changed
+- PDF rendering dependency moved from `pdfx` to `pdfrx` (PDFium), and `url_launcher` added for PDF external links.
+- Reader selection actions refined alongside the speech subsystem: `SpeechDriver.configure` gained an optional language; existing "Listen" context actions and narration are unaffected.
+- Word-lookup sheet header gained the read-aloud control and now auto-stops speech when closed or when its language changes.
+
+### Fixed
+- PDF search header overflow during the slide-in animation (ClipRect + overflow-safety).
+- Selection in the PDF viewer uses the pdfrx page-text-range so highlights/lookups target the right span.
+- Book-details chapter navigation now treats PDFs as page targets instead of text chapters; the reader waits for the resolved format before mounting, so a PDF is never briefly built as a chapter reader.
+- Import failure modes hardened around cover/outline extraction (best-effort, never fails the import).
+
 ## [1.0.3] - 2026-08-04
 
 ### Added

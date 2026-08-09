@@ -14,6 +14,7 @@ import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/domain/entities/reading_progress_snapshot.dart';
 import 'package:atlas_app/reader/domain/repository_interfaces/reader_repository_interface.dart';
+import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
@@ -21,6 +22,7 @@ import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/continuous_reader_layout.dart';
 import 'package:atlas_app/reader/presentation/widgets/paged_reader_layout.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/reader_settings_sheet.dart';
+import 'package:atlas_app/reader/speech/selection_speaker.dart';
 import 'package:atlas_app/reader/speech/speech_events.dart';
 import 'package:atlas_app/reader/speech/speech_session_builder.dart';
 import 'package:atlas_app/reader/speech/speech_session.dart';
@@ -211,6 +213,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   Future<void> _loadNarrationContext() async {
     if (!mounted) return;
     final bookResult = await widget.repo.getBookById(widget.bookId);
+    if (!mounted) return;
     if (bookResult is Success<BookEntity>) {
       _bookLanguage = bookResult.value.language;
       _bookTitle = bookResult.value.title;
@@ -409,6 +412,10 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
         onBookmarkToggle: _toggleBookmark,
         bookTitle: _bookTitle,
         coverPath: _bookCoverPath,
+        onHighlight: _handleHighlight,
+        onAddNote: _handleAddNote,
+        onListen: _handleListen,
+        onErase: _handleErase,
       );
     }
 
@@ -428,6 +435,10 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       onBookmarkToggle: _toggleBookmark,
       bookTitle: _bookTitle,
       coverPath: _bookCoverPath,
+      onHighlight: _handleHighlight,
+      onAddNote: _handleAddNote,
+      onListen: _handleListen,
+      onErase: _handleErase,
     );
   }
 
@@ -513,5 +524,96 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
         initialSettings: widget.settings,
       ),
     );
+  }
+
+  // --------------------------------------------------------- annotations
+
+  final _selectionSpeaker = const SelectionSpeaker();
+
+  void _handleHighlight(String text, Color color, int start, int end) {
+    final chapter = _currentChapter;
+    if (chapter == null) return;
+    ref.read(annotationsProvider(widget.bookId).notifier).addHighlight(
+      chapterId: chapter.id,
+      start: start,
+      end: end,
+      text: text,
+      colorValue: color.toARGB32(),
+    );
+  }
+
+  void _handleErase(int start, int end) {
+    final chapter = _currentChapter;
+    if (chapter == null) return;
+    ref.read(annotationsProvider(widget.bookId).notifier)
+        .eraseOverlapping(chapter.id, start, end);
+  }
+
+  void _handleAddNote(String text, String? sentence) {
+    final chapter = _currentChapter;
+    if (chapter == null) return;
+    _showNoteEditorDialog(
+      title: 'Add note',
+      initialText: '',
+      onSave: (noteText) {
+        if (noteText.trim().isEmpty) return;
+        ref.read(annotationsProvider(widget.bookId).notifier).addNote(
+          chapterId: chapter.id,
+          text: noteText,
+          sentence: sentence ?? text,
+        );
+      },
+    );
+  }
+
+  void _handleListen(String text, String? sentence, int start, int end) {
+    final chapter = _currentChapter;
+    final language = _bookLanguage ?? 'en';
+    if (chapter == null) return;
+    _selectionSpeaker.speak(
+      ref: ref,
+      bookId: widget.bookId,
+      chapterId: chapter.id,
+      text: sentence != null && sentence.isNotEmpty ? sentence : text,
+      language: language,
+    );
+  }
+
+  Future<void> _showNoteEditorDialog({
+    required String title,
+    required String initialText,
+    required void Function(String text) onSave,
+  }) async {
+    final controller = TextEditingController(text: initialText);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: SizedBox(
+          width: 420,
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              hintText: 'Write your note…',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result != null) onSave(result);
   }
 }

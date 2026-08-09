@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:atlas_app/core/database/providers.dart';
@@ -49,11 +50,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         if (book?.format == 'pdf') {
           final dir = book!.filePath;
           if (dir != null && dir.isNotEmpty) {
+            final params = GoRouterState.of(context).uri.queryParameters;
+            final page = int.tryParse(params['page'] ?? '');
             return PdfReaderContent(
               bookId: widget.bookId,
               pdfPath: p.join(dir, 'book.pdf'),
+              initialPageNumber: (page != null && page > 0) ? page : null,
             );
           }
+        }
+
+        // Wait for the book lookup so we never build the chapter reader for a
+        // PDF (which would dispose it mid-load the moment the format resolves).
+        if ((book == null) && snapshot.connectionState != ConnectionState.done) {
+          return _readerShimmer;
         }
 
         return settingsAsync.when(

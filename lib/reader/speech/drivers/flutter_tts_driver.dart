@@ -77,10 +77,19 @@ class FlutterTtsDriver implements SpeechDriver {
     required double pitch,
     required double volume,
     String? voiceId,
+    String? language,
   }) async {
     await _tts.setSpeechRate(rate);
     await _tts.setPitch(pitch);
     await _tts.setVolume(volume);
+    if (language != null) {
+      // flutter_tts setLanguage caches its Future (flutter_tts.dart:385);
+      // a changed language still applies on Android/iOS, and re-calling it is
+      // safe. Errors (e.g. unsupported locale) must not break the speak call.
+      try {
+        await _tts.setLanguage(language);
+      } catch (_) {}
+    }
     if (voiceId != null) {
       // flutter_tts identifies voices by a {name, locale} map, not a bare
       // id — callers should pass voiceId as 'name@locale' and this driver

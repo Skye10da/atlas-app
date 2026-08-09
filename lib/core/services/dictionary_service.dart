@@ -94,6 +94,36 @@ const List<WiktionaryLanguage> supportedLanguages = [
   WiktionaryLanguage('hi', 'Hindi'),
 ];
 
+/// Default BCP-47 locale for each supported dictionary language code, used to
+/// drive TTS pronunciation when looking a word up in that language.
+final Map<String, String> dictionaryLanguageLocales = {
+  'en': 'en-US',
+  'fr': 'fr-FR',
+  'de': 'de-DE',
+  'es': 'es-ES',
+  'it': 'it-IT',
+  'pt': 'pt-PT',
+  'nl': 'nl-NL',
+  'ru': 'ru-RU',
+  'ja': 'ja-JP',
+  'zh': 'zh-CN',
+  'ko': 'ko-KR',
+  'ar': 'ar-SA',
+  'tr': 'tr-TR',
+  'pl': 'pl-PL',
+  'sv': 'sv-SE',
+  'da': 'da-DK',
+  'fi': 'fi-FI',
+  'el': 'el-GR',
+  'he': 'he-IL',
+  'hi': 'hi-IN',
+};
+
+/// Resolves [code] (a 2-letter dictionary language code) to a BCP-47 tag for
+/// TTS, falling back to the bare code when unmapped.
+String localeForLanguageCode(String code) =>
+    dictionaryLanguageLocales[code] ?? code;
+
 /// A selectable dictionary backend. Each source advertises the languages it
 /// can look up, so the UI can present a source picker next to the language
 /// picker and only offer valid combinations.

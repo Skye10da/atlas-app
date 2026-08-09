@@ -33,6 +33,7 @@ class FakeDriver implements SpeechDriver {
     required double pitch,
     required double volume,
     String? voiceId,
+    String? language,
   }) async {
     configureCount++;
   }

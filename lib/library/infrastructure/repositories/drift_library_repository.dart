@@ -110,6 +110,7 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
         rating: book.rating,
         status: book.status,
         fileSize: book.fileSize,
+        filePath: book.filePath,
         sourceName: book.sourceName,
         sourceId: book.sourceId,
         sourceUrl: book.sourceUrl,

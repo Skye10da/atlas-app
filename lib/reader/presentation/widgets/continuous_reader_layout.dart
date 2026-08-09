@@ -48,6 +48,12 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
     required this.onBookmarkToggle,
     this.bookTitle,
     this.coverPath,
+    this.onHighlight,
+    this.onAddNote,
+    this.onShare,
+    this.onSearchWeb,
+    this.onListen,
+    this.onErase,
   });
 
   final List<ChapterEntity> chapters;
@@ -73,6 +79,14 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
   final VoidCallback onBookmarkToggle;
   final String? bookTitle;
   final String? coverPath;
+
+  /// Context-menu callbacks forwarded to every chapter view.
+  final void Function(String text, Color color, int start, int end)? onHighlight;
+  final void Function(String text, String? sentence)? onAddNote;
+  final void Function(String text)? onShare;
+  final void Function(String text)? onSearchWeb;
+  final void Function(String text, String? sentence, int start, int end)? onListen;
+  final void Function(int start, int end)? onErase;
 
   @override
   ConsumerState<ContinuousReaderLayout> createState() =>
@@ -667,6 +681,12 @@ class _ContinuousReaderLayoutState
           onRegisterNarrationReveal: (reveal) {
             _narrationReveals[index] = reveal;
           },
+          onHighlight: widget.onHighlight,
+          onAddNote: widget.onAddNote,
+          onShare: widget.onShare,
+          onSearchWeb: widget.onSearchWeb,
+          onListen: widget.onListen,
+          onErase: widget.onErase,
         ),
         if (showHeaders)
           ChapterOrnamentalDivider(

@@ -167,4 +167,27 @@ void main() {
     expect(result, isA<Success>());
     expect(book.existsSync(), isTrue);
   });
+
+  test('imports a PDF opened on desktop with format pdf and a stored file', () async {
+    final opened = writeTempFile(
+      'guide.pdf',
+      [
+        0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34, // %PDF-1.4
+      ],
+    );
+    final result = await importer.import(opened.path);
+    expect(result, isA<Success<ImportOutcome>>());
+    final bookId = (result as Success<ImportOutcome>).value.bookId;
+    expect(bookId, 'guide');
+
+    final row = await (db.select(db.books)..where((b) => b.id.equals(bookId))).getSingleOrNull();
+    expect(row, isNotNull, reason: 'PDF book row was created');
+    expect(row!.format, 'pdf');
+    expect(row.filePath, isNotEmpty);
+    expect(row.totalChapters, 0);
+
+    final stored = File(p.join(row.filePath, 'book.pdf'));
+    expect(stored.existsSync(), isTrue, reason: 'verbatim PDF kept on disk');
+    expect(opened.existsSync(), isTrue, reason: 'desktop originals are never deleted');
+  });
 }

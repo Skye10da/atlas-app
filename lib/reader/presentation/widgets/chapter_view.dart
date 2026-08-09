@@ -7,6 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
+import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
+import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
 import 'package:atlas_app/reader/speech/parser/sentence_splitter.dart';
@@ -105,6 +107,8 @@ class ChapterView extends ConsumerStatefulWidget {
   const ChapterView({
     super.key,
     required this.content,
+    this.bookId,
+    this.chapterId,
     this.fontSize = 18.0,
     this.fontFamily,
     this.fontWeight,
@@ -122,6 +126,8 @@ class ChapterView extends ConsumerStatefulWidget {
     this.onAddNote,
     this.onShare,
     this.onSearchWeb,
+    this.onListen,
+    this.onErase,
     this.activeSpeechItem,
     this.restoreCharOffset,
     this.onRestoreRevealed,
@@ -130,6 +136,12 @@ class ChapterView extends ConsumerStatefulWidget {
   });
 
   final String content;
+
+  /// Book and chapter identity for loading/storing highlights from the
+  /// in-memory annotations store. Omit to disable highlight rendering.
+  final String? bookId;
+  final String? chapterId;
+
   final double fontSize;
   final String? fontFamily;
   /// Numeric reader body-text weight; `null` keeps the family default.
@@ -145,9 +157,10 @@ class ChapterView extends ConsumerStatefulWidget {
   final TextStyle? dropCapStyle;
   final String? chapterTitle;
 
-  /// Called with the selected text and chosen color when the reader taps a
-  /// highlight swatch in the context menu. Omit to hide highlighting.
-  final void Function(String text, Color color)? onHighlight;
+  /// Called with the selected text, chosen color and its [content] character
+  /// offsets when the reader taps a highlight swatch in the context menu.
+  /// Omit to hide highlighting.
+  final void Function(String text, Color color, int start, int end)? onHighlight;
 
   /// Called with the selected text (and surrounding sentence, if available)
   /// when the reader taps "Note". Omit to hide the note action.
@@ -160,6 +173,15 @@ class ChapterView extends ConsumerStatefulWidget {
   /// Called with the selected text when the reader taps "Search the web".
   /// Omit to hide the search action.
   final void Function(String text)? onSearchWeb;
+
+  /// Called to speak the selected sentence once ("Listen"). Omit to hide the
+  /// listen action.
+  final void Function(String text, String? sentence, int start, int end)?
+      onListen;
+
+  /// Called to remove any stored highlight overlapping the selection's
+  /// [start, end) character range. Omit to hide the erase action.
+  final void Function(int start, int end)? onErase;
 
   /// The sentence currently being narrated, if this chapter is narrating.
   /// When set, that sentence is rendered with a background tint. Omit for no
@@ -204,6 +226,15 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   /// (curly) double quotes. Single quotes are deliberately excluded since
   /// they're far more often apostrophes/contractions than actual quotation.
   static final _quotePattern = RegExp('"[^"]*"|\u201C[^\u201D]*\u201D');
+
+  /// Stored user highlights for this chapter (empty when identity is absent).
+  List<HighlightEntry> get _highlights {
+    final bookId = widget.bookId;
+    final chapterId = widget.chapterId;
+    if (bookId == null || chapterId == null) return const [];
+    return ref.watch(annotationsProvider(bookId)).highlights[chapterId] ??
+        const [];
+  }
 
   List<(int, int)>? _cachedQuoteRanges;
   String? _cachedQuoteRangesFor;
@@ -544,6 +575,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
 
     final ds = widget.dropCapStyle;
     final c = widget.content;
+    final highlights = _highlights;
 
     final active = widget.activeSpeechItem;
     if (active != null) {
@@ -555,7 +587,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
         TextSpan(
           children: [
             TextSpan(text: c.substring(0, 1), style: ds),
-            ..._quoteAwareSpans(c, 1, c.length, textStyle),
+            ..._quoteAwareSpans(c, 1, c.length, textStyle, highlights: highlights),
           ],
         ),
         key: _textKey,
@@ -565,7 +597,9 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     }
 
     return SelectableText.rich(
-      TextSpan(children: _quoteAwareSpans(c, 0, c.length, textStyle)),
+      TextSpan(
+        children: _quoteAwareSpans(c, 0, c.length, textStyle, highlights: highlights),
+      ),
       key: _textKey,
       textAlign: widget.textAlignment.flutterTextAlign,
       contextMenuBuilder: _contextMenuBuilder(c),
@@ -573,41 +607,60 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   }
 
   /// Returns [content]'s `[start, end)` range as TextSpans, italicizing any
-  /// portion that falls inside a quoted span. [extraStyle] (if given) is
-  /// merged on top of each resulting span's style — used to layer the
-  /// narration highlight's background on top of quote-italic styling
-  /// rather than one silently overriding the other.
+  /// portion that falls inside a quoted span and laying a user-highlight
+  /// background over any portion inside a stored [HighlightEntry]. [extraStyle]
+  /// (if given) is merged on top of each resulting span's style — used to layer
+  /// the narration highlight's background on top of quote-italic + user-highlight
+  /// styling rather than one silently overriding the other.
   List<TextSpan> _quoteAwareSpans(
     String content,
     int start,
     int end,
     TextStyle style, {
     TextStyle? extraStyle,
+    List<HighlightEntry> highlights = const [],
   }) {
     if (start >= end) return const [];
     final spans = <TextSpan>[];
     final quoteStyle = style.copyWith(fontStyle: FontStyle.italic);
-    var cursor = start;
+
+    // Collect every cut point from quote and highlight boundaries so each
+    // emitted segment gets a single, unambiguous style.
+    final cuts = <int>{start, end};
     for (final range in _quoteRanges(content)) {
       if (range.$2 <= start || range.$1 >= end) continue;
-      final segStart = range.$1.clamp(start, end);
-      final segEnd = range.$2.clamp(start, end);
-      if (segStart > cursor) {
-        spans.add(TextSpan(
-          text: content.substring(cursor, segStart),
-          style: extraStyle != null ? style.merge(extraStyle) : style,
-        ));
+      cuts.add(range.$1.clamp(start, end));
+      cuts.add(range.$2.clamp(start, end));
+    }
+    for (final h in highlights) {
+      if (h.end <= start || h.start >= end) continue;
+      cuts.add(h.start.clamp(start, end));
+      cuts.add(h.end.clamp(start, end));
+    }
+    final sorted = cuts.toList()..sort();
+
+    for (var i = 0; i < sorted.length - 1; i++) {
+      final segStart = sorted[i];
+      final segEnd = sorted[i + 1];
+      if (segEnd <= segStart) continue;
+
+      var segStyle = style;
+      final inQuote = _quoteRanges(content).any(
+        (r) => r.$1 <= segStart && r.$2 >= segEnd,
+      );
+      if (inQuote) segStyle = quoteStyle;
+      for (final h in highlights) {
+        if (h.start <= segStart && h.end >= segEnd) {
+          segStyle = segStyle.copyWith(
+            backgroundColor: h.color.withValues(alpha: 0.30),
+          );
+          break;
+        }
       }
+      if (extraStyle != null) segStyle = segStyle.merge(extraStyle);
       spans.add(TextSpan(
         text: content.substring(segStart, segEnd),
-        style: extraStyle != null ? quoteStyle.merge(extraStyle) : quoteStyle,
-      ));
-      cursor = segEnd;
-    }
-    if (cursor < end) {
-      spans.add(TextSpan(
-        text: content.substring(cursor, end),
-        style: extraStyle != null ? style.merge(extraStyle) : style,
+        style: segStyle,
       ));
     }
     return spans;
@@ -635,9 +688,14 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   Widget _narrationHighlighted(String content, TextStyle textStyle) {
     final item = widget.activeSpeechItem;
     final idx = _activeTextOffset() ?? -1;
+    final highlights = _highlights;
     if (item == null || idx < 0) {
       return SelectableText.rich(
-        TextSpan(children: _quoteAwareSpans(content, 0, content.length, textStyle)),
+        TextSpan(
+          children: _quoteAwareSpans(
+            content, 0, content.length, textStyle, highlights: highlights,
+          ),
+        ),
         key: _textKey,
         textAlign: widget.textAlignment.flutterTextAlign,
         contextMenuBuilder: _contextMenuBuilder(content),
@@ -655,15 +713,24 @@ class _ChapterViewState extends ConsumerState<ChapterView>
         return SelectableText.rich(
           TextSpan(
             children: [
-              ..._quoteAwareSpans(content, 0, idx, textStyle),
+              ..._quoteAwareSpans(
+                content, 0, idx, textStyle, highlights: highlights,
+              ),
               ..._quoteAwareSpans(
                 content,
                 idx,
                 highlightEnd,
                 textStyle,
                 extraStyle: highlightStyle,
+                highlights: highlights,
               ),
-              ..._quoteAwareSpans(content, highlightEnd, content.length, textStyle),
+              ..._quoteAwareSpans(
+                content,
+                highlightEnd,
+                content.length,
+                textStyle,
+                highlights: highlights,
+              ),
             ],
           ),
           key: _textKey,
@@ -683,6 +750,13 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   ];
 
   EditableTextContextMenuBuilder _contextMenuBuilder(String fullText) {
+    final bookId = widget.bookId;
+    final chapterId = widget.chapterId;
+    final highlights = (bookId != null && chapterId != null)
+        ? ref.read(annotationsProvider(bookId)).highlights[chapterId] ??
+              const []
+        : const <HighlightEntry>[];
+
     return AppContextMenu.builder(
       build: (ctx, editable, anchor) {
         final sel = editable.textEditingValue.selection;
@@ -693,12 +767,16 @@ class _ChapterViewState extends ConsumerState<ChapterView>
         final sentence =
             hasSelection && word.isNotEmpty ? _sentenceAround(fullText, sel) : null;
         final showSelectionActions = hasSelection && word.isNotEmpty;
+        final hasOverlappingHighlight =
+            highlights.any((h) => h.overlaps(sel.start, sel.end));
+        final eraseEnabled =
+            showSelectionActions && hasOverlappingHighlight && widget.onErase != null;
 
         return AppContextMenu(
           anchor: anchor,
           highlightColors: showSelectionActions ? _highlightPalette : const [],
           onHighlightSelected: showSelectionActions && widget.onHighlight != null
-              ? (color) => widget.onHighlight!(word, color)
+              ? (color) => widget.onHighlight!(word, color, sel.start, sel.end)
               : null,
           quickActions: [
             AppContextMenuAction(
@@ -717,6 +795,12 @@ class _ChapterViewState extends ConsumerState<ChapterView>
                 icon: Icons.edit_note_rounded,
                 onPressed: () => widget.onAddNote!(word, sentence),
               ),
+            if (showSelectionActions && widget.onListen != null)
+              AppContextMenuAction(
+                label: 'Listen',
+                icon: Icons.play_circle_outline_rounded,
+                onPressed: () => widget.onListen!(word, sentence, sel.start, sel.end),
+              ),
             if (showSelectionActions && widget.onShare != null)
               AppContextMenuAction(
                 label: 'Share',
@@ -727,9 +811,16 @@ class _ChapterViewState extends ConsumerState<ChapterView>
           listActions: [
             if (showSelectionActions)
               AppContextMenuAction(
-                label: 'Define "$word"',
+                label: 'Look up "$word"',
                 icon: Icons.translate_rounded,
                 onPressed: () => _showDefine(word, sentence: sentence),
+              ),
+            if (eraseEnabled)
+              AppContextMenuAction(
+                label: 'Erase highlight',
+                icon: Icons.format_color_reset_rounded,
+                destructive: true,
+                onPressed: () => widget.onErase!(sel.start, sel.end),
               ),
             if (showSelectionActions && widget.onSearchWeb != null)
               AppContextMenuAction(
