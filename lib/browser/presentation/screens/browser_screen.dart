@@ -5,7 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:atlas_app/browser/domain/controllers/browser_tabs_controller.dart';
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
+import 'package:atlas_app/browser/domain/entities/web_bookmark.dart';
 import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
+import 'package:atlas_app/browser/presentation/widgets/browser_library_sheets.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_start_page.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 
@@ -187,6 +189,13 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
 
   Widget _buildChrome(ColorScheme cs) {
     final engine = _tabs.activeTab?.engine;
+    final currentUrl = _tabs.activeTab?.url;
+    final isBookmarked = ref
+            .watch(webBookmarksProvider)
+            .value
+            ?.any((b) => b.url == currentUrl) ??
+        false;
+    final canBookmark = currentUrl != null && currentUrl != kBrowserStartPageUrl;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
       decoration: BoxDecoration(
@@ -226,11 +235,80 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           Expanded(child: _urlPill(cs)),
           const SizedBox(width: AppSpacing.sm),
           _GlassIconButton(
+            tooltip: isBookmarked ? 'Remove bookmark' : 'Bookmark this page',
+            icon: isBookmarked
+                ? Icons.bookmark_rounded
+                : Icons.bookmark_border_rounded,
+            enabled: canBookmark,
+            onPressed: () => _toggleBookmark(),
+          ),
+          _GlassIconButton(
+            tooltip: 'History & bookmarks',
+            icon: Icons.history_rounded,
+            onPressed: _openLibrarySheets,
+          ),
+          _GlassIconButton(
             tooltip: 'Open externally',
             icon: Icons.open_in_new_rounded,
             onPressed: _openExternally,
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _toggleBookmark() async {
+    final url = _tabs.activeTab?.url;
+    final title = _tabs.activeTab?.title;
+    if (url == null || url.isEmpty || url == kBrowserStartPageUrl) return;
+
+    final repo = ref.read(browserRepositoryProvider);
+    final alreadyBookmarked = (ref.read(webBookmarksProvider).value ?? const [])
+        .any((b) => b.url == url);
+    if (alreadyBookmarked) {
+      await repo.removeBookmark(url);
+      return;
+    }
+    final now = DateTime.now();
+    await repo.addBookmark(BrowserBookmark(
+      id: url,
+      url: url,
+      title: title == 'New tab' ? null : title,
+      createdAt: now,
+      updatedAt: now,
+    ));
+  }
+
+  void _openLibrarySheets() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.history_rounded),
+              title: const Text('History'),
+              onTap: () {
+                Navigator.pop(ctx);
+                showBrowserHistorySheet(context, onOpenUrl: (url) {
+                  _tabs.activeTab?.engine.load(url);
+                });
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.bookmark_rounded),
+              title: const Text('Bookmarks'),
+              onTap: () {
+                Navigator.pop(ctx);
+                showBrowserBookmarksSheet(context, onOpenUrl: (url) {
+                  _tabs.activeTab?.engine.load(url);
+                });
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
