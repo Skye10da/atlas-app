@@ -278,47 +278,53 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     AppContextMenuHighlightOption(color: Color(0xFFCE93D8), label: 'Purple'),
   ];
 
-  void _customizeContextMenu(PdfViewerContextMenuBuilderParams params, List<ContextMenuButtonItem> items) {
-    if (!params.isTextSelectionEnabled) return;
-    final hasSelection = params.textSelectionDelegate.hasSelectedText;
-    if (!hasSelection) return;
+  Widget? _buildContextMenu(BuildContext context, PdfViewerContextMenuBuilderParams params) {
+    if (!params.isTextSelectionEnabled) return null;
+    final delegate = params.textSelectionDelegate;
+    if (!delegate.hasSelectedText) return null;
 
-    items.add(
-      ContextMenuButtonItem(
-        type: ContextMenuButtonType.custom,
-        label: 'Highlight…',
-        onPressed: () => _showHighlightPicker(params),
-      ),
-    );
-    if (_selection.any(_hasOverlappingMarker)) {
-      items.add(
-        ContextMenuButtonItem(
-          type: ContextMenuButtonType.custom,
-          label: 'Erase highlight',
-          onPressed: () => _eraseSelection(),
+    return AppContextMenu(
+      externallyPositioned: true,
+      anchor: Offset.zero,
+      highlightColors: _highlightPalette,
+      onHighlightSelected: _applyHighlightForSelection,
+      quickActions: [
+        AppContextMenuAction(
+          label: 'Copy',
+          icon: Icons.content_copy_rounded,
+          onPressed: delegate.copyTextSelection,
         ),
-      );
-    }
-    items.add(
-      ContextMenuButtonItem(
-        type: ContextMenuButtonType.custom,
-        label: 'Add note',
-        onPressed: () => _addNoteForSelection(),
-      ),
-    );
-    items.add(
-      ContextMenuButtonItem(
-        type: ContextMenuButtonType.custom,
-        label: 'Listen',
-        onPressed: () => _listenToSelection(params),
-      ),
-    );
-    items.add(
-      ContextMenuButtonItem(
-        type: ContextMenuButtonType.custom,
-        label: 'Look up',
-        onPressed: () => _lookupSelection(params),
-      ),
+        AppContextMenuAction(
+          label: 'Note',
+          icon: Icons.edit_note_rounded,
+          onPressed: _addNoteForSelection,
+        ),
+        AppContextMenuAction(
+          label: 'Listen',
+          icon: Icons.play_circle_outline_rounded,
+          onPressed: () => _listenToSelection(params),
+        ),
+      ],
+      listActions: [
+        AppContextMenuAction(
+          label: 'Look up',
+          icon: Icons.translate_rounded,
+          onPressed: () => _lookupSelection(params),
+        ),
+        if (_selection.any(_hasOverlappingMarker))
+          AppContextMenuAction(
+            label: 'Erase highlight',
+            icon: Icons.format_color_reset_rounded,
+            destructive: true,
+            onPressed: _eraseSelection,
+          ),
+        AppContextMenuAction(
+          label: 'Select all',
+          icon: Icons.select_all_rounded,
+          onPressed: delegate.selectAllText,
+        ),
+      ],
+      onDismiss: params.dismissContextMenu,
     );
   }
 
@@ -341,37 +347,8 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     }
   }
 
-  Future<void> _showHighlightPicker(PdfViewerContextMenuBuilderParams params) async {
-    final selected = await _selectedText(params);
-    if (selected.trim().isEmpty) return;
+  void _applyHighlightForSelection(Color color) {
     if (!mounted) return;
-    final color = await showDialog<Color>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Highlight color'),
-        children: [
-          for (final option in _highlightPalette)
-            SimpleDialogOption(
-              onPressed: () => Navigator.of(ctx).pop(option.color),
-              child: Row(
-                children: [
-                  Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: option.color,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(option.label ?? ''),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-    if (color == null || !mounted) return;
     setState(() {
       for (final range in _selection) {
         _markers
@@ -668,7 +645,7 @@ await DraggableBottomSheet.show(
         pageAnchor: horizontal ? PdfPageAnchor.left : PdfPageAnchor.top,
         pageAnchorEnd: horizontal ? PdfPageAnchor.right : PdfPageAnchor.bottom,
         textSelectionParams: PdfTextSelectionParams(onTextSelectionChange: _onTextSelectionChange),
-        customizeContextMenuItems: _customizeContextMenu,
+        buildContextMenu: _buildContextMenu,
         linkHandlerParams: PdfLinkHandlerParams(onLinkTap: _onLinkTap),
         viewerOverlayBuilder: (context, size, handleLinkTap) => [
           GestureDetector(
