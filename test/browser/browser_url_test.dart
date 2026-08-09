@@ -42,4 +42,19 @@ void main() {
       expect(looksLikeBrowserUrl('gutenberg'), isFalse);
     });
   });
+
+  group('looksLikeEpubUrl', () {
+    test('true for .epub paths', () {
+      expect(
+        looksLikeEpubUrl('https://example.com/books/download.epub'),
+        isTrue,
+      );
+      expect(looksLikeEpubUrl('https://example.com/b.epub?token=abc'), isTrue);
+    });
+
+    test('false for non-epub paths', () {
+      expect(looksLikeEpubUrl('https://example.com/book/123'), isFalse);
+      expect(looksLikeEpubUrl('https://example.com/file.txt'), isFalse);
+    });
+  });
 }

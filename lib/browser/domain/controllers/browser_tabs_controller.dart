@@ -84,6 +84,14 @@ class BrowserTabsController extends ChangeNotifier {
     await activeTab?.engine.setSelectionListener(onSelection);
   }
 
+  /// Routes intercepted download requests (epub taps) from the active engine
+  /// to [onDownload]. Called by the browser screen alongside the selection
+  /// binding.
+  Future<void> bindDownloadListener(
+      void Function(String url, String? mimeType)? onDownload) async {
+    await activeTab?.engine.setDownloadListener(onDownload);
+  }
+
   /// Rebuilds tabs from persisted state (in order), capping at [maxTabs].
   Future<void> restore() async {
     final result = await _repository.getTabs();

@@ -110,6 +110,20 @@ class FakeBrowserEngine implements BrowserWebEngine {
   @override
   Future<void> selectAllInPage() async {}
 
+  final List<String> downloadableUrls = [];
+
+  @override
+  Future<void> setDownloadListener(
+      void Function(String url, String? mimeType)? listener) async {
+    currentDownloadListener = listener;
+  }
+
+  void Function(String url, String? mimeType)? currentDownloadListener;
+
+  void reportDownload(String url) {
+    currentDownloadListener?.call(url, null);
+  }
+
   @override
   void addJsHandler(String name, JsHandlerCallback handler) {
     jsHandlers.add(name);

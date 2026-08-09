@@ -21,3 +21,11 @@ bool looksLikeBrowserUrl(String input) {
   if (url.startsWith('about:')) return true;
   return url.contains('.') && !url.contains(' ');
 }
+
+/// Whether [url] points at an EPUB document, by extension. Browser taps on
+/// `.epub` files are intercepted into the library import flow instead of a
+/// file download.
+bool looksLikeEpubUrl(String url) {
+  final path = Uri.tryParse(url)?.path ?? url;
+  return path.toLowerCase().endsWith('.epub');
+}

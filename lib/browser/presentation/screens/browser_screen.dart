@@ -13,14 +13,20 @@ import 'package:atlas_app/browser/domain/entities/web_selection.dart';
 import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_library_sheets.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_start_page.dart';
+import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
+import 'package:atlas_app/core/content_acquisition/providers.dart';
+import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
+import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
+import 'package:go_router/go_router.dart';
 
 /// Reading themes that force the browser into dark mode.
 const Set<ReadingViewTheme> _kDarkReadingThemes = {
@@ -56,6 +62,7 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   BrowserWebEngine? _boundEngine;
   String? _lastRecordedUrl;
   WebSelection? _selection;
+  String? _novelUrl;
   bool _ready = false;
 
   @override
@@ -95,9 +102,13 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     if (_ready && mounted) setState(() {});
     _bindUrlListener(_tabs.activeTab?.engine);
     _syncUrlField();
-    _tabs.bindSelectionListener(_onWebSelection);
-    if (_selection != null) {
-      setState(() => _selection = null);
+    unawaited(_tabs.bindSelectionListener(_onWebSelection));
+    unawaited(_tabs.bindDownloadListener(_onDownloadRequested));
+    if (_selection != null || _novelUrl != null) {
+      setState(() {
+        _selection = null;
+        _novelUrl = null;
+      });
     }
   }
 
@@ -127,6 +138,105 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           url: url,
           title: _boundEngine?.currentTitle.value,
         );
+    if (mounted) {
+      unawaited(_checkForNovel(url));
+    }
+  }
+
+  Future<void> _checkForNovel(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      if (mounted) setState(() => _novelUrl = null);
+      return;
+    }
+    final adapter = ref.read(sourceRegistryProvider).resolve(uri);
+    final isNovel =
+        adapter != null && adapter.contentCategory == ContentCategory.novel;
+    if (mounted) setState(() => _novelUrl = isNovel ? url : null);
+  }
+
+  Future<void> _onDownloadRequested(String url, String? mimeType) async {
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import this ebook?'),
+        content: Text('$url\n\nAtlas will grab the ebook and add it to your library.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      await _importFromWeb(url);
+    }
+  }
+
+  Future<void> _importFromWeb(String url) async {
+    if (!mounted) return;
+    final engine = ref.read(contentAcquisitionEngineProvider);
+    final progress = ValueNotifier<double>(0);
+    final importFuture = engine.importAndSave(
+      url,
+      onProgress: (p) => progress.value = p,
+    );
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ImportProgressDialog(
+        future: importFuture.then((_) {}, onError: (_) {}),
+        progress: progress,
+      ),
+    );
+
+    if (!mounted) return;
+    ImportOutcome? outcome;
+    try {
+      outcome = await importFuture;
+    } on ImportRedirect catch (e) {
+      if (!mounted) return;
+      final shouldCopy = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Redirected'),
+          content: Text('Atlas could not read that page directly. Copy the link to open it manually: ${e.redirectUrl}'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Copy link'),
+            ),
+          ],
+        ),
+      );
+      if (shouldCopy == true && mounted) {
+        await Clipboard.setData(ClipboardData(text: e.redirectUrl));
+      }
+      return;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Import failed: $e')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final route = outcome.category == ContentCategory.novel
+        ? '/novel/${outcome.bookId}'
+        : '/book/${outcome.bookId}';
+    context.go(route);
   }
 
   void _syncUrlField() {
@@ -523,31 +633,48 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           );
 
     final selection = _selection;
-    if (selection == null) return child;
+    final novelUrl = _novelUrl;
+    final showPill = novelUrl != null && !active.isOnStartPage;
+    if (selection == null && !showPill) return child;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final area = constraints.biggest;
         const menuWidth = 300.0;
-        final anchorX = selection.center.dx.clamp(0.0, area.width);
+        final anchorX =
+            selection?.center.dx.clamp(0.0, area.width) ?? area.width / 2;
         final left = (anchorX - menuWidth / 2).clamp(
           8.0,
           (area.width - menuWidth - 8).clamp(0.0, area.width),
         );
-        final top = selection.y1.clamp(0.0, area.height);
+        final top = selection?.y1.clamp(0.0, area.height) ?? area.height;
         return Stack(
           children: [
             child,
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: _dismissSelectionMenu,
+            if (selection != null)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _dismissSelectionMenu,
+                ),
               ),
-            ),
-            Positioned(
-              left: left,
-              top: top,
-              child: _buildSelectionMenu(selection, active),
-            ),
+            if (showPill)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: AppSpacing.md,
+                child: Center(
+                  child: _AddToLibraryPill(
+                    onPressed: () => _importFromWeb(novelUrl),
+                  ),
+                ),
+              ),
+            if (selection != null)
+              Positioned(
+                left: left,
+                top: top,
+                child: _buildSelectionMenu(selection, active),
+              ),
           ],
         );
       },
@@ -632,6 +759,48 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   }
 
   static final ValueNotifier<bool> _constFalse = ValueNotifier<bool>(false);
+}
+
+class _AddToLibraryPill extends StatelessWidget {
+  const _AddToLibraryPill({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.primaryContainer.withValues(alpha: 0.95),
+      borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+      elevation: 4,
+      shadowColor: Colors.black.withValues(alpha: 0.2),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: 10,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.library_add_rounded,
+                  size: 18, color: cs.onPrimaryContainer),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'Add to Library',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: cs.onPrimaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _TabChip extends StatelessWidget {

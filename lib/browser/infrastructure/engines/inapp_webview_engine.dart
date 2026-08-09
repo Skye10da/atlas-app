@@ -209,13 +209,21 @@ class InappWebviewEngine implements BrowserWebEngine {
     );
   }
 
-  void _injectSelectionBridge() {
+  Future<void> _injectSelectionBridge() async {
     final controller = _controller;
     if (controller == null) return;
     if (_selectionListener != null) {
       _registerSelectionHandler(controller);
     }
-    controller.evaluateJavascript(source: _kSelectionBridgeScript);
+    await controller.evaluateJavascript(source: _kSelectionBridgeScript);
+  }
+
+  void Function(String url, String? mimeType)? _downloadListener;
+
+  @override
+  Future<void> setDownloadListener(
+      void Function(String url, String? mimeType)? listener) async {
+    _downloadListener = listener;
   }
 
   Future<void> _applyDarkMode() async {
@@ -320,6 +328,11 @@ return InAppWebView(
         if (title != null && title.isNotEmpty) _currentTitle.value = title;
       },
       shouldOverrideUrlLoading: (controller, action) async {
+        final url = action.request.url?.toString();
+        if (url != null && looksLikeEpubUrl(url)) {
+          _downloadListener?.call(url, null);
+          return NavigationActionPolicy.CANCEL;
+        }
         return NavigationActionPolicy.ALLOW;
       },
     );

@@ -68,6 +68,11 @@ abstract interface class BrowserWebEngine {
   /// Selects the entire visible page body (drives the "Select all" action).
   Future<void> selectAllInPage();
 
+  /// Registers the callback fired when a downloadable resource is requested
+  /// (intercepted epub links today). Pass `null` to stop reporting.
+  Future<void> setDownloadListener(
+      void Function(String url, String? mimeType)? listener);
+
   /// Registers a handler that becomes callable from page JS as
   /// `window.flutter_inappwebview.callHandler(name, ...args)`.
   void addJsHandler(String name, JsHandlerCallback handler);
