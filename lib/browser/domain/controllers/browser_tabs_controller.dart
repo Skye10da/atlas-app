@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
+import 'package:atlas_app/browser/domain/entities/web_selection.dart';
 import 'package:atlas_app/browser/domain/entities/web_tab_state.dart';
 import 'package:atlas_app/browser/domain/repository_interfaces/browser_repository_interface.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -74,6 +75,13 @@ class BrowserTabsController extends ChangeNotifier {
     for (final tab in _tabs) {
       await tab.engine.setDarkMode(enabled);
     }
+  }
+
+  /// Routes page-selection events from the active engine to [onSelection].
+  /// Called by the browser screen when the active tab changes.
+  Future<void> bindSelectionListener(
+      void Function(WebSelection selection)? onSelection) async {
+    await activeTab?.engine.setSelectionListener(onSelection);
   }
 
   /// Rebuilds tabs from persisted state (in order), capping at [maxTabs].

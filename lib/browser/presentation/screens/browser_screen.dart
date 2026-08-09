@@ -2,17 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:atlas_app/browser/domain/controllers/browser_tabs_controller.dart';
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/browser/domain/entities/web_bookmark.dart';
+import 'package:atlas_app/browser/domain/entities/web_selection.dart';
 import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_library_sheets.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_start_page.dart';
+import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
+import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/speech/selection_speaker.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 
@@ -49,6 +55,8 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
 
   BrowserWebEngine? _boundEngine;
   String? _lastRecordedUrl;
+  WebSelection? _selection;
+  bool _ready = false;
 
   @override
   void initState() {
@@ -64,15 +72,8 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     }
     _tabs.addListener(_onTabsChanged);
     _onTabsChanged();
+    _ready = true;
 
-    ref.listen<AsyncValue<ReadingSettingsEntity>>(
-      readingSettingsProvider,
-      (previous, next) {
-        final theme = next.value?.theme;
-        if (theme == null) return;
-        _tabs.setDarkMode(_kDarkReadingThemes.contains(theme));
-      },
-    );
     final theme = ref.read(readingSettingsProvider).value?.theme;
     if (theme != null) {
       _tabs.setDarkMode(_kDarkReadingThemes.contains(theme));
@@ -91,8 +92,23 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   }
 
   void _onTabsChanged() {
+    if (_ready && mounted) setState(() {});
     _bindUrlListener(_tabs.activeTab?.engine);
     _syncUrlField();
+    _tabs.bindSelectionListener(_onWebSelection);
+    if (_selection != null) {
+      setState(() => _selection = null);
+    }
+  }
+
+  void _onWebSelection(WebSelection selection) {
+    if (!mounted) return;
+    setState(() => _selection = selection);
+  }
+
+  void _dismissSelectionMenu() {
+    setState(() => _selection = null);
+    _tabs.activeTab?.engine.clearSelection();
   }
 
   void _bindUrlListener(BrowserWebEngine? engine) {
@@ -187,6 +203,15 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
+    ref.listen<AsyncValue<ReadingSettingsEntity>>(
+      readingSettingsProvider,
+      (previous, next) {
+        final theme = next.value?.theme;
+        if (theme == null) return;
+        _tabs.setDarkMode(_kDarkReadingThemes.contains(theme));
+      },
+    );
 
     return Scaffold(
       body: SafeArea(
@@ -488,14 +513,121 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   Widget _buildContent() {
     final active = _tabs.activeTab;
     if (active == null) return const SizedBox.shrink();
-    if (active.isOnStartPage) {
-      return BrowserStartPage(
-        onOpenSite: (url) => active.engine.load(url),
-      );
-    }
-    return IndexedStack(
-      index: _tabs.activeIndex,
-      children: [for (final tab in _tabs.tabs) tab.engine.buildView()],
+    final child = active.isOnStartPage
+        ? BrowserStartPage(
+            onOpenSite: (url) => active.engine.load(url),
+          )
+        : IndexedStack(
+            index: _tabs.activeIndex,
+            children: [for (final tab in _tabs.tabs) tab.engine.buildView()],
+          );
+
+    final selection = _selection;
+    if (selection == null) return child;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final area = constraints.biggest;
+        const menuWidth = 300.0;
+        final anchorX = selection.center.dx.clamp(0.0, area.width);
+        final left = (anchorX - menuWidth / 2).clamp(
+          8.0,
+          (area.width - menuWidth - 8).clamp(0.0, area.width),
+        );
+        final top = selection.y1.clamp(0.0, area.height);
+        return Stack(
+          children: [
+            child,
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _dismissSelectionMenu,
+              ),
+            ),
+            Positioned(
+              left: left,
+              top: top,
+              child: _buildSelectionMenu(selection, active),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSelectionMenu(WebSelection selection, BrowserTab tab) {
+    const menuWidth = 300.0;
+    final word = selection.text.trim().length > 80
+        ? selection.text.trim().substring(0, 80)
+        : selection.text.trim();
+    final url = tab.url ?? 'web';
+    return SizedBox(
+      width: menuWidth,
+      child: AppContextMenu(
+        anchor: Offset.zero,
+        externallyPositioned: true,
+        quickActions: [
+          AppContextMenuAction(
+            label: 'Copy',
+            icon: Icons.content_copy_rounded,
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: selection.text));
+              _dismissSelectionMenu();
+            },
+          ),
+          AppContextMenuAction(
+            label: 'Listen',
+            icon: Icons.play_circle_outline_rounded,
+            onPressed: () {
+              _dismissSelectionMenu();
+              const SelectionSpeaker().speak(
+                ref: ref,
+                bookId: 'web',
+                chapterId: url,
+                text: selection.text,
+                language: selection.language ?? 'en',
+              );
+            },
+          ),
+        ],
+        listActions: [
+          AppContextMenuAction(
+            label: 'Look up "$word"',
+            icon: Icons.translate_rounded,
+            onPressed: () {
+              _dismissSelectionMenu();
+              DraggableBottomSheet.show(
+                context: context,
+                id: 'word_lookup',
+                initialHeight: 0.7,
+                child: WordLookupSheet(
+                  word: word,
+                  sourceSentence: selection.text,
+                  sourceTitle: tab.title,
+                ),
+              );
+            },
+          ),
+          AppContextMenuAction(
+            label: 'Search the web for "$word"',
+            icon: Icons.search_rounded,
+            onPressed: () {
+              _dismissSelectionMenu();
+              _tabs.addTab(
+                url:
+                    'https://www.google.com/search?q=${Uri.encodeQueryComponent(selection.text)}',
+              );
+            },
+          ),
+          AppContextMenuAction(
+            label: 'Select all',
+            icon: Icons.select_all_rounded,
+            onPressed: () {
+              _dismissSelectionMenu();
+              _tabs.activeTab?.engine.selectAllInPage();
+            },
+          ),
+        ],
+      ),
     );
   }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import 'package:atlas_app/browser/domain/entities/web_selection.dart';
+
 /// A message coming back from JavaScript inside the web page.
 ///
 /// Keep this signature free of any engine-specific types so the presentation
@@ -55,6 +57,16 @@ abstract interface class BrowserWebEngine {
   /// Injects (or removes) a dark-mode stylesheet so browsing matches the
   /// reader theme. Stays applied across page loads until disabled.
   Future<void> setDarkMode(bool enabled);
+
+  /// Registers the callback fired whenever the page reports a text selection.
+  /// Pass `null` to stop listening. Only the most recent listener is kept.
+  Future<void> setSelectionListener(void Function(WebSelection selection)? listener);
+
+  /// Clears the current page selection (also hides any open menu).
+  Future<void> clearSelection();
+
+  /// Selects the entire visible page body (drives the "Select all" action).
+  Future<void> selectAllInPage();
 
   /// Registers a handler that becomes callable from page JS as
   /// `window.flutter_inappwebview.callHandler(name, ...args)`.

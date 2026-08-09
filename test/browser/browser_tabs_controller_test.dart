@@ -5,6 +5,7 @@ import 'package:atlas_app/browser/domain/controllers/browser_tabs_controller.dar
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/browser/domain/entities/web_bookmark.dart';
 import 'package:atlas_app/browser/domain/entities/web_history_entry.dart';
+import 'package:atlas_app/browser/domain/entities/web_selection.dart';
 import 'package:atlas_app/browser/domain/entities/web_tab_state.dart';
 import 'package:atlas_app/browser/domain/repository_interfaces/browser_repository_interface.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -91,6 +92,23 @@ class FakeBrowserEngine implements BrowserWebEngine {
   Future<void> setDarkMode(bool enabled) async {
     darkModes.add(enabled);
   }
+
+  final List<WebSelection?> selectionListeners = [];
+
+  @override
+  Future<void> setSelectionListener(
+      void Function(WebSelection selection)? listener) async {
+    selectionListeners.add(null);
+    currentSelectionListener = listener;
+  }
+
+  void Function(WebSelection)? currentSelectionListener;
+
+  @override
+  Future<void> clearSelection() async {}
+
+  @override
+  Future<void> selectAllInPage() async {}
 
   @override
   void addJsHandler(String name, JsHandlerCallback handler) {

@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
+import 'package:atlas_app/browser/domain/entities/web_selection.dart';
 import 'package:atlas_app/browser/domain/utils/browser_url.dart';
 
 /// flutter_inappwebview-backed [BrowserWebEngine].
@@ -150,6 +151,73 @@ class InappWebviewEngine implements BrowserWebEngine {
     await _applyDarkMode();
   }
 
+  static const _kSelectionHandlerName = 'atlasSelection';
+  void Function(WebSelection)? _selectionListener;
+
+  @override
+  Future<void> setSelectionListener(void Function(WebSelection)? listener) async {
+    _selectionListener = listener;
+    if (listener == null) {
+      _controller?.removeJavaScriptHandler(handlerName: _kSelectionHandlerName);
+    } else if (_controller != null) {
+      _registerSelectionHandler(_controller!);
+    }
+  }
+
+  void _registerSelectionHandler(InAppWebViewController controller) {
+    controller.addJavaScriptHandler(
+      handlerName: _kSelectionHandlerName,
+      callback: (arguments) {
+        final raw = arguments.isNotEmpty ? arguments.first : null;
+        final selection = _selectionFromPayload(raw);
+        if (selection != null && !selection.isEmpty) {
+          _selectionListener?.call(selection);
+        }
+        return null;
+      },
+    );
+  }
+
+  static WebSelection? _selectionFromPayload(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    try {
+      final map = (jsonDecode(raw) as Map).cast<String, dynamic>();
+      return WebSelection(
+        text: (map['text'] as String? ?? ''),
+        x1: (map['x1'] as num? ?? 0).toDouble(),
+        y1: (map['y1'] as num? ?? 0).toDouble(),
+        x2: (map['x2'] as num? ?? 0).toDouble(),
+        y2: (map['y2'] as num? ?? 0).toDouble(),
+        language: map['lang'] as String?,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> clearSelection() async {
+    await _controller?.evaluateJavascript(
+      source: '(() => { window.getSelection().removeAllRanges(); return true; })()',
+    );
+  }
+
+  @override
+  Future<void> selectAllInPage() async {
+    await _controller?.evaluateJavascript(
+      source: '(() => { document.execCommand("selectAll"); return true; })()',
+    );
+  }
+
+  void _injectSelectionBridge() {
+    final controller = _controller;
+    if (controller == null) return;
+    if (_selectionListener != null) {
+      _registerSelectionHandler(controller);
+    }
+    controller.evaluateJavascript(source: _kSelectionBridgeScript);
+  }
+
   Future<void> _applyDarkMode() async {
     final controller = _controller;
     if (controller == null) return;
@@ -158,6 +226,28 @@ class InappWebviewEngine implements BrowserWebEngine {
         : _kDarkModeRemoveScript;
     await controller.evaluateJavascript(source: script);
   }
+
+  static const _kSelectionBridgeScript = '''
+(() => {
+  if (window.__atlasSelectionInjected) return;
+  window.__atlasSelectionInjected = true;
+  let lastText = '';
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) { lastText = ''; return; }
+    const text = sel.toString();
+    if (!text || text.length === 0 || text.length > 5000) { lastText = ''; return; }
+    if (text === lastText) return;
+    lastText = text;
+    const r = sel.getRangeAt(0).getBoundingClientRect();
+    flutter_inappwebview.callHandler('atlasSelection', JSON.stringify({
+      text: text,
+      x1: r.left, y1: r.top, x2: r.right, y2: r.bottom,
+      lang: document.documentElement.lang || ''
+    }));
+  });
+})()
+''';
 
   static const _kDarkModeInjectScript = '''
 (() => {
@@ -216,6 +306,7 @@ return InAppWebView(
         _isLoading.value = false;
         _progress.value = 1;
         _refreshNavState();
+        _injectSelectionBridge();
         if (_darkModeEnabled) _applyDarkMode();
       },
       onProgressChanged: (controller, progress) {
@@ -242,6 +333,7 @@ return InAppWebView(
         callback: entry.value,
       );
     }
+    _injectSelectionBridge();
     _refreshNavState();
   }
 
