@@ -63,6 +63,19 @@ class BrowserTabsController extends ChangeNotifier {
   bool get hasTabs => _tabs.isNotEmpty;
   bool get canAddTab => _tabs.length < maxTabs;
 
+  bool _darkModeEnabled = false;
+  bool get darkModeEnabled => _darkModeEnabled;
+
+  /// Applies (or clears) forced dark mode across every open tab and makes new
+  /// tabs inherit the setting.
+  Future<void> setDarkMode(bool enabled) async {
+    if (_darkModeEnabled == enabled) return;
+    _darkModeEnabled = enabled;
+    for (final tab in _tabs) {
+      await tab.engine.setDarkMode(enabled);
+    }
+  }
+
   /// Rebuilds tabs from persisted state (in order), capping at [maxTabs].
   Future<void> restore() async {
     final result = await _repository.getTabs();
@@ -89,6 +102,9 @@ class BrowserTabsController extends ChangeNotifier {
     final engine = _createEngine(initialUrl: url);
     final id = 'tab-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
     final tab = BrowserTab(id: id, engine: engine);
+    if (_darkModeEnabled) {
+      unawaited(engine.setDarkMode(true));
+    }
     _tabs.add(tab);
     _attachSaveWiring(tab);
     _activeIndex = _tabs.length - 1;

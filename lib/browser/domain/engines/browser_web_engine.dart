@@ -41,6 +41,21 @@ abstract interface class BrowserWebEngine {
   /// result (or `null` when the engine cannot produce a value).
   Future<dynamic> evaluate(String script);
 
+  /// Runs an in-page text search, highlighting the current match and returning
+  /// the total number of matches.
+  Future<int> search(String query);
+
+  /// Jumps to the next / previous match of the last [search] query.
+  Future<bool> findNext();
+  Future<bool> findPrevious();
+
+  /// Clears the current find highlight.
+  Future<void> clearFind();
+
+  /// Injects (or removes) a dark-mode stylesheet so browsing matches the
+  /// reader theme. Stays applied across page loads until disabled.
+  Future<void> setDarkMode(bool enabled);
+
   /// Registers a handler that becomes callable from page JS as
   /// `window.flutter_inappwebview.callHandler(name, ...args)`.
   void addJsHandler(String name, JsHandlerCallback handler);

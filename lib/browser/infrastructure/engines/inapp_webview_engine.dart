@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -89,6 +91,99 @@ class InappWebviewEngine implements BrowserWebEngine {
     return controller.evaluateJavascript(source: script);
   }
 
+  String? _findQuery;
+
+  @override
+  Future<int> search(String query) async {
+    _findQuery = query;
+    final escaped = jsonEncode(query);
+    final script = '''
+(() => {
+  const q = $escaped;
+  if (!q) return 0;
+  const text = document.body ? document.body.innerText : '';
+  const lower = text.toLowerCase();
+  const needle = q.toLowerCase();
+  let count = 0, idx = 0;
+  while (lower.indexOf(needle, idx) !== -1) { count++; idx = lower.indexOf(needle, idx) + needle.length; }
+  window.find(q, false, false, false, false);
+  window.scrollBy(0, -120);
+  return count;
+})()
+''';
+    final result = await _controller?.evaluateJavascript(source: script);
+    if (result is num) return result.toInt();
+    return 0;
+  }
+
+  @override
+  Future<bool> findNext() => _findDirection(backward: false);
+
+  @override
+  Future<bool> findPrevious() => _findDirection(backward: true);
+
+  Future<bool> _findDirection({required bool backward}) async {
+    final query = _findQuery;
+    if (query == null || query.isEmpty) return false;
+    final escaped = jsonEncode(query);
+    final script = '''
+(() => { return window.find($escaped, false, false, ${backward ? 'true' : 'false'}, false); })()
+''';
+    final result = await _controller?.evaluateJavascript(source: script);
+    return result == true;
+  }
+
+  @override
+  Future<void> clearFind() async {
+    _findQuery = null;
+    await _controller?.evaluateJavascript(
+      source: '(() => { window.getSelection().removeAllRanges(); return true; })()',
+    );
+  }
+
+  bool _darkModeEnabled = false;
+
+  @override
+  Future<void> setDarkMode(bool enabled) async {
+    if (_darkModeEnabled == enabled) return;
+    _darkModeEnabled = enabled;
+    await _applyDarkMode();
+  }
+
+  Future<void> _applyDarkMode() async {
+    final controller = _controller;
+    if (controller == null) return;
+    final script = _darkModeEnabled
+        ? _kDarkModeInjectScript
+        : _kDarkModeRemoveScript;
+    await controller.evaluateJavascript(source: script);
+  }
+
+  static const _kDarkModeInjectScript = '''
+(() => {
+  document.getElementById('atlas-dark-css')?.remove();
+  const meta = document.createElement('meta');
+  meta.name = 'color-scheme';
+  meta.content = 'dark';
+  document.head.appendChild(meta);
+  const style = document.createElement('style');
+  style.id = 'atlas-dark-css';
+  style.textContent = [
+    'html { filter: invert(0.92) hue-rotate(180deg) !important; background: #0f1115 !important; }',
+    'img, video, picture, canvas, iframe, svg image, [style*="background-image"], [class*="logo"], [class*="avatar"], [class*="thumb"] { filter: invert(0.92) hue-rotate(180deg) !important; }',
+  ].join('\\n');
+  document.head.appendChild(style);
+  document.documentElement.style.colorScheme = 'dark';
+})()
+''';
+
+  static const _kDarkModeRemoveScript = '''
+(() => {
+  document.getElementById('atlas-dark-css')?.remove();
+  document.documentElement.style.colorScheme = '';
+})()
+''';
+
   @override
   void addJsHandler(String name, JsHandlerCallback handler) {
     _jsHandlers[name] = handler;
@@ -121,6 +216,7 @@ return InAppWebView(
         _isLoading.value = false;
         _progress.value = 1;
         _refreshNavState();
+        if (_darkModeEnabled) _applyDarkMode();
       },
       onProgressChanged: (controller, progress) {
         _progress.value = progress / 100.0;

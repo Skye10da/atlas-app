@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,17 @@ import 'package:atlas_app/browser/presentation/providers/browser_providers.dart'
 import 'package:atlas_app/browser/presentation/widgets/browser_library_sheets.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_start_page.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
+import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
+
+/// Reading themes that force the browser into dark mode.
+const Set<ReadingViewTheme> _kDarkReadingThemes = {
+  ReadingViewTheme.dark,
+  ReadingViewTheme.amoled,
+  ReadingViewTheme.dracula,
+  ReadingViewTheme.gray,
+};
 
 /// Full-screen, glass-styled browser shell backed by [BrowserWebEngine].
 ///
@@ -29,6 +42,10 @@ class BrowserScreen extends ConsumerStatefulWidget {
 class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   late final BrowserTabsController _tabs;
   final _urlController = TextEditingController();
+  final _findController = TextEditingController();
+  Timer? _findDebounce;
+  int _findMatchCount = 0;
+  bool _findVisible = false;
 
   BrowserWebEngine? _boundEngine;
   String? _lastRecordedUrl;
@@ -47,14 +64,29 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     }
     _tabs.addListener(_onTabsChanged);
     _onTabsChanged();
+
+    ref.listen<AsyncValue<ReadingSettingsEntity>>(
+      readingSettingsProvider,
+      (previous, next) {
+        final theme = next.value?.theme;
+        if (theme == null) return;
+        _tabs.setDarkMode(_kDarkReadingThemes.contains(theme));
+      },
+    );
+    final theme = ref.read(readingSettingsProvider).value?.theme;
+    if (theme != null) {
+      _tabs.setDarkMode(_kDarkReadingThemes.contains(theme));
+    }
   }
 
   @override
   void dispose() {
+    _findDebounce?.cancel();
     _bindUrlListener(null);
     _tabs.removeListener(_onTabsChanged);
     _tabs.dispose();
     _urlController.dispose();
+    _findController.dispose();
     super.dispose();
   }
 
@@ -122,6 +154,36 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     }
   }
 
+  void _toggleFind() {
+    setState(() => _findVisible = !_findVisible);
+    if (_findVisible) {
+      _findController.clear();
+      _findMatchCount = 0;
+      _runFind();
+    } else {
+      _tabs.activeTab?.engine.clearFind();
+    }
+  }
+
+  void _onFindChanged(String value) {
+    _findDebounce?.cancel();
+    _findDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _runFind();
+    });
+  }
+
+  Future<void> _runFind() async {
+    final query = _findController.text.trim();
+    if (query.isEmpty) {
+      setState(() => _findMatchCount = 0);
+      return;
+    }
+    final count = await _tabs.activeTab?.engine.search(query) ?? 0;
+    if (!mounted) return;
+    setState(() => _findMatchCount = count);
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -132,10 +194,75 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           children: [
             _buildTabStrip(cs),
             _buildChrome(cs),
+            if (_findVisible) _buildFindBar(cs),
             _buildProgress(),
             Expanded(child: _buildContent()),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFindBar(ColorScheme cs) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainer.withValues(alpha: 0.95),
+        border: Border(
+          bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.3)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _findController,
+              autofocus: true,
+              onChanged: _onFindChanged,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _tabs.activeTab?.engine.findNext(),
+              style: const TextStyle(fontSize: 13.5),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Find on page',
+                filled: true,
+                fillColor: cs.surfaceContainerHigh.withValues(alpha: 0.85),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                border: OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.borderRadiusFull),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            '$_findMatchCount',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+          ),
+          IconButton(
+            tooltip: 'Previous match',
+            icon: const Icon(Icons.keyboard_arrow_up_rounded),
+            onPressed: () => _tabs.activeTab?.engine.findPrevious(),
+            visualDensity: VisualDensity.compact,
+          ),
+          IconButton(
+            tooltip: 'Next match',
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            onPressed: () => _tabs.activeTab?.engine.findNext(),
+            visualDensity: VisualDensity.compact,
+          ),
+          IconButton(
+            tooltip: 'Close find',
+            icon: const Icon(Icons.close_rounded, size: 18),
+            onPressed: _toggleFind,
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
       ),
     );
   }
@@ -241,6 +368,11 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
                 : Icons.bookmark_border_rounded,
             enabled: canBookmark,
             onPressed: () => _toggleBookmark(),
+          ),
+          _GlassIconButton(
+            tooltip: 'Find on page',
+            icon: Icons.manage_search_rounded,
+            onPressed: _toggleFind,
           ),
           _GlassIconButton(
             tooltip: 'History & bookmarks',

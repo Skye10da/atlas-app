@@ -58,6 +58,40 @@ class FakeBrowserEngine implements BrowserWebEngine {
   @override
   Future<dynamic> evaluate(String script) async => null;
 
+  final List<String> searches = [];
+  final List<bool> darkModes = [];
+  int findNextCalls = 0;
+  int findPreviousCalls = 0;
+  int clearFindCalls = 0;
+
+  @override
+  Future<int> search(String query) async {
+    searches.add(query);
+    return query.isEmpty ? 0 : 3;
+  }
+
+  @override
+  Future<bool> findNext() async {
+    findNextCalls++;
+    return true;
+  }
+
+  @override
+  Future<bool> findPrevious() async {
+    findPreviousCalls++;
+    return true;
+  }
+
+  @override
+  Future<void> clearFind() async {
+    clearFindCalls++;
+  }
+
+  @override
+  Future<void> setDarkMode(bool enabled) async {
+    darkModes.add(enabled);
+  }
+
   @override
   void addJsHandler(String name, JsHandlerCallback handler) {
     jsHandlers.add(name);
@@ -296,6 +330,30 @@ void main() {
       controller.dispose();
 
       expect(engines.map((e) => (e as FakeBrowserEngine).disposed), everyElement(isTrue));
+    });
+
+    test('setDarkMode applies to open tabs and new tabs inherit it', () async {
+      final controller = makeController(persist: false);
+      await controller.addTab();
+      await controller.addTab();
+
+      await controller.setDarkMode(true);
+
+      final engines = controller.tabs.map((t) => t.engine).toList();
+      for (final engine in engines) {
+        expect((engine as FakeBrowserEngine).darkModes, [true]);
+      }
+      expect(controller.darkModeEnabled, isTrue);
+
+      await controller.addTab();
+      expect(
+        (controller.tabs.last.engine as FakeBrowserEngine).darkModes,
+        contains(true),
+      );
+
+      await controller.setDarkMode(false);
+      expect(controller.darkModeEnabled, isFalse);
+      controller.dispose();
     });
   });
 }
