@@ -6,6 +6,10 @@ import 'package:flutter/widgets.dart';
 /// layer (and tests) never leak plugin details.
 typedef JsHandlerCallback = dynamic Function(List<dynamic> arguments);
 
+/// Builds a fresh [BrowserWebEngine]. Shared by providers and controllers so
+/// the browser never couples to a specific engine implementation.
+typedef BrowserEngineFactory = BrowserWebEngine Function({String? initialUrl});
+
 /// Contract between the browser UI and the underlying web engine.
 ///
 /// Mirrors the `PlatformService` seam: the UI drives navigation and reads state

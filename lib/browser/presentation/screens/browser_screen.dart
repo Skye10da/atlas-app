@@ -3,18 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:atlas_app/browser/domain/controllers/browser_tabs_controller.dart';
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
+import 'package:atlas_app/browser/presentation/widgets/browser_start_page.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 
 /// Full-screen, glass-styled browser shell backed by [BrowserWebEngine].
 ///
-/// Phase 0: navigation chrome + URL pill over the web view. Later phases grow
-/// the tab strip, start page and selection/native integrations.
+/// Phase 1: multi-tab strip over an [IndexedStack] of live engines, native
+/// start page, one-tap home reset and history recording on navigation.
 class BrowserScreen extends ConsumerStatefulWidget {
   const BrowserScreen({super.key, this.initialUrl});
 
-  /// Optional URL to load on open; otherwise the engine default home applies.
+  /// Optional URL to load on open. When null the persisted tab strip is
+  /// restored (or a fresh tab lands on the start page).
   final String? initialUrl;
 
   @override
@@ -22,43 +25,77 @@ class BrowserScreen extends ConsumerStatefulWidget {
 }
 
 class _BrowserScreenState extends ConsumerState<BrowserScreen> {
-  late final BrowserWebEngine _engine;
+  late final BrowserTabsController _tabs;
   final _urlController = TextEditingController();
+
+  BrowserWebEngine? _boundEngine;
+  String? _lastRecordedUrl;
 
   @override
   void initState() {
     super.initState();
-    _engine = ref.read(browserEngineFactoryProvider)(
-      initialUrl: widget.initialUrl,
+    _tabs = BrowserTabsController(
+      repository: ref.read(browserRepositoryProvider),
+      engineFactory: ref.read(browserEngineFactoryProvider),
     );
-    _engine.currentUrl.addListener(_syncUrlField);
-    _syncUrlField();
+    if (widget.initialUrl != null) {
+      _tabs.addTab(url: widget.initialUrl);
+    } else {
+      _tabs.restore();
+    }
+    _tabs.addListener(_onTabsChanged);
+    _onTabsChanged();
   }
 
   @override
   void dispose() {
-    _engine.currentUrl.removeListener(_syncUrlField);
+    _bindUrlListener(null);
+    _tabs.removeListener(_onTabsChanged);
+    _tabs.dispose();
     _urlController.dispose();
-    _engine.dispose();
     super.dispose();
   }
 
+  void _onTabsChanged() {
+    _bindUrlListener(_tabs.activeTab?.engine);
+    _syncUrlField();
+  }
+
+  void _bindUrlListener(BrowserWebEngine? engine) {
+    if (_boundEngine == engine) return;
+    _boundEngine?.currentUrl.removeListener(_recordNavigation);
+    _boundEngine = engine;
+    _boundEngine?.currentUrl.addListener(_recordNavigation);
+  }
+
+  Future<void> _recordNavigation() async {
+    final url = _boundEngine?.currentUrl.value;
+    if (url == null || url.isEmpty || url == kBrowserStartPageUrl) return;
+    if (url == _lastRecordedUrl) return;
+    _lastRecordedUrl = url;
+    await ref.read(browserRepositoryProvider).recordVisit(
+          url: url,
+          title: _boundEngine?.currentTitle.value,
+        );
+  }
+
   void _syncUrlField() {
-    final url = _engine.currentUrl.value;
-    if (url == null || url == 'about:blank') return;
-    if (_urlController.text == url) return;
-    _urlController.text = url;
+    final url = _tabs.activeTab?.url;
+    final text = url;
+    if (text == null || text == kBrowserStartPageUrl) return;
+    if (_urlController.text == text) return;
+    _urlController.text = text;
   }
 
   Future<void> _submitUrl(String raw) async {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    await _engine.load(trimmed);
+    await _tabs.activeTab?.engine.load(trimmed);
   }
 
   Future<void> _openExternally() async {
-    final url = _engine.currentUrl.value;
+    final url = _tabs.activeTab?.url;
     final uri = Uri.tryParse(url ?? '');
     if (uri == null || !uri.hasScheme) return;
     final ok = await showDialog<bool>(
@@ -91,16 +128,65 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            _buildTabStrip(cs),
             _buildChrome(cs),
             _buildProgress(),
-            Expanded(child: _engine.buildView()),
+            Expanded(child: _buildContent()),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildTabStrip(ColorScheme cs) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.3)),
+        ),
+      ),
+      child: ListenableBuilder(
+        listenable: _tabs,
+        builder: (context, _) {
+          return SizedBox(
+            height: 40,
+            child: Row(
+              children: [
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(left: AppSpacing.xs),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _tabs.tabs.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 6),
+                    itemBuilder: (context, index) {
+                      final tab = _tabs.tabs[index];
+                      return _TabChip(
+                        tab: tab,
+                        selected: index == _tabs.activeIndex,
+                        onTap: () => _tabs.activate(index),
+                        onClose: () => _tabs.close(index),
+                      );
+                    },
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'New tab',
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  onPressed:
+                      _tabs.canAddTab ? () => _tabs.addTab() : null,
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildChrome(ColorScheme cs) {
+    final engine = _tabs.activeTab?.engine;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
       decoration: BoxDecoration(
@@ -114,22 +200,27 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           _NavIconButton(
             tooltip: 'Back',
             icon: Icons.arrow_back_rounded,
-            listenable: _engine.canGoBack,
-            onPressed: _engine.goBack,
+            listenable: engine?.canGoBack ?? _constFalse,
+            onPressed: () => engine?.goBack(),
           ),
           _NavIconButton(
             tooltip: 'Forward',
             icon: Icons.arrow_forward_rounded,
-            listenable: _engine.canGoForward,
-            onPressed: _engine.goForward,
+            listenable: engine?.canGoForward ?? _constFalse,
+            onPressed: () => engine?.goForward(),
           ),
           ValueListenableBuilder<bool>(
-            valueListenable: _engine.isLoading,
+            valueListenable: engine?.isLoading ?? _constFalse,
             builder: (context, loading, _) => _GlassIconButton(
               tooltip: loading ? 'Stop' : 'Reload',
               icon: loading ? Icons.close_rounded : Icons.refresh_rounded,
-              onPressed: loading ? _engine.stop : _engine.reload,
+              onPressed: () => loading ? engine?.stop() : engine?.reload(),
             ),
+          ),
+          _GlassIconButton(
+            tooltip: 'Home',
+            icon: Icons.home_rounded,
+            onPressed: () => engine?.load(kBrowserStartPageUrl),
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(child: _urlPill(cs)),
@@ -165,11 +256,13 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   }
 
   Widget _buildProgress() {
+    final engine = _tabs.activeTab?.engine;
+    if (engine == null) return const SizedBox(height: 0);
     return ListenableBuilder(
-      listenable: Listenable.merge([_engine.progress, _engine.isLoading]),
+      listenable: Listenable.merge([engine.progress, engine.isLoading]),
       builder: (context, _) {
-        final progress = _engine.progress.value;
-        if (!_engine.isLoading.value || progress >= 1) {
+        final progress = engine.progress.value;
+        if (!engine.isLoading.value || progress >= 1) {
           return const SizedBox(height: 0);
         }
         return LinearProgressIndicator(
@@ -177,6 +270,96 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           minHeight: 2,
           color: Theme.of(context).colorScheme.primary,
           backgroundColor: Colors.transparent,
+        );
+      },
+    );
+  }
+
+  Widget _buildContent() {
+    final active = _tabs.activeTab;
+    if (active == null) return const SizedBox.shrink();
+    if (active.isOnStartPage) {
+      return BrowserStartPage(
+        onOpenSite: (url) => active.engine.load(url),
+      );
+    }
+    return IndexedStack(
+      index: _tabs.activeIndex,
+      children: [for (final tab in _tabs.tabs) tab.engine.buildView()],
+    );
+  }
+
+  static final ValueNotifier<bool> _constFalse = ValueNotifier<bool>(false);
+}
+
+class _TabChip extends StatelessWidget {
+  const _TabChip({
+    required this.tab,
+    required this.selected,
+    required this.onTap,
+    required this.onClose,
+  });
+
+  final BrowserTab tab;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ValueListenableBuilder<String?>(
+      valueListenable: tab.engine.currentTitle,
+      builder: (context, _, _) {
+        return Material(
+          color: selected
+              ? cs.primaryContainer
+              : cs.surfaceContainerHigh.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+            onTap: onTap,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 120),
+                    child: Text(
+                      tab.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelMedium
+                          ?.copyWith(
+                            color: selected
+                                ? cs.onPrimaryContainer
+                                : cs.onSurfaceVariant,
+                          ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: onClose,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 14,
+                        color: selected
+                            ? cs.onPrimaryContainer
+                            : cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );

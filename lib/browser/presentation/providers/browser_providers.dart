@@ -13,8 +13,6 @@ import 'package:atlas_app/core/error_handling/result.dart';
 /// this for the native catalog/start screen.
 const String kBrowserDefaultHomeUrl = 'https://www.gutenberg.org';
 
-typedef BrowserEngineFactory = BrowserWebEngine Function({String? initialUrl});
-
 /// Creates a fresh [BrowserWebEngine] per browser session. Overridable in tests
 /// to inject a fake engine.
 final browserEngineFactoryProvider = Provider<BrowserEngineFactory>((ref) {
