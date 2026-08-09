@@ -106,7 +106,7 @@ void main() {
         final version = await appDb
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(version.data['user_version'], 8);
+        expect(version.data['user_version'], 9);
 
         final result = await DriftLibraryRepository(appDb).getBooks();
         expect(result, isA<Success<List<BookEntity>>>());
@@ -163,7 +163,7 @@ void main() {
         final version = await appDb
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(version.data['user_version'], 8);
+        expect(version.data['user_version'], 9);
 
         final cols =
             await appDb.customSelect('PRAGMA table_info(chapters)').get();

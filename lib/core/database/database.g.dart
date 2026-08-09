@@ -4779,6 +4779,1020 @@ class DictionaryWordsCompanion extends UpdateCompanion<DictionaryWord> {
   }
 }
 
+class $WebHistoryTable extends WebHistory
+    with TableInfo<$WebHistoryTable, WebHistoryData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WebHistoryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _urlMeta = const VerificationMeta('url');
+  @override
+  late final GeneratedColumn<String> url = GeneratedColumn<String>(
+    'url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _visitedAtMeta = const VerificationMeta(
+    'visitedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> visitedAt = GeneratedColumn<DateTime>(
+    'visited_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, url, title, visitedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'web_history';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<WebHistoryData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('url')) {
+      context.handle(
+        _urlMeta,
+        url.isAcceptableOrUnknown(data['url']!, _urlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_urlMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('visited_at')) {
+      context.handle(
+        _visitedAtMeta,
+        visitedAt.isAcceptableOrUnknown(data['visited_at']!, _visitedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_visitedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WebHistoryData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WebHistoryData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      url: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}url'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      visitedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}visited_at'],
+      )!,
+    );
+  }
+
+  @override
+  $WebHistoryTable createAlias(String alias) {
+    return $WebHistoryTable(attachedDatabase, alias);
+  }
+}
+
+class WebHistoryData extends DataClass implements Insertable<WebHistoryData> {
+  final String id;
+  final String url;
+  final String? title;
+  final DateTime visitedAt;
+  const WebHistoryData({
+    required this.id,
+    required this.url,
+    this.title,
+    required this.visitedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['url'] = Variable<String>(url);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    map['visited_at'] = Variable<DateTime>(visitedAt);
+    return map;
+  }
+
+  WebHistoryCompanion toCompanion(bool nullToAbsent) {
+    return WebHistoryCompanion(
+      id: Value(id),
+      url: Value(url),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      visitedAt: Value(visitedAt),
+    );
+  }
+
+  factory WebHistoryData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WebHistoryData(
+      id: serializer.fromJson<String>(json['id']),
+      url: serializer.fromJson<String>(json['url']),
+      title: serializer.fromJson<String?>(json['title']),
+      visitedAt: serializer.fromJson<DateTime>(json['visitedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'url': serializer.toJson<String>(url),
+      'title': serializer.toJson<String?>(title),
+      'visitedAt': serializer.toJson<DateTime>(visitedAt),
+    };
+  }
+
+  WebHistoryData copyWith({
+    String? id,
+    String? url,
+    Value<String?> title = const Value.absent(),
+    DateTime? visitedAt,
+  }) => WebHistoryData(
+    id: id ?? this.id,
+    url: url ?? this.url,
+    title: title.present ? title.value : this.title,
+    visitedAt: visitedAt ?? this.visitedAt,
+  );
+  WebHistoryData copyWithCompanion(WebHistoryCompanion data) {
+    return WebHistoryData(
+      id: data.id.present ? data.id.value : this.id,
+      url: data.url.present ? data.url.value : this.url,
+      title: data.title.present ? data.title.value : this.title,
+      visitedAt: data.visitedAt.present ? data.visitedAt.value : this.visitedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WebHistoryData(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('visitedAt: $visitedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, url, title, visitedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WebHistoryData &&
+          other.id == this.id &&
+          other.url == this.url &&
+          other.title == this.title &&
+          other.visitedAt == this.visitedAt);
+}
+
+class WebHistoryCompanion extends UpdateCompanion<WebHistoryData> {
+  final Value<String> id;
+  final Value<String> url;
+  final Value<String?> title;
+  final Value<DateTime> visitedAt;
+  final Value<int> rowid;
+  const WebHistoryCompanion({
+    this.id = const Value.absent(),
+    this.url = const Value.absent(),
+    this.title = const Value.absent(),
+    this.visitedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WebHistoryCompanion.insert({
+    required String id,
+    required String url,
+    this.title = const Value.absent(),
+    required DateTime visitedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       url = Value(url),
+       visitedAt = Value(visitedAt);
+  static Insertable<WebHistoryData> custom({
+    Expression<String>? id,
+    Expression<String>? url,
+    Expression<String>? title,
+    Expression<DateTime>? visitedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (url != null) 'url': url,
+      if (title != null) 'title': title,
+      if (visitedAt != null) 'visited_at': visitedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WebHistoryCompanion copyWith({
+    Value<String>? id,
+    Value<String>? url,
+    Value<String?>? title,
+    Value<DateTime>? visitedAt,
+    Value<int>? rowid,
+  }) {
+    return WebHistoryCompanion(
+      id: id ?? this.id,
+      url: url ?? this.url,
+      title: title ?? this.title,
+      visitedAt: visitedAt ?? this.visitedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (url.present) {
+      map['url'] = Variable<String>(url.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (visitedAt.present) {
+      map['visited_at'] = Variable<DateTime>(visitedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WebHistoryCompanion(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('visitedAt: $visitedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WebBookmarksTable extends WebBookmarks
+    with TableInfo<$WebBookmarksTable, WebBookmark> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WebBookmarksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _urlMeta = const VerificationMeta('url');
+  @override
+  late final GeneratedColumn<String> url = GeneratedColumn<String>(
+    'url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, url, title, createdAt, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'web_bookmarks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<WebBookmark> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('url')) {
+      context.handle(
+        _urlMeta,
+        url.isAcceptableOrUnknown(data['url']!, _urlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_urlMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WebBookmark map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WebBookmark(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      url: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}url'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $WebBookmarksTable createAlias(String alias) {
+    return $WebBookmarksTable(attachedDatabase, alias);
+  }
+}
+
+class WebBookmark extends DataClass implements Insertable<WebBookmark> {
+  final String id;
+  final String url;
+  final String? title;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const WebBookmark({
+    required this.id,
+    required this.url,
+    this.title,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['url'] = Variable<String>(url);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  WebBookmarksCompanion toCompanion(bool nullToAbsent) {
+    return WebBookmarksCompanion(
+      id: Value(id),
+      url: Value(url),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory WebBookmark.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WebBookmark(
+      id: serializer.fromJson<String>(json['id']),
+      url: serializer.fromJson<String>(json['url']),
+      title: serializer.fromJson<String?>(json['title']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'url': serializer.toJson<String>(url),
+      'title': serializer.toJson<String?>(title),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  WebBookmark copyWith({
+    String? id,
+    String? url,
+    Value<String?> title = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => WebBookmark(
+    id: id ?? this.id,
+    url: url ?? this.url,
+    title: title.present ? title.value : this.title,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  WebBookmark copyWithCompanion(WebBookmarksCompanion data) {
+    return WebBookmark(
+      id: data.id.present ? data.id.value : this.id,
+      url: data.url.present ? data.url.value : this.url,
+      title: data.title.present ? data.title.value : this.title,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WebBookmark(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, url, title, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WebBookmark &&
+          other.id == this.id &&
+          other.url == this.url &&
+          other.title == this.title &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class WebBookmarksCompanion extends UpdateCompanion<WebBookmark> {
+  final Value<String> id;
+  final Value<String> url;
+  final Value<String?> title;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const WebBookmarksCompanion({
+    this.id = const Value.absent(),
+    this.url = const Value.absent(),
+    this.title = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WebBookmarksCompanion.insert({
+    required String id,
+    required String url,
+    this.title = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       url = Value(url),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<WebBookmark> custom({
+    Expression<String>? id,
+    Expression<String>? url,
+    Expression<String>? title,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (url != null) 'url': url,
+      if (title != null) 'title': title,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WebBookmarksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? url,
+    Value<String?>? title,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return WebBookmarksCompanion(
+      id: id ?? this.id,
+      url: url ?? this.url,
+      title: title ?? this.title,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (url.present) {
+      map['url'] = Variable<String>(url.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WebBookmarksCompanion(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WebTabsTable extends WebTabs with TableInfo<$WebTabsTable, WebTab> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WebTabsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _urlMeta = const VerificationMeta('url');
+  @override
+  late final GeneratedColumn<String> url = GeneratedColumn<String>(
+    'url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _orderMeta = const VerificationMeta('order');
+  @override
+  late final GeneratedColumn<int> order = GeneratedColumn<int>(
+    'order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastActiveAtMeta = const VerificationMeta(
+    'lastActiveAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastActiveAt = GeneratedColumn<DateTime>(
+    'last_active_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, url, title, order, lastActiveAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'web_tabs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<WebTab> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('url')) {
+      context.handle(
+        _urlMeta,
+        url.isAcceptableOrUnknown(data['url']!, _urlMeta),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('order')) {
+      context.handle(
+        _orderMeta,
+        order.isAcceptableOrUnknown(data['order']!, _orderMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_orderMeta);
+    }
+    if (data.containsKey('last_active_at')) {
+      context.handle(
+        _lastActiveAtMeta,
+        lastActiveAt.isAcceptableOrUnknown(
+          data['last_active_at']!,
+          _lastActiveAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastActiveAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WebTab map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WebTab(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      url: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}url'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      order: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}order'],
+      )!,
+      lastActiveAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_active_at'],
+      )!,
+    );
+  }
+
+  @override
+  $WebTabsTable createAlias(String alias) {
+    return $WebTabsTable(attachedDatabase, alias);
+  }
+}
+
+class WebTab extends DataClass implements Insertable<WebTab> {
+  final String id;
+  final String? url;
+  final String? title;
+  final int order;
+  final DateTime lastActiveAt;
+  const WebTab({
+    required this.id,
+    this.url,
+    this.title,
+    required this.order,
+    required this.lastActiveAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || url != null) {
+      map['url'] = Variable<String>(url);
+    }
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    map['order'] = Variable<int>(order);
+    map['last_active_at'] = Variable<DateTime>(lastActiveAt);
+    return map;
+  }
+
+  WebTabsCompanion toCompanion(bool nullToAbsent) {
+    return WebTabsCompanion(
+      id: Value(id),
+      url: url == null && nullToAbsent ? const Value.absent() : Value(url),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      order: Value(order),
+      lastActiveAt: Value(lastActiveAt),
+    );
+  }
+
+  factory WebTab.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WebTab(
+      id: serializer.fromJson<String>(json['id']),
+      url: serializer.fromJson<String?>(json['url']),
+      title: serializer.fromJson<String?>(json['title']),
+      order: serializer.fromJson<int>(json['order']),
+      lastActiveAt: serializer.fromJson<DateTime>(json['lastActiveAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'url': serializer.toJson<String?>(url),
+      'title': serializer.toJson<String?>(title),
+      'order': serializer.toJson<int>(order),
+      'lastActiveAt': serializer.toJson<DateTime>(lastActiveAt),
+    };
+  }
+
+  WebTab copyWith({
+    String? id,
+    Value<String?> url = const Value.absent(),
+    Value<String?> title = const Value.absent(),
+    int? order,
+    DateTime? lastActiveAt,
+  }) => WebTab(
+    id: id ?? this.id,
+    url: url.present ? url.value : this.url,
+    title: title.present ? title.value : this.title,
+    order: order ?? this.order,
+    lastActiveAt: lastActiveAt ?? this.lastActiveAt,
+  );
+  WebTab copyWithCompanion(WebTabsCompanion data) {
+    return WebTab(
+      id: data.id.present ? data.id.value : this.id,
+      url: data.url.present ? data.url.value : this.url,
+      title: data.title.present ? data.title.value : this.title,
+      order: data.order.present ? data.order.value : this.order,
+      lastActiveAt: data.lastActiveAt.present
+          ? data.lastActiveAt.value
+          : this.lastActiveAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WebTab(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('order: $order, ')
+          ..write('lastActiveAt: $lastActiveAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, url, title, order, lastActiveAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WebTab &&
+          other.id == this.id &&
+          other.url == this.url &&
+          other.title == this.title &&
+          other.order == this.order &&
+          other.lastActiveAt == this.lastActiveAt);
+}
+
+class WebTabsCompanion extends UpdateCompanion<WebTab> {
+  final Value<String> id;
+  final Value<String?> url;
+  final Value<String?> title;
+  final Value<int> order;
+  final Value<DateTime> lastActiveAt;
+  final Value<int> rowid;
+  const WebTabsCompanion({
+    this.id = const Value.absent(),
+    this.url = const Value.absent(),
+    this.title = const Value.absent(),
+    this.order = const Value.absent(),
+    this.lastActiveAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WebTabsCompanion.insert({
+    required String id,
+    this.url = const Value.absent(),
+    this.title = const Value.absent(),
+    required int order,
+    required DateTime lastActiveAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       order = Value(order),
+       lastActiveAt = Value(lastActiveAt);
+  static Insertable<WebTab> custom({
+    Expression<String>? id,
+    Expression<String>? url,
+    Expression<String>? title,
+    Expression<int>? order,
+    Expression<DateTime>? lastActiveAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (url != null) 'url': url,
+      if (title != null) 'title': title,
+      if (order != null) 'order': order,
+      if (lastActiveAt != null) 'last_active_at': lastActiveAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WebTabsCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? url,
+    Value<String?>? title,
+    Value<int>? order,
+    Value<DateTime>? lastActiveAt,
+    Value<int>? rowid,
+  }) {
+    return WebTabsCompanion(
+      id: id ?? this.id,
+      url: url ?? this.url,
+      title: title ?? this.title,
+      order: order ?? this.order,
+      lastActiveAt: lastActiveAt ?? this.lastActiveAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (url.present) {
+      map['url'] = Variable<String>(url.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (order.present) {
+      map['order'] = Variable<int>(order.value);
+    }
+    if (lastActiveAt.present) {
+      map['last_active_at'] = Variable<DateTime>(lastActiveAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WebTabsCompanion(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('order: $order, ')
+          ..write('lastActiveAt: $lastActiveAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4793,6 +5807,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DictionaryWordsTable dictionaryWords = $DictionaryWordsTable(
     this,
   );
+  late final $WebHistoryTable webHistory = $WebHistoryTable(this);
+  late final $WebBookmarksTable webBookmarks = $WebBookmarksTable(this);
+  late final $WebTabsTable webTabs = $WebTabsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4805,6 +5822,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     appSettings,
     characters,
     dictionaryWords,
+    webHistory,
+    webBookmarks,
+    webTabs,
   ];
 }
 
@@ -7086,6 +8106,583 @@ typedef $$DictionaryWordsTableProcessedTableManager =
       DictionaryWord,
       PrefetchHooks Function()
     >;
+typedef $$WebHistoryTableCreateCompanionBuilder =
+    WebHistoryCompanion Function({
+      required String id,
+      required String url,
+      Value<String?> title,
+      required DateTime visitedAt,
+      Value<int> rowid,
+    });
+typedef $$WebHistoryTableUpdateCompanionBuilder =
+    WebHistoryCompanion Function({
+      Value<String> id,
+      Value<String> url,
+      Value<String?> title,
+      Value<DateTime> visitedAt,
+      Value<int> rowid,
+    });
+
+class $$WebHistoryTableFilterComposer
+    extends Composer<_$AppDatabase, $WebHistoryTable> {
+  $$WebHistoryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get visitedAt => $composableBuilder(
+    column: $table.visitedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$WebHistoryTableOrderingComposer
+    extends Composer<_$AppDatabase, $WebHistoryTable> {
+  $$WebHistoryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get visitedAt => $composableBuilder(
+    column: $table.visitedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$WebHistoryTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WebHistoryTable> {
+  $$WebHistoryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get url =>
+      $composableBuilder(column: $table.url, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get visitedAt =>
+      $composableBuilder(column: $table.visitedAt, builder: (column) => column);
+}
+
+class $$WebHistoryTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $WebHistoryTable,
+          WebHistoryData,
+          $$WebHistoryTableFilterComposer,
+          $$WebHistoryTableOrderingComposer,
+          $$WebHistoryTableAnnotationComposer,
+          $$WebHistoryTableCreateCompanionBuilder,
+          $$WebHistoryTableUpdateCompanionBuilder,
+          (
+            WebHistoryData,
+            BaseReferences<_$AppDatabase, $WebHistoryTable, WebHistoryData>,
+          ),
+          WebHistoryData,
+          PrefetchHooks Function()
+        > {
+  $$WebHistoryTableTableManager(_$AppDatabase db, $WebHistoryTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WebHistoryTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WebHistoryTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WebHistoryTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> url = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<DateTime> visitedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => WebHistoryCompanion(
+                id: id,
+                url: url,
+                title: title,
+                visitedAt: visitedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String url,
+                Value<String?> title = const Value.absent(),
+                required DateTime visitedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => WebHistoryCompanion.insert(
+                id: id,
+                url: url,
+                title: title,
+                visitedAt: visitedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$WebHistoryTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $WebHistoryTable,
+      WebHistoryData,
+      $$WebHistoryTableFilterComposer,
+      $$WebHistoryTableOrderingComposer,
+      $$WebHistoryTableAnnotationComposer,
+      $$WebHistoryTableCreateCompanionBuilder,
+      $$WebHistoryTableUpdateCompanionBuilder,
+      (
+        WebHistoryData,
+        BaseReferences<_$AppDatabase, $WebHistoryTable, WebHistoryData>,
+      ),
+      WebHistoryData,
+      PrefetchHooks Function()
+    >;
+typedef $$WebBookmarksTableCreateCompanionBuilder =
+    WebBookmarksCompanion Function({
+      required String id,
+      required String url,
+      Value<String?> title,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$WebBookmarksTableUpdateCompanionBuilder =
+    WebBookmarksCompanion Function({
+      Value<String> id,
+      Value<String> url,
+      Value<String?> title,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$WebBookmarksTableFilterComposer
+    extends Composer<_$AppDatabase, $WebBookmarksTable> {
+  $$WebBookmarksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$WebBookmarksTableOrderingComposer
+    extends Composer<_$AppDatabase, $WebBookmarksTable> {
+  $$WebBookmarksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$WebBookmarksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WebBookmarksTable> {
+  $$WebBookmarksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get url =>
+      $composableBuilder(column: $table.url, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$WebBookmarksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $WebBookmarksTable,
+          WebBookmark,
+          $$WebBookmarksTableFilterComposer,
+          $$WebBookmarksTableOrderingComposer,
+          $$WebBookmarksTableAnnotationComposer,
+          $$WebBookmarksTableCreateCompanionBuilder,
+          $$WebBookmarksTableUpdateCompanionBuilder,
+          (
+            WebBookmark,
+            BaseReferences<_$AppDatabase, $WebBookmarksTable, WebBookmark>,
+          ),
+          WebBookmark,
+          PrefetchHooks Function()
+        > {
+  $$WebBookmarksTableTableManager(_$AppDatabase db, $WebBookmarksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WebBookmarksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WebBookmarksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WebBookmarksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> url = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => WebBookmarksCompanion(
+                id: id,
+                url: url,
+                title: title,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String url,
+                Value<String?> title = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => WebBookmarksCompanion.insert(
+                id: id,
+                url: url,
+                title: title,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$WebBookmarksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $WebBookmarksTable,
+      WebBookmark,
+      $$WebBookmarksTableFilterComposer,
+      $$WebBookmarksTableOrderingComposer,
+      $$WebBookmarksTableAnnotationComposer,
+      $$WebBookmarksTableCreateCompanionBuilder,
+      $$WebBookmarksTableUpdateCompanionBuilder,
+      (
+        WebBookmark,
+        BaseReferences<_$AppDatabase, $WebBookmarksTable, WebBookmark>,
+      ),
+      WebBookmark,
+      PrefetchHooks Function()
+    >;
+typedef $$WebTabsTableCreateCompanionBuilder =
+    WebTabsCompanion Function({
+      required String id,
+      Value<String?> url,
+      Value<String?> title,
+      required int order,
+      required DateTime lastActiveAt,
+      Value<int> rowid,
+    });
+typedef $$WebTabsTableUpdateCompanionBuilder =
+    WebTabsCompanion Function({
+      Value<String> id,
+      Value<String?> url,
+      Value<String?> title,
+      Value<int> order,
+      Value<DateTime> lastActiveAt,
+      Value<int> rowid,
+    });
+
+class $$WebTabsTableFilterComposer
+    extends Composer<_$AppDatabase, $WebTabsTable> {
+  $$WebTabsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get order => $composableBuilder(
+    column: $table.order,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastActiveAt => $composableBuilder(
+    column: $table.lastActiveAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$WebTabsTableOrderingComposer
+    extends Composer<_$AppDatabase, $WebTabsTable> {
+  $$WebTabsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get order => $composableBuilder(
+    column: $table.order,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastActiveAt => $composableBuilder(
+    column: $table.lastActiveAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$WebTabsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WebTabsTable> {
+  $$WebTabsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get url =>
+      $composableBuilder(column: $table.url, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<int> get order =>
+      $composableBuilder(column: $table.order, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastActiveAt => $composableBuilder(
+    column: $table.lastActiveAt,
+    builder: (column) => column,
+  );
+}
+
+class $$WebTabsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $WebTabsTable,
+          WebTab,
+          $$WebTabsTableFilterComposer,
+          $$WebTabsTableOrderingComposer,
+          $$WebTabsTableAnnotationComposer,
+          $$WebTabsTableCreateCompanionBuilder,
+          $$WebTabsTableUpdateCompanionBuilder,
+          (WebTab, BaseReferences<_$AppDatabase, $WebTabsTable, WebTab>),
+          WebTab,
+          PrefetchHooks Function()
+        > {
+  $$WebTabsTableTableManager(_$AppDatabase db, $WebTabsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WebTabsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WebTabsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WebTabsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> url = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<int> order = const Value.absent(),
+                Value<DateTime> lastActiveAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => WebTabsCompanion(
+                id: id,
+                url: url,
+                title: title,
+                order: order,
+                lastActiveAt: lastActiveAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> url = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                required int order,
+                required DateTime lastActiveAt,
+                Value<int> rowid = const Value.absent(),
+              }) => WebTabsCompanion.insert(
+                id: id,
+                url: url,
+                title: title,
+                order: order,
+                lastActiveAt: lastActiveAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$WebTabsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $WebTabsTable,
+      WebTab,
+      $$WebTabsTableFilterComposer,
+      $$WebTabsTableOrderingComposer,
+      $$WebTabsTableAnnotationComposer,
+      $$WebTabsTableCreateCompanionBuilder,
+      $$WebTabsTableUpdateCompanionBuilder,
+      (WebTab, BaseReferences<_$AppDatabase, $WebTabsTable, WebTab>),
+      WebTab,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7104,4 +8701,10 @@ class $AppDatabaseManager {
       $$CharactersTableTableManager(_db, _db.characters);
   $$DictionaryWordsTableTableManager get dictionaryWords =>
       $$DictionaryWordsTableTableManager(_db, _db.dictionaryWords);
+  $$WebHistoryTableTableManager get webHistory =>
+      $$WebHistoryTableTableManager(_db, _db.webHistory);
+  $$WebBookmarksTableTableManager get webBookmarks =>
+      $$WebBookmarksTableTableManager(_db, _db.webBookmarks);
+  $$WebTabsTableTableManager get webTabs =>
+      $$WebTabsTableTableManager(_db, _db.webTabs);
 }

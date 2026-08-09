@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
+  flutter_inappwebview_windows
   flutter_tts
   screen_brightness_pro
   sqlite3_flutter_libs

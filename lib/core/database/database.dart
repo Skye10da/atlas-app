@@ -12,6 +12,9 @@ import 'package:atlas_app/core/database/tables/bookmarks.dart';
 import 'package:atlas_app/core/database/tables/settings.dart';
 import 'package:atlas_app/core/database/tables/characters.dart';
 import 'package:atlas_app/core/database/tables/dictionary_words.dart';
+import 'package:atlas_app/core/database/tables/web_bookmarks.dart';
+import 'package:atlas_app/core/database/tables/web_history.dart';
+import 'package:atlas_app/core/database/tables/web_tabs.dart';
 
 part 'database.g.dart';
 
@@ -24,6 +27,9 @@ part 'database.g.dart';
     AppSettings,
     Characters,
     DictionaryWords,
+    WebHistory,
+    WebBookmarks,
+    WebTabs,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -34,7 +40,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -103,6 +109,12 @@ class AppDatabase extends _$AppDatabase {
             try {
               await migrator.addColumn(chapters, chapters.previousVersionRef);
             } catch (_) {}
+          }
+          if (from <= 8) {
+            // In-app browser persistence (schema 9).
+            await migrator.createTable(webHistory);
+            await migrator.createTable(webBookmarks);
+            await migrator.createTable(webTabs);
           }
         },
       );
