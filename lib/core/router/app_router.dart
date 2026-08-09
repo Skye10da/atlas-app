@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/browser/presentation/screens/browser_screen.dart';
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
 import 'package:atlas_app/core/router/transitions.dart';
 import 'package:atlas_app/library/presentation/screens/book_details_screen.dart';
@@ -45,6 +46,15 @@ abstract final class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => buildPageTransition(
           child: SourceSearchScreen(sourceName: state.pathParameters['name']!),
+          key: state.uri.toString(),
+        ),
+      ),
+      GoRoute(
+        path: '/browser',
+        name: 'browser',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: BrowserScreen(initialUrl: state.uri.queryParameters['url']),
           key: state.uri.toString(),
         ),
       ),
