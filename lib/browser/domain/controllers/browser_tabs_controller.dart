@@ -8,9 +8,7 @@ import 'package:atlas_app/browser/domain/entities/web_tab_state.dart';
 import 'package:atlas_app/browser/domain/repository_interfaces/browser_repository_interface.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 
-/// Sentinel URL meaning "no page loaded yet" — the browser shows its native
-/// start page for these tabs.
-const String kBrowserStartPageUrl = 'about:blank';
+/// A single open browser tab. The engine owns the native web view; the tab
 
 /// A single open browser tab. The engine owns the native web view; the tab
 /// only remembers identity + order and mirrors engine state for the strip.
@@ -53,6 +51,10 @@ class BrowserTabsController extends ChangeNotifier {
 
   final List<BrowserTab> _tabs = [];
   final Map<String, Timer> _saveTimers = {};
+
+  /// Bound per-tab save listeners keyed by tab id, so [removeListener] removes
+  /// the exact closures that were added (fresh closures would never match).
+  final Map<String, List<VoidCallback>> _saveListeners = {};
   int _activeIndex = -1;
   int _sequence = 0;
 
@@ -63,19 +65,6 @@ class BrowserTabsController extends ChangeNotifier {
       : null;
   bool get hasTabs => _tabs.isNotEmpty;
   bool get canAddTab => _tabs.length < maxTabs;
-
-  bool _darkModeEnabled = false;
-  bool get darkModeEnabled => _darkModeEnabled;
-
-  /// Applies (or clears) forced dark mode across every open tab and makes new
-  /// tabs inherit the setting.
-  Future<void> setDarkMode(bool enabled) async {
-    if (_darkModeEnabled == enabled) return;
-    _darkModeEnabled = enabled;
-    for (final tab in _tabs) {
-      await tab.engine.setDarkMode(enabled);
-    }
-  }
 
   /// Routes page-selection events from the active engine to [onSelection].
   /// Called by the browser screen when the active tab changes.
@@ -118,9 +107,6 @@ class BrowserTabsController extends ChangeNotifier {
     final engine = _createEngine(initialUrl: url);
     final id = 'tab-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
     final tab = BrowserTab(id: id, engine: engine);
-    if (_darkModeEnabled) {
-      unawaited(engine.setDarkMode(true));
-    }
     _tabs.add(tab);
     _attachSaveWiring(tab);
     _activeIndex = _tabs.length - 1;
@@ -181,13 +167,18 @@ class BrowserTabsController extends ChangeNotifier {
   }
 
   void _attachSaveWiring(BrowserTab tab) {
-    tab.engine.currentUrl.addListener(() => _scheduleSave(tab));
-    tab.engine.currentTitle.addListener(() => _scheduleSave(tab));
+    void urlListener() => _scheduleSave(tab);
+    void titleListener() => _scheduleSave(tab);
+    tab.engine.currentUrl.addListener(urlListener);
+    tab.engine.currentTitle.addListener(titleListener);
+    _saveListeners[tab.id] = [urlListener, titleListener];
   }
 
   void _detachSaveWiring(BrowserTab tab) {
-    tab.engine.currentUrl.removeListener(() => _scheduleSave(tab));
-    tab.engine.currentTitle.removeListener(() => _scheduleSave(tab));
+    final listeners = _saveListeners.remove(tab.id);
+    if (listeners == null) return;
+    tab.engine.currentUrl.removeListener(listeners[0]);
+    tab.engine.currentTitle.removeListener(listeners[1]);
   }
 
   void _scheduleSave(BrowserTab tab) {

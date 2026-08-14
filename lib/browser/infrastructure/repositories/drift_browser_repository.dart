@@ -41,8 +41,8 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
     DateTime? visitedAt,
   }) async {
     try {
-      final trimmedUrl = url.trim();
-      if (trimmedUrl.isEmpty || trimmedUrl == 'about:blank') {
+      final url0 = url.trim();
+      if (url0.isEmpty || url0 == 'about:blank') {
         return const Success(null);
       }
       final now = visitedAt ?? DateTime.now();
@@ -51,7 +51,7 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
             ..limit(1))
           .getSingleOrNull();
 
-      if (latest != null && latest.url == trimmedUrl) {
+      if (latest != null && latest.url == url0) {
         await (_db.update(_db.webHistory)..where((h) => h.id.equals(latest.id))).write(
           WebHistoryCompanion(
             title: title != null ? Value(title) : const Value.absent(),
@@ -61,11 +61,11 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
         return const Success(null);
       }
 
-      final id = '$trimmedUrl#${now.microsecondsSinceEpoch}';
+      final id = '$url0#${now.microsecondsSinceEpoch}';
       await _db.into(_db.webHistory).insert(
             WebHistoryCompanion.insert(
               id: id,
-              url: trimmedUrl,
+              url: url0,
               title: Value(title),
               visitedAt: now,
             ),
@@ -154,8 +154,8 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
       await _db.into(_db.webTabs).insertOnConflictUpdate(
             WebTabsCompanion(
               id: Value(tab.id),
-              url: tab.url != null ? Value(tab.url) : const Value.absent(),
-              title: tab.title != null ? Value(tab.title) : const Value.absent(),
+              url: Value(tab.url),
+              title: Value(tab.title),
               order: Value(tab.order),
               lastActiveAt: Value(tab.lastActiveAt),
             ),

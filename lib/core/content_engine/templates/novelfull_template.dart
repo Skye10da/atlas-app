@@ -84,9 +84,7 @@ class NovelfullTemplate extends HtmlTemplate {
     final entries = <(int, ChapterRef)>[];
 
     final novelPage = await _fetchPage(context, novelUrl, 1);
-    final novelId = novelPage
-        .querySelector('#rating[data-novel-id]')
-        ?.attributes['data-novel-id'];
+    final novelId = _novelIdOf(novelPage);
     if (novelId == null ||
         !await _collectFromAjax(context, novelId, seen, entries)) {
       _collectChapters(context, novelPage, selectors, seen, entries);
@@ -210,9 +208,10 @@ class NovelfullTemplate extends HtmlTemplate {
     }
   }
 
-  /// Highest page number referenced by the pagination bar. The bar only shows
-  /// a window around the current page, so this is a bound on the *next* pages
-  /// to walk, never an accurate total count.
+  /// Highest page number referenced by the pagination bar, or the site's own
+  /// declared page count. The bar only shows a window around the current page,
+  /// so this is a bound on the *next* pages to walk, never an accurate total
+  /// count — the `data-total-page` attribute the site embeds is.
   int _maxPage(Document doc) {
     var max = 1;
     for (final a in doc.querySelectorAll('ul.pagination a[href]')) {
@@ -222,15 +221,50 @@ class NovelfullTemplate extends HtmlTemplate {
       final n = int.tryParse(match.group(1)!);
       if (n != null && n > max) max = n;
     }
+    // Newer novelfull-family layouts replace the `<ul>` bar with a
+    // `<select id="indexselect">` whose options carry `?page=N` in `data-url`.
+    for (final option in doc.querySelectorAll('#barcon option[data-url]')) {
+      final match = RegExp(r'[?&]page=(\d+)')
+          .firstMatch(option.attributes['data-url'] ?? '');
+      if (match == null) continue;
+      final n = int.tryParse(match.group(1)!);
+      if (n != null && n > max) max = n;
+    }
+    // And the current layout states the page count directly on the chapter
+    // list container (and the surrounding novel wrapper).
+    final total = int.tryParse(
+          doc.querySelector('#list-chapter')?.attributes['data-total-page'] ?? '',
+        ) ??
+        int.tryParse(
+          doc.querySelector('#truyen')?.attributes['data-total-page'] ?? '',
+        );
+    if (total != null && total > max) max = total;
     return max;
   }
 
-  /// Chapter number from a `/slug/chapter-123-title.html` URL. Resolving by
-  /// URL keeps the merge order correct even when the page lists are rendered
-  /// newest-first.
+  /// Novel id embedded in the novel page. Old novelfull-family themes put it on
+  /// `#rating[data-novel-id]`; the current novelfull.net theme moved it to the
+  /// score box and the chapter-list container. Falls back to any element
+  /// carrying the attribute.
+  String? _novelIdOf(Document doc) {
+    const candidates = [
+      '#rating[data-novel-id]',
+      '#novel-score[data-novel-id]',
+      '#list-chapter[data-novel-id]',
+    ];
+    for (final selector in candidates) {
+      final id = doc.querySelector(selector)?.attributes['data-novel-id'];
+      if (id != null && id.isNotEmpty) return id;
+    }
+    return doc.querySelector('[data-novel-id]')?.attributes['data-novel-id'];
+  }
+
+  /// Chapter number from a `/slug/chapter-123-...` or `/slug/chapter-123.html`
+  /// URL. Resolving by URL keeps the merge order correct even when the page
+  /// lists are rendered newest-first.
   int? _chapterNumber(String url) {
     final path = Uri.parse(url).path;
-    final match = RegExp(r'/chapter-(\d+)-').firstMatch(path);
+    final match = RegExp(r'/chapter-(\d+)').firstMatch(path);
     return match != null ? int.tryParse(match.group(1)!) : null;
   }
 
@@ -245,8 +279,19 @@ class NovelfullTemplate extends HtmlTemplate {
 
     final author = metaTag('og:novel:author') ?? _infoValue(doc, 'Author');
 
-    final genres = _infoList(doc, 'Genres');
-    final genresFallback = genres.isNotEmpty ? genres : _infoList(doc, 'Genre');
+    var genres = _infoList(doc, 'Genres');
+    if (genres.isEmpty) genres = _infoList(doc, 'Genre');
+    if (genres.isEmpty) {
+      // Current novelfull.net theme drops the info rows for the meta tags.
+      final metaGenres = metaTag('og:novel:genre');
+      if (metaGenres != null && metaGenres.trim().isNotEmpty) {
+        genres = metaGenres
+            .split(',')
+            .map((g) => g.trim())
+            .where((g) => g.isNotEmpty)
+            .toList();
+      }
+    }
 
     return NovelMetadata(
       title: title?.trim() ?? 'Untitled',
@@ -256,8 +301,8 @@ class NovelfullTemplate extends HtmlTemplate {
           metaTag('og:description'),
       coverUrl: metaTag('og:image') ?? metaTag('twitter:image'),
       language: context.plugin.language,
-      genres: genresFallback,
-      status: _infoValue(doc, 'Status'),
+      genres: genres,
+      status: _infoValue(doc, 'Status') ?? metaTag('og:novel:status'),
     );
   }
 
@@ -266,7 +311,8 @@ class NovelfullTemplate extends HtmlTemplate {
 
   /// The real synopsis lives in `.desc-text` (`og:description` on this site is
   /// boilerplate). Prefer its first paragraph, fall back to the full text with
-  /// the "See more" toggle stripped off.
+  /// the "See more" toggle stripped off. The current novelfull.net theme moved
+  /// the synopsis into `#novel-summary-inner`.
   String? _description(Document doc) {
     final paragraph = doc.querySelector('.desc-text p');
     if (paragraph != null) {
@@ -274,9 +320,16 @@ class NovelfullTemplate extends HtmlTemplate {
       if (text.isNotEmpty) return text;
     }
     final block = doc.querySelector('.desc-text');
-    if (block == null) return null;
-    final text = block.text.trim().replaceFirst(RegExp(r'\s*See more\s*$'), '');
-    return text.isEmpty ? null : text;
+    if (block != null) {
+      final text = block.text.trim().replaceFirst(RegExp(r'\s*See more\s*$'), '');
+      if (text.isNotEmpty) return text;
+    }
+    final inner = doc.querySelector('#novel-summary-inner');
+    if (inner != null) {
+      final text = inner.text.trim();
+      if (text.isNotEmpty) return text;
+    }
+    return null;
   }
 
   /// Text of the info row whose `<h3>` reads "<label>:" — e.g. `Status:`

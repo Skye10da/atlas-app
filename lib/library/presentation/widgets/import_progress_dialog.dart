@@ -3,6 +3,39 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
+
+/// Asks whether to open the freshly imported item or stay on the current
+/// screen. Returns `true` when the user chose to open it.
+Future<bool> showImportCompleteDialog(
+  BuildContext context, {
+  required ContentCategory category,
+}) async {
+  final isNovel = category == ContentCategory.novel;
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(isNovel ? 'Novel added' : 'Book added'),
+      content: Text(
+        isNovel
+            ? 'The novel is now in your library.'
+            : 'The book is now in your library.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Stay'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(isNovel ? 'Go to novel' : 'Go to book'),
+        ),
+      ],
+    ),
+  );
+  return result ?? false;
+}
+
 class ImportProgressDialog extends StatefulWidget {
   const ImportProgressDialog({
     super.key,

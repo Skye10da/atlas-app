@@ -168,10 +168,16 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
       }
 
       if (!mounted) return;
-      final route = outcome.category == ContentCategory.novel
-          ? '/novel/${outcome.bookId}'
-          : '/book/${outcome.bookId}';
-      context.go(route);
+      final shouldOpen = await showImportCompleteDialog(
+        context,
+        category: outcome.category,
+      );
+      if (shouldOpen && mounted) {
+        final route = outcome.category == ContentCategory.novel
+            ? '/novel/${outcome.bookId}'
+            : '/book/${outcome.bookId}';
+        context.go(route);
+      }
     } finally {
       if (mounted) setState(() => _isImporting = false);
     }

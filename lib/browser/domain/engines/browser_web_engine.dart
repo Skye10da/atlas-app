@@ -12,6 +12,10 @@ typedef JsHandlerCallback = dynamic Function(List<dynamic> arguments);
 /// the browser never couples to a specific engine implementation.
 typedef BrowserEngineFactory = BrowserWebEngine Function({String? initialUrl});
 
+/// Sentinel URL meaning "no page loaded yet" — the browser shows its native
+/// new-tab page for these tabs.
+const String kBrowserStartPageUrl = 'about:blank';
+
 /// Contract between the browser UI and the underlying web engine.
 ///
 /// Mirrors the `PlatformService` seam: the UI drives navigation and reads state
@@ -24,6 +28,10 @@ abstract interface class BrowserWebEngine {
   /// Best-effort document title.
   ValueNotifier<String?> get currentTitle;
 
+  /// Most recent page-load error (null while the last navigation is in flight
+  /// or succeeded). Drives an in-browser error surface.
+  ValueNotifier<String?> get lastError;
+
   /// Page load progress in the range 0..1.
   ValueNotifier<double> get progress;
 
@@ -33,6 +41,13 @@ abstract interface class BrowserWebEngine {
 
   /// Navigates [url], prepending `https://` when no scheme is present.
   Future<void> load(String url);
+
+  /// Returns the current tab to the new-tab page (the native start page).
+  ///
+  /// Flips the tab into start-page state immediately rather than waiting on an
+  /// `about:blank` load callback (which some engines never fire), then
+  /// reconciles the web view to a fresh blank document.
+  Future<void> goHome();
 
   Future<void> goBack();
   Future<void> goForward();
@@ -53,10 +68,6 @@ abstract interface class BrowserWebEngine {
 
   /// Clears the current find highlight.
   Future<void> clearFind();
-
-  /// Injects (or removes) a dark-mode stylesheet so browsing matches the
-  /// reader theme. Stays applied across page loads until disabled.
-  Future<void> setDarkMode(bool enabled);
 
   /// Registers the callback fired whenever the page reports a text selection.
   /// Pass `null` to stop listening. Only the most recent listener is kept.

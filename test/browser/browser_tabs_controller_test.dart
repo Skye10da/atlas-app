@@ -18,6 +18,7 @@ class FakeBrowserEngine implements BrowserWebEngine {
   final String? initialUrl;
   final _currentUrl = ValueNotifier<String?>(null);
   final _currentTitle = ValueNotifier<String?>(null);
+  final _lastError = ValueNotifier<String?>(null);
   final _progress = ValueNotifier<double>(0);
   final _canGoBack = ValueNotifier<bool>(false);
   final _canGoForward = ValueNotifier<bool>(false);
@@ -32,6 +33,8 @@ class FakeBrowserEngine implements BrowserWebEngine {
   ValueNotifier<String?> get currentUrl => _currentUrl;
   @override
   ValueNotifier<String?> get currentTitle => _currentTitle;
+  @override
+  ValueNotifier<String?> get lastError => _lastError;
   @override
   ValueNotifier<double> get progress => _progress;
   @override
@@ -48,6 +51,12 @@ class FakeBrowserEngine implements BrowserWebEngine {
   }
 
   @override
+  Future<void> goHome() async {
+    loadedUrls.add(kBrowserStartPageUrl);
+    _currentUrl.value = kBrowserStartPageUrl;
+  }
+
+  @override
   Future<void> goBack() async {}
   @override
   Future<void> goForward() async {}
@@ -60,7 +69,6 @@ class FakeBrowserEngine implements BrowserWebEngine {
   Future<dynamic> evaluate(String script) async => null;
 
   final List<String> searches = [];
-  final List<bool> darkModes = [];
   int findNextCalls = 0;
   int findPreviousCalls = 0;
   int clearFindCalls = 0;
@@ -86,11 +94,6 @@ class FakeBrowserEngine implements BrowserWebEngine {
   @override
   Future<void> clearFind() async {
     clearFindCalls++;
-  }
-
-  @override
-  Future<void> setDarkMode(bool enabled) async {
-    darkModes.add(enabled);
   }
 
   final List<WebSelection?> selectionListeners = [];
@@ -362,30 +365,6 @@ void main() {
       controller.dispose();
 
       expect(engines.map((e) => (e as FakeBrowserEngine).disposed), everyElement(isTrue));
-    });
-
-    test('setDarkMode applies to open tabs and new tabs inherit it', () async {
-      final controller = makeController(persist: false);
-      await controller.addTab();
-      await controller.addTab();
-
-      await controller.setDarkMode(true);
-
-      final engines = controller.tabs.map((t) => t.engine).toList();
-      for (final engine in engines) {
-        expect((engine as FakeBrowserEngine).darkModes, [true]);
-      }
-      expect(controller.darkModeEnabled, isTrue);
-
-      await controller.addTab();
-      expect(
-        (controller.tabs.last.engine as FakeBrowserEngine).darkModes,
-        contains(true),
-      );
-
-      await controller.setDarkMode(false);
-      expect(controller.darkModeEnabled, isFalse);
-      controller.dispose();
     });
   });
 }

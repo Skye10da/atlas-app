@@ -11,33 +11,57 @@ class HttpTransport implements Transport {
 
   final http.Client _client;
 
-  Future<void> _ensureSuccess(http.Response response, Uri url) {
+  void _ensureSuccess(http.Response response, Uri url) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw TransportException(
-        'GET $url failed with ${response.statusCode}',
-      );
+      throw TransportException(_describeFailure(response, url));
     }
-    return Future.value();
+  }
+
+  String _describeFailure(http.Response response, Uri url) {
+    if (_isBotChallenge(response)) {
+      return '${url.host} blocked this request with a bot-check challenge '
+          '(Cloudflare). That site does not allow automated imports, so Atlas '
+          'cannot fetch it with a plain HTTP client — try another source.';
+    }
+    return 'GET $url failed with ${response.statusCode}';
+  }
+
+  /// Cloudflare bot protection answers clients it fingerprints as non-browser
+  /// (Dart's own HTTP stack is one) with a 403 "Just a moment..." JS challenge
+  /// or an "Attention Required!" block page. Prefer the response headers, which
+  /// are more reliable than sniffing the body, and fall back to the title only
+  /// for otherwise-ambiguous 403s.
+  bool _isBotChallenge(http.Response response) {
+    final server = response.headers['server'] ?? '';
+    if (server.toLowerCase().contains('cloudflare')) return true;
+    if ((response.headers['cf-mitigated'] ?? '').isNotEmpty) return true;
+    if (response.statusCode != 403) return false;
+    final title = RegExp(r'<title>\s*([^<]*)', caseSensitive: false)
+        .firstMatch(response.body)
+        ?.group(1)
+        ?.trim();
+    return title == 'Just a moment...' ||
+        title == 'Attention Required! | Cloudflare';
   }
 
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) async {
     final response = await _client.get(url, headers: headers);
-    await _ensureSuccess(response, url);
+    _ensureSuccess(response, url);
     return response.body;
   }
 
   @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
     final response = await _client.get(url, headers: headers);
-    await _ensureSuccess(response, url);
+    _ensureSuccess(response, url);
     return jsonDecode(response.body);
   }
 
   @override
   Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {
     final response = await _client.get(url, headers: headers);
-    await _ensureSuccess(response, url);
+    _ensureSuccess(response, url);
     return response.bodyBytes;
   }
 }

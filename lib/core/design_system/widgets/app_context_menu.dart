@@ -39,6 +39,7 @@ class AppContextMenu extends StatelessWidget {
     this.listActions = const [],
     this.onDismiss,
     this.externallyPositioned = false,
+    this.useBackdropFilter = true,
   });
 
   /// Overlay-space point the menu should anchor near — pass
@@ -62,6 +63,12 @@ class AppContextMenu extends StatelessWidget {
   /// built-in `Positioned` for the selection context menu). [anchor] is ignored
   /// in this mode.
   final bool externallyPositioned;
+
+  /// Backdrop blur behind the panel. Blur forces the panel onto its own
+  /// compositing layer that must be re-sampled every frame; callers that stack
+  /// this menu above a live platform view (the browser's WebView2) should pass
+  /// `false` to avoid per-frame compositing over the platform view.
+  final bool useBackdropFilter;
 
   /// Builds an [EditableTextContextMenuBuilder] and hands you the resolved
   /// anchor point so you don't have to compute it yourself at each call site.
@@ -96,6 +103,68 @@ class AppContextMenu extends StatelessWidget {
       color: colors.outlineVariant.withValues(alpha: 0.3),
     );
 
+    final menuSurface = Container(
+      constraints: const BoxConstraints(minWidth: 220, maxWidth: 300),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHigh.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.4),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.16),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (hasHighlights)
+            _HighlightRow(
+              options: highlightColors,
+              onSelected: (color) {
+                onHighlightSelected?.call(color);
+                _dismiss();
+              },
+            ),
+          if (hasHighlights && hasQuickActions) divider,
+          if (hasQuickActions)
+            _QuickActionRow(
+              actions: quickActions,
+              onTapAction: (action) {
+                action.onPressed();
+                _dismiss();
+              },
+            ),
+          if ((hasHighlights || hasQuickActions) && hasListActions) divider,
+          for (final action in listActions)
+            _AppContextMenuListItem(
+              action: action,
+              onTap: () {
+                action.onPressed();
+                _dismiss();
+              },
+            ),
+        ],
+      ),
+    );
+
+    final decoratedSurface = useBackdropFilter
+        ? BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: menuSurface,
+          )
+        : menuSurface;
+
     final panel = TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 160),
@@ -112,64 +181,7 @@ class AppContextMenu extends StatelessWidget {
       },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 220, maxWidth: 300),
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerHigh.withValues(alpha: 0.86),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: colors.outlineVariant.withValues(alpha: 0.4),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.16),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (hasHighlights)
-                  _HighlightRow(
-                    options: highlightColors,
-                    onSelected: (color) {
-                      onHighlightSelected?.call(color);
-                      _dismiss();
-                    },
-                  ),
-                if (hasHighlights && hasQuickActions) divider,
-                if (hasQuickActions)
-                  _QuickActionRow(
-                    actions: quickActions,
-                    onTapAction: (action) {
-                      action.onPressed();
-                      _dismiss();
-                    },
-                  ),
-                if ((hasHighlights || hasQuickActions) && hasListActions)
-                  divider,
-                for (final action in listActions)
-                  _AppContextMenuListItem(
-                    action: action,
-                    onTap: () {
-                      action.onPressed();
-                      _dismiss();
-                    },
-                  ),
-              ],
-            ),
-          ),
-        ),
+        child: decoratedSurface,
       ),
     );
 

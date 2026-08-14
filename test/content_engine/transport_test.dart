@@ -1,8 +1,11 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:atlas_app/core/content_engine/transport/cached_transport.dart';
+import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/offline_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/stealth_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
@@ -130,6 +133,39 @@ void main() {
         transport.fetchJson(Uri.parse('https://example.com/miss')),
         throwsA(isA<TransportException>()),
       );
+    });
+  });
+
+  group('HttpTransport', () {
+    test('throws a clear, actionable message for a Cloudflare challenge',
+        () async {
+      final mock = MockClient((request) async => http.Response(
+            '<html><head><title>Just a moment...</title></head></html>',
+            403,
+            headers: {'server': 'cloudflare', 'cf-mitigated': 'challenge'},
+          ));
+      final transport = HttpTransport(client: mock);
+
+      try {
+        await transport.fetchHtml(Uri.parse('https://novelfull.net/x.html'));
+        fail('expected a TransportException');
+      } on TransportException catch (e) {
+        expect(e.message, contains('novelfull.net'));
+        expect(e.message, contains('bot-check'));
+      }
+    });
+
+    test('keeps the generic message for other HTTP errors', () async {
+      final mock = MockClient(
+          (request) async => http.Response('not found', 404));
+      final transport = HttpTransport(client: mock);
+
+      try {
+        await transport.fetchHtml(Uri.parse('https://example.com/x'));
+        fail('expected a TransportException');
+      } on TransportException catch (e) {
+        expect(e.message, 'GET https://example.com/x failed with 404');
+      }
     });
   });
 }

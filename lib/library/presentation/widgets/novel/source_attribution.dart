@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -43,7 +44,9 @@ class SourceAttribution extends StatelessWidget {
                 if (book.sourceUrl != null)
                   IconButton(
                     icon: Icon(Icons.open_in_new, size: 18, color: colors.primary),
-                    onPressed: () {},
+                    onPressed: () => context.go(
+                      '/web?url=${Uri.encodeQueryComponent(book.sourceUrl!)}',
+                    ),
                     tooltip: 'Open source',
                     visualDensity: VisualDensity.compact,
                   ),

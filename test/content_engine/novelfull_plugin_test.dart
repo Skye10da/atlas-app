@@ -84,6 +84,87 @@ const _ajaxChapterPage = '''
 <option value="/novel/chapter-5-fifth.html">Chapter 5</option>
 </select></body></html>''';
 
+/// The current novelfull.net markup: the novel id moved off `#rating` onto the
+/// score box and the chapter-list container, and the pagination bar is a
+/// `<select id="indexselect">` whose options carry `?page=N` in `data-url`.
+const _novelPageNewMarkup = '''
+<html><head>
+<meta property="og:title" content="Test Novel">
+<meta property="og:image" content="https://novelfull.net/uploads/thumbs/cover.jpg">
+<meta property="og:novel:author" content="Jane Doe">
+</head><body>
+<div class="container" id="truyen" data-page-size="40" data-total-page="2" data-total-chapters="5">
+<div class="col-xs-12 col-sm-4 col-md-4 info-holder">
+  <div class="desc"><h3 class="title">Test Novel</h3></div>
+</div>
+<div class="score" id="novel-score" data-novel-id="1" data-avg="4.3"></div>
+<div class="col-info-desc">
+  <div class="info">
+    <div><h3>Author:</h3><a href="/author/Jane-Doe">Jane Doe</a></div>
+    <div><h3>Genres:</h3><a href="/genre/Fantasy">Fantasy</a></div>
+    <div><h3>Status:</h3><a href="/status/Ongoing">Ongoing</a></div>
+  </div>
+</div>
+<div class="desc-text"><p>A great story about dragons and dungeons.</p></div>
+<div class="m-newest2" id="list-chapter" data-novel-id="1" data-current-page="1" data-total-page="2">
+  <ul class="ul-list5" id="idData">
+    <li><a href="/novel/chapter-1.html" title="Chapter 1"><span class="chapter-text">Chapter 1</span></a></li>
+  </ul>
+  <div class="page" id="barcon">
+    <select id="indexselect" aria-label="Chapter range">
+      <option value="1" data-url="/novel.html">C.1 - C.40</option>
+      <option value="2" data-url="/novel.html?page=2">C.41 - C.80</option>
+    </select>
+  </div>
+</div>
+</div>
+</body></html>''';
+
+/// New-markup page without any `data-novel-id`, forcing the pagination
+/// fallback to read the `<select>` bar and the embedded page count.
+const _novelPageNewMarkupNoId = '''
+<html><body>
+<div class="container" id="truyen" data-page-size="40" data-total-page="2">
+<div class="m-newest2" id="list-chapter">
+  <ul class="ul-list5" id="idData">
+    <li><a href="/novel/chapter-1.html" title="Chapter 1"><span class="chapter-text">Chapter 1</span></a></li>
+    <li><a href="/novel/chapter-2.html" title="Chapter 2"><span class="chapter-text">Chapter 2</span></a></li>
+  </ul>
+  <div class="page" id="barcon">
+    <select id="indexselect">
+      <option value="1" data-url="/novel.html">C.1 - C.40</option>
+      <option value="2" data-url="/novel.html?page=2">C.41 - C.80</option>
+    </select>
+  </div>
+</div>
+</div>
+</body></html>''';
+
+const _novelPageNewMarkupNoIdPage2 = '''
+<html><body>
+<div class="m-newest2" id="list-chapter">
+  <ul class="ul-list5" id="idData">
+    <li><a href="/novel/chapter-3.html" title="Chapter 3"><span class="chapter-text">Chapter 3</span></a></li>
+  </ul>
+  <div class="page" id="barcon">
+    <select id="indexselect">
+      <option value="1" data-url="/novel.html">C.1 - C.40</option>
+      <option value="2" data-url="/novel.html?page=2">C.41 - C.80</option>
+    </select>
+  </div>
+</div>
+</div>
+</body></html>''';
+
+/// Ajax list mixing bare `chapter-N.html` URLs with the `_End` slug style so
+/// number-from-URL ordering still lands the finale last.
+const _ajaxChapterPageMixedUrls = '''
+<html><body><select>
+<option value="/novel/chapter-1.html">Chapter 1</option>
+<option value="/novel/chapter-2.html">Chapter 2</option>
+<option value="/novel/chapter-6492end-chapter-6492-finale.html">Chapter 6492_End - Chapter 6492: Finale</option>
+</select></body></html>''';
+
 const _searchPage = '''
 <html><body>
 <div class="row top-item">
@@ -271,6 +352,43 @@ void main() {
       expect(chapters.map((c) => c.title).toList(),
           ['Chapter 1', 'Chapter 2', 'Chapter 3', 'Chapter 4', 'Chapter 5']);
       expect(chapters.first.contentUrl, _chapter1Url);
+    });
+
+    test('getChapters reads the novel id off the current novelfull.net markup '
+        'and fetches the full ajax list', () async {
+      final transport = FakeTransport()
+        ..addHtml(_novelUrl, _novelPageNewMarkup)
+        ..addHtml(
+            'https://novelfull.net/ajax-chapter-option?novelId=1',
+            _ajaxChapterPageMixedUrls);
+      final source = await repo(transport).buildSource('novelfull');
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      final chapters = await source.getChapters(novel);
+
+      expect(chapters.map((c) => c.title).toList(), [
+        'Chapter 1',
+        'Chapter 2',
+        'Chapter 6492_End - Chapter 6492: Finale',
+      ]);
+      expect(chapters.last.contentUrl,
+          'https://novelfull.net/novel/chapter-6492end-chapter-6492-finale.html');
+    });
+
+    test('getChapters walks the new select-bar pagination when no novel id '
+        'is present', () async {
+      final transport = FakeTransport()
+        ..addHtml(_novelUrl, _novelPageNewMarkupNoId)
+        ..addHtml('$_novelUrl?page=2', _novelPageNewMarkupNoIdPage2);
+      final source = await repo(transport).buildSource('novelfull');
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      final chapters = await source.getChapters(novel);
+
+      expect(chapters.map((c) => c.title).toList(),
+          ['Chapter 1', 'Chapter 2', 'Chapter 3']);
+      expect(chapters.first.contentUrl,
+          'https://novelfull.net/novel/chapter-1.html');
     });
 
     test('getChapter fetches content through the clean pipeline', () async {

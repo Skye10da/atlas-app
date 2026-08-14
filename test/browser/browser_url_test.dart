@@ -23,6 +23,38 @@ void main() {
     test('empty input is a no-op', () {
       expect(normalizeBrowserUrl(''), '');
     });
+
+    test('plain text falls back to a search query', () {
+      expect(
+        normalizeBrowserUrl('Atlas novel reading'),
+        'https://www.google.com/search?q=Atlas+novel+reading',
+      );
+    });
+
+    test('single word falls back to a search query', () {
+      expect(
+        normalizeBrowserUrl('gutenberg'),
+        'https://www.google.com/search?q=gutenberg',
+      );
+    });
+
+    test('passes known non-http schemes through untouched', () {
+      expect(
+        normalizeBrowserUrl('mailto:reader@atlas.app'),
+        'mailto:reader@atlas.app',
+      );
+      expect(
+        normalizeBrowserUrl('tel:+1234567890'),
+        'tel:+1234567890',
+      );
+    });
+
+    test('hosts with a port get https://', () {
+      expect(
+        normalizeBrowserUrl('localhost:8080'),
+        'https://localhost:8080',
+      );
+    });
   });
 
   group('looksLikeBrowserUrl', () {
@@ -40,6 +72,15 @@ void main() {
 
     test('false for a single word', () {
       expect(looksLikeBrowserUrl('gutenberg'), isFalse);
+    });
+  });
+
+  group('browserSearchUrl', () {
+    test('encodes the query into a google search URL', () {
+      expect(
+        browserSearchUrl('Atlas novel reading'),
+        'https://www.google.com/search?q=Atlas+novel+reading',
+      );
     });
   });
 

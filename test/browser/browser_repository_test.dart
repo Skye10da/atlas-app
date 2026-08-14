@@ -132,6 +132,28 @@ void main() {
       expect(tabs, hasLength(1));
       expect(tabs.single.url, 'https://b.example');
     });
+
+    test('upsert with null url/title clears persisted values', () async {
+      final original = WebTabState(
+        id: 'tab-1',
+        url: 'https://a.example',
+        title: 'A',
+        order: 0,
+        lastActiveAt: DateTime(2025, 1, 1),
+      );
+      final reset = WebTabState(
+        id: 'tab-1',
+        url: null,
+        title: 'New tab',
+        order: 0,
+        lastActiveAt: DateTime(2025, 1, 4),
+      );
+      await repo.upsertTab(original);
+      await repo.upsertTab(reset);
+      final tabs = (await repo.getTabs()).valueOrThrow;
+      expect(tabs.single.url, isNull);
+      expect(tabs.single.title, 'New tab');
+    });
   });
 }
 

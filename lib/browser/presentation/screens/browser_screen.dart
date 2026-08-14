@@ -8,8 +8,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:atlas_app/browser/domain/controllers/browser_tabs_controller.dart';
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
+import 'package:atlas_app/browser/domain/engines/webview_page_fetcher.dart';
 import 'package:atlas_app/browser/domain/entities/web_bookmark.dart';
 import 'package:atlas_app/browser/domain/entities/web_selection.dart';
+import 'package:atlas_app/browser/domain/utils/browser_url.dart';
 import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_library_sheets.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_start_page.dart';
@@ -17,24 +19,22 @@ import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.da
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
+import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
-import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
-import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
-import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:go_router/go_router.dart';
 
-/// Reading themes that force the browser into dark mode.
-const Set<ReadingViewTheme> _kDarkReadingThemes = {
-  ReadingViewTheme.dark,
-  ReadingViewTheme.amoled,
-  ReadingViewTheme.dracula,
-  ReadingViewTheme.gray,
-};
+/// Whether to run the "Add to library" novel-detection pill. Disabled for now:
+/// showing the overlay above the WebView2 platform view forces per-frame
+/// compositing that starves the UI isolate on heavy novel sites (mvlempyr),
+/// freezing the whole window. Re-enable once the pill is rendered off-band
+/// (e.g. inside the start page or as a detached flyout, never stacked on the
+/// live webview).
+const bool _kNovelDetectionEnabled = true;
 
 /// Full-screen, glass-styled browser shell backed by [BrowserWebEngine].
 ///
@@ -61,6 +61,11 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
 
   BrowserWebEngine? _boundEngine;
   String? _lastRecordedUrl;
+
+  /// Last URL the address pill synced to, so [_recordNavigation] refreshes
+  /// the UI on every URL change (including to/from the start page, which is
+  /// never recorded as history) without re-rendering on no-op notifications.
+  String? _lastSyncedUrl;
   WebSelection? _selection;
   String? _novelUrl;
   bool _ready = false;
@@ -79,16 +84,35 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     }
     _tabs.addListener(_onTabsChanged);
     _onTabsChanged();
+    _syncWebViewFetcher();
     _ready = true;
+  }
 
-    final theme = ref.read(readingSettingsProvider).value?.theme;
-    if (theme != null) {
-      _tabs.setDarkMode(_kDarkReadingThemes.contains(theme));
+  @override
+  void didUpdateWidget(BrowserScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final url = widget.initialUrl;
+    if (url == null || url == oldWidget.initialUrl) return;
+    _openUrl(url);
+  }
+
+  /// Loads [url] into the active tab (or a new one when it isn't already open),
+  /// used when the shell reuses this screen for a fresh `/web?url=` navigation.
+  void _openUrl(String url) {
+    final existingIndex = _tabs.tabs.indexWhere((t) => t.url == url);
+    if (existingIndex >= 0) {
+      _tabs.activate(existingIndex);
+    } else {
+      _tabs.addTab(url: url);
     }
   }
 
   @override
   void dispose() {
+    // Drop the shared web-view fetcher before the engines are disposed, so no
+    // later plugin fetch (reader chapter download, ...) routes into a torn-down
+    // web view.
+    WebViewFetchService.instance.fetcher = null;
     _findDebounce?.cancel();
     _bindUrlListener(null);
     _tabs.removeListener(_onTabsChanged);
@@ -98,9 +122,35 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     super.dispose();
   }
 
+  /// Routes plugin fetches (imports, reader chapter downloads) through whichever
+  /// live tab engine is already on the target origin. A same-origin in-page
+  /// `fetch` carries the browser's cookies and TLS fingerprint and passes the
+  /// Cloudflare-style bot checks that block plain HTTP, so bot-protected sites
+  /// keep loading after the import dialog closes — not just during it. When no
+  /// tab is on the origin the fetcher returns null and transports fall back to
+  /// plain HTTP unchanged.
+  void _syncWebViewFetcher() {
+    final service = WebViewFetchService.instance;
+    if (_tabs.hasTabs) {
+      service.fetcher = (url, {headers}) async {
+        for (final tab in _tabs.tabs) {
+          final html = await WebViewPageFetcher(engine: tab.engine).fetchHtml(
+            url,
+            headers: headers,
+          );
+          if (html != null) return html;
+        }
+        return null;
+      };
+    } else {
+      service.fetcher = null;
+    }
+  }
+
   void _onTabsChanged() {
     if (_ready && mounted) setState(() {});
     _bindUrlListener(_tabs.activeTab?.engine);
+    _syncWebViewFetcher();
     _syncUrlField();
     unawaited(_tabs.bindSelectionListener(_onWebSelection));
     unawaited(_tabs.bindDownloadListener(_onDownloadRequested));
@@ -125,12 +175,22 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   void _bindUrlListener(BrowserWebEngine? engine) {
     if (_boundEngine == engine) return;
     _boundEngine?.currentUrl.removeListener(_recordNavigation);
+    _boundEngine?.currentTitle.removeListener(_recordTitle);
     _boundEngine = engine;
     _boundEngine?.currentUrl.addListener(_recordNavigation);
+    _boundEngine?.currentTitle.addListener(_recordTitle);
   }
 
   Future<void> _recordNavigation() async {
     final url = _boundEngine?.currentUrl.value;
+    // Refresh the chrome whenever the URL changes — including transitions to
+    // and from the start page, which are never recorded as history. This
+    // keeps the address pill and the start-page overlay honest on Home.
+    if (mounted && url != _lastSyncedUrl) {
+      _lastSyncedUrl = url;
+      setState(() {});
+      _syncUrlField();
+    }
     if (url == null || url.isEmpty || url == kBrowserStartPageUrl) return;
     if (url == _lastRecordedUrl) return;
     _lastRecordedUrl = url;
@@ -138,12 +198,37 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           url: url,
           title: _boundEngine?.currentTitle.value,
         );
-    if (mounted) {
+    unawaited(_captureBrowserSession(url));
+    if (mounted && _kNovelDetectionEnabled) {
       unawaited(_checkForNovel(url));
     }
   }
 
+  /// Snapshots the platform cookie store for the committed page's origin so a
+  /// later restart can re-seed it into the silent background web view (Cloudflare
+  /// clearance and friends). Best-effort; the repository swallows platform
+  /// failures.
+  Future<void> _captureBrowserSession(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty || uri.scheme == 'about') return;
+    await ref.read(browserSessionRepositoryProvider).captureForOrigin(uri);
+  }
+
+  /// Patches the history row once the document title actually arrives —
+  /// [currentTitle] updates after [currentUrl], so recording it at
+  /// navigation time ships the previous page's title.
+  void _recordTitle() {
+    final url = _boundEngine?.currentUrl.value;
+    final title = _boundEngine?.currentTitle.value;
+    if (url == null || url.isEmpty || url == kBrowserStartPageUrl) return;
+    if (title == null || title.isEmpty) return;
+    unawaited(
+      ref.read(browserRepositoryProvider).recordVisit(url: url, title: title),
+    );
+  }
+
   Future<void> _checkForNovel(String url) async {
+    if (!_kNovelDetectionEnabled) return;
     final uri = Uri.tryParse(url);
     if (uri == null) {
       if (mounted) setState(() => _novelUrl = null);
@@ -183,19 +268,35 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     if (!mounted) return;
     final engine = ref.read(contentAcquisitionEngineProvider);
     final progress = ValueNotifier<double>(0);
+
+    // The page is open in the live web view, so route the import's fetches
+    // through it: a same-origin `fetch` carries the browser's cookies and TLS
+    // fingerprint and passes Cloudflare bot checks that block plain HTTP.
+    final webViewService = WebViewFetchService.instance;
+    final previousFetcher = webViewService.fetcher;
+    final activeEngine = _tabs.activeTab?.engine;
+    if (activeEngine != null) {
+      webViewService.fetcher =
+          WebViewPageFetcher(engine: activeEngine).fetchHtml;
+    }
+
     final importFuture = engine.importAndSave(
       url,
       onProgress: (p) => progress.value = p,
     );
 
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => ImportProgressDialog(
-        future: importFuture.then((_) {}, onError: (_) {}),
-        progress: progress,
-      ),
-    );
+    try {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ImportProgressDialog(
+          future: importFuture.then((_) {}, onError: (_) {}),
+          progress: progress,
+        ),
+      );
+    } finally {
+      webViewService.fetcher = previousFetcher;
+    }
 
     if (!mounted) return;
     ImportOutcome? outcome;
@@ -233,25 +334,43 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     }
 
     if (!mounted) return;
-    final route = outcome.category == ContentCategory.novel
-        ? '/novel/${outcome.bookId}'
-        : '/book/${outcome.bookId}';
-    context.go(route);
+    final shouldOpen = await showImportCompleteDialog(
+      context,
+      category: outcome.category,
+    );
+    if (shouldOpen && mounted) {
+      final route = outcome.category == ContentCategory.novel
+          ? '/novel/${outcome.bookId}'
+          : '/book/${outcome.bookId}';
+      context.go(route);
+    }
   }
 
   void _syncUrlField() {
     final url = _tabs.activeTab?.url;
-    final text = url;
-    if (text == null || text == kBrowserStartPageUrl) return;
-    if (_urlController.text == text) return;
-    _urlController.text = text;
+    if (url == null || url == kBrowserStartPageUrl) {
+      if (_urlController.text.isNotEmpty) _urlController.text = '';
+      return;
+    }
+    if (_urlController.text == url) return;
+    _urlController.text = url;
   }
 
   Future<void> _submitUrl(String raw) async {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    await _tabs.activeTab?.engine.load(trimmed);
+    final normalized = normalizeBrowserUrl(trimmed);
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || (uri.scheme != 'about' && uri.host.isEmpty)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open "$trimmed".')),
+        );
+      }
+      return;
+    }
+    await _tabs.activeTab?.engine.load(normalized);
   }
 
   Future<void> _openExternally() async {
@@ -314,15 +433,6 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    ref.listen<AsyncValue<ReadingSettingsEntity>>(
-      readingSettingsProvider,
-      (previous, next) {
-        final theme = next.value?.theme;
-        if (theme == null) return;
-        _tabs.setDarkMode(_kDarkReadingThemes.contains(theme));
-      },
-    );
-
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -330,11 +440,80 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
             _buildTabStrip(cs),
             _buildChrome(cs),
             if (_findVisible) _buildFindBar(cs),
+            _buildErrorBanner(),
             _buildProgress(),
             Expanded(child: _buildContent()),
           ],
         ),
       ),
+    );
+  }
+
+  /// Load-failure notice shown between the chrome and the page. Rendered as a
+  /// normal [Column] child (never replacing or overlaying the live web view) so
+  /// the WebView2 platform view stays mounted and keeps receiving input.
+  Widget _buildErrorBanner() {
+    final engine = _tabs.activeTab?.engine;
+    if (engine == null) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return ValueListenableBuilder<String?>(
+      valueListenable: engine.lastError,
+      builder: (context, message, _) {
+        if (message == null) return const SizedBox.shrink();
+        final active = _tabs.activeTab;
+        if (active == null || active.isOnStartPage) {
+          return const SizedBox.shrink();
+        }
+        return Material(
+          color: cs.errorContainer,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: 6,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.error_outline_rounded,
+                  size: 16,
+                  color: cs.onErrorContainer,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    message,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: cs.onErrorContainer,
+                        ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                TextButton.icon(
+                  onPressed: () {
+                    final url = active.engine.currentUrl.value;
+                    unawaited(
+                      url != null && url.isNotEmpty
+                          ? active.engine.load(url)
+                          : active.engine.reload(),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: cs.onErrorContainer,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                    ),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -491,7 +670,7 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           _GlassIconButton(
             tooltip: 'Home',
             icon: Icons.home_rounded,
-            onPressed: () => engine?.load(kBrowserStartPageUrl),
+            onPressed: _goHome,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(child: _urlPill(cs)),
@@ -522,6 +701,17 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
         ],
       ),
     );
+  }
+
+  void _goHome() {
+    final engine = _tabs.activeTab?.engine;
+    if (engine == null) return;
+    if (_selection != null) setState(() => _selection = null);
+    // The pill mirrors the tab's URL; returning to the start page means there
+    // is no URL, so blank it immediately rather than waiting on a navigation
+    // callback to flip state.
+    if (_urlController.text.isNotEmpty) _urlController.text = '';
+    unawaited(engine.goHome());
   }
 
   Future<void> _toggleBookmark() async {
@@ -623,20 +813,45 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   Widget _buildContent() {
     final active = _tabs.activeTab;
     if (active == null) return const SizedBox.shrink();
-    final child = active.isOnStartPage
-        ? BrowserStartPage(
+    // Web views stay mounted even for start-page tabs, so a tile tap or an
+    // address-bar submit can reach a live controller. The start page overlays
+    // the (about:blank) view until the first navigation flips isOnStartPage.
+    final child = Stack(
+      fit: StackFit.expand,
+      children: [
+        IndexedStack(
+          index: _tabs.activeIndex,
+          children: [
+            for (final tab in _tabs.tabs)
+              KeyedSubtree(
+                key: ValueKey(tab.id),
+                child: tab.engine.buildView(),
+              ),
+          ],
+        ),
+        if (active.isOnStartPage)
+          BrowserStartPage(
             onOpenSite: (url) => active.engine.load(url),
-          )
-        : IndexedStack(
-            index: _tabs.activeIndex,
-            children: [for (final tab in _tabs.tabs) tab.engine.buildView()],
-          );
+          ),
+      ],
+    );
 
     final selection = _selection;
     final novelUrl = _novelUrl;
-    final showPill = novelUrl != null && !active.isOnStartPage;
-    if (selection == null && !showPill) return child;
+    final showPill =
+        _kNovelDetectionEnabled && novelUrl != null && !active.isOnStartPage;
 
+    // Always return a LayoutBuilder wrapping a Stack, whether or not there's
+    // a selection/pill to overlay. Selection state used to gate which root
+    // widget type was returned here (bare Stack vs LayoutBuilder), and since
+    // that's the widget occupying this slot in the tree, a type change on
+    // every selection open/close made Flutter treat it as a totally
+    // different widget: it tore down and remounted everything below,
+    // including the IndexedStack of InAppWebViews — a full webview reload on
+    // every long-press and every menu dismiss. Keeping the same root type
+    // here means only the overlay children (added/removed below) change,
+    // and the webview subtree's Elements — and their native platform
+    // views — are never touched.
     return LayoutBuilder(
       builder: (context, constraints) {
         final area = constraints.biggest;
@@ -692,6 +907,9 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
       child: AppContextMenu(
         anchor: Offset.zero,
         externallyPositioned: true,
+        // No backdrop blur: it forces per-frame compositing over the live
+        // WebView2 platform view (the same freeze the novel pill had).
+        useBackdropFilter: false,
         quickActions: [
           AppContextMenuAction(
             label: 'Copy',

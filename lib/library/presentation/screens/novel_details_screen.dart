@@ -52,7 +52,9 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
 
   void _refreshBook() {
     if (!mounted) return;
-    setState(() => _bookFuture = _fetchBook());
+    setState(() {
+      _bookFuture = _fetchBook();
+    });
   }
 
   @override
