@@ -14,7 +14,7 @@ import 'dart:io';
 import 'package:atlas_app/core/content_engine/plugins/plugin_filters.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
 import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
-import 'package:atlas_app/core/content_engine/templates/novelfull_template.dart';
+import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
 
@@ -40,7 +40,7 @@ void main() async {
     filters: filters,
   );
 
-  const template = NovelfullTemplate();
+  const template = HtmlTemplate();
   var failures = 0;
 
   void check(String label, bool ok, [String? detail]) {

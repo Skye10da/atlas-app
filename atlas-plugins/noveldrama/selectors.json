@@ -15,5 +15,18 @@
   "chapterContent": {
     "container": "#chapter",
     "title": ".chr-title"
+  },
+  "metadata": {
+    "author": {
+      "label": "Author:"
+    },
+    "description": ".desc-text p",
+    "genres": {
+      "label": "Genre:",
+      "links": true
+    },
+    "status": {
+      "label": "Status:"
+    }
   }
 }

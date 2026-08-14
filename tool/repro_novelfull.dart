@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:atlas_app/core/content_engine/plugins/plugin_filters.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
 import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
-import 'package:atlas_app/core/content_engine/templates/novelfull_template.dart';
+import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:flutter/foundation.dart';
@@ -46,25 +46,14 @@ void main() async {
     'name': 'NovelFull',
     'sourceName': 'NovelFull',
     'version': '1.0.0',
-    'templateId': 'novelfull',
+    'templateId': 'html',
     'baseUrl': 'https://novelfull.net',
   });
-  final selectors = SelectorSet.fromJson(const {
-    'search': {
-      'resultItem': '.row.top-item',
-      'title': '.s-title a@text',
-      'detailUrl': '.s-title a@href',
-    },
-    'chapterList': {
-      'item': '#list-chapter li',
-      'title': '.chapter-text@text',
-      'url': 'a@href',
-    },
-    'chapterContent': {
-      'container': '#chapter-content',
-      'title': '.chapter-title',
-    },
-  });
+  final selectors = SelectorSet.fromJson(
+    Map<String, Object?>.from(
+      jsonDecode(File('atlas-plugins/novelfull/selectors.json').readAsStringSync()),
+    ),
+  );
   const filters = PluginFilters(
     extraStripSelectors: ['#frame', '[id^="bg-ssp"]', '.ads-holder', '.box-notice'],
   );
@@ -82,7 +71,7 @@ void main() async {
     filters: filters,
   );
 
-  const template = NovelfullTemplate();
+  const template = HtmlTemplate();
 
   final chapters = await template.chapterList(context, _novelUrl);
   if (kDebugMode) {

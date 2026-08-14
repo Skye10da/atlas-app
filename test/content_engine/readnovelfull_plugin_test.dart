@@ -8,7 +8,7 @@ import 'package:atlas_app/core/content_acquisition/models/content_category.dart'
 import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_permissions.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_repository.dart';
-import 'package:atlas_app/core/content_engine/templates/novelfull_template.dart';
+import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:atlas_app/core/content_engine/transport/transport_registry.dart';
@@ -138,13 +138,13 @@ void main() {
       );
 
   group('atlas-plugins/readnovelfull/plugin.json', () {
-    test('loads a valid manifest for the novelfull template', () async {
+    test('loads a valid manifest for the generic html template', () async {
       final manifest = await repo(FakeTransport()).load('readnovelfull');
 
       expect(manifest.id, 'readnovelfull');
       expect(manifest.name, 'ReadNovelFull');
       expect(manifest.sourceName, 'ReadNovelFull');
-      expect(manifest.templateId, 'novelfull');
+      expect(manifest.templateId, 'html');
       expect(manifest.transport, 'http');
       expect(manifest.baseUrl, 'https://readnovelfull.com');
       expect(manifest.language, 'en');
@@ -157,8 +157,8 @@ void main() {
         PluginCapability.cover,
       });
       expect(
-        TemplateRegistry.defaults.resolve('novelfull'),
-        isA<NovelfullTemplate>(),
+        TemplateRegistry.defaults.resolve('html'),
+        isA<HtmlTemplate>(),
       );
     });
 

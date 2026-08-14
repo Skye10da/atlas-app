@@ -8,7 +8,7 @@ import 'package:atlas_app/core/content_acquisition/models/content_category.dart'
 import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_permissions.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_repository.dart';
-import 'package:atlas_app/core/content_engine/templates/novelfull_template.dart';
+import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:atlas_app/core/content_engine/transport/transport_registry.dart';
@@ -147,13 +147,13 @@ void main() {
       );
 
   group('atlas-plugins/noveldrama/plugin.json', () {
-    test('loads a valid manifest for the novelfull template', () async {
+    test('loads a valid manifest for the generic html template', () async {
       final manifest = await repo(FakeTransport()).load('noveldrama');
 
       expect(manifest.id, 'noveldrama');
       expect(manifest.name, 'NovelDrama');
       expect(manifest.sourceName, 'NovelDrama');
-      expect(manifest.templateId, 'novelfull');
+      expect(manifest.templateId, 'html');
       expect(manifest.transport, 'http');
       expect(manifest.baseUrl, 'https://noveldrama.org');
       expect(manifest.language, 'en');
@@ -166,8 +166,8 @@ void main() {
         PluginCapability.cover,
       });
       expect(
-        TemplateRegistry.defaults.resolve('novelfull'),
-        isA<NovelfullTemplate>(),
+        TemplateRegistry.defaults.resolve('html'),
+        isA<HtmlTemplate>(),
       );
     });
 

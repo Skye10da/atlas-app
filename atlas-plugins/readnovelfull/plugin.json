@@ -3,7 +3,7 @@
   "name": "ReadNovelFull",
   "sourceName": "ReadNovelFull",
   "version": "1.0.0",
-  "templateId": "novelfull",
+  "templateId": "html",
   "transport": "http",
   "baseUrl": "https://readnovelfull.com",
   "language": "en",

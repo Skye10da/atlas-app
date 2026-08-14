@@ -27,9 +27,9 @@
       "checksums": {
         "filters.json": "b21723432315ca2074ff05d7121593912b25b1138201040b750fa7fe7bc10790",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "63a66d53c9b6e42c659f04c0834d23338b1d0f427d1117c007adefd628d8dc98",
+        "plugin.json": "9eb20379b9d7601677b051b6d0cc2ef9dafcdc4329107105ae0cefd143a2a12b",
         "README.md": "428253c4151942e8c0cce19c63cc3e44d7580c3c8d8df670800eee12a2488b8b",
-        "selectors.json": "27b24c227a1e05d615615b6626a102fc9019c1193deb3b01f17ba019e599b667"
+        "selectors.json": "8f956c4915fb917b7b1f46a0169add46a29f6318b7b0775112bbc25150871cea"
       }
     },
     {
@@ -38,9 +38,9 @@
       "checksums": {
         "filters.json": "0068034c35164fb0c3490f0afc18190ca12fbbc8730dcacc01714a6d197fc07d",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "ea54085bd8462970fd7a6da98e645070e86bce3408eada6e657e17549c1c34eb",
+        "plugin.json": "1b25f922f765ec6f0c5700b5859bf19f5413715c5f7746da8fe5f91c8786e08b",
         "README.md": "417ae8afce8488bb45a872d7b34bb42614799411323ffe63bccfa562ee3a5b28",
-        "selectors.json": "8667ffd966c3dc537ad390730c2ac0dc10be3071c0d0fff44889a45378d44c85"
+        "selectors.json": "24c4e3b9be08f2483a26022307c8824e462e1fc7e378705cd9d559059e61afb7"
       }
     },
     {
@@ -49,9 +49,9 @@
       "checksums": {
         "filters.json": "0068034c35164fb0c3490f0afc18190ca12fbbc8730dcacc01714a6d197fc07d",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "f5b698f9d559aaaee860a8a4b7c72bf9068d3740682558821f82702d88a67798",
+        "plugin.json": "9075213cbf86e3b42590a3cceb6ec01cd73a8c9d1fb6dd6980525a42d12a7fb2",
         "README.md": "62a11357824671397268f28040fdceee2b6208ea1dad5107f6152e6f78ab11c1",
-        "selectors.json": "a56874fe81418f541d470ec3b3a956e1270217fd337911464cab298f40fea5be"
+        "selectors.json": "30beebceac7f1129112a8b23bf5fe5ba1e77e981c0986610706d9f313cd9e7b1"
       }
     },
     {

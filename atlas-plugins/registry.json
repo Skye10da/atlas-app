@@ -30,11 +30,26 @@
       ]
     },
     {
+      "id": "noveldrama",
+      "name": "NovelDrama",
+      "sourceName": "NovelDrama",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://noveldrama.org",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
       "id": "novelfull",
       "name": "NovelFull",
       "sourceName": "NovelFull",
       "version": "1.0.0",
-      "templateId": "novelfull",
+      "templateId": "html",
       "transport": "http",
       "baseUrl": "https://novelfull.net",
       "capabilities": [
@@ -49,7 +64,7 @@
       "name": "ReadNovelFull",
       "sourceName": "ReadNovelFull",
       "version": "1.0.0",
-      "templateId": "novelfull",
+      "templateId": "html",
       "transport": "http",
       "baseUrl": "https://readnovelfull.com",
       "capabilities": [

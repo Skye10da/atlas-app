@@ -1,6 +1,5 @@
 import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/mvlempyr_template.dart';
-import 'package:atlas_app/core/content_engine/templates/novelfull_template.dart';
 import 'package:atlas_app/core/content_engine/templates/royalroad_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/templates/wordpress_api_template.dart';
@@ -30,7 +29,6 @@ class TemplateRegistry {
     HtmlTemplate(),
     WordPressApiTemplate(),
     MvlempyrTemplate(),
-    NovelfullTemplate(),
     RoyalRoadTemplate(),
   ]);
 

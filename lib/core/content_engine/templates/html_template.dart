@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:html/dom.dart';
 
 import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
@@ -13,10 +15,19 @@ import 'package:atlas_app/core/content_engine/templates/template_models.dart';
 /// regular enough not to need bespoke logic. Subclassing templates reuse
 /// [parser] and [pipeline] for the shared fetch → clean → normalize tail.
 ///
-/// Beyond the plain WordPress convention, `selectors.json` can drive a custom
-/// search endpoint (`search.path` + `search.queryParam`) and a paginated
-/// chapter index (`chapterList.pageParam` + `chapterList.maxPages`), so most
-/// server-rendered sites stay data-only.
+/// Beyond the plain WordPress convention, `selectors.json` can drive:
+///
+///  * a custom search endpoint (`search.path` + `search.queryParam`) with extra
+///    fixed query params (`search.extraQueryParams`),
+///  * a paginated chapter index (`chapterList.pageParam` + `chapterList.maxPages`,
+///    plus `paginationSelector`/`totalPagesSelector` to detect the page count),
+///  * a single-request chapter archive keyed by a novel id
+///    (`chapterList.ajaxPath` + `chapterList.ajaxArchive`),
+///  * a data-driven novel metadata section (`metadata`) overriding the og: tag
+///    defaults,
+///  * `|`-separated fallback selector specs on any selector value.
+///
+/// So most server-rendered sites stay data-only.
 class HtmlTemplate implements Template {
   const HtmlTemplate();
 
@@ -67,36 +78,191 @@ class HtmlTemplate implements Template {
     }
     final chapterList = selectors.chapterList!;
     final base = Uri.parse(context.plugin.baseUrl);
-    final seen = <String>{};
-    var refs = <ChapterRef>[];
-    final maxPages = chapterList.maxPages.clamp(1, _maxPages).toInt();
 
-    for (var page = 1; page <= maxPages; page++) {
-      final uri = page <= 1
-          ? Uri.parse(novelUrl)
-          : Uri.parse(novelUrl).replace(queryParameters: {
-              chapterList.pageParam: '$page',
-            });
-      final html =
-          await context.transport.fetchHtml(uri, headers: context.plugin.requestHeaders);
-      final before = refs.length;
-      for (final ref in selectors.applyChapterList(parser.parse(html))) {
-        final url = base.resolve(ref.url).toString();
-        if (!seen.add(url)) continue;
-        refs.add(ChapterRef(
-          title: ref.title,
-          url: url,
-          publishedAt: ref.publishedAt,
-        ));
+    var refs = await _fetchAjaxArchive(context, selectors, chapterList, base, novelUrl)
+        ?? await _walkChapterPages(context, selectors, chapterList, base, novelUrl);
+
+    if (chapterList.sortByChapterNumber) refs = _sortByChapterNumber(refs);
+    if (chapterList.reverse) refs = refs.reversed.toList();
+    return refs;
+  }
+
+  /// Pulls the complete chapter list from `chapterList.ajaxPath` when
+  /// configured: the novel id is read off the novel page, then
+  /// `<baseUrl><ajaxPath>?novelId=<id>` is fetched and parsed. Returns null
+  /// when the archive isn't configured, the novel id is missing, the request
+  /// fails, or nothing usable is parsed — so the caller falls back to walking
+  /// the paginated index.
+  Future<List<ChapterRef>?> _fetchAjaxArchive(
+    PluginContext context,
+    SelectorSet selectors,
+    ChapterListSelectors chapterList,
+    Uri base,
+    String novelUrl,
+  ) async {
+    final ajaxPath = chapterList.ajaxPath;
+    if (ajaxPath == null || ajaxPath.isEmpty) return null;
+    final archive = chapterList.ajaxArchive;
+    final headers = context.plugin.requestHeaders;
+
+    final novelHtml = await context.transport.fetchHtml(
+      Uri.parse(novelUrl),
+      headers: headers,
+    );
+    final novelId = parser
+        .parse(novelHtml)
+        .querySelector(archive?.novelIdSelector ?? '[data-novel-id]')
+        ?.attributes['data-novel-id'];
+    if (novelId == null || novelId.isEmpty) return null;
+
+    final uri = Uri.parse(context.plugin.baseUrl).replace(
+      path: ajaxPath.startsWith('/') ? ajaxPath : '/$ajaxPath',
+      queryParameters: {'novelId': novelId},
+    );
+    final String html;
+    try {
+      html = await context.transport.fetchHtml(uri, headers: headers);
+    } on Object {
+      return null;
+    }
+
+    final refs = <ChapterRef>[];
+    final seen = <String>{};
+    final itemSelector = archive?.item ?? chapterList.item;
+    final titleSpec = archive?.title ?? chapterList.title;
+    final urlSpec = archive?.url ?? chapterList.url;
+    for (final item in parser.parse(html).querySelectorAll(itemSelector)) {
+      final title = selectors.extract(item, titleSpec);
+      final rawUrl = selectors.extract(item, urlSpec);
+      if (title == null || title.isEmpty || rawUrl == null || rawUrl.isEmpty) {
+        continue;
       }
+      final url = base.resolve(rawUrl).toString();
+      if (!seen.add(url)) continue;
+      refs.add(ChapterRef(title: title, url: url));
+    }
+    return refs.isEmpty ? null : refs;
+  }
+
+  /// Walks the paginated chapter index (`?pageParam=N`) from page 1, stopping
+  /// once a page adds nothing new. The page count is the configured [maxPages]
+  /// raised to the largest `?page=N` found in `paginationSelector` (links /
+  /// `option[data-url]`) or the `data-total-page` attribute declared by
+  /// `totalPagesSelector`.
+  Future<List<ChapterRef>> _walkChapterPages(
+    PluginContext context,
+    SelectorSet selectors,
+    ChapterListSelectors chapterList,
+    Uri base,
+    String novelUrl,
+  ) async {
+    final seen = <String>{};
+    final refs = <ChapterRef>[];
+    final headers = context.plugin.requestHeaders;
+
+    final first = await context.transport.fetchHtml(
+      Uri.parse(novelUrl),
+      headers: headers,
+    );
+    _collectChapterRefs(selectors, parser.parse(first), base, seen, refs);
+    final maxPages = _maxPagesOf(parser.parse(first), chapterList)
+        .clamp(1, _maxPages)
+        .toInt();
+
+    for (var page = 2; page <= maxPages; page++) {
+      final uri = Uri.parse(novelUrl)
+          .replace(queryParameters: {chapterList.pageParam: '$page'});
+      final html = await context.transport.fetchHtml(uri, headers: headers);
+      final before = refs.length;
+      _collectChapterRefs(selectors, parser.parse(html), base, seen, refs);
       // Sites that clamp out-of-range pages to the last page would otherwise
       // repeat it for every remaining request; a page that adds nothing new
       // means the list is exhausted.
       if (refs.length == before) break;
     }
-
-    if (chapterList.reverse) refs = refs.reversed.toList();
     return refs;
+  }
+
+  void _collectChapterRefs(
+    SelectorSet selectors,
+    Document doc,
+    Uri base,
+    Set<String> seen,
+    List<ChapterRef> refs,
+  ) {
+    for (final ref in selectors.applyChapterList(doc)) {
+      final url = base.resolve(ref.url).toString();
+      if (!seen.add(url)) continue;
+      refs.add(ChapterRef(
+        title: ref.title,
+        url: url,
+        publishedAt: ref.publishedAt,
+      ));
+    }
+  }
+
+  /// Upper bound on the pages to walk, derived from the first index page: the
+  /// configured [ChapterListSelectors.maxPages], raised by the largest
+  /// `?page=N` referenced in the pagination bar and by any `data-total-page`
+  /// declared on `totalPagesSelector`.
+  int _maxPagesOf(Document doc, ChapterListSelectors chapterList) {
+    var max = chapterList.maxPages;
+    final pattern = RegExp('[?&]${chapterList.pageParam}=(\\d+)');
+    int scan(Element container) {
+      var pages = 0;
+      for (final el in container.querySelectorAll('a[href]')) {
+        pages = math.max(pages, _pageNumber(el.attributes['href'] ?? '', pattern));
+      }
+      for (final el in container.querySelectorAll('option[data-url]')) {
+        pages =
+            math.max(pages, _pageNumber(el.attributes['data-url'] ?? '', pattern));
+      }
+      return pages;
+    }
+
+    final paginationSelector = chapterList.paginationSelector;
+    if (paginationSelector != null && paginationSelector.isNotEmpty) {
+      for (final bar in doc.querySelectorAll(paginationSelector)) {
+        max = math.max(max, scan(bar));
+      }
+    }
+    final totalPagesSelector = chapterList.totalPagesSelector;
+    if (totalPagesSelector != null && totalPagesSelector.isNotEmpty) {
+      final total = int.tryParse(
+        doc.querySelector(totalPagesSelector)?.attributes['data-total-page'] ?? '',
+      );
+      if (total != null) max = math.max(max, total);
+    }
+    return max;
+  }
+
+  int _pageNumber(String raw, RegExp pattern) {
+    final match = pattern.firstMatch(raw);
+    return match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
+  }
+
+  /// Sorts by the chapter number embedded in `/chapter-<N>-...` URLs, keeping
+  /// unnumbered entries in their source order behind numbered ones.
+  List<ChapterRef> _sortByChapterNumber(List<ChapterRef> refs) {
+    final indexed = <(int?, int, ChapterRef)>[];
+    for (var i = 0; i < refs.length; i++) {
+      indexed.add((_chapterNumber(refs[i].url), i, refs[i]));
+    }
+    indexed.sort((a, b) {
+      final an = a.$1;
+      final bn = b.$1;
+      if (an != null && bn != null) return an.compareTo(bn);
+      if (an != null) return -1;
+      if (bn != null) return 1;
+      return a.$2.compareTo(b.$2);
+    });
+    return [for (final e in indexed) e.$3];
+  }
+
+  int? _chapterNumber(String url) {
+    final path = Uri.parse(url).path;
+    final match = RegExp(r'/chapter-(\d+)').firstMatch(path);
+    return match != null ? int.tryParse(match.group(1)!) : null;
   }
 
   @override
@@ -152,36 +318,145 @@ class HtmlTemplate implements Template {
   }
 
   NovelMetadata _extractMetadata(Document doc, PluginContext context) {
-    String? meta(String selector) =>
-        doc.querySelector(selector)?.attributes['content']?.trim();
+    final selectors = context.selectors;
+    final metadata = selectors?.metadata;
 
-    final title = meta('meta[property="og:title"]') ??
-        doc.querySelector('title')?.text.trim() ??
-        'Untitled';
-    final coverUrl =
-        meta('meta[property="og:image"]') ?? meta('meta[name="twitter:image"]');
-    final description =
-        meta('meta[name="description"]') ?? meta('meta[property="og:description"]');
+    String? metaTag(String key) =>
+        doc.querySelector('meta[property="$key"]')?.attributes['content']?.trim() ??
+        doc.querySelector('meta[name="$key"]')?.attributes['content']?.trim();
+
+    final title = _firstNonEmpty(
+      _fieldValue(doc, metadata?.title, selectors),
+      metaTag('og:title'),
+      doc.querySelector('title')?.text.trim(),
+    ) ?? 'Untitled';
+
+    final author = _firstNonEmpty(
+      _fieldValue(doc, metadata?.author, selectors),
+      metaTag('og:novel:author'),
+    );
+
+    final description = _firstNonEmpty(
+      _fieldValue(doc, metadata?.description, selectors),
+      metaTag('description'),
+      metaTag('og:description'),
+    );
+
+    final coverUrl = _firstNonEmpty(
+      _fieldValue(doc, metadata?.coverUrl, selectors),
+      metaTag('og:image'),
+      metaTag('twitter:image'),
+    );
+
+    var genres = _genresOf(doc, metadata?.genres, selectors);
+    if (genres.isEmpty) {
+      final metaGenres = metaTag('og:novel:genre');
+      if (metaGenres != null && metaGenres.trim().isNotEmpty) {
+        genres = metaGenres
+            .split(',')
+            .map((g) => g.trim())
+            .where((g) => g.isNotEmpty)
+            .toList();
+      }
+    }
+
+    final status = _firstNonEmpty(
+      _fieldValue(doc, metadata?.status, selectors),
+      metaTag('og:novel:status'),
+    );
 
     return NovelMetadata(
       title: title,
-      coverUrl: coverUrl,
+      author: author,
       description: description,
+      coverUrl: coverUrl,
       language: context.plugin.language,
+      genres: genres,
+      status: status,
     );
+  }
+
+  /// Applies a [MetadataField] declared in the plugin's `metadata` section, or
+  /// returns null so the caller can fall back to the og: tag defaults.
+  String? _fieldValue(Document doc, MetadataField? field, SelectorSet? selectors) {
+    if (field is CssMetadataField && selectors != null) {
+      return selectors.extract(doc.documentElement!, field.selector);
+    }
+    if (field is InfoRowMetadataField && !field.links) {
+      return _infoValue(doc, field);
+    }
+    return null;
+  }
+
+  List<String> _genresOf(Document doc, MetadataField? field, SelectorSet? selectors) {
+    if (field is InfoRowMetadataField && field.links) {
+      return _infoLinks(doc, field);
+    }
+    if (field is CssMetadataField && selectors != null) {
+      final value = selectors.extract(doc.documentElement!, field.selector);
+      if (value != null && value.trim().isNotEmpty) {
+        return value
+            .split(',')
+            .map((g) => g.trim())
+            .where((g) => g.isNotEmpty)
+            .toList();
+      }
+    }
+    return const [];
+  }
+
+  /// Text of the info row whose `<h3>` matches one of the field's labels.
+  String? _infoValue(Document doc, InfoRowMetadataField field) {
+    for (final row in doc.querySelectorAll(field.container)) {
+      final h3 = row.querySelector('h3');
+      if (h3 == null || !field.labels.contains(h3.text.trim())) continue;
+      h3.remove();
+      final value = row.text.trim();
+      if (value.isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  /// Link texts of the info row whose `<h3>` matches one of the field's labels
+  /// — e.g. the genre tags under a `Genres:` / `Genre:` row.
+  List<String> _infoLinks(Document doc, InfoRowMetadataField field) {
+    for (final row in doc.querySelectorAll(field.container)) {
+      final h3 = row.querySelector('h3');
+      if (h3 == null || !field.labels.contains(h3.text.trim())) continue;
+      return row
+          .querySelectorAll('a')
+          .map((a) => a.text.trim())
+          .where((t) => t.isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+
+  String? _firstNonEmpty(String? value, [String? second, String? third]) {
+    for (final candidate in [value, second, third]) {
+      if (candidate != null && candidate.trim().isNotEmpty) {
+        return candidate.trim();
+      }
+    }
+    return null;
   }
 
   /// Site search endpoint. Defaults to the WordPress convention (`?s=query` on
   /// the bare base URL); plugins can point elsewhere via `search.path` +
-  /// `search.queryParam` in their selectors.
+  /// `search.queryParam` in their selectors, and append fixed query parameters
+  /// via `search.extraQueryParams`.
   Uri _searchUri(String baseUrl, String query, SearchSelectors search) {
+    final params = <String, String>{
+      search.queryParam: query,
+      ...search.extraQueryParams,
+    };
     final path = search.path;
     if (path == null || path.isEmpty) {
-      return Uri.parse(baseUrl).replace(queryParameters: {'s': query});
+      return Uri.parse(baseUrl).replace(queryParameters: params);
     }
     return Uri.parse(baseUrl).replace(
-          path: path.startsWith('/') ? path : '/$path',
-          queryParameters: {search.queryParam: query},
-        );
+      path: path.startsWith('/') ? path : '/$path',
+      queryParameters: params,
+    );
   }
 }

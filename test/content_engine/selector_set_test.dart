@@ -60,6 +60,19 @@ void main() {
       expect(selectors.search!.queryParam, 's');
       expect(selectors.search!.path, isNull);
     });
+
+    test('parses fixed extra query params', () {
+      final selectors = SelectorSet.fromJson({
+        'search': {
+          'resultItem': '.item',
+          'path': '/search',
+          'queryParam': 's',
+          'extraQueryParams': {'post_type': 'wp-manga'},
+        },
+      });
+
+      expect(selectors.search!.extraQueryParams, {'post_type': 'wp-manga'});
+    });
   });
 
   group('SelectorSet.applyChapterList', () {
@@ -115,6 +128,32 @@ void main() {
       expect(selectors.chapterList!.item, 'ul.list-chapter li');
     });
 
+    test('parses an ajax archive override and pagination detection', () {
+      final selectors = SelectorSet.fromJson({
+        'chapterList': {
+          'item': 'ul.list-chapter li',
+          'ajaxPath': '/ajax-chapter-option',
+          'ajaxArchive': {
+            'item': 'select > option[value]',
+            'title': '@text',
+            'url': '@value',
+          },
+          'paginationSelector': 'ul.pagination, #barcon',
+          'totalPagesSelector': '#truyen',
+          'sortByChapterNumber': true,
+        },
+      });
+
+      final chapterList = selectors.chapterList!;
+      expect(chapterList.ajaxArchive!.item, 'select > option[value]');
+      expect(chapterList.ajaxArchive!.title, '@text');
+      expect(chapterList.ajaxArchive!.url, '@value');
+      expect(chapterList.ajaxArchive!.novelIdSelector, '[data-novel-id]');
+      expect(chapterList.paginationSelector, 'ul.pagination, #barcon');
+      expect(chapterList.totalPagesSelector, '#truyen');
+      expect(chapterList.sortByChapterNumber, isTrue);
+    });
+
     test('defaults pagination fields', () {
       const selectors = SelectorSet(chapterList: ChapterListSelectors(item: 'li'));
 
@@ -122,6 +161,71 @@ void main() {
       expect(selectors.chapterList!.maxPages, 1);
       expect(selectors.chapterList!.reverse, isFalse);
       expect(selectors.chapterList!.ajaxPath, isNull);
+      expect(selectors.chapterList!.ajaxArchive, isNull);
+      expect(selectors.chapterList!.paginationSelector, isNull);
+      expect(selectors.chapterList!.totalPagesSelector, isNull);
+      expect(selectors.chapterList!.sortByChapterNumber, isFalse);
+    });
+  });
+
+  group('SelectorSet.extract', () {
+    const selectors = SelectorSet();
+
+    test('returns the first non-empty alternative for | specs', () {
+      final doc = html_parser.parse('''
+        <html><body>
+          <li><a class="chapter-title">Chapter One</a></li>
+          <li><a class="nchr-text">Chapter Two</a></li>
+        </body></html>
+      ''');
+      final items = doc.body!.querySelectorAll('li');
+
+      expect(
+        selectors.extract(items[0], '.chapter-title@text|.nchr-text@text'),
+        'Chapter One',
+      );
+      expect(
+        selectors.extract(items[1], '.chapter-title@text|.nchr-text@text'),
+        'Chapter Two',
+      );
+    });
+
+    test('does not split attribute selectors on |', () {
+      final doc = html_parser.parse(
+        '<html><body><a href="https://example.com/a|b" data-t="1">X</a></body></html>',
+      );
+
+      expect(selectors.extract(doc.body!, 'a[href*="|"]@text'), 'X');
+    });
+
+    test('returns null when no alternative matches', () {
+      final doc = html_parser.parse('<html><body><a>Nothing</a></body></html>');
+      final item = doc.body!.querySelector('a')!;
+
+      expect(selectors.extract(item, '.missing@text|.also-missing@text'), isNull);
+    });
+  });
+
+  group('SelectorSet.metadata', () {
+    test('parses css and info-row metadata fields', () {
+      final selectors = SelectorSet.fromJson({
+        'metadata': {
+          'author': {'label': 'Author:'},
+          'genres': {'labels': ['Genres:', 'Genre:'], 'links': true},
+          'description': '.desc-text p',
+          'coverUrl': 'img@src',
+        },
+      });
+
+      expect(selectors.metadata!.author, isA<InfoRowMetadataField>());
+      expect(selectors.metadata!.genres, isA<InfoRowMetadataField>());
+      expect(selectors.metadata!.description, isA<CssMetadataField>());
+      expect(selectors.metadata!.coverUrl, isA<CssMetadataField>());
+      expect(selectors.metadata!.status, isNull);
+
+      final genres = selectors.metadata!.genres as InfoRowMetadataField;
+      expect(genres.labels, ['Genres:', 'Genre:']);
+      expect(genres.links, isTrue);
     });
   });
 
