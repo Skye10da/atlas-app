@@ -1,0 +1,14 @@
+{
+  "novel": {
+    "url": "https://noveldrama.org/noveldrama/rebirth-super-banking-system",
+    "method": "metadata",
+    "title": "Rebirth: Super Banking System",
+    "textContains": ["Tang Qing is reborn in 2004, equipped with a banking system"]
+  },
+  "chapter": {
+    "url": "https://noveldrama.org/noveldrama/rebirth-super-banking-system/chapter-1-no-one-cares1",
+    "method": "chapterContent",
+    "title": "Chapter 1 No One Cares_1",
+    "textContains": ["Zhongzhou City", "Tang Qing", "June 1, 2017"]
+  }
+}

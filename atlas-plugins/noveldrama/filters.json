@@ -1,0 +1,4 @@
+{
+  "extraStripSelectors": [".js-ad-slot", "[data-chapter-archive-grid]", "#chr-nav-top", "#chr-nav-bottom", "#fb-comment-chapter", "[id^=\"bg-ssp\"]"],
+  "disableDefaultStrips": false
+}

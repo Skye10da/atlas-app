@@ -22,6 +22,17 @@
       }
     },
     {
+      "id": "noveldrama",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "b21723432315ca2074ff05d7121593912b25b1138201040b750fa7fe7bc10790",
+        "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
+        "plugin.json": "63a66d53c9b6e42c659f04c0834d23338b1d0f427d1117c007adefd628d8dc98",
+        "README.md": "428253c4151942e8c0cce19c63cc3e44d7580c3c8d8df670800eee12a2488b8b",
+        "selectors.json": "27b24c227a1e05d615615b6626a102fc9019c1193deb3b01f17ba019e599b667"
+      }
+    },
+    {
       "id": "novelfull",
       "version": "1.0.0",
       "checksums": {
