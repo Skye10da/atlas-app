@@ -59,6 +59,15 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
     });
   }
 
+  /// A WTR-Lab translation switch means any stored chapter text was fetched
+  /// under the *previous* service. Drop the book's downloaded content so the
+  /// next read re-fetches each chapter with the newly selected service.
+  Future<void> _onWtrServiceChanged() async {
+    final repo = ref.read(readerRepositoryProvider);
+    await repo.resetChapterContent(widget.bookId);
+    ref.invalidate(novelChaptersProvider(widget.bookId));
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Result<BookEntity>>(
@@ -108,7 +117,11 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                   children: [
                     const SizedBox(height: AppSpacing.sm),
                     if (wtrRawId != null)
-                      WtrTranslationSelector(rawId: wtrRawId),
+                      WtrTranslationSelector(
+                        rawId: wtrRawId,
+                        onServiceChanged: () =>
+                            _onWtrServiceChanged(),
+                      ),
                     if (wtrRawId != null)
                       const SizedBox(height: AppSpacing.sm),
                     ContinueReadingCard(book: book, onReturn: _refreshBook),

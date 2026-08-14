@@ -107,6 +107,47 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
   }
 
   @override
+  Future<Result<void>> resetChapterContent(String bookId) async {
+    try {
+      final rows = await (_db.select(_db.chapters)
+        ..where((c) => c.bookId.equals(bookId))).get();
+
+      for (final row in rows) {
+        if (row.contentState != ContentState.availableOffline.index) continue;
+
+        final file = File(row.contentPath);
+        if (file.existsSync()) {
+          await file.delete();
+        }
+        // Drop superseded versions too; they were captured under an older
+        // translation service and would otherwise resurface stale text.
+        final dir = file.parent;
+        if (dir.existsSync()) {
+          final prefix = '${file.uri.pathSegments.last}.v';
+          await for (final entity in dir.list()) {
+            if (entity is File && entity.uri.pathSegments.last.startsWith(prefix)) {
+              await entity.delete();
+            }
+          }
+        }
+
+        await (_db.update(_db.chapters)
+          ..where((c) => c.id.equals(row.id)))
+          .write(ChaptersCompanion(
+            contentState: Value(ContentState.discovered.index),
+            version: const Value(1),
+            checksum: const Value(null),
+            previousVersionRef: const Value(null),
+          ));
+      }
+
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to reset chapter content', e), st);
+    }
+  }
+
+  @override
   Future<Result<void>> saveProgress({
     required String userId,
     required String bookId,

@@ -19,6 +19,12 @@ abstract interface class ReaderRepositoryInterface {
   Future<Result<BookEntity>> getBookById(String id);
   Future<Result<void>> updateChapterContent(String bookId, int chapterIndex, String content);
 
+  /// Drops every downloaded chapter of [bookId] back to the "not downloaded"
+  /// state: the on-disk content (and any superseded versions) is removed so a
+  /// subsequent read re-fetches it. Used when a WTR-Lab novel's translation
+  /// service changes, since stored text was fetched under the old service.
+  Future<Result<void>> resetChapterContent(String bookId);
+
   Future<Result<List<BookmarkEntity>>> getBookmarks(String bookId);
   Future<Result<void>> addBookmark(BookmarkEntity bookmark);
   Future<Result<void>> removeBookmark(String bookmarkId);

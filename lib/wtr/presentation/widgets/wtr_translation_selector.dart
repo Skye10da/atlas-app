@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,11 +17,22 @@ import 'package:atlas_app/wtr/presentation/screens/wtr_login_screen.dart';
 /// (via `WtrChapterProvider.resolveTranslate`) throws when AI is selected
 /// without a valid session, so an unattended AI selection surfaces a clear
 /// message instead of silently falling back to another service.
+///
+/// [onServiceChanged] fires only when the selection actually changes — not on
+/// re-tapping the already-selected service — so hosts can drop stale chapter
+/// downloads (text fetched under the previous service) before the next read.
 class WtrTranslationSelector extends ConsumerWidget {
-  const WtrTranslationSelector({super.key, required this.rawId});
+  const WtrTranslationSelector({
+    super.key,
+    required this.rawId,
+    this.onServiceChanged,
+  });
 
   /// Numeric id this novel carries in the WTR reader API.
   final int rawId;
+
+  /// Invoked when the user switches to a *different* translation service.
+  final FutureOr<void> Function()? onServiceChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,7 +48,7 @@ class WtrTranslationSelector extends ConsumerWidget {
           data: (service) => _SelectorCard(
             service: service,
             authState: authState,
-            onSelect: (selected) => _select(ref, selected),
+            onSelect: (selected) => _select(ref, selected, service),
             onSignIn: () => _signIn(context, ref),
             onChangeAccount: () => _changeAccount(context, ref),
           ),
@@ -44,10 +57,17 @@ class WtrTranslationSelector extends ConsumerWidget {
     );
   }
 
-  Future<void> _select(WidgetRef ref, WtrTranslationService service) async {
+  Future<void> _select(
+    WidgetRef ref,
+    WtrTranslationService service,
+    WtrTranslationService current,
+  ) async {
     final runtime = await ref.read(wtrRuntimeProvider.future);
     await runtime.setService(rawId, service);
     ref.invalidate(wtrTranslationServiceProvider(rawId));
+    if (service != current) {
+      await onServiceChanged?.call();
+    }
   }
 
   Future<void> _signIn(BuildContext context, WidgetRef ref) async {
