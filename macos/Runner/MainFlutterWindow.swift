@@ -13,7 +13,7 @@ class MainFlutterWindow: NSWindow {
     if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
       let channel = FlutterMethodChannel(
         name: AppDelegate.fileOpenChannelName,
-        binaryMessenger: flutterViewController.binaryMessenger
+        binaryMessenger: flutterViewController.engine.binaryMessenger
       )
       appDelegate.installFileOpenChannel(channel)
     }
