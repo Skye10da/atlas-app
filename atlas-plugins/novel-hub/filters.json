@@ -1,0 +1,4 @@
+{
+  "extraStripSelectors": [".reading-content .wp-manga-chapter-title"],
+  "disableDefaultStrips": false
+}

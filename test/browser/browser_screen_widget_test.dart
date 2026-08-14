@@ -12,6 +12,8 @@ import 'package:atlas_app/browser/domain/repository_interfaces/browser_repositor
 import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
 import 'package:atlas_app/browser/presentation/screens/browser_screen.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_start_page.dart';
+import 'package:atlas_app/core/content_acquisition/providers.dart';
+import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 
@@ -36,7 +38,9 @@ class FakeBrowserEngine implements BrowserWebEngine {
   /// Simulated JS bridge: [evaluate] fires the matching handler with
   /// [cannedArgs], standing in for the web view's in-page `fetch` callback.
   final Map<String, JsHandlerCallback> handlers = {};
-  List<dynamic> cannedArgs = ['<html>from-browser</html>'];
+  List<dynamic> cannedArgs = const [
+    '{"b":"<html>from-browser</html>","s":200,"u":"https://novelfull.net/the-99th-divorce.html"}'
+  ];
 
   @override
   ValueNotifier<String?> get currentUrl => _currentUrl;
@@ -241,6 +245,9 @@ void main() {
             return engine;
           },
         ),
+        // The start page watches plugin discovery for its source tiles; short-
+        // circuit it so tests never touch the filesystem or GitHub.
+        pluginSourcesProvider.overrideWith((ref) async => <PluginSource>[]),
       ],
       child: MaterialApp(
         home: BrowserScreen(initialUrl: initialUrl),
@@ -366,10 +373,10 @@ void main() {
         reason: 'the browser shell keeps the shared web-view fetcher installed');
 
     // A same-origin chapter URL is served from the live page context...
-    final html = await fetcher!(
+    final result = await fetcher!(
       Uri.parse('https://novelfull.net/legend-of-swordsman/chapter-1.html'),
     );
-    expect(html, '<html>from-browser</html>');
+    expect(result?.body, '<html>from-browser</html>');
 
     // ...and a cross-origin target falls through to null (→ plain HTTP).
     expect(

@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
+import 'package:atlas_app/core/content_engine/transport/webview_fetch_result.dart';
+import 'package:atlas_app/core/session/session_refresh_service.dart';
 
 /// Fetches a page's text through a live web view's same-origin `fetch`, so the
 /// request carries the browser's cookies and TLS fingerprint and can pass
@@ -9,7 +11,7 @@ import 'package:atlas_app/core/content_engine/transport/transport.dart';
 /// Returning `null` means "cannot serve this request" (the web view is on a
 /// different origin, or the in-page fetch failed); [WebViewTransport] then
 /// falls back to plain HTTP.
-typedef WebViewFetcher = Future<String?> Function(
+typedef WebViewFetcher = Future<WebViewFetchResult?> Function(
   Uri url, {
   Map<String, String>? headers,
 });
@@ -49,33 +51,87 @@ class WebViewTransport implements Transport {
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) async {
     final webView = await _tryWebView(url, headers: headers);
-    if (webView != null) return webView;
-    return inner.fetchHtml(url, headers: headers);
+    if (webView?.body != null) return webView!.body!;
+    return _inner(() => inner.fetchHtml(url, headers: headers), url);
+  }
+
+  @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async {
+    // The web-view fetcher only issues same-origin GETs, so a form POST goes
+    // straight to the inner transport. Most Madara-style archives are plain
+    // `admin-ajax.php` endpoints, which HTTP handles fine.
+    return _inner(
+      () => inner.fetchHtmlPost(url, headers: headers, form: form),
+      url,
+    );
   }
 
   @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
     final webView = await _tryWebView(url, headers: headers);
-    if (webView != null) return jsonDecode(webView);
-    return inner.fetchJson(url, headers: headers);
+    if (webView?.body != null) return jsonDecode(webView!.body!);
+    return _inner(() => inner.fetchJson(url, headers: headers), url);
+  }
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async {
+    // The web-view fetcher only issues same-origin GETs, so a JSON POST goes
+    // straight to the inner transport, like [fetchHtmlPost].
+    return _inner(
+      () => inner.fetchJsonPost(url, headers: headers, jsonBody: jsonBody),
+      url,
+    );
   }
 
   @override
   Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {
     final webView = await _tryWebView(url, headers: headers);
-    if (webView != null) return utf8.encode(webView);
-    return inner.fetchBytes(url, headers: headers);
+    if (webView?.body != null) return utf8.encode(webView!.body!);
+    return _inner(() => inner.fetchBytes(url, headers: headers), url);
   }
 
-  Future<String?> _tryWebView(Uri url, {Map<String, String>? headers}) async {
+  /// Runs [run] against the inner transport, forwarding the result and, when
+  /// the inner layer reports a session wall, notifying [SessionRefreshService]
+  /// so the app can offer a re-verify pass.
+  Future<T> _inner<T>(Future<T> Function() run, Uri url) async {
+    try {
+      return await run();
+    } on TransportException catch (e) {
+      if (e.sessionExpired) {
+        SessionRefreshService.instance.markInvalid(url);
+      }
+      rethrow;
+    }
+  }
+
+  Future<WebViewFetchResult?> _tryWebView(
+    Uri url, {
+    Map<String, String>? headers,
+  }) async {
     for (final fetcher in [
       _service.fetcher,
       _service.fallbackFetcher,
     ]) {
       if (fetcher == null) continue;
       try {
-        final html = await fetcher(url, headers: headers);
-        if (html != null) return html;
+        final result = await fetcher(url, headers: headers);
+        if (result?.body == null) continue;
+        if (result!.isSessionWall) {
+          // An auth wall from the browser context: the saved session is stale.
+          // Don't serve it — fall through so the inner transport produces the
+          // (tagged) error and the app can offer a re-verify pass.
+          SessionRefreshService.instance.markInvalid(url);
+          continue;
+        }
+        return result;
       } on Object {
         // A broken fetcher must not kill the request; try the next layer.
       }

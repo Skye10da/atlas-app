@@ -23,8 +23,10 @@ class _ScriptEngine implements BrowserWebEngine {
   final List<String> removedHandlers = [];
 
   /// Arguments the simulated page passes back to the JS handler, mimicking a
-  /// successful (`['<html>']`) or failed (`[]`) in-page fetch.
-  List<dynamic> cannedArgs = ['<html>from-page</html>'];
+  /// successful (`['<json envelope>']`) or failed (`[]`) in-page fetch.
+  List<dynamic> cannedArgs = const [
+    '{"b":"<html>from-page</html>","s":200,"u":"https://novelfull.net/the-99th-divorce.html"}'
+  ];
 
   @override
   ValueNotifier<String?> get currentUrl => _currentUrl;
@@ -101,24 +103,46 @@ class _ScriptEngine implements BrowserWebEngine {
 
 void main() {
   group('WebViewPageFetcher', () {
-    test('fetches a same-origin URL through the page and returns its text',
-        () async {
+    test('fetches a same-origin URL through the page and returns body, status '
+        'and final URL', () async {
       final engine = _ScriptEngine(
         currentUrl: 'https://novelfull.net/the-99th-divorce.html',
       );
       final fetcher = WebViewPageFetcher(engine: engine);
 
-      final html = await fetcher.fetchHtml(
+      final result = await fetcher.fetchHtml(
         Uri.parse('https://novelfull.net/ajax-chapter-option?novelId=261'),
       );
 
-      expect(html, '<html>from-page</html>');
+      expect(result?.body, '<html>from-page</html>');
+      expect(result?.status, 200);
+      expect(
+        result?.finalUrl,
+        Uri.parse('https://novelfull.net/the-99th-divorce.html'),
+      );
       expect(engine.evaluated, hasLength(1));
       expect(engine.evaluated.single, contains('fetch('));
       expect(engine.evaluated.single,
           contains('https://novelfull.net/ajax-chapter-option?novelId=261'));
       expect(engine.evaluated.single, contains("'include'"));
+      expect(engine.evaluated.single, contains('r.status'));
       expect(engine.removedHandlers, hasLength(1));
+    });
+
+    test('marks a 401 response as a session wall', () async {
+      final engine = _ScriptEngine(
+        currentUrl: 'https://novelfull.net/the-99th-divorce.html',
+      )..cannedArgs = const [
+          '{"b":"","s":401,"u":"https://novelfull.net/login"}'
+        ];
+      final fetcher = WebViewPageFetcher(engine: engine);
+
+      final result = await fetcher.fetchHtml(
+        Uri.parse('https://novelfull.net/chapter-1.html'),
+      );
+
+      expect(result?.status, 401);
+      expect(result?.isSessionWall, isTrue);
     });
 
     test('returns null (fall back to HTTP) for a cross-origin request', () async {
@@ -127,11 +151,11 @@ void main() {
       );
       final fetcher = WebViewPageFetcher(engine: engine);
 
-      final html = await fetcher.fetchHtml(
+      final result = await fetcher.fetchHtml(
         Uri.parse('https://other.com/the-99th-divorce.html'),
       );
 
-      expect(html, isNull);
+      expect(result, isNull);
       expect(engine.evaluated, isEmpty);
       expect(engine.handlers, isEmpty);
     });

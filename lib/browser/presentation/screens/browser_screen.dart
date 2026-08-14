@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:atlas_app/browser/domain/controllers/browser_tabs_controller.dart';
@@ -19,10 +22,14 @@ import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.da
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
+import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
+import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/core/services/platform_service_provider.dart';
+import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
@@ -134,11 +141,11 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     if (_tabs.hasTabs) {
       service.fetcher = (url, {headers}) async {
         for (final tab in _tabs.tabs) {
-          final html = await WebViewPageFetcher(engine: tab.engine).fetchHtml(
+          final result = await WebViewPageFetcher(engine: tab.engine).fetchHtml(
             url,
             headers: headers,
           );
-          if (html != null) return html;
+          if (result?.body != null) return result;
         }
         return null;
       };
@@ -242,6 +249,13 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
 
   Future<void> _onDownloadRequested(String url, String? mimeType) async {
     if (!mounted) return;
+    final isPdf =
+        looksLikePdfUrl(url) ||
+        (mimeType?.toLowerCase().contains('pdf') ?? false);
+    if (isPdf) {
+      await _handlePdf(url);
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -262,6 +276,90 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     if (ok == true && mounted) {
       await _importFromWeb(url);
     }
+  }
+
+  Future<void> _handlePdf(String url) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('PDF found'),
+        content: Text('$url\n\nDownload the file or import it into your library.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('Not now'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'download'),
+            child: const Text('Download file'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'import'),
+            child: const Text('Import to library'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case 'download':
+        await _downloadPdf(url);
+      case 'import':
+        await _importPdfFromWeb(url);
+    }
+  }
+
+  Future<void> _downloadPdf(String url) async {
+    try {
+      final bytes = await _fetchUrlBytes(url);
+      final directory =
+          await getDownloadsDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final file = File(p.join(directory.path, _pdfFileName(url)));
+      await file.writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved to ${file.path}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Download failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _importPdfFromWeb(String url) async {
+    try {
+      final bytes = await _fetchUrlBytes(url);
+      final result = await ref
+          .read(pdfImportServiceProvider)
+          .importBytes(bytes, _pdfFileName(url));
+      if (!mounted) return;
+      if (result is Success<String>) {
+        context.go('/book/${result.value}');
+      } else if (result is Failure<String>) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import failed: ${result.error}')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Import failed: $e')),
+      );
+    }
+  }
+
+  Future<List<int>> _fetchUrlBytes(String url) async {
+    final transport = HttpTransport(client: ref.read(httpClientProvider));
+    return transport.fetchBytes(Uri.parse(url));
+  }
+
+  static String _pdfFileName(String url) {
+    final name = p.basename(Uri.parse(url).path);
+    if (name.isNotEmpty && name.toLowerCase().endsWith('.pdf')) return name;
+    return 'download_${DateTime.now().millisecondsSinceEpoch}.pdf';
   }
 
   Future<void> _importFromWeb(String url) async {

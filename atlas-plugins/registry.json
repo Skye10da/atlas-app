@@ -1,6 +1,21 @@
 {
   "plugins": [
     {
+      "id": "allnovelfull",
+      "name": "AllNovelFull",
+      "sourceName": "AllNovelFull",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://allnovelfull.net",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
       "id": "freewebnovel",
       "name": "FreeWebNovel",
       "sourceName": "FreeWebNovel",
@@ -24,6 +39,21 @@
       "transport": "http",
       "baseUrl": "https://www.mvlempyr.io",
       "capabilities": [
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "novel-hub",
+      "name": "Novel Hub",
+      "sourceName": "Novel Hub",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://live.mangabooth.com/novelreader",
+      "capabilities": [
+        "search",
         "chapterList",
         "chapterContent",
         "cover"
@@ -82,6 +112,21 @@
       "templateId": "royalroad",
       "transport": "http",
       "baseUrl": "https://www.royalroad.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "wtrlab",
+      "name": "WTR-LAB",
+      "sourceName": "WTR-LAB",
+      "version": "1.0.0",
+      "templateId": "wtrlab",
+      "transport": "http",
+      "baseUrl": "https://wtr-lab.com",
       "capabilities": [
         "search",
         "chapterList",

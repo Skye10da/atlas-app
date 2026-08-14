@@ -3,6 +3,7 @@ import 'package:atlas_app/core/content_engine/templates/mvlempyr_template.dart';
 import 'package:atlas_app/core/content_engine/templates/royalroad_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/templates/wordpress_api_template.dart';
+import 'package:atlas_app/core/content_engine/templates/wtrlab_template.dart';
 
 class UnknownTemplateException implements Exception {
   const UnknownTemplateException(this.templateId);
@@ -30,6 +31,7 @@ class TemplateRegistry {
     WordPressApiTemplate(),
     MvlempyrTemplate(),
     RoyalRoadTemplate(),
+    WtrLabTemplate(),
   ]);
 
   final Map<String, Template> _templates;

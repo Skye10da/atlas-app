@@ -1,6 +1,17 @@
 {
   "plugins": [
     {
+      "id": "allnovelfull",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "cde06f6f3f27684c67c845039b5e4c76e72ceb53a8ca8583cc25698e03277cee",
+        "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
+        "plugin.json": "e81745596be6567ce35e63d86c72124a5186f7405af8dc2db0856b82bb20b97e",
+        "README.md": "48e8a85f22b6e6885a93960ab3749046880a82bb5a7dd97bc758d3c4c3b925d4",
+        "selectors.json": "52f90846f9a4f9aa266b6e54b756292f800b2168824e3cbacb2c831977b049e3"
+      }
+    },
+    {
       "id": "freewebnovel",
       "version": "1.0.0",
       "checksums": {
@@ -19,6 +30,17 @@
         "permissions.json": "3e34f32f8ac84fcddb1f979c614d04a768b9d048e468541c73fec3870f702ae9",
         "plugin.json": "a30c7994a43e09c35ebc3321ee0c1e68f2c96af22a30a1e5c058c21c267880dc",
         "README.md": "86807dabfa01e9b981db174e94400622fc95c2d88b371c5fbda3cba08e73cb10"
+      }
+    },
+    {
+      "id": "novel-hub",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "2739092ad7843ef81d33a290beed7d19d1c2551012abc3dd28abca563304f8c3",
+        "permissions.json": "1f52fd7af93de75b23e79b93413e77f681dd76468ee6cd85eb73bfca4e62993c",
+        "plugin.json": "3fb821e7be6be9d4268e1f58a95d9238c8f7a35ccad0f37c49f1660395104988",
+        "README.md": "a294c6f1091a8efa242c10d123fac884b76863dbdd9e2fb892a3cde74affd66f",
+        "selectors.json": "2c1c4fab71b5e5cf67bc342149c094dda32c5be3637f02dcb653cc3b9a833bae"
       }
     },
     {
@@ -63,6 +85,16 @@
         "plugin.json": "9019a64efd8489640850ad12a818c49214e31ead19b0bf19a69e87203bd236b7",
         "README.md": "99519e8f4e9a4287abae0948be4f5c8dc0e4ff58e0d047fa4372551c650567af",
         "selectors.json": "f2447a243788a1a2b5dbecaf6b81f4f96d7297e58cffafd29557ad35b1ecc728"
+      }
+    },
+    {
+      "id": "wtrlab",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "4fb7e3c81cc539a64e933c4146a50e5cdd7092216346b6ec330725b9c20d982a",
+        "permissions.json": "fd44a88bf39ce07216b8152cad3723c3a3b15331f998f987852e7bede7051116",
+        "plugin.json": "c5219677c62d26e9e87f9c14a77b95fad25dffc3dc3e7b070532e303311b69ce",
+        "README.md": "17d798b21c8b7e0af83ec4eedfe78b3fefe698c3844da4b636dfc9a72df9b121"
       }
     }
   ]

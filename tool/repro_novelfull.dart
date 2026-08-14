@@ -28,7 +28,23 @@ class _FakeTransport implements Transport {
       _body(url);
 
   @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async =>
+      _body(url);
+
+  @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async =>
+      jsonDecode(_body(url));
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async =>
       jsonDecode(_body(url));
 
   @override

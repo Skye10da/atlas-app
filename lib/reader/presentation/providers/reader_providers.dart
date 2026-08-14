@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/core/session/session_refresh_service.dart';
+import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/application/chapter_download_service.dart';
 import 'package:atlas_app/reader/application/novel_export_service.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
@@ -49,12 +51,13 @@ final readerChapterContentProvider =
 
   if (!File(chapter.contentPath).existsSync()) {
     final downloadService = ref.watch(chapterDownloadServiceProvider);
-    final downloadResult = await downloadService.downloadChapter(
-      chapter.bookId,
-      chapter.index,
+    final downloadResult = await _downloadChapterWithSessionRefresh(
+      ref,
+      chapter,
+      downloadService,
     );
     if (downloadResult is Failure) {
-      return 'Failed to load chapter content.';
+      return downloadResult.error.userMessage;
     }
   }
 
@@ -66,6 +69,53 @@ final readerChapterContentProvider =
     Failure() => 'Failed to load chapter content.',
   };
 });
+
+/// The book's source URL for a chapter's book — used to map a session-expired
+/// failure (which latches an origin) back to the chapter being displayed.
+final chapterSourceUrlProvider =
+    FutureProvider.family<String?, ChapterEntity>((ref, chapter) async {
+  final result = await ref
+      .read(readerRepositoryProvider)
+      .getBookById(chapter.bookId);
+  if (result is! Success<BookEntity>) return null;
+  return result.value.sourceUrl;
+});
+
+/// Downloads [chapter]'s content, and when the fetch failed on an expired
+/// session, runs the quick re-verify flow once (per origin) and retries.
+Future<Result<void>> _downloadChapterWithSessionRefresh(
+  Ref ref,
+  ChapterEntity chapter,
+  ChapterDownloadService downloadService,
+) async {
+  final first = await downloadService.downloadChapter(
+    chapter.bookId,
+    chapter.index,
+  );
+  if (first is! Failure) return first;
+
+  final session = SessionRefreshService.instance;
+  final bookResult = await ref
+      .read(readerRepositoryProvider)
+      .getBookById(chapter.bookId);
+  if (bookResult is! Success<BookEntity>) return first;
+  final sourceUrl = bookResult.value.sourceUrl;
+  final origin = SessionRefreshService.originOf(sourceUrl);
+  final invalid = session.lastInvalidOrigin.value;
+  if (origin == null ||
+      invalid == null ||
+      !SessionRefreshService.sameOrigin(invalid, origin)) {
+    return first;
+  }
+  // One automatic re-verify per origin per cycle; a manual button remains
+  // available in the chapter error state.
+  if (session.hasAutoRefreshed(origin)) return first;
+  session.markAutoRefreshed(origin);
+  final seedUrl = Uri.tryParse(sourceUrl ?? '');
+  final ok = await session.ensureFresh(origin, seedUrl: seedUrl);
+  if (!ok) return first;
+  return downloadService.downloadChapter(chapter.bookId, chapter.index);
+}
 
 final readerLoadingProvider = StateProvider<bool>((_) => false);
 

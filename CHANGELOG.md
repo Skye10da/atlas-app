@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-08-14
+
+### Added
+- **In-app browser** — a full browser shell built on `flutter_inappwebview`:
+  - Engine seam (`BrowserWebEngine` / `InappWebviewEngine`) with a glass shell: tab strip, start page, address bar, and bookmark/history sheets.
+  - Persistent browser history, bookmarks, and tabs (drift-backed repositories).
+  - Dedicated **Web** shell tab; the source browser remapped to it.
+  - Find-in-page, reading-theme dark-mode injection, and a JS selection bridge powering an in-page context menu (Copy, Listen, Look up, Search, Select all) for web text and PDFs.
+  - **Epub grab**: download EPUBs from the browser straight into the library, plus a novel **Add to Library** detection pill on compatible pages.
+- **Browser session persistence & refresh** — per-origin cookie snapshots (`browser_sessions.json`) re-seeded through a silent background web view after a restart, and a dedicated session-refresh screen for Cloudflare-protected sites.
+- **WTR-Lab (wtr-lab.com) source** — search, metadata, chapter list, and encrypted chapter content via the site's JSON API (AES-GCM decryption) as a data-only plugin.
+- **WTR-Lab translation services** — per-novel selector for **Web / WebPlus / AI** translation on the novel details page.
+  - **AI translation requires a one-time WTR-Lab sign-in** (GitHub/Discord OAuth) in an app WebView; credentials stay on wtr-lab.com and the session reuses the app's existing WebView-cookie browser-session storage.
+  - Explicit auth states (not signed in / signing in / signed in / expired / failed) with an actionable prompt instead of silently falling back; expired sessions are detected at startup and from the API's `1401` not-logged-in response.
+- **Plugin engine generalization** — `HtmlTemplate` generalized to drive data-only plugins and the bespoke `NovelfullTemplate` retired; new sources shipped as signed plugins: **NovelDrama**, **AllNovelFull**, and **Novel-Hub**.
+
+### Changed
+- Transports reworked so browser-style requests carry session headers and rich metadata (`WebViewTransport`, `CookieTransport`, `CachedTransport`, `StealthTransport`, …).
+- Reader and chapter-download failures now surface per-source user messages (e.g. WTR sign-in prompts) instead of a generic failure string.
+- New dependencies: `flutter_inappwebview` and `pointycastle`.
+
 ## [1.0.4] - 2026-08-09
 
 ### Added

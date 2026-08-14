@@ -13,7 +13,10 @@ class HttpTransport implements Transport {
 
   void _ensureSuccess(http.Response response, Uri url) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw TransportException(_describeFailure(response, url));
+      throw TransportException(
+        _describeFailure(response, url),
+        sessionExpired: _isSessionExpired(response),
+      );
     }
   }
 
@@ -44,6 +47,15 @@ class HttpTransport implements Transport {
         title == 'Attention Required! | Cloudflare';
   }
 
+  /// An auth/session wall: HTTP 401/403 that is *not* Cloudflare's bot check
+  /// (which [_describeFailure] already names). A site answers 401/403 when the
+  /// replayed session cookie is stale or revoked — the signal that drives the
+  /// quick re-verify flow.
+  bool _isSessionExpired(http.Response response) {
+    if (response.statusCode != 401 && response.statusCode != 403) return false;
+    return !_isBotChallenge(response);
+  }
+
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) async {
     final response = await _client.get(url, headers: headers);
@@ -52,8 +64,37 @@ class HttpTransport implements Transport {
   }
 
   @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async {
+    final response = await _client.post(url, headers: headers, body: form);
+    _ensureSuccess(response, url);
+    return response.body;
+  }
+
+  @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
     final response = await _client.get(url, headers: headers);
+    _ensureSuccess(response, url);
+    return jsonDecode(response.body);
+  }
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async {
+    final response = await _client.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        ...?headers,
+      },
+      body: jsonBody == null ? null : jsonEncode(jsonBody),
+    );
     _ensureSuccess(response, url);
     return jsonDecode(response.body);
   }

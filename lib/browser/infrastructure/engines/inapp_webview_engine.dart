@@ -516,8 +516,11 @@ class InappWebviewEngine implements BrowserWebEngine {
       },
       shouldOverrideUrlLoading: (controller, action) async {
         final url = action.request.url?.toString();
-        if (url != null && looksLikeEpubUrl(url)) {
-          _downloadListener?.call(url, null);
+        if (url != null &&
+            action.isForMainFrame &&
+            (looksLikeEpubUrl(url) || looksLikePdfUrl(url))) {
+          final isPdf = looksLikePdfUrl(url);
+          _downloadListener?.call(url, isPdf ? 'application/pdf' : null);
           return NavigationActionPolicy.CANCEL;
         }
         if (url != null && action.isForMainFrame) {

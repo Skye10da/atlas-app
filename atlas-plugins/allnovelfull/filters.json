@@ -1,0 +1,4 @@
+{
+  "extraStripSelectors": ["#frame", "[id^=\"bg-ssp\"]", ".ads-holder", ".box-notice", ".m-read .top .hidden"],
+  "disableDefaultStrips": false
+}

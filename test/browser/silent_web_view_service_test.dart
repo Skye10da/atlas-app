@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,7 +31,9 @@ class FakeBackgroundEngine implements BrowserWebEngine {
 
   final List<String> loadedUrls = [];
   final Map<String, JsHandlerCallback> handlers = {};
-  List<dynamic> cannedArgs = ['<html>from-background</html>'];
+  List<dynamic> cannedArgs = const [
+    '{"b":"<html>from-background</html>","s":200,"u":"https://novelfull.net/"}'
+  ];
 
   /// When set, each `evaluate` call fires handlers with a *fresh* argument list
   /// (for challenge-retry scenarios where the page content changes per attempt).
@@ -165,7 +169,7 @@ void main() {
 
       final html = await service.fetchHtml(chapter);
 
-      expect(html, '<html>from-background</html>');
+      expect(html?.body, '<html>from-background</html>');
       expect(engine.loadedUrls, isEmpty);
     });
 
@@ -176,7 +180,7 @@ void main() {
 
       final html = await service.fetchHtml(chapter);
 
-      expect(html, '<html>from-background</html>');
+      expect(html?.body, '<html>from-background</html>');
       expect(engine.loadedUrls, [originRoot]);
       expect(engine.currentUrl.value, originRoot);
     });
@@ -190,7 +194,7 @@ void main() {
       final second =
           await service.fetchHtml(Uri.parse('https://novelfull.net/chapter-2.html'));
 
-      expect(second, '<html>from-background</html>');
+      expect(second?.body, '<html>from-background</html>');
       expect(engine.loadedUrls, [originRoot],
           reason: 'second fetch is same-origin -> no extra navigation');
     });
@@ -218,11 +222,16 @@ void main() {
 
       // First attempt returns the challenge; subsequent attempts return the page.
       var calls = 0;
-      engine.cannedArgsBuilder = () =>
-          [(++calls == 1) ? challenge : '<html>real-chapter</html>'];
+      engine.cannedArgsBuilder = () => [
+            (++calls == 1)
+                ? '{"b":${jsonEncode(challenge)},'
+                    '"s":403,"u":"https://novelfull.net/"}'
+                : '{"b":${jsonEncode('<html>real-chapter</html>')},'
+                    '"s":200,"u":"https://novelfull.net/"}'
+          ];
       final html = await service.fetchHtml(chapter);
 
-      expect(html, '<html>real-chapter</html>');
+      expect(html?.body, '<html>real-chapter</html>');
       expect(sleeps, isNotEmpty, reason: 'waited between challenge retries');
     });
 
@@ -234,10 +243,44 @@ void main() {
         maxChallengeRetries: 2,
       );
       engine.cannedArgs = [
-        '<html><head><title>Just a moment...</title></head></html>'
+        '{"b":"<html><head><title>Just a moment...</title></head></html>",'
+            '"s":403,"u":"https://novelfull.net/"}'
       ];
 
       expect(await service.fetchHtml(chapter), isNull);
+    });
+
+    test('gives up immediately on an auth wall without challenge retries',
+        () async {
+      final engine = FakeBackgroundEngine()
+        .._currentUrl.value = originRoot;
+      final sleeps = <Duration>[];
+      final service = SilentWebViewService(
+        engine: engine,
+        sleep: (d) async => sleeps.add(d),
+        challengeRetryDelay: const Duration(milliseconds: 5),
+      );
+      engine.cannedArgs = const [
+        '{"b":"<html>sign in</html>","s":401,"u":"https://novelfull.net/login"}'
+      ];
+
+      expect(await service.fetchHtml(chapter), isNull);
+      expect(sleeps, isEmpty,
+          reason: 'an auth wall is not a passable challenge -> no retries');
+    });
+
+    test('persists a fresh solve back into the session store', () async {
+      final engine = FakeBackgroundEngine()
+        .._currentUrl.value = originRoot;
+      final store = FakeSessionStore();
+      final service = SilentWebViewService(
+        engine: engine,
+        sessionStore: store,
+      );
+
+      await service.fetchHtml(chapter);
+
+      expect(store.capturedOrigins, [Uri.parse(originRoot)]);
     });
 
     test('returns null when the navigation never settles', () async {
@@ -286,8 +329,8 @@ void main() {
       final a = service.fetchHtml(chapter);
       final b = service.fetchHtml(other);
 
-      expect(await a, '<html>from-background</html>');
-      expect(await b, '<html>from-background</html>');
+      expect((await a)?.body, '<html>from-background</html>');
+      expect((await b)?.body, '<html>from-background</html>');
       // Both origins navigated, in request order, never interleaved.
       expect(engine.loadedUrls, [originRoot, 'https://readnovelfull.com/']);
     });

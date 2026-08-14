@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/session/session_refresh_service.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
@@ -95,10 +96,7 @@ class ChapterContentLoader extends ConsumerWidget {
           ReaderLoadingOverlay(chapter: chapter, vt: vt),
         ],
       ),
-      error: (err, _) => Center(
-        child: Text('Could not load chapter.',
-            style: TextStyle(color: vt.text)),
-      ),
+      error: (err, _) => _ChapterErrorState(vt: vt, chapter: chapter),
       data: (content) {
         // Content is ready to render in the continuous layout.
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -135,6 +133,63 @@ class ChapterContentLoader extends ConsumerWidget {
             onSearchWeb: onSearchWeb,
             onListen: onListen,
             onErase: onErase,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Error surface for a chapter that failed to load. When the failure came from
+/// an expired session (see [SessionRefreshService.lastInvalidOrigin]), offers a
+/// manual "Re-verify session" action that opens the quick source view, then
+/// reloads the chapter.
+class _ChapterErrorState extends ConsumerWidget {
+  const _ChapterErrorState({required this.vt, required this.chapter});
+
+  final ReadingViewTheme vt;
+  final ChapterEntity chapter;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = SessionRefreshService.instance;
+    final sourceUrlAsync = ref.watch(chapterSourceUrlProvider(chapter));
+    return ValueListenableBuilder<Uri?>(
+      valueListenable: session.lastInvalidOrigin,
+      builder: (context, invalid, _) {
+        final origin = SessionRefreshService.originOf(sourceUrlAsync.valueOrNull);
+        final showRetry = origin != null &&
+            invalid != null &&
+            SessionRefreshService.sameOrigin(invalid, origin);
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Could not load chapter.',
+                style: TextStyle(color: vt.text),
+              ),
+              if (showRetry) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () async {
+                    final origin = SessionRefreshService.originOf(
+                      sourceUrlAsync.valueOrNull,
+                    );
+                    if (origin == null) return;
+                    final ok = await session.ensureFresh(
+                      origin,
+                      seedUrl: Uri.tryParse(sourceUrlAsync.valueOrNull ?? ''),
+                    );
+                    if (ok && context.mounted) {
+                      ref.invalidate(readerChapterContentProvider(chapter));
+                    }
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Re-verify session'),
+                ),
+              ],
+            ],
           ),
         );
       },

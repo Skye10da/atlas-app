@@ -6,6 +6,7 @@ import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/browser/domain/engines/webview_page_fetcher.dart';
 import 'package:atlas_app/browser/domain/entities/browser_session_cookie.dart';
 import 'package:atlas_app/browser/domain/repository_interfaces/browser_session_repository_interface.dart';
+import 'package:atlas_app/core/content_engine/transport/webview_fetch_result.dart';
 import 'package:atlas_app/core/logging/logger.dart';
 
 /// Serves plugin fetches through a dedicated background web view that stays
@@ -57,7 +58,10 @@ class SilentWebViewService {
   /// the single background view over each other.
   Future<void> _queue = Future.value();
 
-  Future<String?> fetchHtml(Uri url, {Map<String, String>? headers}) async {
+  Future<WebViewFetchResult?> fetchHtml(
+    Uri url, {
+    Map<String, String>? headers,
+  }) async {
     if (!_servable(url)) return null;
     final origin = _originKey(url.toString());
     final run = _queue.then((_) async {
@@ -129,19 +133,45 @@ class SilentWebViewService {
     }
   }
 
-  Future<String?> _fetchThroughPage(
+  Future<WebViewFetchResult?> _fetchThroughPage(
     Uri url, {
     Map<String, String>? headers,
   }) async {
     for (var attempt = 0; attempt <= maxChallengeRetries; attempt++) {
-      final html = await _pageFetcher.fetchHtml(url, headers: headers);
-      if (html == null) return null;
-      if (!_looksLikeChallenge(html)) return html;
-      await _sleep(challengeRetryDelay);
+      final result = await _pageFetcher.fetchHtml(url, headers: headers);
+      if (result == null) return null;
+      final body = result.body;
+      if (body == null) return null;
+      // A Cloudflare interstitial is retried; an auth wall (401/403 that is
+      // not a challenge, or a login redirect) is a stale session, not a
+      // passable challenge — give up so the caller falls through to HTTP and
+      // the app can offer a re-verify pass.
+      if (_looksLikeChallenge(body)) {
+        await _sleep(challengeRetryDelay);
+        continue;
+      }
+      if (result.isSessionWall) return null;
+      // A fresh solve landed (challenge retries succeeded, or the seeded
+      // clearance cookie was still valid): persist the store's current
+      // cookies so a restart can re-seed this exact set.
+      await _refreshSavedSession(Uri.parse(_originKey(url.toString())));
+      return result;
     }
     // The challenge never cleared; hand back to plain HTTP so its own (clear)
     // bot-check error surfaces rather than a silent empty page.
     return null;
+  }
+
+  /// Snapshot the platform cookie store for [origin] so the persisted session
+  /// file matches what the background view is actually using now.
+  Future<void> _refreshSavedSession(Uri origin) async {
+    final store = sessionStore;
+    if (store == null) return;
+    try {
+      await store.captureForOrigin(origin);
+    } on Object catch (e) {
+      AppLogger.warning('Failed to refresh saved session for $origin: $e');
+    }
   }
 
   /// Cloudflare challenge pages are recognizable by their interstitial copy /

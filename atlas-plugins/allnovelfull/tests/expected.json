@@ -1,0 +1,14 @@
+{
+  "novel": {
+    "url": "https://allnovelfull.net/overlord-ln.html",
+    "method": "metadata",
+    "title": "Overlord (LN)",
+    "textContains": ["Experience the official release", "the player character did not log out"]
+  },
+  "chapter": {
+    "url": "https://allnovelfull.net/overlord-ln/chapter-1.html",
+    "method": "chapterContent",
+    "title": "Chapter 1",
+    "textContains": ["Momonga stood in the throne room", "transported into an alternate world"]
+  }
+}

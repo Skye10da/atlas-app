@@ -1,0 +1,14 @@
+{
+  "novel": {
+    "url": "https://live.mangabooth.com/novelreader/novel/deceive-me-marry-me/",
+    "method": "metadata",
+    "title": "Deceive me, Marry me",
+    "textContains": ["engaged to a man she never loved"]
+  },
+  "chapter": {
+    "url": "https://live.mangabooth.com/novelreader/novel/deceive-me-marry-me/chapter-6-a-real-marriage/",
+    "method": "chapterContent",
+    "title": "Chapter 6: A Real Marriage",
+    "textContains": ["signed the certificate without a single question", "the marriage was real now"]
+  }
+}

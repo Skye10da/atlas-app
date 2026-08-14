@@ -148,10 +148,41 @@ void main() {
       expect(chapterList.ajaxArchive!.item, 'select > option[value]');
       expect(chapterList.ajaxArchive!.title, '@text');
       expect(chapterList.ajaxArchive!.url, '@value');
-      expect(chapterList.ajaxArchive!.novelIdSelector, '[data-novel-id]');
+      expect(chapterList.ajaxArchive!.novelIdSelector, '[data-novel-id]@data-novel-id');
+      expect(chapterList.ajaxArchive!.method, 'GET');
+      expect(chapterList.ajaxArchive!.form, isEmpty);
+      expect(chapterList.ajaxArchive!.responseField, isNull);
+      expect(chapterList.ajaxArchive!.ajaxBase, 'base');
       expect(chapterList.paginationSelector, 'ul.pagination, #barcon');
       expect(chapterList.totalPagesSelector, '#truyen');
       expect(chapterList.sortByChapterNumber, isTrue);
+    });
+
+    test('parses a Madara-style POST ajax archive override', () {
+      final selectors = SelectorSet.fromJson({
+        'chapterList': {
+          'item': 'ul.wp-manga-chapter li a',
+          'ajaxPath': '/wp-admin/admin-ajax.php',
+          'ajaxArchive': {
+            'item': 'li.wp-manga-chapter a',
+            'novelIdSelector':
+                '#manga-chapters-holder@data-id|#madara-chapters-holder@data-id',
+            'method': 'POST',
+            'form': {'action': 'manga_get_chapters', 'manga': '{novelId}'},
+            'responseField': 'data.content',
+            'ajaxBase': 'base',
+          },
+        },
+      });
+
+      final archive = selectors.chapterList!.ajaxArchive!;
+      expect(archive.item, 'li.wp-manga-chapter a');
+      expect(archive.novelIdSelector,
+          '#manga-chapters-holder@data-id|#madara-chapters-holder@data-id');
+      expect(archive.method, 'POST');
+      expect(archive.form, {'action': 'manga_get_chapters', 'manga': '{novelId}'});
+      expect(archive.responseField, 'data.content');
+      expect(archive.ajaxBase, 'base');
     });
 
     test('defaults pagination fields', () {
@@ -203,6 +234,46 @@ void main() {
       final item = doc.body!.querySelector('a')!;
 
       expect(selectors.extract(item, '.missing@text|.also-missing@text'), isNull);
+    });
+  });
+
+  group('SelectorSet.extractAll', () {
+    const selectors = SelectorSet();
+
+    test('collects the text of every matching element', () {
+      final doc = html_parser.parse('''
+        <html><body>
+          <div class="genres-content">
+            <a href="/g/1">Romance</a>
+            <a href="/g/2">Drama</a>
+            <a href="/g/3">Romance</a>
+          </div>
+        </body></html>
+      ''');
+
+      expect(
+        selectors.extractAll(
+            doc.body!, '.genres-content a@text'),
+        ['Romance', 'Drama'],
+      );
+    });
+
+    test('collects attribute values when requested', () {
+      final doc = html_parser.parse('''
+        <html><body>
+          <span data-tag="Action"></span>
+          <span data-tag="Adventure"></span>
+        </body></html>
+      ''');
+
+      expect(selectors.extractAll(doc.body!, 'span@data-tag'),
+          ['Action', 'Adventure']);
+    });
+
+    test('returns an empty list when nothing matches', () {
+      final doc = html_parser.parse('<html><body><a>X</a></body></html>');
+
+      expect(selectors.extractAll(doc.body!, '.missing a@text'), isEmpty);
     });
   });
 

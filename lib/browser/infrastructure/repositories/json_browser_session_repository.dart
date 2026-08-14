@@ -64,8 +64,19 @@ class JsonBrowserSessionRepository implements BrowserSessionRepositoryInterface 
     final file = await _fileHandle();
     final all = await _readAll();
     all[origin] = cookies;
+    _pruneExpired(all);
     await file.parent.create(recursive: true);
     await file.writeAsString(jsonEncode(_encodeAll(all)));
+  }
+
+  /// Drops expired dated cookies across every stored origin so the persisted
+  /// session file doesn't accumulate dead entries (they are re-filtered on
+  /// load too, but pruning here keeps the file from growing stale forever).
+  void _pruneExpired(Map<String, List<BrowserSessionCookie>> all) {
+    all.removeWhere((_, cookies) {
+      cookies.removeWhere((c) => c.isExpired);
+      return cookies.isEmpty;
+    });
   }
 
   Future<Map<String, List<BrowserSessionCookie>>> _readAll() async {

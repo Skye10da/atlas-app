@@ -50,9 +50,29 @@ class StealthTransport implements Transport {
   }
 
   @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async {
+    await _throttle();
+    return inner.fetchHtmlPost(url, headers: _decorate(headers), form: form);
+  }
+
+  @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
     await _throttle();
     return inner.fetchJson(url, headers: _decorate(headers));
+  }
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async {
+    await _throttle();
+    return inner.fetchJsonPost(url, headers: _decorate(headers), jsonBody: jsonBody);
   }
 
   @override

@@ -14,6 +14,20 @@ class CachedTransport implements Transport {
   String _key(Uri url, Map<String, String>? headers) =>
       '$url#${headers ?? const {}}';
 
+  String _postKey(
+    Uri url,
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  ) =>
+      '$url#${headers ?? const {}}#${form ?? const {}}';
+
+  String _jsonPostKey(
+    Uri url,
+    Map<String, String>? headers,
+    Object? jsonBody,
+  ) =>
+      '$url#${headers ?? const {}}#${jsonBody ?? const {}}';
+
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) async {
     final key = _key(url, headers);
@@ -25,11 +39,40 @@ class CachedTransport implements Transport {
   }
 
   @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async {
+    final key = _postKey(url, headers, form);
+    final cached = _html[key];
+    if (cached != null) return cached;
+    final value = await _inner.fetchHtmlPost(url, headers: headers, form: form);
+    _html[key] = value;
+    return value;
+  }
+
+  @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
     final key = _key(url, headers);
     final cached = _json[key];
     if (cached != null) return cached;
     final value = await _inner.fetchJson(url, headers: headers);
+    _json[key] = value;
+    return value;
+  }
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async {
+    final key = _jsonPostKey(url, headers, jsonBody);
+    final cached = _json[key];
+    if (cached != null) return cached;
+    final value =
+        await _inner.fetchJsonPost(url, headers: headers, jsonBody: jsonBody);
     _json[key] = value;
     return value;
   }

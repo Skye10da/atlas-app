@@ -62,3 +62,11 @@ bool looksLikeEpubUrl(String url) {
   final path = Uri.tryParse(url)?.path ?? url;
   return path.toLowerCase().endsWith('.epub');
 }
+
+/// Whether [url] points at a PDF document, by extension. Browser taps on
+/// `.pdf` files are intercepted into the download/import flow instead of an
+/// in-page navigation.
+bool looksLikePdfUrl(String url) {
+  final path = Uri.tryParse(url)?.path ?? url;
+  return path.toLowerCase().endsWith('.pdf');
+}

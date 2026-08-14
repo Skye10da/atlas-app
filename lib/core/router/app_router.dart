@@ -17,6 +17,10 @@ import 'package:atlas_app/settings/presentation/screens/settings_screen.dart';
 abstract final class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
+  /// The root navigator — pushes here appear over the shell branches (reader,
+  /// detail pages) and over root-level routes alike.
+  static GlobalKey<NavigatorState> get rootNavigatorKey => _rootNavigatorKey;
+
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/library',

@@ -1,0 +1,36 @@
+{
+  "search": {
+    "resultItem": "#loop-content .row.c-tabs-item__content",
+    "title": ".tab-summary .post-title h3 a@text",
+    "detailUrl": ".tab-summary .post-title h3 a@href",
+    "coverUrl": ".tab-thumb img@src",
+    "extraQueryParams": { "post_type": "wp-manga" }
+  },
+  "chapterList": {
+    "item": "ul.main li.wp-manga-chapter",
+    "title": "a@text",
+    "url": "a@href",
+    "ajaxPath": "/wp-admin/admin-ajax.php",
+    "ajaxArchive": {
+      "item": "li.wp-manga-chapter",
+      "title": "a@text",
+      "url": "a@href",
+      "novelIdSelector": "#manga-chapters-holder@data-id|#madara-chapters-holder@data-id",
+      "method": "POST",
+      "form": { "action": "manga_get_chapters", "manga": "{novelId}" },
+      "responseField": "data.content",
+      "ajaxBase": "base"
+    },
+    "sortByChapterNumber": true
+  },
+  "chapterContent": {
+    "container": "div.reading-content",
+    "title": ".entry-header .entry-title"
+  },
+  "metadata": {
+    "author": { "selector": ".summary_content .manga-author a|.post-content_item.mg_author .summary-content a" },
+    "genres": { "selector": ".summary_content .genres-content a|.post-content_item.mg_genres .summary-content a" },
+    "status": { "selector": ".summary_content .manga-status|.post-content_item.mg_status .summary-content" },
+    "description": { "selector": ".info-block.manga-excerpt .excerpt-content p|.post-content_item.mg_summary .summary-content" }
+  }
+}

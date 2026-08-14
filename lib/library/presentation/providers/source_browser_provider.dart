@@ -4,6 +4,7 @@ import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.da
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 
 final searchableSourcesProvider = Provider<List<SearchableSource>>((ref) {
+  ref.watch(pluginSourcesProvider);
   final registry = ref.watch(sourceRegistryProvider);
   return registry.searchable;
 });

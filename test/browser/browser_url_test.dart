@@ -98,4 +98,19 @@ void main() {
       expect(looksLikeEpubUrl('https://example.com/file.txt'), isFalse);
     });
   });
+
+  group('looksLikePdfUrl', () {
+    test('true for .pdf paths', () {
+      expect(
+        looksLikePdfUrl('https://example.com/books/download.pdf'),
+        isTrue,
+      );
+      expect(looksLikePdfUrl('https://example.com/b.PDF?token=abc'), isTrue);
+    });
+
+    test('false for non-pdf paths', () {
+      expect(looksLikePdfUrl('https://example.com/book/123'), isFalse);
+      expect(looksLikePdfUrl('https://example.com/file.epub'), isFalse);
+    });
+  });
 }

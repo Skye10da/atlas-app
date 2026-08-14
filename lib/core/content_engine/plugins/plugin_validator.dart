@@ -283,15 +283,18 @@ class PluginValidator {
       }
       final htmlFile =
           File(p.join(pluginDir.path, 'tests', 'fixtures', '$fixtureName.html'));
-      if (!await htmlFile.exists()) {
+      final jsonFile =
+          File(p.join(pluginDir.path, 'tests', 'fixtures', '$fixtureName.json'));
+      if (!await htmlFile.exists() && !await jsonFile.exists()) {
         issues.add(PluginValidationIssue(
           pluginId: id,
           category: 'fixture',
-          message: 'missing tests/fixtures/$fixtureName.html',
+          message: 'missing tests/fixtures/$fixtureName.html '
+              '(or .json for API-driven chapter fixtures)',
         ));
         continue;
       }
-      issues.addAll(await _runFixture(
+issues.addAll(await _runFixture(
         pluginDir,
         id,
         manifest,
@@ -315,8 +318,40 @@ class PluginValidator {
     Map<String, Object?> spec,
     File htmlFile,
   ) async {
-    final transport = OfflineTransport()
-      ..addHtml(url, await htmlFile.readAsString());
+    final jsonFile =
+        File(p.join(pluginDir.path, 'tests', 'fixtures', '$fixtureName.json'));
+    final transport = OfflineTransport();
+    if (await htmlFile.exists()) {
+      transport.addHtml(url, await htmlFile.readAsString());
+    }
+    if (await jsonFile.exists()) {
+      final postUrl = spec['postUrl'];
+      if (postUrl is! String || postUrl.isEmpty) {
+        return [
+          PluginValidationIssue(
+            pluginId: id,
+            category: 'fixture',
+            message: 'fixture "$fixtureName": tests/fixtures/$fixtureName.json '
+                'is present, so expected.json must declare a "postUrl" '
+                '(the API endpoint the template POSTs to)',
+          ),
+        ];
+      }
+      Object? decoded;
+      try {
+        decoded = jsonDecode(await jsonFile.readAsString());
+      } on Object catch (e) {
+        return [
+          PluginValidationIssue(
+            pluginId: id,
+            category: 'fixture',
+            message: 'fixture "$fixtureName": '
+                'tests/fixtures/$fixtureName.json does not parse: $e',
+          ),
+        ];
+      }
+      transport.addPostJson(postUrl, decoded);
+    }
     final context = PluginContext(
       plugin: manifest,
       transport: transport,

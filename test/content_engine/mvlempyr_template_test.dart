@@ -295,6 +295,24 @@ class _PagedPostsTransport implements Transport {
   }
 
   @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async {
+    throw TransportException('No fixture for $url');
+  }
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async {
+    throw TransportException('No fixture for $url');
+  }
+
+  @override
   Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {
     throw TransportException('No fixture for $url');
   }

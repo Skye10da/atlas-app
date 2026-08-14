@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:html/dom.dart';
@@ -88,11 +89,13 @@ class HtmlTemplate implements Template {
   }
 
   /// Pulls the complete chapter list from `chapterList.ajaxPath` when
-  /// configured: the novel id is read off the novel page, then
-  /// `<baseUrl><ajaxPath>?novelId=<id>` is fetched and parsed. Returns null
-  /// when the archive isn't configured, the novel id is missing, the request
-  /// fails, or nothing usable is parsed — so the caller falls back to walking
-  /// the paginated index.
+  /// configured. `GET` archives resolve the path against the plugin base URL
+  /// and key on `?novelId=<id>`; `POST` archives (Madara/WordPress-manga) send
+  /// a form body whose `{novelId}` placeholder is filled from the novel page,
+  /// resolving the path against the base URL or the novel page per
+  /// `ajaxArchive.ajaxBase`. Returns null when the archive isn't configured,
+  /// the novel id is missing, the request fails, or nothing usable is parsed —
+  /// so the caller falls back to walking the paginated index.
   Future<List<ChapterRef>?> _fetchAjaxArchive(
     PluginContext context,
     SelectorSet selectors,
@@ -109,29 +112,46 @@ class HtmlTemplate implements Template {
       Uri.parse(novelUrl),
       headers: headers,
     );
-    final novelId = parser
-        .parse(novelHtml)
-        .querySelector(archive?.novelIdSelector ?? '[data-novel-id]')
-        ?.attributes['data-novel-id'];
+    final novelId = selectors.extract(
+      parser.parse(novelHtml).documentElement!,
+      archive?.novelIdSelector ?? '[data-novel-id]@data-novel-id',
+    );
     if (novelId == null || novelId.isEmpty) return null;
 
-    final uri = Uri.parse(context.plugin.baseUrl).replace(
-      path: ajaxPath.startsWith('/') ? ajaxPath : '/$ajaxPath',
-      queryParameters: {'novelId': novelId},
-    );
+    final path = ajaxPath.startsWith('/') ? ajaxPath : '/$ajaxPath';
+    final isPost = (archive?.method ?? 'GET') == 'POST';
     final String html;
     try {
-      html = await context.transport.fetchHtml(uri, headers: headers);
+      if (isPost) {
+        final form = {
+          for (final entry in (archive?.form ?? const {}).entries)
+            entry.key: entry.value.replaceAll('{novelId}', novelId),
+        };
+        final target = (archive?.ajaxBase == 'novel')
+            ? Uri.parse(novelUrl)
+                .replace(path: _appendPath(Uri.parse(novelUrl).path, path))
+            : base.replace(path: _appendPath(base.path, path));
+        html =
+            await context.transport.fetchHtmlPost(target, headers: headers, form: form);
+      } else {
+        final uri = base.replace(
+          path: _appendPath(base.path, path),
+          queryParameters: {'novelId': novelId},
+        );
+        html = await context.transport.fetchHtml(uri, headers: headers);
+      }
     } on Object {
       return null;
     }
+
 
     final refs = <ChapterRef>[];
     final seen = <String>{};
     final itemSelector = archive?.item ?? chapterList.item;
     final titleSpec = archive?.title ?? chapterList.title;
     final urlSpec = archive?.url ?? chapterList.url;
-    for (final item in parser.parse(html).querySelectorAll(itemSelector)) {
+    for (final item in parser.parse(_archiveHtml(html, archive?.responseField))
+        .querySelectorAll(itemSelector)) {
       final title = selectors.extract(item, titleSpec);
       final rawUrl = selectors.extract(item, urlSpec);
       if (title == null || title.isEmpty || rawUrl == null || rawUrl.isEmpty) {
@@ -142,6 +162,36 @@ class HtmlTemplate implements Template {
       refs.add(ChapterRef(title: title, url: url));
     }
     return refs.isEmpty ? null : refs;
+  }
+
+  /// Unwraps an archive response: plain HTML passes through; a JSON response
+  /// configured with [AjaxArchiveSelectors.responseField] (e.g. `data.content`)
+  /// has that dotted path extracted. Falls back to the raw body when the field
+  /// can't be resolved so the caller degrades to the paginated walk.
+  String _archiveHtml(String raw, String? responseField) {
+    if (responseField == null || responseField.isEmpty) return raw;
+    try {
+      Object? node = jsonDecode(raw);
+      for (final part in responseField.split('.')) {
+        if (node is Map) {
+          node = node[part];
+        } else {
+          return raw;
+        }
+      }
+      return node is String ? node : raw;
+    } on Object {
+      return raw;
+    }
+  }
+
+  /// Appends [child] (normalized with a leading slash) onto [dir], so a
+  /// novel-relative ajax endpoint keeps the permalink prefix: a novel at
+  /// `/novel/slug` with path `/ajax/chapters` resolves to
+  /// `/novel/slug/ajax/chapters` rather than the site root.
+  String _appendPath(String dir, String child) {
+    final d = dir.endsWith('/') ? dir.substring(0, dir.length - 1) : dir;
+    return '$d$child';
   }
 
   /// Walks the paginated chapter index (`?pageParam=N`) from page 1, stopping
@@ -342,10 +392,13 @@ class HtmlTemplate implements Template {
       metaTag('og:description'),
     );
 
-    final coverUrl = _firstNonEmpty(
-      _fieldValue(doc, metadata?.coverUrl, selectors),
-      metaTag('og:image'),
-      metaTag('twitter:image'),
+    final coverUrl = _resolveCoverUrl(
+      _firstNonEmpty(
+        _fieldValue(doc, metadata?.coverUrl, selectors),
+        metaTag('og:image'),
+        metaTag('twitter:image'),
+      ),
+      context.plugin.baseUrl,
     );
 
     var genres = _genresOf(doc, metadata?.genres, selectors);
@@ -388,19 +441,32 @@ class HtmlTemplate implements Template {
     return null;
   }
 
+  /// Resolves a cover image URL against the plugin base when it is relative,
+  /// since some engines (e.g. NovelFull) serve `src` as `/uploads/...`.
+  String? _resolveCoverUrl(String? raw, String baseUrl) {
+    if (raw == null || raw.isEmpty) return raw;
+    final uri = Uri.tryParse(raw);
+    if (uri == null || uri.hasScheme) return raw;
+    return Uri.parse(baseUrl).resolve(raw).toString();
+  }
+
   List<String> _genresOf(Document doc, MetadataField? field, SelectorSet? selectors) {
     if (field is InfoRowMetadataField && field.links) {
       return _infoLinks(doc, field);
     }
     if (field is CssMetadataField && selectors != null) {
-      final value = selectors.extract(doc.documentElement!, field.selector);
-      if (value != null && value.trim().isNotEmpty) {
-        return value
-            .split(',')
-            .map((g) => g.trim())
-            .where((g) => g.isNotEmpty)
-            .toList();
+      final genres = <String>[];
+      for (final value in selectors.extractAll(doc.documentElement!, field.selector)) {
+        // Covers comma-separated values (NovelFull) and per-`<a>` genres
+        // (Madara) alike.
+        genres.addAll(
+          value
+              .split(',')
+              .map((g) => g.trim())
+              .where((g) => g.isNotEmpty),
+        );
       }
+      return genres;
     }
     return const [];
   }

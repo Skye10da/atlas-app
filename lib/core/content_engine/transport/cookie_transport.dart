@@ -81,8 +81,34 @@ class CookieTransport implements Transport {
   }
 
   @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async {
+    return inner.fetchHtmlPost(
+      url,
+      headers: await _augment(url, headers),
+      form: form,
+    );
+  }
+
+  @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
     return inner.fetchJson(url, headers: await _augment(url, headers));
+  }
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async {
+    return inner.fetchJsonPost(
+      url,
+      headers: await _augment(url, headers),
+      jsonBody: jsonBody,
+    );
   }
 
   @override

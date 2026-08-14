@@ -20,6 +20,8 @@ import 'package:atlas_app/library/presentation/widgets/novel/synopsis_card.dart'
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
+import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
 
 class NovelDetailsScreen extends ConsumerStatefulWidget {
   const NovelDetailsScreen({super.key, required this.bookId});
@@ -75,6 +77,11 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
         }
 
         final book = bookData.value;
+        final isWtrLab = isWtrLabSource(
+          sourceUrl: book.sourceUrl,
+          sourceName: book.sourceName,
+        );
+        final wtrRawId = isWtrLab ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl) : null;
 
         return Scaffold(
           body: CustomScrollView(
@@ -100,6 +107,10 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: AppSpacing.sm),
+                    if (wtrRawId != null)
+                      WtrTranslationSelector(rawId: wtrRawId),
+                    if (wtrRawId != null)
+                      const SizedBox(height: AppSpacing.sm),
                     ContinueReadingCard(book: book, onReturn: _refreshBook),
                     const SizedBox(height: AppSpacing.sm),
                     GenreTagRow(book: book),

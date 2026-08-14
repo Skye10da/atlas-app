@@ -51,12 +51,21 @@ class SearchSelectors {
 /// no extra config. NovelFull's legacy `ajax-chapter-option` endpoint instead
 /// replies with a bare `<select>` of `<option value="/slug/chapter-N-...">`,
 /// which is declared here (`item: "select > option[value]"`, `url: "@value"`).
+///
+/// Madara-style WordPress sites go a step further: the archive is a form POST
+/// (`method: "POST"`, `form`) whose response wraps the `<li>` list in JSON
+/// (`responseField: "data.content"`), keyed by the novel id held on a `data-*`
+/// attribute rather than in the query string (`novelIdSelector`).
 class AjaxArchiveSelectors {
   const AjaxArchiveSelectors({
     this.item,
     this.title,
     this.url,
-    this.novelIdSelector = '[data-novel-id]',
+    this.novelIdSelector = '[data-novel-id]@data-novel-id',
+    this.method = 'GET',
+    this.form = const {},
+    this.responseField,
+    this.ajaxBase = 'base',
   });
 
   factory AjaxArchiveSelectors.fromJson(Map<String, Object?> json) =>
@@ -64,17 +73,47 @@ class AjaxArchiveSelectors {
         item: json['item'] as String?,
         title: json['title'] as String?,
         url: json['url'] as String?,
-        novelIdSelector:
-            (json['novelIdSelector'] as String?) ?? '[data-novel-id]',
+        novelIdSelector: (json['novelIdSelector'] as String?) ??
+            '[data-novel-id]@data-novel-id',
+        method: (json['method'] as String?)?.toUpperCase() ?? 'GET',
+        form: json['form'] is Map
+            ? (json['form'] as Map).map((k, v) => MapEntry('$k', '$v'))
+            : const {},
+        responseField: json['responseField'] as String?,
+        ajaxBase: (json['ajaxBase'] as String?) ?? 'base',
       );
 
   final String? item;
   final String? title;
   final String? url;
 
-  /// Selector for the element on the novel page carrying the novel id used to
-  /// key the archive request (`?novelId=...`).
+  /// Element + attribute carrying the novel id used to key the archive
+  /// request — an extraction spec, so `#manga-chapters-holder@data-id` reads
+  /// the `data-id` attribute of that element. `|` fallbacks work here too,
+  /// e.g. `#manga-chapters-holder@data-id|#madara-chapters-holder@data-id`.
+  /// In `GET` mode the value becomes the `?novelId=` query parameter; in
+  /// `POST` mode it replaces the `{novelId}` placeholder in [form].
   final String novelIdSelector;
+
+  /// `GET` (default) or `POST`. POST requests are sent as
+  /// `application/x-www-form-urlencoded` to `<ajaxBase><ajaxPath>` with [form]
+  /// as the body.
+  final String method;
+
+  /// Form body for `POST` archives. The value `{novelId}` is replaced with the
+  /// extracted novel id, so Madara's `admin-ajax.php` contract is declared as
+  /// `{"action": "manga_get_chapters", "manga": "{novelId}"}`.
+  final Map<String, String> form;
+
+  /// Dotted path into a JSON archive response that wraps the HTML fragment,
+  /// e.g. `data.content` for `{"success": true, "data": {"content": "<li>..."}}`.
+  /// Null means the response is plain HTML.
+  final String? responseField;
+
+  /// Which URL the archive path resolves against: `base` (the plugin base URL,
+  /// e.g. `/wp-admin/admin-ajax.php`) or `novel` (the novel page itself, e.g.
+  /// Madara's legacy `/ajax/chapters` endpoint under the novel slug).
+  final String ajaxBase;
 }
 
 class ChapterListSelectors {
@@ -362,6 +401,39 @@ class SelectorSet {
       if (value != null && value.isNotEmpty) return value;
     }
     return null;
+  }
+
+  /// Like [extract] but collects the value of *every* matching element across
+  /// the fallback alternatives, deduplicated. Used for multi-value metadata
+  /// such as Madara genre links, where each `<a>` in
+  /// `.summary_content .genres-content` is one genre and there is no comma
+  /// separator to split on.
+  List<String> extractAll(Element scope, String spec) {
+    final values = <String>{};
+    for (final alternative in _splitAlternatives(spec)) {
+      final trimmed = alternative.trim();
+      if (trimmed == '@text') {
+        final value = scope.text.trim();
+        if (value.isNotEmpty) values.add(value);
+        continue;
+      }
+      final at = trimmed.lastIndexOf('@');
+      final String selector;
+      final String attr;
+      if (at >= 0) {
+        selector = trimmed.substring(0, at);
+        attr = trimmed.substring(at + 1);
+      } else {
+        selector = trimmed;
+        attr = 'text';
+      }
+      final elements = at == 0 ? [scope] : scope.querySelectorAll(selector);
+      for (final el in elements) {
+        final value = (attr == 'text' ? el.text : el.attributes[attr])?.trim();
+        if (value != null && value.isNotEmpty) values.add(value);
+      }
+    }
+    return values.toList();
   }
 
   /// Splits a selector spec on `|`, ignoring pipes inside `[...]` attribute

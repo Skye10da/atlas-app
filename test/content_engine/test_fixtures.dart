@@ -13,6 +13,8 @@ class FakeTransport implements Transport {
   final Map<String, Object?> jsonByPath = {};
   final Map<String, String> htmlByUrl = {};
   final Map<String, Object?> jsonByUrl = {};
+  final Map<String, String> postHtmlByUrl = {};
+  final Map<String, Object?> postJsonByUrl = {};
   int htmlCalls = 0;
   int jsonCalls = 0;
 
@@ -26,6 +28,15 @@ class FakeTransport implements Transport {
     jsonByPath[Uri.parse(url).path] = value;
   }
 
+  /// Registers the body a form POST to [url] returns. Keyed by URL only; the
+  /// exact form payload is whatever the template under test is configured to
+  /// send.
+  void addPostHtml(String url, String body) => postHtmlByUrl[url] = body;
+
+  /// Registers the body a JSON POST to [url] returns. Keyed by URL only; the
+  /// exact JSON payload is whatever the template under test sends.
+  void addPostJson(String url, Object? value) => postJsonByUrl[url] = value;
+
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) async {
     htmlCalls++;
@@ -35,10 +46,34 @@ class FakeTransport implements Transport {
   }
 
   @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async {
+    htmlCalls++;
+    final body = postHtmlByUrl[url.toString()];
+    if (body == null) throw TransportException('No fixture for POST $url');
+    return body;
+  }
+
+  @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
     jsonCalls++;
     final value = jsonByUrl[url.toString()] ?? jsonByPath[url.path];
     if (value == null) throw TransportException('No fixture for $url');
+    return value;
+  }
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async {
+    jsonCalls++;
+    final value = postJsonByUrl[url.toString()];
+    if (value == null) throw TransportException('No fixture for POST $url');
     return value;
   }
 

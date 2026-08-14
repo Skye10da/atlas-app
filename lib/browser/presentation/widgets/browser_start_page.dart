@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.dart';
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
+import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/presentation/providers/source_browser_provider.dart';
 
@@ -62,19 +65,40 @@ class BrowserStartPage extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.lg),
           for (final source in sources) ...[
-            if (_sites[source.sourceName] case final meta?)
-              _StartSiteTile(
-                title: source.sourceName,
-                meta: meta,
-                onOpen: () => onOpenSite(meta.homeUrl),
-                onSearch: () => context.push(
-                  '/sources/${Uri.encodeComponent(source.sourceName)}',
-                ),
-              ),
+            _buildSourceTile(context, source),
             const SizedBox(height: AppSpacing.sm),
           ],
         ],
       ),
+    );
+  }
+
+  /// Builds a tile for [source], using the curated meta for built-in book
+  /// sources and a derived fallback (icon/description/home URL from the
+  /// plugin manifest) for every other registered source.
+  Widget _buildSourceTile(BuildContext context, SearchableSource source) {
+    final meta = _metaFor(source);
+    final homeUrl = meta.homeUrl;
+    return _StartSiteTile(
+      title: source.sourceName,
+      meta: meta,
+      onOpen: homeUrl == null
+          ? null
+          : () => onOpenSite(homeUrl),
+      onSearch: () => context.push(
+        '/sources/${Uri.encodeComponent(source.sourceName)}',
+      ),
+    );
+  }
+
+  static _StartSiteMeta _metaFor(SearchableSource source) {
+    final builtIn = _sites[source.sourceName];
+    if (builtIn != null) return builtIn;
+    final isNovel = source.contentCategory == ContentCategory.novel;
+    return _StartSiteMeta(
+      icon: isNovel ? Icons.menu_book_rounded : Icons.public_rounded,
+      description: isNovel ? 'Web novel source' : 'Explore new books',
+      homeUrl: source is PluginSource ? source.manifest.baseUrl : null,
     );
   }
 }
@@ -83,12 +107,12 @@ class _StartSiteMeta {
   const _StartSiteMeta({
     required this.icon,
     required this.description,
-    required this.homeUrl,
+    this.homeUrl,
   });
 
   final IconData icon;
   final String description;
-  final String homeUrl;
+  final String? homeUrl;
 }
 
 class _StartSiteTile extends StatelessWidget {
@@ -101,7 +125,7 @@ class _StartSiteTile extends StatelessWidget {
 
   final String title;
   final _StartSiteMeta meta;
-  final VoidCallback onOpen;
+  final VoidCallback? onOpen;
   final VoidCallback onSearch;
 
   @override
@@ -112,7 +136,7 @@ class _StartSiteTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
-        onTap: onOpen,
+        onTap: onOpen ?? onSearch,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(

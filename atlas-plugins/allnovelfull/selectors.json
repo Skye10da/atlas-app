@@ -1,0 +1,35 @@
+{
+  "search": {
+    "path": "/search",
+    "queryParam": "keyword",
+    "resultItem": ".row.top-item",
+    "title": ".s-title a@text",
+    "detailUrl": ".s-title a@href"
+  },
+  "chapterList": {
+    "ajaxPath": "/ajax-chapter-option",
+    "ajaxArchive": {
+      "item": "select > option[value]",
+      "title": "@text",
+      "url": "@value"
+    },
+    "item": "#list-chapter li",
+    "title": ".chapter-text@text",
+    "url": "a@href",
+    "pageParam": "page",
+    "paginationSelector": "ul.pagination, #barcon",
+    "totalPagesSelector": "#list-chapter, #truyen",
+    "sortByChapterNumber": true
+  },
+  "chapterContent": {
+    "container": "#chapter-content",
+    "title": ".chapter-title"
+  },
+  "metadata": {
+    "author": { "label": "Author:" },
+    "description": "#novel-summary-inner p|.desc-text p",
+    "genres": { "labels": ["Genres:", "Genre:"], "links": true },
+    "status": { "label": "Status:" },
+    "coverUrl": ".book img@src"
+  }
+}

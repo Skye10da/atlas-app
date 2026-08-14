@@ -10,6 +10,7 @@ import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/infrastructure/repositories/drift_reader_repository.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_exceptions.dart';
 
 class ChapterDownloadService {
   ChapterDownloadService({
@@ -45,6 +46,10 @@ class ChapterDownloadService {
       }
 
       return readerRepo.updateChapterContent(bookId, chapterIndex, fetched.content!);
+    } on WtrAuthException catch (e) {
+      // WTR-Lab sign-in / expired-session problems are expected user flows, not
+      // generic failures — surface the actionable message directly.
+      return Failure(e);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to download chapter', e), st);
     }

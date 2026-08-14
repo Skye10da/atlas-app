@@ -254,6 +254,147 @@ void main() {
       ]);
     });
 
+    test('POSTs the archive with the novel id substituted into the form',
+        () async {
+      final transport = FakeTransport()
+        ..addHtml('https://example.com/novel/x', '''
+        <html><body>
+        <div id="manga-chapters-holder" data-id="591"></div>
+        <ul class="cl"><li><a href="/novel/x/ch/9">Chapter 9</a></li></ul>
+        </body></html>''')
+        ..addPostHtml('https://example.com/wp-admin/admin-ajax.php',
+            '{"success": true, "data": {"content": "<li class=\\"wp-manga-chapter\\"><a href=\\"/novel/x/chapter-1-x/\\">Chapter 1</a></li><li class=\\"wp-manga-chapter\\"><a href=\\"/novel/x/chapter-2-x/\\">Chapter 2</a></li>"}}');
+      const selectors = SelectorSet(chapterList: ChapterListSelectors(
+        item: 'ul.cl li',
+        title: '@text',
+        url: 'a@href',
+        ajaxPath: '/wp-admin/admin-ajax.php',
+        ajaxArchive: AjaxArchiveSelectors(
+          item: 'li.wp-manga-chapter',
+          title: 'a@text',
+          url: 'a@href',
+          novelIdSelector: '#manga-chapters-holder@data-id',
+          method: 'POST',
+          form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
+          responseField: 'data.content',
+        ),
+      ));
+      final context = buildContext(transport: transport, selectors: selectors);
+
+      final refs = await const HtmlTemplate().chapterList(
+        context,
+        'https://example.com/novel/x',
+      );
+
+      expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2']);
+      expect(refs.map((r) => r.url).toList(), [
+        'https://example.com/novel/x/chapter-1-x/',
+        'https://example.com/novel/x/chapter-2-x/',
+      ]);
+    });
+
+    test('resolves a novel-relative POST archive against the novel page',
+        () async {
+      final transport = FakeTransport()
+        ..addHtml('https://example.com/series/x', '''
+        <html><body>
+        <div id="madara-chapters-holder" data-id="7"></div>
+        <ul class="cl"><li><a href="/series/x/ch/2">Chapter 2</a></li></ul>
+        </body></html>''')
+        ..addPostHtml(
+            'https://example.com/series/x/ajax/chapters', '''
+        <html><body><li><a href="/series/x/ch/1">Chapter 1</a></li></body></html>''');
+      const selectors = SelectorSet(chapterList: ChapterListSelectors(
+        item: 'ul.cl li',
+        title: '@text',
+        url: 'a@href',
+        ajaxPath: '/ajax/chapters',
+        ajaxArchive: AjaxArchiveSelectors(
+          item: 'li',
+          title: 'a@text',
+          url: 'a@href',
+          novelIdSelector: '#madara-chapters-holder@data-id',
+          method: 'POST',
+          form: {'novelId': '{novelId}'},
+          ajaxBase: 'novel',
+        ),
+      ));
+      final context = buildContext(transport: transport, selectors: selectors);
+
+      final refs = await const HtmlTemplate().chapterList(
+        context,
+        'https://example.com/series/x',
+      );
+
+      expect(refs.map((r) => r.title).toList(), ['Chapter 1']);
+    });
+
+    test('falls back to the paginated walk on a POST archive failure',
+        () async {
+      final transport = FakeTransport()
+        ..addHtml('https://example.com/novel/x', '''
+        <html><body>
+        <div id="manga-chapters-holder" data-id="591"></div>
+        <ul class="cl"><li><a href="/novel/x/ch/1">Chapter 1</a></li></ul>
+        </body></html>''');
+      const selectors = SelectorSet(chapterList: ChapterListSelectors(
+        item: 'ul.cl li',
+        title: '@text',
+        url: 'a@href',
+        ajaxPath: '/wp-admin/admin-ajax.php',
+        ajaxArchive: AjaxArchiveSelectors(
+          item: 'li.wp-manga-chapter',
+          title: 'a@text',
+          url: 'a@href',
+          novelIdSelector: '#manga-chapters-holder@data-id',
+          method: 'POST',
+          form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
+          responseField: 'data.content',
+        ),
+      ));
+      final context = buildContext(transport: transport, selectors: selectors);
+
+      final refs = await const HtmlTemplate().chapterList(
+        context,
+        'https://example.com/novel/x',
+      );
+
+      expect(refs.map((r) => r.title).toList(), ['Chapter 1']);
+    });
+
+    test('returns the raw body when the JSON responseField cannot resolve',
+        () async {
+      final transport = FakeTransport()
+        ..addHtml('https://example.com/novel/x', '''
+        <html><body>
+        <div id="manga-chapters-holder" data-id="591"></div>
+        <ul class="cl"><li><a href="/novel/x/ch/9">Chapter 9</a></li></ul>
+        </body></html>''')
+        ..addPostHtml('https://example.com/wp-admin/admin-ajax.php',
+            'not-json-at-all');
+      const selectors = SelectorSet(chapterList: ChapterListSelectors(
+        item: 'ul.cl li',
+        title: '@text',
+        url: 'a@href',
+        ajaxPath: '/wp-admin/admin-ajax.php',
+        ajaxArchive: AjaxArchiveSelectors(
+          item: 'li.wp-manga-chapter a',
+          novelIdSelector: '#manga-chapters-holder@data-id',
+          method: 'POST',
+          form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
+          responseField: 'data.content',
+        ),
+      ));
+      final context = buildContext(transport: transport, selectors: selectors);
+
+      final refs = await const HtmlTemplate().chapterList(
+        context,
+        'https://example.com/novel/x',
+      );
+
+      expect(refs.map((r) => r.title).toList(), ['Chapter 9']);
+    });
+
     test('falls back to the paginated walk when the archive is unreachable',
         () async {
       final transport = FakeTransport()

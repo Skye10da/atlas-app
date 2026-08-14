@@ -18,7 +18,23 @@ class _FakeTransport implements Transport {
       throw UnimplementedError();
 
   @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async =>
       throw UnimplementedError();
 
   @override

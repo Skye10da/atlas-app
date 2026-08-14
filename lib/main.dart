@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:atlas_app/browser/presentation/widgets/app_session_refresh_bridge.dart';
 import 'package:atlas_app/browser/presentation/widgets/silent_web_view_host.dart';
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
@@ -16,6 +17,7 @@ import 'package:atlas_app/core/theme/app_theme.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
+import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
 
 final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -62,6 +64,9 @@ class AtlasApp extends ConsumerWidget {
               height: 1,
               child: SilentWebViewHost(),
             ),
+            // Installs the session re-verify driver (see
+            // `app_session_refresh_bridge.dart`); renders nothing itself.
+            const AppSessionRefreshBridge(),
           ],
         );
       },
@@ -75,6 +80,10 @@ class AtlasApp extends ConsumerWidget {
     ref.read(pluginSourcesProvider);
     ref.read(taskSchedulerProvider).start();
     ref.read(speechStartupProvider);
+    // Wires the platform-backed WTR-Lab runtime (SharedPreferences preference
+    // store + WebView-cookie session) and restores the persisted auth state so
+    // reading starts authenticated-aware.
+    await ref.read(wtrRuntimeProvider.future);
     await _initFileOpen(ref);
   }
 

@@ -1,0 +1,15 @@
+{
+  "novel": {
+    "url": "https://wtr-lab.com/en/novel/29058/charm-is-full-i-have-become-a-male-god-since-high-school",
+    "method": "metadata",
+    "title": "Charm is Full: I Have Become a Male God Since High School",
+    "textContains": ["Reborn in high school, Lu Yan activates his charm system"]
+  },
+  "chapter": {
+    "url": "https://wtr-lab.com/en/novel/29058/charm-is-full-i-have-become-a-male-god-since-high-school/chapter-639",
+    "method": "chapterContent",
+    "postUrl": "https://wtr-lab.com/api/reader/get",
+    "title": "Chapter 638: He wrote both of them!?",
+    "textContains": ["陆言没说话，拿起话筒", "大家安静一下", "鬼吹灯之龙中岳"]
+  }
+}

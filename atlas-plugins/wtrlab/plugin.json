@@ -1,0 +1,11 @@
+{
+  "id": "wtrlab",
+  "name": "WTR-LAB",
+  "sourceName": "WTR-LAB",
+  "version": "1.0.0",
+  "templateId": "wtrlab",
+  "transport": "http",
+  "baseUrl": "https://wtr-lab.com",
+  "language": "en",
+  "capabilities": ["search", "chapterList", "chapterContent", "cover"]
+}
