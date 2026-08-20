@@ -62,7 +62,15 @@ class HtmlTemplate implements Template {
     final html =
         await context.transport.fetchHtml(uri, headers: context.plugin.requestHeaders);
     final doc = parser.parse(html);
-    return selectors.applySearch(doc, baseUrl: context.plugin.baseUrl);
+    final raw = selectors.applySearch(doc, baseUrl: context.plugin.baseUrl);
+    return [
+      for (final r in raw)
+        SearchResult(
+          title: _cleanTitle(r.title, context),
+          url: r.url,
+          coverUrl: r.coverUrl,
+        ),
+    ];
   }
 
   @override
@@ -375,11 +383,14 @@ class HtmlTemplate implements Template {
         doc.querySelector('meta[property="$key"]')?.attributes['content']?.trim() ??
         doc.querySelector('meta[name="$key"]')?.attributes['content']?.trim();
 
-    final title = _firstNonEmpty(
-      _fieldValue(doc, metadata?.title, selectors),
-      metaTag('og:title'),
-      doc.querySelector('title')?.text.trim(),
-    ) ?? 'Untitled';
+    final title = _cleanTitle(
+      _firstNonEmpty(
+        _fieldValue(doc, metadata?.title, selectors),
+        metaTag('og:title'),
+        doc.querySelector('title')?.text.trim(),
+      ) ?? 'Untitled',
+      context,
+    );
 
     final author = _firstNonEmpty(
       _fieldValue(doc, metadata?.author, selectors),
@@ -496,6 +507,65 @@ class HtmlTemplate implements Template {
           .toList();
     }
     return const [];
+  }
+
+  /// Strips site-branding boilerplate from a title, e.g.
+  /// "Read Overlord (LN) novel online free - NOVGO.NET" -> "Overlord (LN)".
+  /// Only removes prefixes/suffixes when the title contains a known site
+  /// identifier or the "novel online free" marker, so legitimate titles with
+  /// " - " in them are preserved.
+  static String _cleanTitle(String raw, PluginContext context) {
+    var t = raw.trim();
+    if (t.isEmpty) return t;
+    t = t.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
+
+    final sites = <String>{
+      context.plugin.id,
+      context.plugin.sourceName,
+      context.plugin.name,
+    };
+    try {
+      final host = Uri.parse(context.plugin.baseUrl).host;
+      if (host.isNotEmpty) {
+        sites.add(host);
+        final noTld = host.split('.').first;
+        if (noTld.isNotEmpty && noTld != host) sites.add(noTld);
+      }
+    } catch (_) {}
+    sites.removeWhere((s) => s.isEmpty);
+
+    final sitePattern = sites.map(RegExp.escape).join('|');
+
+    final hasSiteSuffix = sitePattern.isNotEmpty &&
+        RegExp(r'(?:[-\u2013\u2014|]\s*(?:' + sitePattern +
+            r')|(?:\s+from\s+(?:' + sitePattern + r')))',
+                caseSensitive: false)
+            .hasMatch(t);
+    final isTemplated = hasSiteSuffix ||
+        RegExp(r'novel\s+online\s+free', caseSensitive: false).hasMatch(t);
+
+    if (isTemplated) {
+      t = t.replaceFirst(RegExp(r'^[Rr]ead\s+'), '').trim();
+    }
+
+    // Strip site suffixes BEFORE "novel online free" because the suffix
+    // follows it: "Read X novel online free - NOVGO.NET".
+    if (sitePattern.isNotEmpty) {
+      t = t.replaceFirst(
+          RegExp(r'\s+[-\u2013\u2014|]\s*(?:' + sitePattern + r')$',
+              caseSensitive: false),
+          '');
+      t = t.replaceFirst(
+          RegExp(r'\s+from\s+(?:' + sitePattern + r')$',
+              caseSensitive: false),
+          '');
+    }
+
+    t = t.replaceFirst(
+        RegExp(r'\s+novel\s+online\s+free$', caseSensitive: false), '');
+    t = t.trim();
+
+    return t.trim();
   }
 
   String? _firstNonEmpty(String? value, [String? second, String? third]) {

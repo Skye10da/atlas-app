@@ -2,22 +2,22 @@
   "plugins": [
     {
       "id": "allnovelfull",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "checksums": {
         "filters.json": "cde06f6f3f27684c67c845039b5e4c76e72ceb53a8ca8583cc25698e03277cee",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "d4d9379952fcbf1d08b2812e85dd7de411864ab05d09787d4c972d59a6b0c3de",
+        "plugin.json": "405511724a0fa1c285453bef4bc35acae35274c8296ff401c8caa0dd49030c86",
         "README.md": "48e8a85f22b6e6885a93960ab3749046880a82bb5a7dd97bc758d3c4c3b925d4",
         "selectors.json": "2a2a0b96a76d4fd2a6af8dd8a33276a213323f6be6e3c8ef2c7cbcaa15090390"
       }
     },
     {
       "id": "freewebnovel",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "checksums": {
         "filters.json": "4a312237b28ffef236812adc1efe40707ad624835a00dc24d96407b2f9f9a473",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "6f1c81fea15f37c0e734cae97eae1ad68dfe832e0e4e3714002db1543307c6fd",
+        "plugin.json": "4587d54a071d2c7b378e35438478b3e69f9a87f412dd2927a8a94b2b9bf43da3",
         "README.md": "e7e2d0a5c67e37477762d7f10c61f17b1d039b7e69e7707a40e6cea2c696d34f",
         "selectors.json": "662890eb9fe927efefde8e51323f1aed7e0be57afa40a03e083e4c8f7dbee09f"
       }
@@ -45,33 +45,33 @@
     },
     {
       "id": "noveldrama",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "checksums": {
         "filters.json": "b21723432315ca2074ff05d7121593912b25b1138201040b750fa7fe7bc10790",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "9eb20379b9d7601677b051b6d0cc2ef9dafcdc4329107105ae0cefd143a2a12b",
+        "plugin.json": "7b19a531ff655a5aa764e0cead76850d0f91244c611fd059441412749b9d11c2",
         "README.md": "428253c4151942e8c0cce19c63cc3e44d7580c3c8d8df670800eee12a2488b8b",
         "selectors.json": "1eb722af991e9d7534fdaa026bde792d6b3b81f4a12f63ffa0fccbcef8b11b73"
       }
     },
     {
       "id": "novelfull",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "checksums": {
         "filters.json": "0068034c35164fb0c3490f0afc18190ca12fbbc8730dcacc01714a6d197fc07d",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "1b25f922f765ec6f0c5700b5859bf19f5413715c5f7746da8fe5f91c8786e08b",
+        "plugin.json": "94ce516ad41070ca69ddba8b01c4e7e073e02da333341405fad2da99aa2b7628",
         "README.md": "417ae8afce8488bb45a872d7b34bb42614799411323ffe63bccfa562ee3a5b28",
         "selectors.json": "798749a181e010b8e93c7d0e482f07ee0fc1ff6e4139dd2d1f298d9b875f05f9"
       }
     },
     {
       "id": "readnovelfull",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "checksums": {
         "filters.json": "0068034c35164fb0c3490f0afc18190ca12fbbc8730dcacc01714a6d197fc07d",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "9075213cbf86e3b42590a3cceb6ec01cd73a8c9d1fb6dd6980525a42d12a7fb2",
+        "plugin.json": "9cfd27fb4e8e3b89d22c511670e9c829ccdcb4abc1473274f02b54b11f47f2ea",
         "README.md": "62a11357824671397268f28040fdceee2b6208ea1dad5107f6152e6f78ab11c1",
         "selectors.json": "1daca3f3aaaa6067f7c11b3aee4b4d7a560ccf1b23b6d170410463382fa6efae"
       }

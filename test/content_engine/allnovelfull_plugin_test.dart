@@ -113,6 +113,56 @@ const _novelPageNoOgTags = '''
     </div>
   </div>
 </div>
+  </body></html>''';
+
+const _novelPageNoTitleSelector = '''
+<html><head>
+<meta property="og:title" content="Read Overlord (LN) novel online free - NOVGO.NET">
+<meta property="og:image" content="$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg">
+<meta property="og:description" content="Experience the official release of Overlord (LN) online.">
+</head><body>
+<div class="col-xs-12 col-info-desc">
+  <div class="col-xs-12 col-sm-4 col-md-4 info-holder">
+    <div class="info">
+      <div><h3>Author:</h3><a href="/author/MARUYAMA+Kugane">MARUYAMA Kugane</a></div>
+      <div><h3>Genre:</h3><a href="/genre/Action">Action</a>, <a href="/genre/Fantasy">Fantasy</a></div>
+      <div><h3>Status:</h3><a href="/status/Completed">Completed</a></div>
+    </div>
+  </div>
+  <div class="col-xs-12 col-sm-8 col-md-8 desc">
+    <div class="desc-text">
+      <p>Experience the official release of Overlord (LN) online.</p>
+    </div>
+  </div>
+</div>
+</body></html>''';
+
+const _novelPageFromSiteTitle = '''
+<html><head>
+<meta property="og:title" content="Read Overlord (LN) from Novgo">
+<meta property="og:image" content="$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg">
+</head><body>
+<div class="col-xs-12 col-info-desc">
+  <div class="col-xs-12 col-sm-4 col-md-4 info-holder">
+    <div class="info">
+      <div><h3>Author:</h3><a href="/author/MARUYAMA+Kugane">MARUYAMA Kugane</a></div>
+      <div><h3>Status:</h3><a href="/status/Completed">Completed</a></div>
+    </div>
+  </div>
+  <div class="col-xs-12 col-sm-8 col-md-8 desc">
+    <div class="desc-text"><p>Description</p></div>
+  </div>
+</div>
+</body></html>''';
+
+const _searchPagePolluted = '''
+<html><body>
+<div class="row top-item">
+  <div class="s-title"><a href="$_novelUrl">Read Overlord (LN) novel online free from Novgo</a></h3></div>
+</div>
+<div class="row top-item">
+  <div class="s-title"><a href="$_base/another-ln.html">Read Another (LN) novel online free - NOVGO.NET</a></h3></div>
+</div>
 </body></html>''';
 
 class _FakeTransportRegistry extends TransportRegistry {
@@ -302,6 +352,43 @@ void main() {
           '$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg',
           reason: '.book img@src must resolve the relative URL');
       expect(novel.source, 'AllNovelFull');
+    });
+
+    test('title cleaner strips site branding when CSS selector misses',
+        () async {
+      final transport =
+          FakeTransport()..addHtml(_novelUrl, _novelPageNoTitleSelector);
+      final source = await repo(transport).buildSource('allnovelfull');
+
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      expect(novel.title, 'Overlord (LN)',
+          reason: '_cleanTitle must strip "Read ... novel online free - NOVGO.NET"');
+      expect(novel.author, 'MARUYAMA Kugane');
+    });
+
+    test('title cleaner strips "from SiteName" pattern', () async {
+      final transport =
+          FakeTransport()..addHtml(_novelUrl, _novelPageFromSiteTitle);
+      final source = await repo(transport).buildSource('allnovelfull');
+
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      expect(novel.title, 'Overlord (LN)',
+          reason: '_cleanTitle must strip "Read ... from Novgo"');
+    });
+
+    test('search titles are cleaned of site boilerplate', () async {
+      final transport = FakeTransport()
+        ..addHtml('$_base/search?keyword=overlord', _searchPagePolluted);
+      final source = await repo(transport).buildSource('allnovelfull');
+
+      final response =
+          await source.search(const SourceSearchQuery(term: 'overlord'));
+
+      expect(response.results, hasLength(2));
+      expect(response.results.first.title, 'Overlord (LN)');
+      expect(response.results[1].title, 'Another (LN)');
     });
   });
 }
