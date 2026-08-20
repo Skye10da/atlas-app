@@ -4,6 +4,7 @@ import 'package:atlas_app/core/design_system/atoms/app_chip.dart';
 import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/settings/infrastructure/repositories/font_download_repository.dart';
 
 class TextTab extends StatelessWidget {
   const TextTab({
@@ -20,10 +21,12 @@ class TextTab extends StatelessWidget {
     required this.onLineHeightChanged,
     required this.onLetterSpacingChanged,
     required this.onTextAlignmentChanged,
+    this.downloadedFamilies = const {},
   });
 
   final double fontSize;
   final String? fontFamily;
+
   /// Numeric reader body-text weight; `null` keeps the family default.
   final int? fontWeight;
   final double lineHeight;
@@ -35,6 +38,9 @@ class TextTab extends StatelessWidget {
   final ValueChanged<double> onLineHeightChanged;
   final ValueChanged<double> onLetterSpacingChanged;
   final ValueChanged<TextAlignment> onTextAlignmentChanged;
+
+  /// Families that have been downloaded and cached for offline use.
+  final Set<String> downloadedFamilies;
 
   static const _fontOptions = <String?>[
     null,
@@ -85,10 +91,17 @@ class TextTab extends StatelessWidget {
             children: List.generate(_fontOptions.length, (i) {
               final f = _fontOptions[i];
               final isSelected = fontFamily == f;
+              final needsDownload =
+                  f != null &&
+                  !FontDownloadRepository.bundledFamilies.contains(f) &&
+                  !downloadedFamilies.contains(f);
               return AppChip(
                 label: _fontLabels[i],
                 selected: isSelected,
                 onPressed: () => onFontFamilyChanged(f),
+                leading: needsDownload
+                    ? const Icon(Icons.cloud_download_outlined, size: 14)
+                    : null,
               );
             }),
           ),

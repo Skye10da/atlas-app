@@ -49,11 +49,16 @@ jobs:
       # release keystore via secrets and wire it into
       # android/app/build.gradle's signingConfigs.release.
       - run: flutter pub get
-      - run: flutter build apk --release
+      - run: flutter build apk --release --split-per-abi --split-debug-info=build/app/symbols --obfuscate
       - uses: actions/upload-artifact@v7
         with:
           name: android-release
           path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-symbols
+          path: build/app/symbols
           retention-days: 14
 
   build-windows:

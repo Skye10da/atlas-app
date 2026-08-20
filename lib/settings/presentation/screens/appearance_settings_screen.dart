@@ -6,6 +6,7 @@ import 'package:atlas_app/core/theme/app_brand.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/theme_preview_screen.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
+import 'package:atlas_app/settings/presentation/screens/font_manager_screen.dart';
 import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
 
 class AppearanceSettingsScreen extends ConsumerWidget {
@@ -74,7 +75,9 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                               color: brand.seed.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isSelected ? brand.seed : Colors.transparent,
+                                color: isSelected
+                                    ? brand.seed
+                                    : Colors.transparent,
                                 width: 2,
                               ),
                             ),
@@ -86,8 +89,12 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                                   brand.label,
                                   style: TextStyle(
                                     fontSize: 11,
-                                    fontWeight: isSelected ? FontWeight.w600 : null,
-                                    color: isSelected ? brand.seed : colors.onSurfaceVariant,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : null,
+                                    color: isSelected
+                                        ? brand.seed
+                                        : colors.onSurfaceVariant,
                                   ),
                                 ),
                               ],
@@ -114,13 +121,40 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                         final f = _systemFontOptions[i];
                         final isSelected = settings.systemFontFamily == f;
                         return ChoiceChip(
-                          label: Text(_systemFontLabels[i], style: const TextStyle(fontSize: 12)),
+                          label: Text(
+                            _systemFontLabels[i],
+                            style: const TextStyle(fontSize: 12),
+                          ),
                           selected: isSelected,
                           onSelected: (_) => notifier.setSystemFontFamily(f),
                         );
                       }),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.font_download_outlined),
+                  title: const Text(
+                    'Download Fonts',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    'Manage Google Fonts for the reader',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const FontManagerScreen(),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -134,27 +168,32 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
-                      children: [
-                        ('system', 'System'),
-                        ('light', 'Light'),
-                        ('dark', 'Dark'),
-                      ].map((entry) {
-                        final (value, label) = entry;
-                        final isSelected = switch (settings.themeMode) {
-                          ThemeMode.system => value == 'system',
-                          ThemeMode.light => value == 'light',
-                          ThemeMode.dark => value == 'dark',
-                        };
-                        return ChoiceChip(
-                          label: Text(label, style: const TextStyle(fontSize: 12)),
-                          selected: isSelected,
-                          onSelected: (_) => notifier.setThemeMode(switch (value) {
-                            'light' => ThemeMode.light,
-                            'dark' => ThemeMode.dark,
-                            _ => ThemeMode.system,
-                          }),
-                        );
-                      }).toList(),
+                      children:
+                          [
+                            ('system', 'System'),
+                            ('light', 'Light'),
+                            ('dark', 'Dark'),
+                          ].map((entry) {
+                            final (value, label) = entry;
+                            final isSelected = switch (settings.themeMode) {
+                              ThemeMode.system => value == 'system',
+                              ThemeMode.light => value == 'light',
+                              ThemeMode.dark => value == 'dark',
+                            };
+                            return ChoiceChip(
+                              label: Text(
+                                label,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              selected: isSelected,
+                              onSelected: (_) =>
+                                  notifier.setThemeMode(switch (value) {
+                                    'light' => ThemeMode.light,
+                                    'dark' => ThemeMode.dark,
+                                    _ => ThemeMode.system,
+                                  }),
+                            );
+                          }).toList(),
                     ),
                   ],
                 ),
@@ -189,7 +228,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                           border: Border.all(
                             color: isSelected
                                 ? colors.primary
-                                : t.resolve(colors).text.withValues(alpha: 0.15),
+                                : t
+                                      .resolve(colors)
+                                      .text
+                                      .withValues(alpha: 0.15),
                             width: isSelected ? 2 : 1,
                           ),
                         ),
@@ -197,7 +239,11 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.format_quote, size: 16, color: t.resolve(colors).text),
+                            Icon(
+                              Icons.format_quote,
+                              size: 16,
+                              color: t.resolve(colors).text,
+                            ),
                             const SizedBox(height: 2),
                             Text(
                               t.label,

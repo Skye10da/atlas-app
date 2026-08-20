@@ -11,6 +11,7 @@ import 'package:atlas_app/reader/presentation/widgets/settings/layout_tab.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/text_tab.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/theme_tab.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
+import 'package:atlas_app/settings/presentation/providers/font_download_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
 
@@ -117,6 +118,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     final notifier = ref.read(readingSettingsProvider.notifier);
+    final downloadedFamilies = ref.watch(fontDownloadProvider).downloaded;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -151,12 +153,18 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
               unselectedLabelColor: colors.onSurface.withValues(alpha: 0.6),
               indicatorColor: colors.primary,
               tabs: [
-                const Tab(icon: Icon(Icons.palette, size: 20), text: 'Appearance'),
+                const Tab(
+                  icon: Icon(Icons.palette, size: 20),
+                  text: 'Appearance',
+                ),
                 const Tab(
                   icon: Icon(Icons.text_fields, size: 20),
                   text: 'Typography',
                 ),
-                const Tab(icon: Icon(Icons.view_quilt, size: 20), text: 'Behavior'),
+                const Tab(
+                  icon: Icon(Icons.view_quilt, size: 20),
+                  text: 'Behavior',
+                ),
                 const Tab(
                   icon: Icon(Icons.translate, size: 20),
                   text: 'Translate',
@@ -188,6 +196,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
                     textAlignment: _textAlignment,
                     lineHeight: _lineHeight,
                     letterSpacing: _letterSpacing,
+                    downloadedFamilies: downloadedFamilies,
                     onFontSizeChanged: (v) {
                       setState(() => _fontSize = v);
                       notifier.setFontSize(v);

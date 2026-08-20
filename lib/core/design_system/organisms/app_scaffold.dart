@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/router/navigation.dart';
+import 'package:atlas_app/library/presentation/widgets/library_filter_panel.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.navigationShell});
@@ -29,8 +30,7 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildDesktopLayout(bool isBigDesktop) {
     final cs = Theme.of(context).colorScheme;
-    final sidebarWidth =
-        isBigDesktop && !_sidebarCollapsed ? 260.0 : 72.0;
+    final sidebarWidth = isBigDesktop && !_sidebarCollapsed ? 260.0 : 72.0;
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -44,15 +44,17 @@ class _AppShellState extends State<AppShell> {
             onDestinationSelected: (index) {
               widget.navigationShell.goBranch(
                 index,
-                initialLocation:
-                    index == widget.navigationShell.currentIndex,
+                initialLocation: index == widget.navigationShell.currentIndex,
               );
             },
             onToggleCollapse: isBigDesktop
                 ? () => setState(() => _sidebarCollapsed = !_sidebarCollapsed)
                 : null,
           ),
-          VerticalDivider(width: 1, color: cs.outlineVariant.withValues(alpha: 0.5)),
+          VerticalDivider(
+            width: 1,
+            color: cs.outlineVariant.withValues(alpha: 0.5),
+          ),
           Expanded(child: widget.navigationShell),
         ],
       ),
@@ -79,26 +81,17 @@ class _AppShellState extends State<AppShell> {
             icon: Icon(Icons.library_books),
             label: 'Library',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.public),
-            label: 'Web',
-          ),
+          NavigationDestination(icon: Icon(Icons.public), label: 'Web'),
           NavigationDestination(
             icon: Icon(Icons.bookmark_border),
             label: 'Bookmarks',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.search),
-            label: 'Search',
-          ),
+          NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
           NavigationDestination(
             icon: Icon(Icons.menu_book),
             label: 'Dictionary',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
+          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
@@ -139,9 +132,12 @@ class _DesktopSidebar extends StatelessWidget {
                 children: [
                   Icon(Icons.auto_stories, size: 22, color: cs.primary),
                   const SizedBox(width: 10),
-                  Text('Atlas',
-                      style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold)),
+                  Text(
+                    'Atlas',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const Spacer(),
                   if (onToggleCollapse != null)
                     IconButton(
@@ -164,7 +160,30 @@ class _DesktopSidebar extends StatelessWidget {
             ),
           const SizedBox(height: 8),
           ..._buildNavItems(context),
-          const Spacer(),
+          if (currentIndex == 0 && !collapsed) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Divider(color: cs.outlineVariant.withValues(alpha: 0.5)),
+            ),
+            const Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(12, 4, 12, 12),
+                child: LibraryFilterPanel(),
+              ),
+            ),
+          ] else ...[
+            const Spacer(),
+            if (currentIndex == 0 && onToggleCollapse != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: IconButton(
+                  icon: const Icon(Icons.tune, size: 20),
+                  onPressed: onToggleCollapse,
+                  tooltip: 'Show filters',
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -226,8 +245,8 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
     final bgColor = widget.isSelected
         ? cs.secondaryContainer
         : _isHovered
-            ? cs.onSurface.withValues(alpha: 0.08)
-            : Colors.transparent;
+        ? cs.onSurface.withValues(alpha: 0.08)
+        : Colors.transparent;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -243,11 +262,13 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                Icon(widget.icon,
-                    size: 20,
-                    color: widget.isSelected
-                        ? cs.onSecondaryContainer
-                        : cs.onSurfaceVariant),
+                Icon(
+                  widget.icon,
+                  size: 20,
+                  color: widget.isSelected
+                      ? cs.onSecondaryContainer
+                      : cs.onSurfaceVariant,
+                ),
                 if (!widget.collapsed) ...[
                   const SizedBox(width: 12),
                   Text(

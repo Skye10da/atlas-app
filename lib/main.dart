@@ -26,8 +26,12 @@ final _windowThemeChannel = WindowThemeChannel();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  GoogleFonts.config.allowRuntimeFetching = false;
-  runApp(ProviderScope(child: AtlasApp(key: ValueKey(DateTime.now().millisecondsSinceEpoch))));
+  GoogleFonts.config.allowRuntimeFetching = true;
+  runApp(
+    ProviderScope(
+      child: AtlasApp(key: ValueKey(DateTime.now().millisecondsSinceEpoch)),
+    ),
+  );
 }
 
 class AtlasApp extends ConsumerWidget {
