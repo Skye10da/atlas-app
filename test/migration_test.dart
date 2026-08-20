@@ -87,7 +87,8 @@ void main() {
       db.execute(_readingProgressV6);
       if (withItemType) {
         db.execute(
-            "ALTER TABLE books ADD COLUMN item_type TEXT NOT NULL DEFAULT 'book'");
+          "ALTER TABLE books ADD COLUMN item_type TEXT NOT NULL DEFAULT 'book'",
+        );
       }
       db.execute(r'''
         INSERT INTO books (id, title, format, file_path, total_chapters,
@@ -113,8 +114,7 @@ void main() {
         final books = (result as Success).value;
         expect(books.length, 2);
 
-        final gutenberg =
-            books.firstWhere((b) => b.title == 'Gutenberg Book');
+        final gutenberg = books.firstWhere((b) => b.title == 'Gutenberg Book');
         final mvlempyr = books.firstWhere((b) => b.title == 'Mvlempyr Novel');
         expect(gutenberg.isNovel, isFalse);
         expect(gutenberg.itemType, ContentCategory.book);
@@ -125,11 +125,13 @@ void main() {
       }
     }
 
-    test('adds item_type column and backfills novel on a plain v6 db',
-        () async {
-      final file = await createV6Db(withItemType: false);
-      await expectMigratedBookCategories(file);
-    });
+    test(
+      'adds item_type column and backfills novel on a plain v6 db',
+      () async {
+        final file = await createV6Db(withItemType: false);
+        await expectMigratedBookCategories(file);
+      },
+    );
 
     test('backfills novel when item_type already exists on a v6 db', () async {
       final file = await createV6Db(withItemType: true);
@@ -148,33 +150,36 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    test('adds version/checksum/previousVersionRef columns to chapters',
-        () async {
-      final file = p.join(tempDir.path, 'atlas.db');
-      final db = sqlite3.sqlite3.open(file);
-      db.execute(_booksV6);
-      db.execute(_readingProgressV6);
-      db.execute(_chaptersV7);
-      db.execute('PRAGMA user_version = 7');
-      db.dispose();
+    test(
+      'adds version/checksum/previousVersionRef columns to chapters',
+      () async {
+        final file = p.join(tempDir.path, 'atlas.db');
+        final db = sqlite3.sqlite3.open(file);
+        db.execute(_booksV6);
+        db.execute(_readingProgressV6);
+        db.execute(_chaptersV7);
+        db.execute('PRAGMA user_version = 7');
+        db.dispose();
 
-      final appDb = AppDatabase.open(NativeDatabase(File(file)));
-      try {
-        final version = await appDb
-            .customSelect('PRAGMA user_version')
-            .getSingle();
-        expect(version.data['user_version'], 9);
+        final appDb = AppDatabase.open(NativeDatabase(File(file)));
+        try {
+          final version = await appDb
+              .customSelect('PRAGMA user_version')
+              .getSingle();
+          expect(version.data['user_version'], 9);
 
-        final cols =
-            await appDb.customSelect('PRAGMA table_info(chapters)').get();
-        final names = cols.map((r) => r.data['name']).toSet();
-        expect(
+          final cols = await appDb
+              .customSelect('PRAGMA table_info(chapters)')
+              .get();
+          final names = cols.map((r) => r.data['name']).toSet();
+          expect(
             names,
-            containsAll(
-                ['version', 'checksum', 'previous_version_ref']));
-      } finally {
-        await appDb.close();
-      }
-    });
+            containsAll(['version', 'checksum', 'previous_version_ref']),
+          );
+        } finally {
+          await appDb.close();
+        }
+      },
+    );
   });
 }

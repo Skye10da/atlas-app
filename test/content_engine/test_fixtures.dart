@@ -91,27 +91,25 @@ PluginManifest buildManifest({
   String baseUrl = 'https://example.com',
   String sourceName = 'Test Plugin',
   List<PluginCapability>? capabilities,
-}) =>
-    PluginManifest(
-      id: id,
-      name: 'Test Plugin',
-      sourceName: sourceName,
-      version: const PluginVersion(major: 1, minor: 0, patch: 0),
-      templateId: templateId,
-      baseUrl: baseUrl,
-      transport: transport,
-      capabilities: capabilities ?? PluginCapability.values.toList(),
-    );
+}) => PluginManifest(
+  id: id,
+  name: 'Test Plugin',
+  sourceName: sourceName,
+  version: const PluginVersion(major: 1, minor: 0, patch: 0),
+  templateId: templateId,
+  baseUrl: baseUrl,
+  transport: transport,
+  capabilities: capabilities ?? PluginCapability.values.toList(),
+);
 
 PluginContext buildContext({
   PluginManifest? manifest,
   Transport? transport,
   SelectorSet? selectors,
   PluginFilters? filters,
-}) =>
-    PluginContext(
-      plugin: manifest ?? buildManifest(),
-      transport: transport ?? FakeTransport(),
-      selectors: selectors,
-      filters: filters,
-    );
+}) => PluginContext(
+  plugin: manifest ?? buildManifest(),
+  transport: transport ?? FakeTransport(),
+  selectors: selectors,
+  filters: filters,
+);

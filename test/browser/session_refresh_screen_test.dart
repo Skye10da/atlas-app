@@ -56,14 +56,16 @@ class _FakeRefreshEngine implements BrowserWebEngine {
   Future<void> clearFind() async {}
   @override
   Future<void> setSelectionListener(
-      void Function(WebSelection selection)? listener) async {}
+    void Function(WebSelection selection)? listener,
+  ) async {}
   @override
   Future<void> clearSelection() async {}
   @override
   Future<void> selectAllInPage() async {}
   @override
   Future<void> setDownloadListener(
-      void Function(String url, String? mimeType)? listener) async {}
+    void Function(String url, String? mimeType)? listener,
+  ) async {}
   @override
   void addJsHandler(String name, JsHandlerCallback handler) {}
   @override
@@ -96,7 +98,8 @@ class _CapturingStore implements BrowserSessionRepositoryInterface {
   }
 
   @override
-  Future<List<BrowserSessionCookie>> loadForOrigin(Uri origin) async => const [];
+  Future<List<BrowserSessionCookie>> loadForOrigin(Uri origin) async =>
+      const [];
 }
 
 void main() {
@@ -116,9 +119,9 @@ void main() {
           builder: (context) => Center(
             child: ElevatedButton(
               onPressed: () async {
-                result.value = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute<bool>(builder: (_) => screen),
-                );
+                result.value = await Navigator.of(
+                  context,
+                ).push<bool>(MaterialPageRoute<bool>(builder: (_) => screen));
               },
               child: const Text('go'),
             ),
@@ -160,8 +163,9 @@ void main() {
       expect(find.text('Waiting for verification…'), findsOneWidget);
     });
 
-    testWidgets('pops with true and captures the fresh session once verified',
-        (tester) async {
+    testWidgets('pops with true and captures the fresh session once verified', (
+      tester,
+    ) async {
       final engine = _FakeRefreshEngine();
       final store = _CapturingStore();
       var verified = false;
@@ -184,12 +188,16 @@ void main() {
 
       expect(result.value, isTrue);
       expect(store.capturedOrigins, [Uri.parse(origin)]);
-      expect(engine.disposed, isTrue,
-          reason: 'the quick view is torn down after verification');
+      expect(
+        engine.disposed,
+        isTrue,
+        reason: 'the quick view is torn down after verification',
+      );
     });
 
-    testWidgets('a verification probe keeps the window open until it passes',
-        (tester) async {
+    testWidgets('a verification probe keeps the window open until it passes', (
+      tester,
+    ) async {
       final engine = _FakeRefreshEngine();
       final store = _CapturingStore();
       var probePassed = false;

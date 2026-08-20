@@ -4,10 +4,10 @@ import 'package:atlas_app/core/content_engine/index/dictionary_indexer.dart';
 import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
 
 AtlasDocument _doc(List<String> paragraphs) => AtlasDocument(
-      title: 'doc',
-      blocks: [for (final p in paragraphs) ParagraphBlock(text: p)],
-      metadata: const DocumentMetadata(),
-    );
+  title: 'doc',
+  blocks: [for (final p in paragraphs) ParagraphBlock(text: p)],
+  metadata: const DocumentMetadata(),
+);
 
 void main() {
   group('DictionaryIndexer', () {
@@ -43,7 +43,10 @@ void main() {
       indexer.index('d1', _doc(['alpha alpha alpha beta beta gamma']));
 
       expect(indexer.keywords('d1'), ['alpha']);
-      expect(indexer.keywords('d1', minFrequency: 2), containsAll(['alpha', 'beta']));
+      expect(
+        indexer.keywords('d1', minFrequency: 2),
+        containsAll(['alpha', 'beta']),
+      );
     });
 
     test('remove and clear work', () {

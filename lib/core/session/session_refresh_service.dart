@@ -113,8 +113,7 @@ class SessionRefreshService {
       SessionRefreshRequest(
         origin: origin,
         seedUrl: seedUrl,
-        verificationProbe:
-            verificationProbe ?? lastInvalidVerificationProbe,
+        verificationProbe: verificationProbe ?? lastInvalidVerificationProbe,
       ),
     );
     clearInvalid();

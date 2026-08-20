@@ -52,15 +52,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               error: (error, _) => Center(child: Text('Search failed: $error')),
               data: (result) => switch (result) {
                 Success(value: final results) => _SearchResults(
-                    results: results,
-                    onBookTap: (bookId, isNovel) => isNovel
-                        ? context.push('/novel/$bookId')
-                        : context.push('/book/$bookId'),
-                    onChapterTap: (bookId, chapterId) => context.push(
-                        chapterId != null
-                            ? '/reader/$bookId?chapterId=$chapterId'
-                            : '/reader/$bookId'),
+                  results: results,
+                  onBookTap: (bookId, isNovel) => isNovel
+                      ? context.push('/novel/$bookId')
+                      : context.push('/book/$bookId'),
+                  onChapterTap: (bookId, chapterId) => context.push(
+                    chapterId != null
+                        ? '/reader/$bookId?chapterId=$chapterId'
+                        : '/reader/$bookId',
                   ),
+                ),
                 Failure(error: final err) => Center(child: Text(err.message)),
               },
             ),
@@ -92,25 +93,33 @@ class _SearchResults extends StatelessWidget {
       );
     }
 
-    final books = results.where((r) => r.kind == SearchResultKind.book).toList();
-    final chapters = results.where((r) => r.kind == SearchResultKind.chapter).toList();
+    final books = results
+        .where((r) => r.kind == SearchResultKind.book)
+        .toList();
+    final chapters = results
+        .where((r) => r.kind == SearchResultKind.chapter)
+        .toList();
 
     return ListView(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       children: [
         if (books.isNotEmpty) ...[
           const AppSectionHeader(title: 'Books'),
-          ...books.map((r) => _BookResultTile(
-            result: r,
-            onTap: () => onBookTap(r.bookId, r.isNovel),
-          )),
+          ...books.map(
+            (r) => _BookResultTile(
+              result: r,
+              onTap: () => onBookTap(r.bookId, r.isNovel),
+            ),
+          ),
         ],
         if (chapters.isNotEmpty) ...[
           const AppSectionHeader(title: 'Chapters'),
-          ...chapters.map((r) => _ChapterResultTile(
-            result: r,
-            onTap: () => onChapterTap(r.bookId, r.chapterId),
-          )),
+          ...chapters.map(
+            (r) => _ChapterResultTile(
+              result: r,
+              onTap: () => onChapterTap(r.bookId, r.chapterId),
+            ),
+          ),
         ],
       ],
     );

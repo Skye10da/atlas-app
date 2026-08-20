@@ -4,7 +4,11 @@ import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 
 class ContinueReadingStrip extends StatelessWidget {
-  const ContinueReadingStrip({super.key, required this.books, required this.onBookTap});
+  const ContinueReadingStrip({
+    super.key,
+    required this.books,
+    required this.onBookTap,
+  });
 
   final List<BookEntity> books;
   final void Function(String id) onBookTap;

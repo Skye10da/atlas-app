@@ -5,8 +5,10 @@ import 'package:atlas_app/wtr/domain/entities/supported_language.dart';
 /// Fetches the list of languages supported by Google Translate at runtime.
 ///
 /// Uses the public `translate.googleapis.com/translate_a/l` endpoint which
-/// returns `[[code, englishName], ...]` without requiring an API key.
-/// Native names and flags are merged from static maps in code.
+/// returns `{"sl": {code: name}, "tl": {code: name}, ...}` (an older build of
+/// the same endpoint returned a flat `[[code, name], ...]` list) without
+/// requiring an API key. Native names and flags are merged from static maps
+/// in code; languages without a known flag fall back to a neutral globe.
 class GoogleTranslateLanguagesService {
   const GoogleTranslateLanguagesService();
 
@@ -78,28 +80,56 @@ class GoogleTranslateLanguagesService {
   ) async {
     try {
       final value = await transport.fetchJson(Uri.parse(_endpoint));
-      if (value is! List) return SupportedLanguage.defaults;
+      final entries = _extractEntries(value);
+      if (entries.isEmpty) return SupportedLanguage.defaults;
 
       final languages = <SupportedLanguage>[];
-      for (final entry in value) {
-        if (entry is! List || entry.length < 2) continue;
-        final code = entry[0].toString();
-        final englishName = entry[1].toString();
+      for (final entry in entries) {
+        final code = entry.$1;
+        final englishName = entry.$2;
         final nativeName = _nativeNames[code] ?? englishName;
-        final flag = kLanguageFlags[code];
-        if (flag == null) continue;
-        languages.add(SupportedLanguage(
-          code: code,
-          name: englishName,
-          nativeName: nativeName,
-          flag: flag,
-        ));
+        final flag = kLanguageFlags[code] ?? '🌐';
+        languages.add(
+          SupportedLanguage(
+            code: code,
+            name: englishName,
+            nativeName: nativeName,
+            flag: flag,
+          ),
+        );
       }
 
       languages.sort((a, b) => a.name.compareTo(b.name));
-      return languages.isEmpty ? SupportedLanguage.defaults : languages;
+      return languages;
     } on Object {
       return SupportedLanguage.defaults;
     }
+  }
+
+  /// Normalizes the endpoint response into `(code, englishName)` pairs.
+  ///
+  /// The current build returns `{"sl": {...}, "tl": {...}, ...}`; target
+  /// languages live under `tl`. Older builds returned a flat list of
+  /// `[code, name]` pairs, which is still parsed for backward compatibility.
+  List<(String, String)> _extractEntries(Object? value) {
+    if (value is List) {
+      final entries = <(String, String)>[];
+      for (final entry in value) {
+        if (entry is! List || entry.length < 2) continue;
+        entries.add((entry[0].toString(), entry[1].toString()));
+      }
+      return entries;
+    }
+    if (value is Map) {
+      for (final key in const ['tl', 'sl']) {
+        final map = value[key];
+        if (map is Map) {
+          return map.entries
+              .map((e) => (e.key.toString(), e.value.toString()))
+              .toList();
+        }
+      }
+    }
+    return const [];
   }
 }

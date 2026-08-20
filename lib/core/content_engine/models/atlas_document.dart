@@ -46,23 +46,22 @@ class AtlasDocument {
       blocks.whereType<FootnoteBlock>().toList();
 
   int get wordCount => textBlocks.fold(
-        0,
-        (count, b) => count + b.text.split(RegExp(r'\s+')).length,
-      );
+    0,
+    (count, b) => count + b.text.split(RegExp(r'\s+')).length,
+  );
 
   /// Interim plain-text serialization used to bridge [AtlasDocument] into the
   /// existing `ChapterModel.content` (String) contract until the structured
   /// JSON is persisted in Phase 0/2. Text blocks are joined by blank lines;
   /// images/footnotes are dropped for text rendering.
-  String renderToText() =>
-      textBlocks.map((b) => b.text).join('\n\n').trim();
+  String renderToText() => textBlocks.map((b) => b.text).join('\n\n').trim();
 
   Map<String, Object?> toJson() => {
-        'title': title,
-        'blocks': blocks.map((b) => b.toJson()).toList(),
-        'annotations': annotations.map((a) => a.toJson()).toList(),
-        'metadata': metadata.toJson(),
-      };
+    'title': title,
+    'blocks': blocks.map((b) => b.toJson()).toList(),
+    'annotations': annotations.map((a) => a.toJson()).toList(),
+    'metadata': metadata.toJson(),
+  };
 
   static List<T> _decodeList<T>(
     Object? raw,
@@ -78,7 +77,6 @@ class AtlasDocument {
 
 /// A single unit of reading content in document order.
 sealed class ContentBlock {
-
   factory ContentBlock.fromJson(Map<String, Object?> json) {
     switch (json['type']) {
       case 'paragraph':
@@ -123,18 +121,20 @@ class ParagraphBlock extends TextBlock {
 }
 
 class HeadingBlock extends TextBlock {
-
   factory HeadingBlock.fromJson(Map<String, Object?> json) => HeadingBlock(
-        text: (json['text'] as String?) ?? '',
-        level: (json['level'] as num?)?.toInt() ?? 1,
-      );
+    text: (json['text'] as String?) ?? '',
+    level: (json['level'] as num?)?.toInt() ?? 1,
+  );
   const HeadingBlock({required super.text, required this.level});
 
   final int level;
 
   @override
-  Map<String, Object?> toJson() =>
-      {'type': 'heading', 'text': text, 'level': level};
+  Map<String, Object?> toJson() => {
+    'type': 'heading',
+    'text': text,
+    'level': level,
+  };
 }
 
 class QuoteBlock extends TextBlock {
@@ -168,7 +168,6 @@ class PreBlock extends TextBlock {
 }
 
 class ImageBlock extends ContentBlock {
-
   factory ImageBlock.fromJson(Map<String, Object?> json) {
     final src = json['src'];
     final alt = json['alt'];
@@ -179,11 +178,7 @@ class ImageBlock extends ContentBlock {
       caption: caption is String ? caption : null,
     );
   }
-  const ImageBlock({
-    required this.src,
-    this.alt,
-    this.caption,
-  });
+  const ImageBlock({required this.src, this.alt, this.caption});
 
   final String src;
   final String? alt;
@@ -191,15 +186,14 @@ class ImageBlock extends ContentBlock {
 
   @override
   Map<String, Object?> toJson() => {
-        'type': 'image',
-        'src': src,
-        if (alt != null) 'alt': alt,
-        if (caption != null) 'caption': caption,
-      };
+    'type': 'image',
+    'src': src,
+    if (alt != null) 'alt': alt,
+    if (caption != null) 'caption': caption,
+  };
 }
 
 class FootnoteBlock extends ContentBlock {
-
   factory FootnoteBlock.fromJson(Map<String, Object?> json) {
     final id = json['id'];
     final text = json['text'];
@@ -208,10 +202,7 @@ class FootnoteBlock extends ContentBlock {
       text: text is String ? text : '',
     );
   }
-  const FootnoteBlock({
-    required this.id,
-    required this.text,
-  });
+  const FootnoteBlock({required this.id, required this.text});
 
   final String id;
   final String text;
@@ -221,7 +212,6 @@ class FootnoteBlock extends ContentBlock {
 }
 
 class Annotation {
-
   factory Annotation.fromJson(Map<String, Object?> json) {
     final text = json['text'];
     final type = json['type'];
@@ -232,25 +222,20 @@ class Annotation {
       target: target is String ? target : null,
     );
   }
-  const Annotation({
-    this.text,
-    this.type,
-    this.target,
-  });
+  const Annotation({this.text, this.type, this.target});
 
   final String? text;
   final String? type;
   final String? target;
 
   Map<String, Object?> toJson() => {
-        if (text != null) 'text': text,
-        if (type != null) 'type': type,
-        if (target != null) 'target': target,
-      };
+    if (text != null) 'text': text,
+    if (type != null) 'type': type,
+    if (target != null) 'target': target,
+  };
 }
 
 class DocumentMetadata {
-
   factory DocumentMetadata.fromJson(Map<String, Object?> json) {
     final publishedAt = json['publishedAt'];
     final tags = json['tags'];
@@ -285,12 +270,12 @@ class DocumentMetadata {
   final String? author;
 
   Map<String, Object?> toJson() => {
-        if (sourceUrl != null) 'sourceUrl': sourceUrl,
-        if (sourceId != null) 'sourceId': sourceId,
-        if (sourceName != null) 'sourceName': sourceName,
-        if (language != null) 'language': language,
-        if (publishedAt != null) 'publishedAt': publishedAt!.toIso8601String(),
-        'tags': tags,
-        if (author != null) 'author': author,
-      };
+    if (sourceUrl != null) 'sourceUrl': sourceUrl,
+    if (sourceId != null) 'sourceId': sourceId,
+    if (sourceName != null) 'sourceName': sourceName,
+    if (language != null) 'language': language,
+    if (publishedAt != null) 'publishedAt': publishedAt!.toIso8601String(),
+    'tags': tags,
+    if (author != null) 'author': author,
+  };
 }

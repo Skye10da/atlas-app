@@ -6,30 +6,32 @@ import 'package:atlas_app/core/content_engine/scheduler/task_scheduler.dart';
 
 void main() {
   group('TaskScheduler', () {
-    test('runAllNow invokes every registered task and returns summaries',
-        () async {
-      final scheduler = TaskScheduler();
-      var refreshRan = false;
-      var cleanupRan = false;
+    test(
+      'runAllNow invokes every registered task and returns summaries',
+      () async {
+        final scheduler = TaskScheduler();
+        var refreshRan = false;
+        var cleanupRan = false;
 
-      scheduler.setTasks(
-        pluginRefresh: () async {
-          refreshRan = true;
-          return 'refreshed 2 plugins';
-        },
-        resumeDownloads: () async => null,
-        cacheCleanup: () async {
-          cleanupRan = true;
-          return 'removed 3 stale entries';
-        },
-      );
+        scheduler.setTasks(
+          pluginRefresh: () async {
+            refreshRan = true;
+            return 'refreshed 2 plugins';
+          },
+          resumeDownloads: () async => null,
+          cacheCleanup: () async {
+            cleanupRan = true;
+            return 'removed 3 stale entries';
+          },
+        );
 
-      final summaries = await scheduler.runAllNow();
+        final summaries = await scheduler.runAllNow();
 
-      expect(refreshRan, isTrue);
-      expect(cleanupRan, isTrue);
-      expect(summaries, ['refreshed 2 plugins', 'removed 3 stale entries']);
-    });
+        expect(refreshRan, isTrue);
+        expect(cleanupRan, isTrue);
+        expect(summaries, ['refreshed 2 plugins', 'removed 3 stale entries']);
+      },
+    );
 
     test('a task that returns nothing produces no log line', () async {
       final scheduler = TaskScheduler();
@@ -42,31 +44,33 @@ void main() {
       expect(logLines, isEmpty);
     });
 
-    test('a failing task is caught and logged, and later runs still proceed',
-        () async {
-      final scheduler = TaskScheduler();
-      final logLines = <String>[];
-      scheduler.log.listen(logLines.add);
-      var attempts = 0;
+    test(
+      'a failing task is caught and logged, and later runs still proceed',
+      () async {
+        final scheduler = TaskScheduler();
+        final logLines = <String>[];
+        scheduler.log.listen(logLines.add);
+        var attempts = 0;
 
-      scheduler.setTasks(
-        pluginRefresh: () async {
-          attempts++;
-          if (attempts == 1) throw Exception('network down');
-          return 'refreshed on retry';
-        },
-      );
+        scheduler.setTasks(
+          pluginRefresh: () async {
+            attempts++;
+            if (attempts == 1) throw Exception('network down');
+            return 'refreshed on retry';
+          },
+        );
 
-      await scheduler.runAllNow();
-      await scheduler.runAllNow();
-      await Future<void>.delayed(Duration.zero);
+        await scheduler.runAllNow();
+        await scheduler.runAllNow();
+        await Future<void>.delayed(Duration.zero);
 
-      expect(attempts, 2);
-      expect(logLines, [
-        '[pluginRefresh] failed: Exception: network down',
-        '[pluginRefresh] refreshed on retry',
-      ]);
-    });
+        expect(attempts, 2);
+        expect(logLines, [
+          '[pluginRefresh] failed: Exception: network down',
+          '[pluginRefresh] refreshed on retry',
+        ]);
+      },
+    );
 
     test('scheduled ticks call the task after each interval', () async {
       var runs = 0;
@@ -75,10 +79,12 @@ void main() {
         timer: (d) => Future<void>.delayed(const Duration(milliseconds: 2)),
       );
 
-      scheduler.setTasks(pluginRefresh: () async {
-        runs++;
-        return 'run $runs';
-      });
+      scheduler.setTasks(
+        pluginRefresh: () async {
+          runs++;
+          return 'run $runs';
+        },
+      );
 
       scheduler.start();
       await Future<void>.delayed(const Duration(milliseconds: 40));
@@ -97,14 +103,16 @@ void main() {
         timer: (d) => Future<void>.delayed(const Duration(milliseconds: 2)),
       );
 
-      scheduler.setTasks(pluginRefresh: () async {
-        started++;
-        current++;
-        maxConcurrent = current > maxConcurrent ? current : maxConcurrent;
-        await completer.future;
-        current--;
-        return null;
-      });
+      scheduler.setTasks(
+        pluginRefresh: () async {
+          started++;
+          current++;
+          maxConcurrent = current > maxConcurrent ? current : maxConcurrent;
+          await completer.future;
+          current--;
+          return null;
+        },
+      );
 
       scheduler.start();
       await Future<void>.delayed(const Duration(milliseconds: 15));

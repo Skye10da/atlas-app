@@ -149,10 +149,7 @@ class RoyalRoadTemplate extends HtmlTemplate {
   }
 
   @override
-  Future<NovelMetadata> metadata(
-    PluginContext context,
-    String novelUrl,
-  ) async {
+  Future<NovelMetadata> metadata(PluginContext context, String novelUrl) async {
     final html = await context.transport.fetchHtml(
       Uri.parse(novelUrl),
       headers: context.plugin.requestHeaders,
@@ -172,25 +169,31 @@ class RoyalRoadTemplate extends HtmlTemplate {
       return value is String ? value : null;
     }
 
-    final title = schemaString('name') ??
+    final title =
+        schemaString('name') ??
         doc.querySelector('.fic-title h1.font-white')?.text.trim() ??
         'Untitled';
     final author = _schemaPersonName(schema?['author']);
 
     final rating = _schemaRating(schema?['aggregateRating']);
-    final lastUpdated =
-        DateTime.tryParse(schemaString('dateModified') ?? '');
+    final lastUpdated = DateTime.tryParse(schemaString('dateModified') ?? '');
 
     final chapterCount = _chapterCount(doc, html);
-    final description = _htmlToText(schemaString('description')) ??
-        doc.querySelector('meta[name="description"]')?.attributes['content']?.trim();
+    final description =
+        _htmlToText(schemaString('description')) ??
+        doc
+            .querySelector('meta[name="description"]')
+            ?.attributes['content']
+            ?.trim();
 
     return NovelMetadata(
       title: title,
       author: author,
       description: description,
-      coverUrl:
-          doc.querySelector('.cover-art-container img')?.attributes['src']?.trim(),
+      coverUrl: doc
+          .querySelector('.cover-art-container img')
+          ?.attributes['src']
+          ?.trim(),
       language: context.plugin.language,
       chapterCount: chapterCount,
       genres: doc
@@ -233,8 +236,9 @@ class RoyalRoadTemplate extends HtmlTemplate {
   /// Chapter count from the `data-chapters` attribute on `table#chapters`, or
   /// from the length of `window.chapters` when the attribute is missing.
   int _chapterCount(Document doc, String html) {
-    final attr =
-        doc.querySelector('table#chapters')?.attributes['data-chapters'];
+    final attr = doc
+        .querySelector('table#chapters')
+        ?.attributes['data-chapters'];
     final fromAttr = attr != null ? int.tryParse(attr) : null;
     if (fromAttr != null) return fromAttr;
     final script = RegExp(

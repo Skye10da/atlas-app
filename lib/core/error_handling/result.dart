@@ -46,7 +46,8 @@ class NetworkException extends AppException {
   @override
   String get code => 'NETWORK_ERROR';
   @override
-  String get userMessage => 'Unable to connect. Please check your connection and try again.';
+  String get userMessage =>
+      'Unable to connect. Please check your connection and try again.';
 }
 
 class NotFoundException extends AppException {
@@ -62,7 +63,8 @@ class ValidationException extends AppException {
   @override
   String get code => 'VALIDATION_ERROR';
   @override
-  String get userMessage => 'There was a problem with the data. Please try again.';
+  String get userMessage =>
+      'There was a problem with the data. Please try again.';
 }
 
 class UnauthorizedException extends AppException {

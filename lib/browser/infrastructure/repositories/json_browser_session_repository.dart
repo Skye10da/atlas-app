@@ -15,7 +15,8 @@ import 'package:atlas_app/core/logging/logger.dart';
 /// Both [captureForOrigin] and [loadForOrigin] are best-effort: a missing or
 /// unreadable file, a platform cookie-store failure, or a test environment
 /// without a plugin channel degrades to no-op instead of throwing.
-class JsonBrowserSessionRepository implements BrowserSessionRepositoryInterface {
+class JsonBrowserSessionRepository
+    implements BrowserSessionRepositoryInterface {
   JsonBrowserSessionRepository({File? file}) : _file = file;
 
   final File? _file;
@@ -90,8 +91,9 @@ class JsonBrowserSessionRepository implements BrowserSessionRepositoryInterface 
       if (raw is! List) continue;
       result[entry.key.toString()] = raw
           .whereType<Map>()
-          .map((m) => BrowserSessionCookie.fromJson(
-              Map<String, Object?>.from(m)))
+          .map(
+            (m) => BrowserSessionCookie.fromJson(Map<String, Object?>.from(m)),
+          )
           .toList();
     }
     return result;
@@ -99,24 +101,24 @@ class JsonBrowserSessionRepository implements BrowserSessionRepositoryInterface 
 
   Map<String, Object?> _encodeAll(
     Map<String, List<BrowserSessionCookie>> all,
-  ) =>
-      all.map(
-          (origin, cookies) => MapEntry(origin, cookies.map((c) => c.toJson()).toList()));
+  ) => all.map(
+    (origin, cookies) =>
+        MapEntry(origin, cookies.map((c) => c.toJson()).toList()),
+  );
 
   /// The store returns cookies for the exact origin queried, so scoping the
   /// key to `scheme://host[:port]` keeps the captured set stable regardless of
   /// the path that triggered the snapshot.
-  String _originKey(Uri origin) => origin
-      .replace(path: '/', query: null, fragment: null)
-      .toString();
+  String _originKey(Uri origin) =>
+      origin.replace(path: '/', query: null, fragment: null).toString();
 
   BrowserSessionCookie _fromWebCookie(Cookie cookie) => BrowserSessionCookie(
-        name: cookie.name,
-        value: cookie.value is String ? cookie.value as String : '${cookie.value}',
-        domain: cookie.domain,
-        path: cookie.path,
-        expiresDate: cookie.expiresDate,
-        isSecure: cookie.isSecure ?? false,
-        isHttpOnly: cookie.isHttpOnly ?? false,
-      );
+    name: cookie.name,
+    value: cookie.value is String ? cookie.value as String : '${cookie.value}',
+    domain: cookie.domain,
+    path: cookie.path,
+    expiresDate: cookie.expiresDate,
+    isSecure: cookie.isSecure ?? false,
+    isHttpOnly: cookie.isHttpOnly ?? false,
+  );
 }

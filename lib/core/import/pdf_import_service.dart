@@ -64,8 +64,10 @@ class PdfImportService {
   /// Extracts metadata from PDF bytes without importing.
   /// Used by the import sheet to show a preview before the user confirms.
   Future<NovelModel> extractMetadata(List<int> bytes, String fileName) async {
-    final title =
-        fileName.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+    final title = fileName.replaceAll(
+      RegExp(r'\.pdf$', caseSensitive: false),
+      '',
+    );
 
     // Best-effort cover render from first page
     Uint8List? coverBytes;
@@ -89,8 +91,9 @@ class PdfImportService {
             if (pdfImage != null) {
               final image = await pdfImage.createImage(pixelSizeThreshold: 360);
               try {
-                final byteData =
-                    await image.toByteData(format: ui.ImageByteFormat.png);
+                final byteData = await image.toByteData(
+                  format: ui.ImageByteFormat.png,
+                );
                 if (byteData != null) {
                   coverBytes = byteData.buffer.asUint8List();
                 }
@@ -120,12 +123,20 @@ class PdfImportService {
     );
   }
 
-  Future<Result<String>> _importFromBytes(List<int> bytes, String fileName) async {
+  Future<Result<String>> _importFromBytes(
+    List<int> bytes,
+    String fileName,
+  ) async {
     try {
-      final title = fileName.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+      final title = fileName.replaceAll(
+        RegExp(r'\.pdf$', caseSensitive: false),
+        '',
+      );
       final bookId = _normalizeId(title);
 
-      final existing = await (_db.select(_db.books)..where((b) => b.id.equals(bookId))).get();
+      final existing = await (_db.select(
+        _db.books,
+      )..where((b) => b.id.equals(bookId))).get();
       if (existing.isNotEmpty) {
         return const Failure(DuplicateBookException('Book already exists'));
       }
@@ -167,16 +178,19 @@ class PdfImportService {
       await _db.batch((batch) {
         for (final (index, chapter) in chapters.indexed) {
           final chapterId = '${bookId}_ch$index';
-          batch.insert(_db.chapters, ChaptersCompanion(
-            id: Value(chapterId),
-            bookId: Value(bookId),
-            index: Value(index),
-            title: Value(chapter.title),
-            contentPath: Value(pdfPath),
-            wordCount: const Value(0),
-            pageCount: Value(chapter.pageNumber),
-            createdAt: Value(DateTime.now()),
-          ));
+          batch.insert(
+            _db.chapters,
+            ChaptersCompanion(
+              id: Value(chapterId),
+              bookId: Value(bookId),
+              index: Value(index),
+              title: Value(chapter.title),
+              contentPath: Value(pdfPath),
+              wordCount: const Value(0),
+              pageCount: Value(chapter.pageNumber),
+              createdAt: Value(DateTime.now()),
+            ),
+          );
         }
       });
 
@@ -240,10 +254,13 @@ class PdfImportService {
         for (final node in nodes) {
           final page = node.dest?.pageNumber;
           if (node.title.trim().isNotEmpty) {
-            flatten.add(_PdfChapter(
-              title: node.title.trim(),
-              pageNumber: page ?? (flatten.isEmpty ? 1 : flatten.last.pageNumber),
-            ));
+            flatten.add(
+              _PdfChapter(
+                title: node.title.trim(),
+                pageNumber:
+                    page ?? (flatten.isEmpty ? 1 : flatten.last.pageNumber),
+              ),
+            );
           }
           if (node.children.isNotEmpty) visit(node.children);
         }
@@ -272,10 +289,12 @@ class PdfImportService {
     final chapters = <_PdfChapter>[];
     for (var start = 1; start <= totalPages; start += groupSize) {
       final end = math.min(start + groupSize - 1, totalPages);
-      chapters.add(_PdfChapter(
-        title: start == end ? 'Page $start' : 'Pages $start–$end',
-        pageNumber: start,
-      ));
+      chapters.add(
+        _PdfChapter(
+          title: start == end ? 'Page $start' : 'Pages $start–$end',
+          pageNumber: start,
+        ),
+      );
     }
     return chapters;
   }

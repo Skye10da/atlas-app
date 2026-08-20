@@ -8,7 +8,8 @@ import 'package:atlas_app/reader/speech/speech_events.dart';
 /// SpeechEvent stream into audio_service's PlaybackState/MediaItem model —
 /// this is the *only* place that translation happens, so audio_service
 /// concerns never leak into SpeechEngine and vice versa.
-class AtlasPlaybackController extends BaseAudioHandler with QueueHandler, SeekHandler {
+class AtlasPlaybackController extends BaseAudioHandler
+    with QueueHandler, SeekHandler {
   AtlasPlaybackController(this._engine) {
     _engine.events.listen(_onSpeechEvent);
   }
@@ -37,32 +38,42 @@ class AtlasPlaybackController extends BaseAudioHandler with QueueHandler, SeekHa
     final current = playbackState.value;
     switch (event) {
       case SentenceStarted():
-        playbackState.add(current.copyWith(
-          controls: _controlsFor(playing: true),
-          processingState: AudioProcessingState.ready,
-          playing: true,
-        ));
+        playbackState.add(
+          current.copyWith(
+            controls: _controlsFor(playing: true),
+            processingState: AudioProcessingState.ready,
+            playing: true,
+          ),
+        );
       case SpeechPaused():
-        playbackState.add(current.copyWith(
-          controls: _controlsFor(playing: false),
-          playing: false,
-        ));
+        playbackState.add(
+          current.copyWith(
+            controls: _controlsFor(playing: false),
+            playing: false,
+          ),
+        );
       case SpeechStopped():
-        playbackState.add(current.copyWith(
-          controls: _controlsFor(playing: false),
-          playing: false,
-          processingState: AudioProcessingState.idle,
-        ));
+        playbackState.add(
+          current.copyWith(
+            controls: _controlsFor(playing: false),
+            playing: false,
+            processingState: AudioProcessingState.idle,
+          ),
+        );
       case SpeechCompleted():
-        playbackState.add(current.copyWith(
-          playing: false,
-          processingState: AudioProcessingState.completed,
-        ));
+        playbackState.add(
+          current.copyWith(
+            playing: false,
+            processingState: AudioProcessingState.completed,
+          ),
+        );
       case SpeechError():
-        playbackState.add(current.copyWith(
-          playing: false,
-          processingState: AudioProcessingState.error,
-        ));
+        playbackState.add(
+          current.copyWith(
+            playing: false,
+            processingState: AudioProcessingState.error,
+          ),
+        );
       // ChapterFinished, SentenceFinished, ParagraphFinished, WordBoundary
       // deliberately don't touch playbackState — they're Reader-facing
       // (chapter navigation, highlighting), not OS-media-session-facing.
@@ -74,9 +85,9 @@ class AtlasPlaybackController extends BaseAudioHandler with QueueHandler, SeekHa
   }
 
   List<MediaControl> _controlsFor({required bool playing}) => [
-        MediaControl.skipToPrevious,
-        playing ? MediaControl.pause : MediaControl.play,
-        MediaControl.stop,
-        MediaControl.skipToNext,
-      ];
+    MediaControl.skipToPrevious,
+    playing ? MediaControl.pause : MediaControl.play,
+    MediaControl.stop,
+    MediaControl.skipToNext,
+  ];
 }

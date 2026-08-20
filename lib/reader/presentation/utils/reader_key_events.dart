@@ -25,7 +25,8 @@ KeyEventResult handleCommonReaderKeys(
   }
 
   final isCtrlOrCmd =
-      HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+      HardwareKeyboard.instance.isControlPressed ||
+      HardwareKeyboard.instance.isMetaPressed;
   if (isCtrlOrCmd && event.logicalKey == LogicalKeyboardKey.keyK) {
     if (!commandPaletteVisible) onOpenPalette();
     return KeyEventResult.handled;

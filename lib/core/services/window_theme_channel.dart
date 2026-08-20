@@ -19,10 +19,7 @@ class WindowThemeChannel {
   /// [brightness] determines whether dark or light mode is used for the
   /// native title bar chrome.  [brandSeed] is the brand's primary color
   /// used as the caption background on Windows 11+.
-  void syncTheme({
-    required Brightness brightness,
-    required Color brandSeed,
-  }) {
+  void syncTheme({required Brightness brightness, required Color brandSeed}) {
     if (!Platform.isWindows) return;
 
     final isDark = brightness == Brightness.dark;
@@ -35,11 +32,13 @@ class WindowThemeChannel {
     // Use a simple luminance check on the seed color.
     final int fgRef = _isLight(brandSeed) ? 0x00333333 : 0x00FFFFFF;
 
-    _channel.invokeMethod<void>('setTheme', {
-      'dark': isDark,
-      'captionBg': bgRef,
-      'captionFg': fgRef,
-    }).catchError((_) {});
+    _channel
+        .invokeMethod<void>('setTheme', {
+          'dark': isDark,
+          'captionBg': bgRef,
+          'captionFg': fgRef,
+        })
+        .catchError((_) {});
   }
 
   /// Converts a Flutter [Color] (ARGB) to a Windows COLORREF (0x00BBGGRR).
@@ -54,8 +53,7 @@ class WindowThemeChannel {
   /// Returns true if the color is perceived as "light" (needs dark text).
   static bool _isLight(Color c) {
     // Relative luminance per ITU-R BT.709.
-    final double luminance =
-        0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    final double luminance = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
     return luminance > 0.5;
   }
 }

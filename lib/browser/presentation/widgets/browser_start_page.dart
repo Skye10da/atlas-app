@@ -85,12 +85,9 @@ class BrowserStartPage extends ConsumerWidget {
     return _StartSiteTile(
       title: source.sourceName,
       meta: meta,
-      onOpen: homeUrl == null
-          ? null
-          : () => onOpenSite(homeUrl),
-      onSearch: () => context.push(
-        '/sources/${Uri.encodeComponent(source.sourceName)}',
-      ),
+      onOpen: homeUrl == null ? null : () => onOpenSite(homeUrl),
+      onSearch: () =>
+          context.push('/sources/${Uri.encodeComponent(source.sourceName)}'),
     );
   }
 
@@ -154,15 +151,13 @@ class _StartSiteTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 2),
                     Text(
                       meta.description,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Align(

@@ -85,7 +85,9 @@ class CookieTransport implements Transport {
         url: WebUri.uri(url),
       );
       if (cookies.isNotEmpty) {
-        result['Cookie'] = cookies.map((c) => '${c.name}=${c.value}').join('; ');
+        result['Cookie'] = cookies
+            .map((c) => '${c.name}=${c.value}')
+            .join('; ');
       }
     } on Object {
       // No cookie store on this platform, or lookup failed — proceed without

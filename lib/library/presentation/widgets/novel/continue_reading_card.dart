@@ -30,8 +30,7 @@ class ContinueReadingCard extends ConsumerWidget {
 
         final colors = Theme.of(context).colorScheme;
         final textTheme = Theme.of(context).textTheme;
-        void openReader() =>
-            _openReader(context, ref, chapter, isContinue);
+        void openReader() => _openReader(context, ref, chapter, isContinue);
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),

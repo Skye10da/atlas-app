@@ -27,7 +27,9 @@ class _PdfOutlinePanelState extends State<PdfOutlinePanel> {
       return Center(
         child: Text(
           'This document has no outline',
-          style: TextStyle(color: widget.nightMode ? Colors.white70 : Colors.grey),
+          style: TextStyle(
+            color: widget.nightMode ? Colors.white70 : Colors.grey,
+          ),
         ),
       );
     }

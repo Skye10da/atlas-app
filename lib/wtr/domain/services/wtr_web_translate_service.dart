@@ -57,8 +57,9 @@ class WtrWebTranslateService {
           headers: headers,
         );
         for (var i = 0; i < chunk.paragraphs.length; i++) {
-          result[chunk.offset + i] =
-              translated.length > i ? translated[i] : null;
+          result[chunk.offset + i] = translated.length > i
+              ? translated[i]
+              : null;
         }
       } on Object {
         // Keep the original text for this chunk.
@@ -94,14 +95,10 @@ class WtrWebTranslateService {
       ],
     );
     if (value is! List || value.isEmpty || value[0] is! List) {
-      throw const TransportException(
-        'WTR-LAB: unexpected translate response',
-      );
+      throw const TransportException('WTR-LAB: unexpected translate response');
     }
     final translated = value[0] as List;
-    return translated
-        .map((e) => _clean('$e'))
-        .toList();
+    return translated.map((e) => _clean('$e')).toList();
   }
 
   /// Undoes the endpoint's HTML encoding (it returns text with escaped

@@ -9,8 +9,7 @@ library;
 /// True when the book's source looks like wtr-lab.com.
 bool isWtrLabSource({String? sourceUrl, String? sourceName}) {
   final host = Uri.tryParse(sourceUrl ?? '')?.host;
-  if (host != null &&
-      (host == 'wtr-lab.com' || host == 'www.wtr-lab.com')) {
+  if (host != null && (host == 'wtr-lab.com' || host == 'www.wtr-lab.com')) {
     return true;
   }
   final name = (sourceName ?? '').toLowerCase();

@@ -22,8 +22,8 @@ class StealthTransport implements Transport {
     this.maxDelay = const Duration(milliseconds: 2000),
     Random? random,
     Future<void> Function(Duration)? sleep,
-  })  : _random = random ?? Random(),
-        _sleep = sleep ?? Future<void>.delayed;
+  }) : _random = random ?? Random(),
+       _sleep = sleep ?? Future<void>.delayed;
 
   final Transport inner;
   final List<String> userAgents;
@@ -33,9 +33,9 @@ class StealthTransport implements Transport {
   final Future<void> Function(Duration) _sleep;
 
   Map<String, String> _decorate(Map<String, String>? headers) => {
-        'User-Agent': userAgents[_random.nextInt(userAgents.length)],
-        ...?headers,
-      };
+    'User-Agent': userAgents[_random.nextInt(userAgents.length)],
+    ...?headers,
+  };
 
   Future<void> _throttle() async {
     final span = maxDelay - minDelay;
@@ -72,7 +72,11 @@ class StealthTransport implements Transport {
     Object? jsonBody,
   }) async {
     await _throttle();
-    return inner.fetchJsonPost(url, headers: _decorate(headers), jsonBody: jsonBody);
+    return inner.fetchJsonPost(
+      url,
+      headers: _decorate(headers),
+      jsonBody: jsonBody,
+    );
   }
 
   @override

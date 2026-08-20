@@ -33,9 +33,9 @@ class ContentAcquisitionEngine {
     CacheManager? cacheManager,
     DownloadManager? downloadManager,
     this.imagePipeline,
-  })  : cacheManager = cacheManager ?? CacheManager(),
-        downloadManager = downloadManager ?? DownloadManager(),
-        importService = ImportService(registry) {
+  }) : cacheManager = cacheManager ?? CacheManager(),
+       downloadManager = downloadManager ?? DownloadManager(),
+       importService = ImportService(registry) {
     prefetchEngine = PrefetchEngine(downloadManager: this.downloadManager);
   }
 
@@ -62,9 +62,13 @@ class ContentAcquisitionEngine {
     final chapters = result.chapters;
     final category = novel.category;
 
-    final existing = await (db.select(db.books)
-      ..where((b) => b.sourceId.equals(novel.sourceId) & b.sourceName.equals(novel.source)))
-        .getSingleOrNull();
+    final existing =
+        await (db.select(db.books)..where(
+              (b) =>
+                  b.sourceId.equals(novel.sourceId) &
+                  b.sourceName.equals(novel.source),
+            ))
+            .getSingleOrNull();
     if (existing != null) {
       throw const ImportException('This book is already in your library.');
     }
@@ -79,7 +83,9 @@ class ContentAcquisitionEngine {
     );
 
     var bookId = _normalizeId(novel.title);
-    final idConflict = await (db.select(db.books)..where((b) => b.id.equals(bookId))).getSingleOrNull();
+    final idConflict = await (db.select(
+      db.books,
+    )..where((b) => b.id.equals(bookId))).getSingleOrNull();
     if (idConflict != null) {
       bookId = '${bookId}_${DateTime.now().millisecondsSinceEpoch}';
     }
@@ -115,19 +121,26 @@ class ContentAcquisitionEngine {
         await File(contentPath).writeAsString(ch.content!);
       }
 
-      final wordCount = ch.wordCount ?? (ch.content?.split(RegExp(r'\s+')).length ?? 0);
+      final wordCount =
+          ch.wordCount ?? (ch.content?.split(RegExp(r'\s+')).length ?? 0);
 
-      chapterCompanions.add(ChaptersCompanion(
-        id: Value(chapterId),
-        bookId: Value(bookId),
-        index: Value(ch.index),
-        title: Value(ch.title),
-        contentPath: Value(contentPath),
-        wordCount: Value(wordCount),
-        pageCount: Value((wordCount / 300).ceil().clamp(1, 9999)),
-        contentState: Value(ch.content != null ? ContentState.availableOffline.index : ContentState.discovered.index),
-        createdAt: Value(DateTime.now()),
-      ));
+      chapterCompanions.add(
+        ChaptersCompanion(
+          id: Value(chapterId),
+          bookId: Value(bookId),
+          index: Value(ch.index),
+          title: Value(ch.title),
+          contentPath: Value(contentPath),
+          wordCount: Value(wordCount),
+          pageCount: Value((wordCount / 300).ceil().clamp(1, 9999)),
+          contentState: Value(
+            ch.content != null
+                ? ContentState.availableOffline.index
+                : ContentState.discovered.index,
+          ),
+          createdAt: Value(DateTime.now()),
+        ),
+      );
 
       onProgress?.call(0.8 + 0.2 * ((i + 1) / chapters.length));
     }
@@ -138,36 +151,67 @@ class ContentAcquisitionEngine {
       }
     });
 
-    final chapterIndex = chapters.map((ch) => {
-      'id': ch.id,
-      'title': ch.title,
-      'index': ch.index,
-      'contentUrl': ch.contentUrl,
-    }).toList();
-    await File(p.join(bookDir.path, '.chapter_index.json')).writeAsString(jsonEncode(chapterIndex));
+    final chapterIndex = chapters
+        .map(
+          (ch) => {
+            'id': ch.id,
+            'title': ch.title,
+            'index': ch.index,
+            'contentUrl': ch.contentUrl,
+          },
+        )
+        .toList();
+    await File(
+      p.join(bookDir.path, '.chapter_index.json'),
+    ).writeAsString(jsonEncode(chapterIndex));
 
-    await db.into(db.books).insert(BooksCompanion(
-      id: Value(bookId),
-      title: Value(novel.title),
-      author: novel.author != null ? Value(novel.author) : const Value.absent(),
-      description: novel.description != null ? Value(novel.description) : const Value.absent(),
-      format: Value(category == ContentCategory.book ? (novel.fileFormat ?? 'epub') : 'web'),
-      itemType: Value(category.name),
-      filePath: Value(bookDir.path),
-      coverPath: coverPath != null ? Value(coverPath) : const Value.absent(),
-      totalChapters: Value(chapters.length),
-      language: novel.language != null ? Value(novel.language) : const Value.absent(),
-      tags: novel.genres.isNotEmpty ? Value(jsonEncode(novel.genres)) : const Value.absent(),
-      rating: novel.rating != null ? Value(novel.rating) : const Value.absent(),
-      status: novel.status != null ? Value(novel.status) : const Value.absent(),
-      sourceName: Value(novel.source),
-      sourceId: Value(novel.sourceId),
-      sourceUrl: Value(novel.sourceUrl),
-      createdAt: Value(DateTime.now()),
-      updatedAt: Value(DateTime.now()),
-    ));
+    await db
+        .into(db.books)
+        .insert(
+          BooksCompanion(
+            id: Value(bookId),
+            title: Value(novel.title),
+            author: novel.author != null
+                ? Value(novel.author)
+                : const Value.absent(),
+            description: novel.description != null
+                ? Value(novel.description)
+                : const Value.absent(),
+            format: Value(
+              category == ContentCategory.book
+                  ? (novel.fileFormat ?? 'epub')
+                  : 'web',
+            ),
+            itemType: Value(category.name),
+            filePath: Value(bookDir.path),
+            coverPath: coverPath != null
+                ? Value(coverPath)
+                : const Value.absent(),
+            totalChapters: Value(chapters.length),
+            language: novel.language != null
+                ? Value(novel.language)
+                : const Value.absent(),
+            tags: novel.genres.isNotEmpty
+                ? Value(jsonEncode(novel.genres))
+                : const Value.absent(),
+            rating: novel.rating != null
+                ? Value(novel.rating)
+                : const Value.absent(),
+            status: novel.status != null
+                ? Value(novel.status)
+                : const Value.absent(),
+            sourceName: Value(novel.source),
+            sourceId: Value(novel.sourceId),
+            sourceUrl: Value(novel.sourceUrl),
+            createdAt: Value(DateTime.now()),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
 
-    _activeBooks[bookId] = _BookSourceState(chapters: chapters, source: result.source);
+    _activeBooks[bookId] = _BookSourceState(
+      chapters: chapters,
+      source: result.source,
+    );
     prefetchEngine.registerChapters(bookId, chapters, result.source);
 
     return ImportOutcome(bookId: bookId, category: category);
@@ -199,12 +243,14 @@ class ContentAcquisitionEngine {
       final interrupted = <ChapterModel>[];
       for (final chapter in state.chapters) {
         if (await downloadManager.isDownloaded(bookId, chapter.id)) continue;
-        final row = await (db.select(db.chapters)
-              ..where((c) => c.bookId.equals(bookId))
-              ..where((c) => c.index.equals(chapter.index)))
-            .getSingleOrNull();
+        final row =
+            await (db.select(db.chapters)
+                  ..where((c) => c.bookId.equals(bookId))
+                  ..where((c) => c.index.equals(chapter.index)))
+                .getSingleOrNull();
         final storedState = row?.contentState;
-        final needsResume = storedState == ContentState.queued.index ||
+        final needsResume =
+            storedState == ContentState.queued.index ||
             storedState == ContentState.downloading.index ||
             storedState == ContentState.discovered.index;
         if (needsResume) interrupted.add(chapter);
@@ -218,7 +264,11 @@ class ContentAcquisitionEngine {
   }
 
   String _normalizeId(String title) {
-    final id = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'_+'), '_').replaceAll(RegExp(r'^_|_$'), '');
+    final id = title
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
     return id.length > 48 ? '${id.substring(0, 48)}_${id.hashCode.abs()}' : id;
   }
 

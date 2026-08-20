@@ -5,5 +5,5 @@ enum ContentState {
   queued,
   downloading,
   availableOffline,
-  archived;
+  archived,
 }

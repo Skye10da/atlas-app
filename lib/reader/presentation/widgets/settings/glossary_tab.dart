@@ -63,8 +63,7 @@ class _GlossaryTabState extends ConsumerState<GlossaryTab> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
             child: const Text('Save'),
           ),
         ],
@@ -76,7 +75,8 @@ class _GlossaryTabState extends ConsumerState<GlossaryTab> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => GlossaryTermSheet(bookId: widget.bookId, term: entry.term),
+      builder: (_) =>
+          GlossaryTermSheet(bookId: widget.bookId, term: entry.term),
     );
   }
 
@@ -90,7 +90,9 @@ class _GlossaryTabState extends ConsumerState<GlossaryTab> {
       ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
-          content: Text('"${entry.term}" removed — the original text renders again.'),
+          content: Text(
+            '"${entry.term}" removed — the original text renders again.',
+          ),
           duration: const Duration(seconds: 2),
         ),
       );

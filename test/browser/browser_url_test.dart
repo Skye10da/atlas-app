@@ -43,17 +43,11 @@ void main() {
         normalizeBrowserUrl('mailto:reader@atlas.app'),
         'mailto:reader@atlas.app',
       );
-      expect(
-        normalizeBrowserUrl('tel:+1234567890'),
-        'tel:+1234567890',
-      );
+      expect(normalizeBrowserUrl('tel:+1234567890'), 'tel:+1234567890');
     });
 
     test('hosts with a port get https://', () {
-      expect(
-        normalizeBrowserUrl('localhost:8080'),
-        'https://localhost:8080',
-      );
+      expect(normalizeBrowserUrl('localhost:8080'), 'https://localhost:8080');
     });
   });
 
@@ -101,10 +95,7 @@ void main() {
 
   group('looksLikePdfUrl', () {
     test('true for .pdf paths', () {
-      expect(
-        looksLikePdfUrl('https://example.com/books/download.pdf'),
-        isTrue,
-      );
+      expect(looksLikePdfUrl('https://example.com/books/download.pdf'), isTrue);
       expect(looksLikePdfUrl('https://example.com/b.PDF?token=abc'), isTrue);
     });
 

@@ -11,7 +11,12 @@ class SectionHeader extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
       child: Text(
         title,
         style: textTheme.titleMedium?.copyWith(
@@ -32,7 +37,12 @@ class SubSectionHeader extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
       child: Text(
         title,
         style: textTheme.titleSmall?.copyWith(
@@ -86,7 +96,12 @@ class SliderTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
       child: Row(
         children: [
           SizedBox(width: 100, child: Text(title, style: textTheme.bodyMedium)),
@@ -163,7 +178,12 @@ class ChoiceTile<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -174,7 +194,9 @@ class ChoiceTile<T> extends StatelessWidget {
             runSpacing: 4,
             children: options.map((opt) {
               final (optVal, optLabel) = opt;
-              final sel = isSelected != null ? isSelected!(optVal) : value == optVal;
+              final sel = isSelected != null
+                  ? isSelected!(optVal)
+                  : value == optVal;
               return ChoiceChip(
                 selected: sel,
                 label: builder != null

@@ -6,7 +6,8 @@ import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/domain/repository_interfaces/settings_repository_interface.dart';
 
-final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface {
+final class SharedPrefsSettingsRepository
+    implements SettingsRepositoryInterface {
   const SharedPrefsSettingsRepository();
 
   static const _keySystemFont = 'system_font_family';
@@ -64,8 +65,7 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
       keepScreenAwake: prefs.getBool(_keyKeepAwake) ?? false,
       brightness: prefs.getDouble(_keyBrightness) ?? 1.0,
       autoOptimizeBrightness: prefs.getBool(_keyAutoOptimize) ?? false,
-      followSystemBrightness:
-          prefs.getBool(_keyFollowSystemBrightness) ?? true,
+      followSystemBrightness: prefs.getBool(_keyFollowSystemBrightness) ?? true,
       theme: switch (prefs.getString(_keyTheme)) {
         'parchment' => ReadingViewTheme.parchment,
         'ivory' => ReadingViewTheme.ivory,
@@ -153,12 +153,17 @@ final class SharedPrefsSettingsRepository implements SettingsRepositoryInterface
     await prefs.setDouble(_keyBrightness, settings.brightness);
     await prefs.setBool(_keyAutoOptimize, settings.autoOptimizeBrightness);
     await prefs.setBool(
-        _keyFollowSystemBrightness, settings.followSystemBrightness);
+      _keyFollowSystemBrightness,
+      settings.followSystemBrightness,
+    );
     await prefs.setString(_keyTheme, settings.theme.name);
     await prefs.setString(_keyReadingMode, settings.readingMode.name);
     await prefs.setString(_keyTextAlignment, settings.textAlignment.name);
     await prefs.setString(_keyMarginPreset, settings.marginPreset.name);
-    await prefs.setString(_keyPageTurnAnimation, settings.pageTurnAnimation.name);
+    await prefs.setString(
+      _keyPageTurnAnimation,
+      settings.pageTurnAnimation.name,
+    );
     await prefs.setString(_keyScrollAnimation, settings.scrollAnimation.name);
     await prefs.setString(_keyChromeStyle, settings.chromeStyle.name);
   }

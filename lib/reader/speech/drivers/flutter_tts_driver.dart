@@ -132,13 +132,15 @@ class FlutterTtsDriver implements SpeechDriver {
     if (raw is! List) return const [];
     return raw
         .whereType<Map>()
-        .map((v) => VoiceDescriptor(
-              id: '${v['name']}@${v['locale']}',
-              language: (v['locale'] as String?)?.split('-').first ?? 'en',
-              locale: v['locale'] as String? ?? 'en-US',
-              gender: v['gender'] as String?,
-              quality: v['quality']?.toString(),
-            ))
+        .map(
+          (v) => VoiceDescriptor(
+            id: '${v['name']}@${v['locale']}',
+            language: (v['locale'] as String?)?.split('-').first ?? 'en',
+            locale: v['locale'] as String? ?? 'en-US',
+            gender: v['gender'] as String?,
+            quality: v['quality']?.toString(),
+          ),
+        )
         .toList();
   }
 

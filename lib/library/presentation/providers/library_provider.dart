@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
+import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -25,16 +26,19 @@ enum LibrarySortOrder {
 
 enum LibraryCategory { books, novels }
 
-final bookshelfLayoutProvider =
-    StateProvider<BookshelfLayout>((ref) => BookshelfLayout.grid);
+final bookshelfLayoutProvider = StateProvider<BookshelfLayout>(
+  (ref) => BookshelfLayout.grid,
+);
 
-final librarySortProvider =
-    StateProvider<LibrarySortOrder>((ref) => LibrarySortOrder.titleAsc);
+final librarySortProvider = StateProvider<LibrarySortOrder>(
+  (ref) => LibrarySortOrder.titleAsc,
+);
 
 final librarySearchQueryProvider = StateProvider<String>((ref) => '');
 
-final libraryCategoryProvider =
-    StateProvider<LibraryCategory>((ref) => LibraryCategory.novels);
+final libraryCategoryProvider = StateProvider<LibraryCategory>(
+  (ref) => LibraryCategory.novels,
+);
 
 final libraryGenreFilterProvider = StateProvider<String?>((ref) => null);
 
@@ -47,9 +51,12 @@ final selectedBookIdProvider = StateProvider<String?>((ref) => null);
 /// sorted alphabetically. Used by the filter sidebar to populate genre chips.
 final availableGenresProvider = Provider<List<String>>((ref) {
   final booksResult = ref.watch(libraryBooksProvider);
-  final books = booksResult.whenOrNull(
-    data: (result) => result is Success<List<BookEntity>> ? result.value : null,
-  ) ?? <BookEntity>[];
+  final books =
+      booksResult.whenOrNull(
+        data: (result) =>
+            result is Success<List<BookEntity>> ? result.value : null,
+      ) ??
+      <BookEntity>[];
   final allTags = books.expand((b) => b.tags).toSet().toList();
   allTags.sort();
   return allTags;
@@ -75,9 +82,12 @@ final filteredLibraryProvider = Provider<List<BookEntity>>((ref) {
   final category = ref.watch(libraryCategoryProvider);
   final genreFilter = ref.watch(libraryGenreFilterProvider);
 
-  final books = booksResult.whenOrNull(
-    data: (result) => result is Success<List<BookEntity>> ? result.value : null,
-  ) ?? <BookEntity>[];
+  final books =
+      booksResult.whenOrNull(
+        data: (result) =>
+            result is Success<List<BookEntity>> ? result.value : null,
+      ) ??
+      <BookEntity>[];
 
   final categoryFiltered = switch (category) {
     LibraryCategory.books => books.where((b) => !b.isNovel).toList(),
@@ -90,22 +100,31 @@ final filteredLibraryProvider = Provider<List<BookEntity>>((ref) {
 
   final searchFiltered = query.isEmpty
       ? genreFiltered
-      : genreFiltered.where((b) =>
-          b.title.toLowerCase().contains(query) ||
-          (b.author?.toLowerCase().contains(query) ?? false)).toList();
+      : genreFiltered
+            .where(
+              (b) =>
+                  b.title.toLowerCase().contains(query) ||
+                  (b.author?.toLowerCase().contains(query) ?? false),
+            )
+            .toList();
 
-  searchFiltered.sort((a, b) => switch (sortOrder) {
-    LibrarySortOrder.titleAsc => a.title.compareTo(b.title),
-    LibrarySortOrder.titleDesc => b.title.compareTo(a.title),
-    LibrarySortOrder.author => (a.author ?? '').compareTo(b.author ?? ''),
-    LibrarySortOrder.recentlyAdded => b.createdAt.compareTo(a.createdAt),
-    LibrarySortOrder.recentlyRead => switch ((a.lastOpenedAt, b.lastOpenedAt)) {
+  searchFiltered.sort(
+    (a, b) => switch (sortOrder) {
+      LibrarySortOrder.titleAsc => a.title.compareTo(b.title),
+      LibrarySortOrder.titleDesc => b.title.compareTo(a.title),
+      LibrarySortOrder.author => (a.author ?? '').compareTo(b.author ?? ''),
+      LibrarySortOrder.recentlyAdded => b.createdAt.compareTo(a.createdAt),
+      LibrarySortOrder.recentlyRead => switch ((
+        a.lastOpenedAt,
+        b.lastOpenedAt,
+      )) {
         (null, null) => 0,
         (null, _) => 1,
         (_, null) => -1,
         (final aDate?, final bDate?) => bDate.compareTo(aDate),
       },
-  });
+    },
+  );
 
   return searchFiltered;
 });
@@ -128,7 +147,9 @@ class ImportProgress {
   final String? message;
 }
 
-final _libraryImportingProvider = StateProvider<ImportProgress>((ref) => const ImportProgress(stage: ImportStage.idle));
+final _libraryImportingProvider = StateProvider<ImportProgress>(
+  (ref) => const ImportProgress(stage: ImportStage.idle),
+);
 
 final libraryImportServiceProvider = Provider((ref) {
   final db = ref.watch(databaseProvider);
@@ -162,8 +183,9 @@ class _LibraryImportActions {
 
   /// Opens the unified "Add to library" sheet in combined mode — URL field,
   /// file picker, and browse sources all on one screen.  The sheet's
-  /// [onImport] callback delegates to [OpenedFileImportService.importBytes]
-  /// so the extension-routing logic lives in exactly one place.
+  /// [onImport] callback routes URL imports through the engine and file
+  /// imports through [OpenedFileImportService.importBytes] so the
+  /// extension-routing logic lives in exactly one place.
   Future<Result<ImportOutcome>> importLocal(BuildContext context) async {
     final importer = _ref.read(openedFileImportServiceProvider);
 
@@ -171,8 +193,12 @@ class _LibraryImportActions {
       context,
       mode: ImportSheetMode.combined,
       title: 'Add to library',
-      onImport: (bytes, fileName, onProgress) async {
+      onImport: (bytes, fileName, url, onProgress) async {
         if (bytes == null || fileName == null) {
+          if (url != null && url.isNotEmpty) {
+            final engine = _ref.read(contentAcquisitionEngineProvider);
+            return engine.importAndSave(url, onProgress: onProgress);
+          }
           throw const CancelledException();
         }
         onProgress(0.1);

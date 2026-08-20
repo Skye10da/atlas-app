@@ -9,7 +9,8 @@ import 'package:atlas_app/wtr/domain/services/wtr_import_service.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_session_auxiliary.dart';
 
 const _wtrSourceId = '29058';
-const _wtrSourceUrl = 'https://wtr-lab.com/en/novel/29058/'
+const _wtrSourceUrl =
+    'https://wtr-lab.com/en/novel/29058/'
     'charm-is-full-i-have-become-a-male-god-since-high-school';
 const _wtrSourceName = 'WTR-LAB';
 
@@ -105,20 +106,22 @@ void main() {
       );
     });
 
-    test('leaves the default untouched when the URL has no service param',
-        () async {
-      await applyWtrServiceFromImportedUrl(
-        '$_wtrSourceUrl/chapter-1',
-        sourceId: _wtrSourceId,
-        sourceUrl: _wtrSourceUrl,
-        sourceName: _wtrSourceName,
-      );
-      // Signed-in default is AI; nothing was pinned.
-      expect(
-        await WtrChapterProvider.instance.serviceFor(29058),
-        WtrTranslationService.ai,
-      );
-    });
+    test(
+      'leaves the default untouched when the URL has no service param',
+      () async {
+        await applyWtrServiceFromImportedUrl(
+          '$_wtrSourceUrl/chapter-1',
+          sourceId: _wtrSourceId,
+          sourceUrl: _wtrSourceUrl,
+          sourceName: _wtrSourceName,
+        );
+        // Signed-in default is AI; nothing was pinned.
+        expect(
+          await WtrChapterProvider.instance.serviceFor(29058),
+          WtrTranslationService.ai,
+        );
+      },
+    );
 
     test('ignores non-WTR sources', () async {
       await applyWtrServiceFromImportedUrl(

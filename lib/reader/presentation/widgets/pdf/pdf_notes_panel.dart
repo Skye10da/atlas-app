@@ -42,7 +42,10 @@ class PdfNotesPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: nightMode ? Colors.white12 : Colors.black12, width: 0.5),
+                bottom: BorderSide(
+                  color: nightMode ? Colors.white12 : Colors.black12,
+                  width: 0.5,
+                ),
               ),
             ),
             child: Column(
@@ -76,12 +79,18 @@ class PdfNotesPanel extends StatelessWidget {
                       'page ${note.pageNumber}',
                       style: TextStyle(
                         fontSize: 11,
-                        color: nightMode ? Colors.white54 : Colors.grey.shade600,
+                        color: nightMode
+                            ? Colors.white54
+                            : Colors.grey.shade600,
                       ),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: Icon(Icons.delete_outline, size: 18, color: nightMode ? Colors.white54 : Colors.grey),
+                      icon: Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: nightMode ? Colors.white54 : Colors.grey,
+                      ),
                       onPressed: () => onDelete(note),
                     ),
                   ],

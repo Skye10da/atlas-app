@@ -52,7 +52,10 @@ class NovelExportService {
       final failed = downloadResults.whereType<Failure<void>>();
       if (failed.isNotEmpty) {
         return Failure(
-          DatabaseException('Failed to download all chapters', failed.first.error),
+          DatabaseException(
+            'Failed to download all chapters',
+            failed.first.error,
+          ),
         );
       }
 
@@ -72,7 +75,9 @@ class NovelExportService {
       final epubChapters = <EpubChapter>[];
 
       for (final chapter in chapters) {
-        final contentResult = await readerRepo.getChapterContent(chapter.contentPath);
+        final contentResult = await readerRepo.getChapterContent(
+          chapter.contentPath,
+        );
         if (contentResult is! Success<String>) {
           return _toFailure(contentResult);
         }
@@ -80,7 +85,9 @@ class NovelExportService {
         if (text.isEmpty) continue;
 
         final fileName = 'ch_${chapter.index + 1}.xhtml';
-        final title = chapter.title.isEmpty ? 'Chapter ${chapter.index + 1}' : chapter.title;
+        final title = chapter.title.isEmpty
+            ? 'Chapter ${chapter.index + 1}'
+            : chapter.title;
         final xhtml = _chapterXhtml(title, _textToParagraphs(text));
 
         html[fileName] = EpubTextContentFile(
@@ -96,7 +103,10 @@ class NovelExportService {
           ),
         );
         spineItems.add(
-          EpubSpineItemRef(idRef: fileName.replaceAll('.xhtml', ''), isLinear: true),
+          EpubSpineItemRef(
+            idRef: fileName.replaceAll('.xhtml', ''),
+            isLinear: true,
+          ),
         );
         navPoints.add(
           EpubNavigationPoint(
@@ -114,7 +124,9 @@ class NovelExportService {
       }
 
       if (html.isEmpty) {
-        return const Failure(ValidationException('No readable content to export'));
+        return const Failure(
+          ValidationException('No readable content to export'),
+        );
       }
 
       final images = <String, EpubByteContentFile>{};
@@ -178,7 +190,11 @@ class NovelExportService {
               subjects: book.tags,
             ),
             manifest: EpubManifest(items: manifestItems),
-            spine: EpubSpine(tableOfContents: 'ncx', items: spineItems, ltr: true),
+            spine: EpubSpine(
+              tableOfContents: 'ncx',
+              items: spineItems,
+              ltr: true,
+            ),
             guide: const EpubGuide(),
           ),
           navigation: EpubNavigation(
@@ -186,11 +202,7 @@ class NovelExportService {
             navMap: EpubNavigationMap(points: navPoints),
           ),
         ),
-        content: EpubContent(
-          html: html,
-          images: images,
-          allFiles: allFiles,
-        ),
+        content: EpubContent(html: html, images: images, allFiles: allFiles),
         chapters: epubChapters,
       );
 
@@ -203,7 +215,10 @@ class NovelExportService {
       if (!await outputDir.exists()) {
         await outputDir.create(recursive: true);
       }
-      final filePath = p.join(outputDirectory, '${_sanitizeFileName(book.title)}.epub');
+      final filePath = p.join(
+        outputDirectory,
+        '${_sanitizeFileName(book.title)}.epub',
+      );
       await File(filePath).writeAsBytes(bytes, flush: true);
       return Success(filePath);
     } catch (e, st) {
@@ -224,7 +239,9 @@ class NovelExportService {
       final book = bookResult.value;
 
       if (book.sourceUrl == null || book.sourceUrl!.isEmpty) {
-        return const Failure(ValidationException('This book has no source link to export'));
+        return const Failure(
+          ValidationException('This book has no source link to export'),
+        );
       }
 
       final chaptersResult = await readerRepo.getChapters(bookId);
@@ -274,7 +291,10 @@ class NovelExportService {
       if (!await outputDir.exists()) {
         await outputDir.create(recursive: true);
       }
-      final filePath = p.join(outputDirectory, '${_sanitizeFileName(book.title)}.atlas');
+      final filePath = p.join(
+        outputDirectory,
+        '${_sanitizeFileName(book.title)}.atlas',
+      );
       await File(filePath).writeAsString(
         const JsonEncoder.withIndent('  ').convert(manifest),
         flush: true,
@@ -303,8 +323,12 @@ class NovelExportService {
           if (source != null) {
             final novel = await source.getMetadata(uri);
             bytes = novel.coverBytes;
-            if (bytes == null && novel.coverUrl != null && imagePipeline != null) {
-              final stored = await imagePipeline!.download(Uri.parse(novel.coverUrl!));
+            if (bytes == null &&
+                novel.coverUrl != null &&
+                imagePipeline != null) {
+              final stored = await imagePipeline!.download(
+                Uri.parse(novel.coverUrl!),
+              );
               if (stored != null && await File(stored).exists()) {
                 bytes = await File(stored).readAsBytes();
               }
@@ -363,7 +387,11 @@ class NovelExportService {
         '</html>';
   }
 
-  String _ncxXml(String title, String? author, List<EpubNavigationPoint> points) {
+  String _ncxXml(
+    String title,
+    String? author,
+    List<EpubNavigationPoint> points,
+  ) {
     final items = <String>[];
     for (var i = 0; i < points.length; i++) {
       final point = points[i];

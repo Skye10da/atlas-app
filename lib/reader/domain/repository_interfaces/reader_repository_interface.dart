@@ -17,7 +17,11 @@ abstract interface class ReaderRepositoryInterface {
   });
   Future<Result<ReadingProgressSnapshot?>> getReadingProgress(String bookId);
   Future<Result<BookEntity>> getBookById(String id);
-  Future<Result<void>> updateChapterContent(String bookId, int chapterIndex, String content);
+  Future<Result<void>> updateChapterContent(
+    String bookId,
+    int chapterIndex,
+    String content,
+  );
 
   /// Drops every downloaded chapter of [bookId] back to the "not downloaded"
   /// state: the on-disk content (and any superseded versions) is removed so a

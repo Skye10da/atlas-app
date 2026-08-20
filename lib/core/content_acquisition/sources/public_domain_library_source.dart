@@ -9,7 +9,8 @@ import 'package:atlas_app/core/content_acquisition/models/content_category.dart'
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 
 class PublicDomainLibrarySource implements SearchableSource {
-  PublicDomainLibrarySource({http.Client? client}) : _client = client ?? http.Client();
+  PublicDomainLibrarySource({http.Client? client})
+    : _client = client ?? http.Client();
 
   final http.Client _client;
 
@@ -23,15 +24,20 @@ class PublicDomainLibrarySource implements SearchableSource {
 
   @override
   bool canHandle(Uri uri) {
-    return uri.host == 'publicdomainlibrary.org' || uri.host == 'www.publicdomainlibrary.org';
+    return uri.host == 'publicdomainlibrary.org' ||
+        uri.host == 'www.publicdomainlibrary.org';
   }
 
   @override
   Future<SourceSearchResponse> search(SourceSearchQuery query) async {
-    final uri = Uri.parse('$_baseUrl/search').replace(queryParameters: {'q': query.term});
+    final uri = Uri.parse(
+      '$_baseUrl/search',
+    ).replace(queryParameters: {'q': query.term});
     final response = await _client.get(uri);
     if (response.statusCode != 200) {
-      throw Exception('Public Domain Library search failed: ${response.statusCode}');
+      throw Exception(
+        'Public Domain Library search failed: ${response.statusCode}',
+      );
     }
 
     final results = _parseSearchResults(response.body);
@@ -45,10 +51,14 @@ class PublicDomainLibrarySource implements SearchableSource {
     for (int i = 1; i < previews.length; i++) {
       final card = previews[i];
 
-      final titleMatch = RegExp(r'pdl-book-preview__title[^>]*>\s*([^<]+)').firstMatch(card);
+      final titleMatch = RegExp(
+        r'pdl-book-preview__title[^>]*>\s*([^<]+)',
+      ).firstMatch(card);
       final title = titleMatch?.group(1)?.trim() ?? 'Untitled';
 
-      final authorMatch = RegExp(r'pdl-book-preview__author[^>]*>\s*([^<]+)').firstMatch(card);
+      final authorMatch = RegExp(
+        r'pdl-book-preview__author[^>]*>\s*([^<]+)',
+      ).firstMatch(card);
       final author = authorMatch?.group(1)?.trim();
 
       final viewMatch = RegExp(r'/en/ebooks/([\w-]+)').firstMatch(card);
@@ -58,13 +68,15 @@ class PublicDomainLibrarySource implements SearchableSource {
       final coverMatch = RegExp(r'<img[^>]+src="([^"]+)"').firstMatch(card);
       final coverUrl = coverMatch?.group(1);
 
-      results.add(SourceSearchResult(
-        id: slug,
-        title: title,
-        author: author,
-        coverUrl: coverUrl,
-        importUrl: '$_baseUrl/en/ebooks/$slug',
-      ));
+      results.add(
+        SourceSearchResult(
+          id: slug,
+          title: title,
+          author: author,
+          coverUrl: coverUrl,
+          importUrl: '$_baseUrl/en/ebooks/$slug',
+        ),
+      );
     }
 
     return results;
@@ -144,13 +156,15 @@ class PublicDomainLibrarySource implements SearchableSource {
       final text = _stripHtml(html).trim();
       if (text.isEmpty) continue;
       final chTitle = ch.title ?? 'Chapter ${index + 1}';
-      results.add(ChapterModel(
-        id: '${novel.sourceId}_ch$index',
-        title: chTitle,
-        index: index,
-        content: text,
-        wordCount: text.split(RegExp(r'\s+')).length,
-      ));
+      results.add(
+        ChapterModel(
+          id: '${novel.sourceId}_ch$index',
+          title: chTitle,
+          index: index,
+          content: text,
+          wordCount: text.split(RegExp(r'\s+')).length,
+        ),
+      );
       index++;
     }
 
@@ -169,9 +183,22 @@ class PublicDomainLibrarySource implements SearchableSource {
 
   String _stripHtml(String html) {
     return html
-        .replaceAll(RegExp(r'<head>.*?</head>', dotAll: true, caseSensitive: false), '')
-        .replaceAll(RegExp(r'<script.*?>.*?</script>', dotAll: true, caseSensitive: false), '')
-        .replaceAll(RegExp(r'<style.*?>.*?</style>', dotAll: true, caseSensitive: false), '')
+        .replaceAll(
+          RegExp(r'<head>.*?</head>', dotAll: true, caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<script.*?>.*?</script>',
+            dotAll: true,
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'<style.*?>.*?</style>', dotAll: true, caseSensitive: false),
+          '',
+        )
         .replaceAll(RegExp(r'<[^>]*>'), '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
@@ -180,6 +207,8 @@ class PublicDomainLibrarySource implements SearchableSource {
   @override
   Future<ChapterModel> getChapter(ChapterModel chapter) async {
     if (chapter.content != null) return chapter;
-    throw Exception('Public Domain Library chapters are only available in batch.');
+    throw Exception(
+      'Public Domain Library chapters are only available in batch.',
+    );
   }
 }

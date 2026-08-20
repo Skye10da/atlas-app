@@ -38,8 +38,8 @@ class AppButton extends StatelessWidget {
     this.onPressed,
     this.label,
     this.loading = false,
-  })  : variant = AppButtonVariant.icon,
-        expanded = false;
+  }) : variant = AppButtonVariant.icon,
+       expanded = false;
 
   final AppButtonVariant variant;
   final String? label;

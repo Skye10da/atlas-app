@@ -51,9 +51,9 @@ final wtrAuthManagerProvider = Provider<WtrAuthenticationManager>((ref) {
 /// otherwise) when never chosen.
 final wtrTranslationServiceProvider =
     FutureProvider.family<WtrTranslationService, int>((ref, rawId) async {
-  final runtime = await ref.watch(wtrRuntimeProvider.future);
-  return runtime.serviceFor(rawId);
-});
+      final runtime = await ref.watch(wtrRuntimeProvider.future);
+      return runtime.serviceFor(rawId);
+    });
 
 /// Creates the WebView engine for the WTR-Lab sign-in screen. Kept as a
 /// separate provider so tests can swap in a fake engine.

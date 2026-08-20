@@ -60,9 +60,7 @@ class _SilentWebViewHostState extends ConsumerState<SilentWebViewHost> {
       child: Focus(
         canRequestFocus: false,
         skipTraversal: true,
-        child: IgnorePointer(
-          child: engine.buildView(),
-        ),
+        child: IgnorePointer(child: engine.buildView()),
       ),
     );
   }

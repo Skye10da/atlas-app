@@ -3,11 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class WiktionaryResult {
-  WiktionaryResult({
-    required this.word,
-    this.phonetic,
-    required this.senses,
-  });
+  WiktionaryResult({required this.word, this.phonetic, required this.senses});
 
   factory WiktionaryResult.fromJson(Map<String, dynamic> json) =>
       WiktionaryResult(
@@ -29,10 +25,10 @@ class WiktionaryResult {
   }
 
   Map<String, dynamic> toJson() => {
-        'word': word,
-        'phonetic': phonetic,
-        'senses': senses.map((s) => s.toJson()).toList(),
-      };
+    'word': word,
+    'phonetic': phonetic,
+    'senses': senses.map((s) => s.toJson()).toList(),
+  };
 
   final String word;
   final String? phonetic;
@@ -54,10 +50,10 @@ class WiktionarySense {
       );
 
   Map<String, dynamic> toJson() => {
-        'partOfSpeech': partOfSpeech,
-        'definition': definition,
-        'examples': examples,
-      };
+    'partOfSpeech': partOfSpeech,
+    'definition': definition,
+    'examples': examples,
+  };
 
   final String partOfSpeech;
   final String definition;
@@ -136,9 +132,7 @@ enum DictionarySource {
   urbanDictionary(
     id: 'urban_dictionary',
     label: 'Urban Dictionary',
-    languages: [
-      WiktionaryLanguage('en', 'English'),
-    ],
+    languages: [WiktionaryLanguage('en', 'English')],
   );
 
   const DictionarySource({
@@ -212,18 +206,20 @@ class WiktionaryService implements DictionaryService {
         final gloss = glosses.isNotEmpty ? glosses[0] as String : '';
         if (gloss.isEmpty) continue;
 
-        final examples = (sense['examples'] as List?)
-                ?.map((ex) =>
-                    (ex as Map)['text'] as String? ?? '')
+        final examples =
+            (sense['examples'] as List?)
+                ?.map((ex) => (ex as Map)['text'] as String? ?? '')
                 .where((t) => t.isNotEmpty)
                 .toList() ??
             [];
 
-        allSenses.add(WiktionarySense(
-          partOfSpeech: pos,
-          definition: gloss.trim(),
-          examples: examples.toList(),
-        ));
+        allSenses.add(
+          WiktionarySense(
+            partOfSpeech: pos,
+            definition: gloss.trim(),
+            examples: examples.toList(),
+          ),
+        );
       }
     }
 
@@ -233,7 +229,8 @@ class WiktionaryService implements DictionaryService {
 }
 
 class UrbanDictionaryService implements DictionaryService {
-  UrbanDictionaryService({http.Client? client}) : _client = client ?? http.Client();
+  UrbanDictionaryService({http.Client? client})
+    : _client = client ?? http.Client();
 
   final http.Client _client;
 
@@ -265,11 +262,13 @@ class UrbanDictionaryService implements DictionaryService {
       final definition = (e['definition'] as String? ?? '').trim();
       if (definition.isEmpty) continue;
       final example = (e['example'] as String? ?? '').trim();
-      senses.add(WiktionarySense(
-        partOfSpeech: 'slang',
-        definition: definition,
-        examples: example.isEmpty ? const [] : [example],
-      ));
+      senses.add(
+        WiktionarySense(
+          partOfSpeech: 'slang',
+          definition: definition,
+          examples: example.isEmpty ? const [] : [example],
+        ),
+      );
     }
 
     if (senses.isEmpty) return null;

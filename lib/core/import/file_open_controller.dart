@@ -41,7 +41,9 @@ class FileOpenController {
 
   Future<void> _emitInitialMobileFile() async {
     try {
-      final initial = await _channel.invokeMethod<String>('getInitialOpenedFile');
+      final initial = await _channel.invokeMethod<String>(
+        'getInitialOpenedFile',
+      );
       if (initial != null && initial.isNotEmpty) {
         _paths.add(initial);
       }
@@ -61,7 +63,9 @@ class FileOpenController {
 
   String? _supportedFilePath(String arg) {
     final lower = arg.toLowerCase();
-    if (lower.endsWith('.epub') || lower.endsWith('.pdf') || lower.endsWith('.atlas')) {
+    if (lower.endsWith('.epub') ||
+        lower.endsWith('.pdf') ||
+        lower.endsWith('.atlas')) {
       return arg;
     }
     return null;

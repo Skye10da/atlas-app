@@ -20,8 +20,12 @@ void main() {
             <div class="ad"><a href="https://ads.example/x">Buy now</a></div>
           </div>
         </body></html>''');
-      const selectors = SelectorSet(chapterContent:
-          ChapterContentSelectors(container: '#content', title: '.chapter-title'));
+      const selectors = SelectorSet(
+        chapterContent: ChapterContentSelectors(
+          container: '#content',
+          title: '.chapter-title',
+        ),
+      );
       const filters = PluginFilters(extraStripSelectors: ['.ad']);
       final context = buildContext(
         transport: transport,
@@ -29,8 +33,10 @@ void main() {
         filters: filters,
       );
 
-      final doc =
-          await const HtmlTemplate().chapterContent(context, 'https://example.com/ch/1');
+      final doc = await const HtmlTemplate().chapterContent(
+        context,
+        'https://example.com/ch/1',
+      );
 
       expect(doc.title, 'Chapter One');
       final text = doc.renderToText();
@@ -38,47 +44,59 @@ void main() {
       expect(text, isNot(contains('Buy now')));
     });
 
-    test('falls back to the whole body when no selectors are configured',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/ch/2',
-            '<html><body><p>Just a body.</p></body></html>');
-      final context = buildContext(transport: transport);
+    test(
+      'falls back to the whole body when no selectors are configured',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(
+            'https://example.com/ch/2',
+            '<html><body><p>Just a body.</p></body></html>',
+          );
+        final context = buildContext(transport: transport);
 
-      final doc =
-          await const HtmlTemplate().chapterContent(context, 'https://example.com/ch/2');
+        final doc = await const HtmlTemplate().chapterContent(
+          context,
+          'https://example.com/ch/2',
+        );
 
-      expect(doc.renderToText(), contains('Just a body.'));
-    });
+        expect(doc.renderToText(), contains('Just a body.'));
+      },
+    );
   });
 
   group('HtmlTemplate.search', () {
-    test('queries the WordPress ?s= endpoint and resolves relative URLs',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com?s=test', '''
+    test(
+      'queries the WordPress ?s= endpoint and resolves relative URLs',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com?s=test', '''
         <html><body>
           <div class="search-result">
             <a href="/novel/x"><span class="title">Novel X</span></a>
             <img src="/cover-x.jpg" alt="">
           </div>
         </body></html>''');
-      const selectors = SelectorSet(search: SearchSelectors(
-        resultItem: '.search-result',
-        title: '.title',
-        coverUrl: 'img@src',
-        detailUrl: 'a@href',
-      ));
-      final context = buildContext(transport: transport, selectors: selectors);
+        const selectors = SelectorSet(
+          search: SearchSelectors(
+            resultItem: '.search-result',
+            title: '.title',
+            coverUrl: 'img@src',
+            detailUrl: 'a@href',
+          ),
+        );
+        final context = buildContext(
+          transport: transport,
+          selectors: selectors,
+        );
 
-      final results =
-          await const HtmlTemplate().search(context, 'test');
+        final results = await const HtmlTemplate().search(context, 'test');
 
-      expect(results, hasLength(1));
-      expect(results.single.title, 'Novel X');
-      expect(results.single.url, 'https://example.com/novel/x');
-      expect(results.single.coverUrl, 'https://example.com/cover-x.jpg');
-    });
+        expect(results, hasLength(1));
+        expect(results.single.title, 'Novel X');
+        expect(results.single.url, 'https://example.com/novel/x');
+        expect(results.single.coverUrl, 'https://example.com/cover-x.jpg');
+      },
+    );
 
     test('drives a custom search endpoint via path and queryParam', () async {
       final transport = FakeTransport()
@@ -88,13 +106,15 @@ void main() {
             <h2 class="fiction-title"><a href="/fiction/1/mother">Mother</a></h2>
           </div>
         </body></html>''');
-      const selectors = SelectorSet(search: SearchSelectors(
-        resultItem: '.fiction-list-item',
-        title: 'h2.fiction-title a@text',
-        detailUrl: 'h2.fiction-title a@href',
-        path: '/fictions/search',
-        queryParam: 'title',
-      ));
+      const selectors = SelectorSet(
+        search: SearchSelectors(
+          resultItem: '.fiction-list-item',
+          title: 'h2.fiction-title a@text',
+          detailUrl: 'h2.fiction-title a@href',
+          path: '/fictions/search',
+          queryParam: 'title',
+        ),
+      );
       final context = buildContext(transport: transport, selectors: selectors);
 
       final results = await const HtmlTemplate().search(context, 'mother');
@@ -119,14 +139,16 @@ void main() {
         <html><body>
           <div class="sr"><a href="/novel/x"><span class="t">Novel X</span></a></div>
         </body></html>''');
-      const selectors = SelectorSet(search: SearchSelectors(
-        resultItem: '.sr',
-        title: '.t',
-        detailUrl: 'a@href',
-        path: '/search',
-        queryParam: 'q',
-        extraQueryParams: {'post_type': 'wp-manga'},
-      ));
+      const selectors = SelectorSet(
+        search: SearchSelectors(
+          resultItem: '.sr',
+          title: '.t',
+          detailUrl: 'a@href',
+          path: '/search',
+          queryParam: 'q',
+          extraQueryParams: {'post_type': 'wp-manga'},
+        ),
+      );
       final context = buildContext(transport: transport, selectors: selectors);
 
       final results = await const HtmlTemplate().search(context, 'test');
@@ -149,19 +171,27 @@ void main() {
           <li><a href="/novel/x/ch/3">Chapter 3</a></li>
           <li><a href="/novel/x/ch/2">Chapter 2</a></li>
         </ul></body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: '.cl li a',
-        title: '@text',
-        url: '@href',
-        pageParam: 'page',
-        maxPages: 5,
-      ));
+      const selectors = SelectorSet(
+        chapterList: ChapterListSelectors(
+          item: '.cl li a',
+          title: '@text',
+          url: '@href',
+          pageParam: 'page',
+          maxPages: 5,
+        ),
+      );
       final context = buildContext(transport: transport, selectors: selectors);
 
-      final refs =
-          await const HtmlTemplate().chapterList(context, 'https://example.com/novel/x');
+      final refs = await const HtmlTemplate().chapterList(
+        context,
+        'https://example.com/novel/x',
+      );
 
-      expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2', 'Chapter 3']);
+      expect(refs.map((r) => r.title).toList(), [
+        'Chapter 1',
+        'Chapter 2',
+        'Chapter 3',
+      ]);
       expect(refs.first.url, 'https://example.com/novel/x/ch/1');
     });
 
@@ -171,16 +201,20 @@ void main() {
         <html><body><ul class="cl">
           <li><a href="/novel/x/ch/1">Chapter 1</a></li>
         </ul></body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: '.cl li a',
-        title: '@text',
-        url: '@href',
-        maxPages: 50,
-      ));
+      const selectors = SelectorSet(
+        chapterList: ChapterListSelectors(
+          item: '.cl li a',
+          title: '@text',
+          url: '@href',
+          maxPages: 50,
+        ),
+      );
       final context = buildContext(transport: transport, selectors: selectors);
 
-      final refs =
-          await const HtmlTemplate().chapterList(context, 'https://example.com/novel/x');
+      final refs = await const HtmlTemplate().chapterList(
+        context,
+        'https://example.com/novel/x',
+      );
 
       expect(refs, hasLength(1));
       expect(transport.htmlCalls, 2);
@@ -193,29 +227,38 @@ void main() {
           <li><a href="/novel/x/ch/2">Chapter 2</a></li>
           <li><a href="/novel/x/ch/1">Chapter 1</a></li>
         </ul></body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: '.cl li a',
-        title: '@text',
-        url: '@href',
-        reverse: true,
-      ));
+      const selectors = SelectorSet(
+        chapterList: ChapterListSelectors(
+          item: '.cl li a',
+          title: '@text',
+          url: '@href',
+          reverse: true,
+        ),
+      );
       final context = buildContext(transport: transport, selectors: selectors);
 
-      final refs =
-          await const HtmlTemplate().chapterList(context, 'https://example.com/novel/x');
+      final refs = await const HtmlTemplate().chapterList(
+        context,
+        'https://example.com/novel/x',
+      );
 
       expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2']);
     });
 
-        test('throws PluginCapabilityException without chapterList selectors',
-        () async {
-      final context = buildContext(transport: FakeTransport());
+    test(
+      'throws PluginCapabilityException without chapterList selectors',
+      () async {
+        final context = buildContext(transport: FakeTransport());
 
-      await expectLater(
-        const HtmlTemplate().chapterList(context, 'https://example.com/novel/x'),
-        throwsA(isA<PluginCapabilityException>()),
-      );
-    });
+        await expectLater(
+          const HtmlTemplate().chapterList(
+            context,
+            'https://example.com/novel/x',
+          ),
+          throwsA(isA<PluginCapabilityException>()),
+        );
+      },
+    );
 
     test('fetches the archive via ajaxPath keyed by the novel id', () async {
       final transport = FakeTransport()
@@ -229,17 +272,19 @@ void main() {
           <option value="/novel/x/ch/2">Chapter 2</option>
           <option value="/novel/x/ch/3">Chapter 3</option>
         </select></body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: 'ul.cl li',
-        title: '@text',
-        url: 'a@href',
-        ajaxPath: '/ajax/chapters',
-        ajaxArchive: AjaxArchiveSelectors(
-          item: 'select > option[value]',
+      const selectors = SelectorSet(
+        chapterList: ChapterListSelectors(
+          item: 'ul.cl li',
           title: '@text',
-          url: '@value',
+          url: 'a@href',
+          ajaxPath: '/ajax/chapters',
+          ajaxArchive: AjaxArchiveSelectors(
+            item: 'select > option[value]',
+            title: '@text',
+            url: '@value',
+          ),
         ),
-      ));
+      );
       final context = buildContext(transport: transport, selectors: selectors);
 
       final refs = await const HtmlTemplate().chapterList(
@@ -254,200 +299,248 @@ void main() {
       ]);
     });
 
-    test('POSTs the archive with the novel id substituted into the form',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/novel/x', '''
+    test(
+      'POSTs the archive with the novel id substituted into the form',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com/novel/x', '''
         <html><body>
         <div id="manga-chapters-holder" data-id="591"></div>
         <ul class="cl"><li><a href="/novel/x/ch/9">Chapter 9</a></li></ul>
         </body></html>''')
-        ..addPostHtml('https://example.com/wp-admin/admin-ajax.php',
-            '{"success": true, "data": {"content": "<li class=\\"wp-manga-chapter\\"><a href=\\"/novel/x/chapter-1-x/\\">Chapter 1</a></li><li class=\\"wp-manga-chapter\\"><a href=\\"/novel/x/chapter-2-x/\\">Chapter 2</a></li>"}}');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: 'ul.cl li',
-        title: '@text',
-        url: 'a@href',
-        ajaxPath: '/wp-admin/admin-ajax.php',
-        ajaxArchive: AjaxArchiveSelectors(
-          item: 'li.wp-manga-chapter',
-          title: 'a@text',
-          url: 'a@href',
-          novelIdSelector: '#manga-chapters-holder@data-id',
-          method: 'POST',
-          form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
-          responseField: 'data.content',
-        ),
-      ));
-      final context = buildContext(transport: transport, selectors: selectors);
+          ..addPostHtml(
+            'https://example.com/wp-admin/admin-ajax.php',
+            '{"success": true, "data": {"content": "<li class=\\"wp-manga-chapter\\"><a href=\\"/novel/x/chapter-1-x/\\">Chapter 1</a></li><li class=\\"wp-manga-chapter\\"><a href=\\"/novel/x/chapter-2-x/\\">Chapter 2</a></li>"}}',
+          );
+        const selectors = SelectorSet(
+          chapterList: ChapterListSelectors(
+            item: 'ul.cl li',
+            title: '@text',
+            url: 'a@href',
+            ajaxPath: '/wp-admin/admin-ajax.php',
+            ajaxArchive: AjaxArchiveSelectors(
+              item: 'li.wp-manga-chapter',
+              title: 'a@text',
+              url: 'a@href',
+              novelIdSelector: '#manga-chapters-holder@data-id',
+              method: 'POST',
+              form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
+              responseField: 'data.content',
+            ),
+          ),
+        );
+        final context = buildContext(
+          transport: transport,
+          selectors: selectors,
+        );
 
-      final refs = await const HtmlTemplate().chapterList(
-        context,
-        'https://example.com/novel/x',
-      );
+        final refs = await const HtmlTemplate().chapterList(
+          context,
+          'https://example.com/novel/x',
+        );
 
-      expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2']);
-      expect(refs.map((r) => r.url).toList(), [
-        'https://example.com/novel/x/chapter-1-x/',
-        'https://example.com/novel/x/chapter-2-x/',
-      ]);
-    });
+        expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2']);
+        expect(refs.map((r) => r.url).toList(), [
+          'https://example.com/novel/x/chapter-1-x/',
+          'https://example.com/novel/x/chapter-2-x/',
+        ]);
+      },
+    );
 
-    test('resolves a novel-relative POST archive against the novel page',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/series/x', '''
+    test(
+      'resolves a novel-relative POST archive against the novel page',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com/series/x', '''
         <html><body>
         <div id="madara-chapters-holder" data-id="7"></div>
         <ul class="cl"><li><a href="/series/x/ch/2">Chapter 2</a></li></ul>
         </body></html>''')
-        ..addPostHtml(
-            'https://example.com/series/x/ajax/chapters', '''
-        <html><body><li><a href="/series/x/ch/1">Chapter 1</a></li></body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: 'ul.cl li',
-        title: '@text',
-        url: 'a@href',
-        ajaxPath: '/ajax/chapters',
-        ajaxArchive: AjaxArchiveSelectors(
-          item: 'li',
-          title: 'a@text',
-          url: 'a@href',
-          novelIdSelector: '#madara-chapters-holder@data-id',
-          method: 'POST',
-          form: {'novelId': '{novelId}'},
-          ajaxBase: 'novel',
-        ),
-      ));
-      final context = buildContext(transport: transport, selectors: selectors);
+          ..addPostHtml(
+            'https://example.com/series/x/ajax/chapters',
+            '''
+        <html><body><li><a href="/series/x/ch/1">Chapter 1</a></li></body></html>''',
+          );
+        const selectors = SelectorSet(
+          chapterList: ChapterListSelectors(
+            item: 'ul.cl li',
+            title: '@text',
+            url: 'a@href',
+            ajaxPath: '/ajax/chapters',
+            ajaxArchive: AjaxArchiveSelectors(
+              item: 'li',
+              title: 'a@text',
+              url: 'a@href',
+              novelIdSelector: '#madara-chapters-holder@data-id',
+              method: 'POST',
+              form: {'novelId': '{novelId}'},
+              ajaxBase: 'novel',
+            ),
+          ),
+        );
+        final context = buildContext(
+          transport: transport,
+          selectors: selectors,
+        );
 
-      final refs = await const HtmlTemplate().chapterList(
-        context,
-        'https://example.com/series/x',
-      );
+        final refs = await const HtmlTemplate().chapterList(
+          context,
+          'https://example.com/series/x',
+        );
 
-      expect(refs.map((r) => r.title).toList(), ['Chapter 1']);
-    });
+        expect(refs.map((r) => r.title).toList(), ['Chapter 1']);
+      },
+    );
 
-    test('falls back to the paginated walk on a POST archive failure',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/novel/x', '''
+    test(
+      'falls back to the paginated walk on a POST archive failure',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com/novel/x', '''
         <html><body>
         <div id="manga-chapters-holder" data-id="591"></div>
         <ul class="cl"><li><a href="/novel/x/ch/1">Chapter 1</a></li></ul>
         </body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: 'ul.cl li',
-        title: '@text',
-        url: 'a@href',
-        ajaxPath: '/wp-admin/admin-ajax.php',
-        ajaxArchive: AjaxArchiveSelectors(
-          item: 'li.wp-manga-chapter',
-          title: 'a@text',
-          url: 'a@href',
-          novelIdSelector: '#manga-chapters-holder@data-id',
-          method: 'POST',
-          form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
-          responseField: 'data.content',
-        ),
-      ));
-      final context = buildContext(transport: transport, selectors: selectors);
+        const selectors = SelectorSet(
+          chapterList: ChapterListSelectors(
+            item: 'ul.cl li',
+            title: '@text',
+            url: 'a@href',
+            ajaxPath: '/wp-admin/admin-ajax.php',
+            ajaxArchive: AjaxArchiveSelectors(
+              item: 'li.wp-manga-chapter',
+              title: 'a@text',
+              url: 'a@href',
+              novelIdSelector: '#manga-chapters-holder@data-id',
+              method: 'POST',
+              form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
+              responseField: 'data.content',
+            ),
+          ),
+        );
+        final context = buildContext(
+          transport: transport,
+          selectors: selectors,
+        );
 
-      final refs = await const HtmlTemplate().chapterList(
-        context,
-        'https://example.com/novel/x',
-      );
+        final refs = await const HtmlTemplate().chapterList(
+          context,
+          'https://example.com/novel/x',
+        );
 
-      expect(refs.map((r) => r.title).toList(), ['Chapter 1']);
-    });
+        expect(refs.map((r) => r.title).toList(), ['Chapter 1']);
+      },
+    );
 
-    test('returns the raw body when the JSON responseField cannot resolve',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/novel/x', '''
+    test(
+      'returns the raw body when the JSON responseField cannot resolve',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com/novel/x', '''
         <html><body>
         <div id="manga-chapters-holder" data-id="591"></div>
         <ul class="cl"><li><a href="/novel/x/ch/9">Chapter 9</a></li></ul>
         </body></html>''')
-        ..addPostHtml('https://example.com/wp-admin/admin-ajax.php',
-            'not-json-at-all');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: 'ul.cl li',
-        title: '@text',
-        url: 'a@href',
-        ajaxPath: '/wp-admin/admin-ajax.php',
-        ajaxArchive: AjaxArchiveSelectors(
-          item: 'li.wp-manga-chapter a',
-          novelIdSelector: '#manga-chapters-holder@data-id',
-          method: 'POST',
-          form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
-          responseField: 'data.content',
-        ),
-      ));
-      final context = buildContext(transport: transport, selectors: selectors);
+          ..addPostHtml(
+            'https://example.com/wp-admin/admin-ajax.php',
+            'not-json-at-all',
+          );
+        const selectors = SelectorSet(
+          chapterList: ChapterListSelectors(
+            item: 'ul.cl li',
+            title: '@text',
+            url: 'a@href',
+            ajaxPath: '/wp-admin/admin-ajax.php',
+            ajaxArchive: AjaxArchiveSelectors(
+              item: 'li.wp-manga-chapter a',
+              novelIdSelector: '#manga-chapters-holder@data-id',
+              method: 'POST',
+              form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
+              responseField: 'data.content',
+            ),
+          ),
+        );
+        final context = buildContext(
+          transport: transport,
+          selectors: selectors,
+        );
 
-      final refs = await const HtmlTemplate().chapterList(
-        context,
-        'https://example.com/novel/x',
-      );
+        final refs = await const HtmlTemplate().chapterList(
+          context,
+          'https://example.com/novel/x',
+        );
 
-      expect(refs.map((r) => r.title).toList(), ['Chapter 9']);
-    });
+        expect(refs.map((r) => r.title).toList(), ['Chapter 9']);
+      },
+    );
 
-    test('falls back to the paginated walk when the archive is unreachable',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/novel/x', '''
+    test(
+      'falls back to the paginated walk when the archive is unreachable',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com/novel/x', '''
         <html><body><div id="rating" data-novel-id="42"></div>
         <ul class="cl"><li><a href="/novel/x/ch/1">Chapter 1</a></li></ul>
         </body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: 'ul.cl li',
-        title: '@text',
-        url: 'a@href',
-        ajaxPath: '/ajax/chapters',
-      ));
-      final context = buildContext(transport: transport, selectors: selectors);
+        const selectors = SelectorSet(
+          chapterList: ChapterListSelectors(
+            item: 'ul.cl li',
+            title: '@text',
+            url: 'a@href',
+            ajaxPath: '/ajax/chapters',
+          ),
+        );
+        final context = buildContext(
+          transport: transport,
+          selectors: selectors,
+        );
 
-      final refs = await const HtmlTemplate().chapterList(
-        context,
-        'https://example.com/novel/x',
-      );
+        final refs = await const HtmlTemplate().chapterList(
+          context,
+          'https://example.com/novel/x',
+        );
 
-      expect(refs.map((r) => r.title).toList(), ['Chapter 1']);
-    });
+        expect(refs.map((r) => r.title).toList(), ['Chapter 1']);
+      },
+    );
 
-    test('bounds the walk from the pagination bar and data-total-page',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/novel/x', '''
+    test(
+      'bounds the walk from the pagination bar and data-total-page',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com/novel/x', '''
         <html><body>
         <div id="truyen" data-total-page="2">
           <ul class="cl"><li><a href="/novel/x/ch/1">Chapter 1</a></li></ul>
           <ul class="pagination"><li><a href="/novel/x?page=2">2</a></li></ul>
         </div>
         </body></html>''')
-        ..addHtml('https://example.com/novel/x?page=2', '''
+          ..addHtml('https://example.com/novel/x?page=2', '''
         <html><body><ul class="cl">
           <li><a href="/novel/x/ch/2">Chapter 2</a></li>
         </ul></body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: 'ul.cl li',
-        title: '@text',
-        url: 'a@href',
-        paginationSelector: 'ul.pagination',
-        totalPagesSelector: '#truyen',
-      ));
-      final context = buildContext(transport: transport, selectors: selectors);
+        const selectors = SelectorSet(
+          chapterList: ChapterListSelectors(
+            item: 'ul.cl li',
+            title: '@text',
+            url: 'a@href',
+            paginationSelector: 'ul.pagination',
+            totalPagesSelector: '#truyen',
+          ),
+        );
+        final context = buildContext(
+          transport: transport,
+          selectors: selectors,
+        );
 
-      final refs = await const HtmlTemplate().chapterList(
-        context,
-        'https://example.com/novel/x',
-      );
+        final refs = await const HtmlTemplate().chapterList(
+          context,
+          'https://example.com/novel/x',
+        );
 
-      expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2']);
-    });
+        expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2']);
+      },
+    );
 
     test('sorts by chapter number when configured', () async {
       final transport = FakeTransport()
@@ -457,12 +550,14 @@ void main() {
           <li><a href="/novel/x/chapter-1.html">Chapter 1</a></li>
           <li><a href="/novel/x/chapter-2.html">Chapter 2</a></li>
         </ul></body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: 'ul.cl li',
-        title: '@text',
-        url: 'a@href',
-        sortByChapterNumber: true,
-      ));
+      const selectors = SelectorSet(
+        chapterList: ChapterListSelectors(
+          item: 'ul.cl li',
+          title: '@text',
+          url: 'a@href',
+          sortByChapterNumber: true,
+        ),
+      );
       final context = buildContext(transport: transport, selectors: selectors);
 
       final refs = await const HtmlTemplate().chapterList(
@@ -490,8 +585,10 @@ void main() {
         </head><body></body></html>''');
       final context = buildContext(transport: transport);
 
-      final metadata =
-          await const HtmlTemplate().metadata(context, 'https://example.com/novel/x');
+      final metadata = await const HtmlTemplate().metadata(
+        context,
+        'https://example.com/novel/x',
+      );
 
       expect(metadata, isA<NovelMetadata>());
       expect(metadata.title, 'Novel Title');
@@ -500,10 +597,11 @@ void main() {
       expect(metadata.language, 'en');
     });
 
-    test('reads a data-driven metadata section (info rows + css fallbacks)',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/novel/x', '''
+    test(
+      'reads a data-driven metadata section (info rows + css fallbacks)',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com/novel/x', '''
         <html><head>
           <meta property="og:title" content="Novel Title">
           <meta property="og:image" content="https://example.com/cover.jpg">
@@ -515,42 +613,57 @@ void main() {
           </div></div>
           <div class="desc-text"><p>The real synopsis.</p></div>
         </body></html>''');
-      const selectors = SelectorSet(metadata: MetadataSelectors(
-        author: InfoRowMetadataField(labels: ['Author:']),
-        genres: InfoRowMetadataField(labels: ['Genres:', 'Genre:'], links: true),
-        status: InfoRowMetadataField(labels: ['Status:']),
-        description: CssMetadataField('.desc-text p'),
-      ));
-      final context = buildContext(transport: transport, selectors: selectors);
+        const selectors = SelectorSet(
+          metadata: MetadataSelectors(
+            author: InfoRowMetadataField(labels: ['Author:']),
+            genres: InfoRowMetadataField(
+              labels: ['Genres:', 'Genre:'],
+              links: true,
+            ),
+            status: InfoRowMetadataField(labels: ['Status:']),
+            description: CssMetadataField('.desc-text p'),
+          ),
+        );
+        final context = buildContext(
+          transport: transport,
+          selectors: selectors,
+        );
 
-      final metadata =
-          await const HtmlTemplate().metadata(context, 'https://example.com/novel/x');
+        final metadata = await const HtmlTemplate().metadata(
+          context,
+          'https://example.com/novel/x',
+        );
 
-      expect(metadata.title, 'Novel Title');
-      expect(metadata.author, 'Jane Doe');
-      expect(metadata.genres, ['Fantasy', 'SciFi']);
-      expect(metadata.status, 'Ongoing');
-      expect(metadata.description, 'The real synopsis.');
-    });
+        expect(metadata.title, 'Novel Title');
+        expect(metadata.author, 'Jane Doe');
+        expect(metadata.genres, ['Fantasy', 'SciFi']);
+        expect(metadata.status, 'Ongoing');
+        expect(metadata.description, 'The real synopsis.');
+      },
+    );
 
-    test('falls back to og:novel:* tags when no metadata section is present',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/novel/x', '''
+    test(
+      'falls back to og:novel:* tags when no metadata section is present',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com/novel/x', '''
         <html><head>
           <meta property="og:title" content="Novel Title">
           <meta name="og:novel:author" content="Jane Doe">
           <meta property="og:novel:genre" content="Fantasy, SciFi">
           <meta name="og:novel:status" content="Ongoing">
         </head><body></body></html>''');
-      final context = buildContext(transport: transport);
+        final context = buildContext(transport: transport);
 
-      final metadata =
-          await const HtmlTemplate().metadata(context, 'https://example.com/novel/x');
+        final metadata = await const HtmlTemplate().metadata(
+          context,
+          'https://example.com/novel/x',
+        );
 
-      expect(metadata.author, 'Jane Doe');
-      expect(metadata.genres, ['Fantasy', 'SciFi']);
-      expect(metadata.status, 'Ongoing');
-    });
+        expect(metadata.author, 'Jane Doe');
+        expect(metadata.genres, ['Fantasy', 'SciFi']);
+        expect(metadata.status, 'Ongoing');
+      },
+    );
   });
 }

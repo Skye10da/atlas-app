@@ -164,7 +164,9 @@ class _ChaptersTab extends StatelessWidget {
                     width: 24,
                     height: 24,
                     decoration: BoxDecoration(
-                      color: isCurrent ? colors.primary : colors.surfaceContainerHighest,
+                      color: isCurrent
+                          ? colors.primary
+                          : colors.surfaceContainerHighest,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -173,7 +175,9 @@ class _ChaptersTab extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: isCurrent ? colors.onPrimary : colors.onSurfaceVariant,
+                          color: isCurrent
+                              ? colors.onPrimary
+                              : colors.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -187,14 +191,20 @@ class _ChaptersTab extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: isCurrent ? FontWeight.w600 : null,
-                        color: isCurrent ? colors.onSurface : colors.onSurfaceVariant,
+                        color: isCurrent
+                            ? colors.onSurface
+                            : colors.onSurfaceVariant,
                       ),
                     ),
                   ),
                   if (isCurrent)
                     Padding(
                       padding: const EdgeInsets.only(left: 4),
-                      child: Icon(Icons.chevron_right, size: 16, color: colors.primary),
+                      child: Icon(
+                        Icons.chevron_right,
+                        size: 16,
+                        color: colors.primary,
+                      ),
                     ),
                 ],
               ),
@@ -224,15 +234,20 @@ class _BookmarksTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
-    final bookmarkedChapters =
-        chapters.where((ch) => bookmarkedChapterIds.contains(ch.id)).toList();
+    final bookmarkedChapters = chapters
+        .where((ch) => bookmarkedChapterIds.contains(ch.id))
+        .toList();
 
     if (bookmarkedChapters.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.bookmark_border, size: 32, color: colors.onSurfaceVariant),
+            Icon(
+              Icons.bookmark_border,
+              size: 32,
+              color: colors.onSurfaceVariant,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'No bookmarks yet',
@@ -241,7 +256,10 @@ class _BookmarksTab extends ConsumerWidget {
             const SizedBox(height: AppSpacing.sm),
             TextButton.icon(
               onPressed: onBookmarkToggle,
-              icon: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border, size: 16),
+              icon: Icon(
+                isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                size: 16,
+              ),
               label: const Text('Bookmark current chapter'),
             ),
           ],
@@ -277,7 +295,11 @@ class _BookmarksTab extends ConsumerWidget {
                       style: const TextStyle(fontSize: 13),
                     ),
                   ),
-                  Icon(Icons.chevron_right, size: 16, color: colors.onSurfaceVariant),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 16,
+                    color: colors.onSurfaceVariant,
+                  ),
                 ],
               ),
             ),
@@ -364,7 +386,10 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
                           border: Border.all(
                             color: isSelected
                                 ? Theme.of(context).colorScheme.primary
-                                : t.resolve(colorScheme).text.withValues(alpha: 0.15),
+                                : t
+                                      .resolve(colorScheme)
+                                      .text
+                                      .withValues(alpha: 0.15),
                             width: isSelected ? 2 : 1,
                           ),
                         ),
@@ -412,7 +437,10 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('Auto brightness', style: TextStyle(fontSize: 13)),
+                title: const Text(
+                  'Auto brightness',
+                  style: TextStyle(fontSize: 13),
+                ),
                 value: settings.autoOptimizeBrightness,
                 onChanged: (v) => notifier.setAutoOptimizeBrightness(v),
               ),

@@ -8,10 +8,10 @@ class OfflineTransport implements Transport {
     Map<String, Object?>? json,
     Map<String, List<int>>? bytes,
     Map<String, String>? postHtml,
-  })  : _html = {...?html},
-        _json = {...?json},
-        _bytes = {...?bytes},
-        _postHtml = {...?postHtml};
+  }) : _html = {...?html},
+       _json = {...?json},
+       _bytes = {...?bytes},
+       _postHtml = {...?postHtml};
 
   final Map<String, String> _html;
   final Map<String, Object?> _json;
@@ -28,11 +28,7 @@ class OfflineTransport implements Transport {
   /// Registers a POST response keyed by `url` plus the exact form body, since
   /// two POSTs to the same endpoint (e.g. different `manga` ids on the same
   /// `admin-ajax.php`) can legitimately differ.
-  void addPostHtml(
-    String url,
-    String body, {
-    Map<String, String>? form,
-  }) =>
+  void addPostHtml(String url, String body, {Map<String, String>? form}) =>
       _postHtml['$url#${form ?? const {}}'] = body;
 
   /// Registers a JSON POST response keyed by `url` only. Unlike form POSTs the

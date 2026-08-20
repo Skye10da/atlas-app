@@ -6,7 +6,11 @@ import 'package:atlas_app/core/error_handling/result.dart';
 abstract interface class BrowserRepositoryInterface {
   Future<Result<List<WebHistoryEntry>>> getAllHistory({int limit = 50});
   Stream<Result<List<WebHistoryEntry>>> watchHistory({int limit = 50});
-  Future<Result<void>> recordVisit({required String url, String? title, DateTime? visitedAt});
+  Future<Result<void>> recordVisit({
+    required String url,
+    String? title,
+    DateTime? visitedAt,
+  });
   Future<Result<void>> clearHistory();
 
   Future<Result<List<BrowserBookmark>>> getAllBookmarks();

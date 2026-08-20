@@ -14,18 +14,21 @@ import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import '../content_engine/test_fixtures.dart';
 
 void main() {
-  testWidgets('lists every registered source including plugin tiles',
-      (tester) async {
+  testWidgets('lists every registered source including plugin tiles', (
+    tester,
+  ) async {
     final registry = SourceRegistry()
       ..register(GutenbergSource(client: http.Client()))
-      ..register(PluginSource(
-        manifest: buildManifest(
-          baseUrl: 'https://novel.example',
-          sourceName: 'Novel Hub',
+      ..register(
+        PluginSource(
+          manifest: buildManifest(
+            baseUrl: 'https://novel.example',
+            sourceName: 'Novel Hub',
+          ),
+          template: const HtmlTemplate(),
+          transport: FakeTransport(),
         ),
-        template: const HtmlTemplate(),
-        transport: FakeTransport(),
-      ));
+      );
 
     final opened = <String>[];
     final router = GoRouter(

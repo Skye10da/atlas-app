@@ -46,19 +46,23 @@ class ChapterShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-        color: vt.resolve(Theme.of(context).colorScheme).background,
+      color: vt.resolve(Theme.of(context).colorScheme).background,
       child: Padding(
         padding: _padding,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final width = constraints.maxWidth.clamp(0, double.infinity).toDouble();
+            final width = constraints.maxWidth
+                .clamp(0, double.infinity)
+                .toDouble();
             final bodyWidth = (width - AppSpacing.lg * 2).toDouble();
             final tileHeight = fontSize * lineHeight;
             return SingleChildScrollView(
               physics: const NeverScrollableScrollPhysics(),
               child: Skeletonizer(
                 enabled: true,
-                effect: chapterShimmerEffect(vt.resolve(Theme.of(context).colorScheme)),
+                effect: chapterShimmerEffect(
+                  vt.resolve(Theme.of(context).colorScheme),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -71,11 +75,7 @@ class ChapterShimmer extends StatelessWidget {
                       const SizedBox(height: AppSpacing.md),
                       Row(
                         children: [
-                          const Bone(
-                            width: 84,
-                            height: 3,
-                            uniRadius: 2,
-                          ),
+                          const Bone(width: 84, height: 3, uniRadius: 2),
                           const SizedBox(width: AppSpacing.md),
                           Bone(
                             width: bodyWidth - 84 - AppSpacing.md,
@@ -156,8 +156,9 @@ class ReaderLoadingOverlay extends ConsumerWidget {
               height: 10,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color:
-                    phase == ChapterLoadPhase.done ? colors.accent : colors.text.withValues(alpha: 0.7),
+                color: phase == ChapterLoadPhase.done
+                    ? colors.accent
+                    : colors.text.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(width: 10),

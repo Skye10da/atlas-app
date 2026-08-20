@@ -5,7 +5,9 @@ import 'package:atlas_app/reader/domain/repository_interfaces/atlas_glossary_rep
 import 'package:atlas_app/reader/infrastructure/repositories/shared_prefs_atlas_glossary_repository.dart';
 
 /// The persistence layer behind the per-novel reader glossary.
-final atlasGlossaryRepositoryProvider = Provider<AtlasGlossaryRepository>((ref) {
+final atlasGlossaryRepositoryProvider = Provider<AtlasGlossaryRepository>((
+  ref,
+) {
   return const SharedPrefsAtlasGlossaryRepository();
 });
 
@@ -14,12 +16,14 @@ final atlasGlossaryRepositoryProvider = Provider<AtlasGlossaryRepository>((ref) 
 /// time.
 final atlasGlossaryProvider =
     FutureProvider.family<List<AtlasGlossaryEntry>, String>((ref, bookId) {
-  return ref.watch(atlasGlossaryRepositoryProvider).load(bookId);
-});
+      return ref.watch(atlasGlossaryRepositoryProvider).load(bookId);
+    });
 
 /// Mutation surface for the glossary. Callers invalidate
 /// [atlasGlossaryProvider] after an operation so watched content refreshes.
-final atlasGlossaryControllerProvider = Provider<AtlasGlossaryController>((ref) {
+final atlasGlossaryControllerProvider = Provider<AtlasGlossaryController>((
+  ref,
+) {
   return AtlasGlossaryController(ref.watch(atlasGlossaryRepositoryProvider));
 });
 
@@ -32,7 +36,11 @@ class AtlasGlossaryController {
   /// already exists for the term the replacement is added (or, if already one
   /// of its options, just made active); otherwise a new entry is created with
   /// it as the only option.
-  Future<void> upsertTerm(String bookId, String term, String replacement) async {
+  Future<void> upsertTerm(
+    String bookId,
+    String term,
+    String replacement,
+  ) async {
     final normalized = term.trim();
     final option = replacement.trim();
     if (normalized.isEmpty || option.isEmpty) return;
@@ -49,20 +57,26 @@ class AtlasGlossaryController {
         activeIndex: optionIndex >= 0 ? optionIndex : entry.replacements.length,
       );
     } else {
-      entries.add(AtlasGlossaryEntry(
-        id: '$bookId:$normalized',
-        bookId: bookId,
-        term: normalized,
-        replacements: [option],
-        createdAt: DateTime.now(),
-      ));
+      entries.add(
+        AtlasGlossaryEntry(
+          id: '$bookId:$normalized',
+          bookId: bookId,
+          term: normalized,
+          replacements: [option],
+          createdAt: DateTime.now(),
+        ),
+      );
     }
     await _repo.save(bookId, entries);
   }
 
   /// Adds another replacement option to an existing entry, leaving the active
   /// choice untouched.
-  Future<void> addReplacement(String bookId, String id, String replacement) async {
+  Future<void> addReplacement(
+    String bookId,
+    String id,
+    String replacement,
+  ) async {
     final option = replacement.trim();
     if (option.isEmpty) return;
     final entries = await _repo.load(bookId);
@@ -77,7 +91,11 @@ class AtlasGlossaryController {
   }
 
   /// Makes entry [id] display its [activeIndex]-th replacement option.
-  Future<void> setActiveReplacement(String bookId, String id, int activeIndex) async {
+  Future<void> setActiveReplacement(
+    String bookId,
+    String id,
+    int activeIndex,
+  ) async {
     final entries = await _repo.load(bookId);
     final index = entries.indexWhere((e) => e.id == id);
     if (index < 0) return;
@@ -88,7 +106,10 @@ class AtlasGlossaryController {
   /// Removes an entry entirely so the original term renders again.
   Future<void> removeEntry(String bookId, String id) async {
     final entries = await _repo.load(bookId);
-    final updated = [for (final e in entries) if (e.id != id) e];
+    final updated = [
+      for (final e in entries)
+        if (e.id != id) e,
+    ];
     if (updated.length == entries.length) return;
     await _repo.save(bookId, updated);
   }

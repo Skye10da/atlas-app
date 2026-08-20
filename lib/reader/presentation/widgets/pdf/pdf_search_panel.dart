@@ -3,7 +3,11 @@ import 'package:pdfrx/pdfrx.dart';
 
 /// Text search panel bound to a [PdfTextSearcher] created by the viewer.
 class PdfSearchPanel extends StatefulWidget {
-  const PdfSearchPanel({required this.textSearcher, required this.nightMode, super.key});
+  const PdfSearchPanel({
+    required this.textSearcher,
+    required this.nightMode,
+    super.key,
+  });
 
   final PdfTextSearcher textSearcher;
   final bool nightMode;
@@ -82,7 +86,10 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
         SizedBox(
           height: 2,
           child: isSearching
-              ? LinearProgressIndicator(value: searcher.searchProgress, minHeight: 2)
+              ? LinearProgressIndicator(
+                  value: searcher.searchProgress,
+                  minHeight: 2,
+                )
               : null,
         ),
         Row(
@@ -148,7 +155,9 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
               ? Center(
                   child: Text(
                     hasQuery ? 'No results' : 'Search document',
-                    style: TextStyle(color: nightMode ? Colors.white70 : Colors.grey),
+                    style: TextStyle(
+                      color: nightMode ? Colors.white70 : Colors.grey,
+                    ),
                   ),
                 )
               : ListView.builder(
@@ -213,7 +222,10 @@ class _ResultTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: isCurrent ? Colors.amber.withAlpha(90) : null,
           border: Border(
-            bottom: BorderSide(color: nightMode ? Colors.white12 : Colors.black12, width: 0.5),
+            bottom: BorderSide(
+              color: nightMode ? Colors.white12 : Colors.black12,
+              width: 0.5,
+            ),
           ),
         ),
         child: Row(
@@ -234,7 +246,10 @@ class _ResultTile extends StatelessWidget {
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, color: nightMode ? Colors.white : Colors.black87),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: nightMode ? Colors.white : Colors.black87,
+                ),
               ),
             ),
             const SizedBox(width: 8),

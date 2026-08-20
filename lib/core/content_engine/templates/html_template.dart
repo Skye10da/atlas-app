@@ -47,10 +47,7 @@ class HtmlTemplate implements Template {
       PluginCapability.values.toSet();
 
   @override
-  Future<List<SearchResult>> search(
-    PluginContext context,
-    String query,
-  ) async {
+  Future<List<SearchResult>> search(PluginContext context, String query) async {
     final selectors = context.selectors;
     if (selectors == null || selectors.search == null) {
       throw const PluginCapabilityException(
@@ -59,8 +56,10 @@ class HtmlTemplate implements Template {
       );
     }
     final uri = _searchUri(context.plugin.baseUrl, query, selectors.search!);
-    final html =
-        await context.transport.fetchHtml(uri, headers: context.plugin.requestHeaders);
+    final html = await context.transport.fetchHtml(
+      uri,
+      headers: context.plugin.requestHeaders,
+    );
     final doc = parser.parse(html);
     final raw = selectors.applySearch(doc, baseUrl: context.plugin.baseUrl);
     return [
@@ -88,8 +87,21 @@ class HtmlTemplate implements Template {
     final chapterList = selectors.chapterList!;
     final base = Uri.parse(context.plugin.baseUrl);
 
-    var refs = await _fetchAjaxArchive(context, selectors, chapterList, base, novelUrl)
-        ?? await _walkChapterPages(context, selectors, chapterList, base, novelUrl);
+    var refs =
+        await _fetchAjaxArchive(
+          context,
+          selectors,
+          chapterList,
+          base,
+          novelUrl,
+        ) ??
+        await _walkChapterPages(
+          context,
+          selectors,
+          chapterList,
+          base,
+          novelUrl,
+        );
 
     if (chapterList.sortByChapterNumber) refs = _sortByChapterNumber(refs);
     if (chapterList.reverse) refs = refs.reversed.toList();
@@ -136,11 +148,15 @@ class HtmlTemplate implements Template {
             entry.key: entry.value.replaceAll('{novelId}', novelId),
         };
         final target = (archive?.ajaxBase == 'novel')
-            ? Uri.parse(novelUrl)
-                .replace(path: _appendPath(Uri.parse(novelUrl).path, path))
+            ? Uri.parse(
+                novelUrl,
+              ).replace(path: _appendPath(Uri.parse(novelUrl).path, path))
             : base.replace(path: _appendPath(base.path, path));
-        html =
-            await context.transport.fetchHtmlPost(target, headers: headers, form: form);
+        html = await context.transport.fetchHtmlPost(
+          target,
+          headers: headers,
+          form: form,
+        );
       } else {
         final uri = base.replace(
           path: _appendPath(base.path, path),
@@ -152,14 +168,15 @@ class HtmlTemplate implements Template {
       return null;
     }
 
-
     final refs = <ChapterRef>[];
     final seen = <String>{};
     final itemSelector = archive?.item ?? chapterList.item;
     final titleSpec = archive?.title ?? chapterList.title;
     final urlSpec = archive?.url ?? chapterList.url;
-    for (final item in parser.parse(_archiveHtml(html, archive?.responseField))
-        .querySelectorAll(itemSelector)) {
+    for (final item
+        in parser
+            .parse(_archiveHtml(html, archive?.responseField))
+            .querySelectorAll(itemSelector)) {
       final title = selectors.extract(item, titleSpec);
       final rawUrl = selectors.extract(item, urlSpec);
       if (title == null || title.isEmpty || rawUrl == null || rawUrl.isEmpty) {
@@ -223,13 +240,15 @@ class HtmlTemplate implements Template {
       headers: headers,
     );
     _collectChapterRefs(selectors, parser.parse(first), base, seen, refs);
-    final maxPages = _maxPagesOf(parser.parse(first), chapterList)
-        .clamp(1, _maxPages)
-        .toInt();
+    final maxPages = _maxPagesOf(
+      parser.parse(first),
+      chapterList,
+    ).clamp(1, _maxPages).toInt();
 
     for (var page = 2; page <= maxPages; page++) {
-      final uri = Uri.parse(novelUrl)
-          .replace(queryParameters: {chapterList.pageParam: '$page'});
+      final uri = Uri.parse(
+        novelUrl,
+      ).replace(queryParameters: {chapterList.pageParam: '$page'});
       final html = await context.transport.fetchHtml(uri, headers: headers);
       final before = refs.length;
       _collectChapterRefs(selectors, parser.parse(html), base, seen, refs);
@@ -251,11 +270,9 @@ class HtmlTemplate implements Template {
     for (final ref in selectors.applyChapterList(doc)) {
       final url = base.resolve(ref.url).toString();
       if (!seen.add(url)) continue;
-      refs.add(ChapterRef(
-        title: ref.title,
-        url: url,
-        publishedAt: ref.publishedAt,
-      ));
+      refs.add(
+        ChapterRef(title: ref.title, url: url, publishedAt: ref.publishedAt),
+      );
     }
   }
 
@@ -269,11 +286,16 @@ class HtmlTemplate implements Template {
     int scan(Element container) {
       var pages = 0;
       for (final el in container.querySelectorAll('a[href]')) {
-        pages = math.max(pages, _pageNumber(el.attributes['href'] ?? '', pattern));
+        pages = math.max(
+          pages,
+          _pageNumber(el.attributes['href'] ?? '', pattern),
+        );
       }
       for (final el in container.querySelectorAll('option[data-url]')) {
-        pages =
-            math.max(pages, _pageNumber(el.attributes['data-url'] ?? '', pattern));
+        pages = math.max(
+          pages,
+          _pageNumber(el.attributes['data-url'] ?? '', pattern),
+        );
       }
       return pages;
     }
@@ -287,7 +309,8 @@ class HtmlTemplate implements Template {
     final totalPagesSelector = chapterList.totalPagesSelector;
     if (totalPagesSelector != null && totalPagesSelector.isNotEmpty) {
       final total = int.tryParse(
-        doc.querySelector(totalPagesSelector)?.attributes['data-total-page'] ?? '',
+        doc.querySelector(totalPagesSelector)?.attributes['data-total-page'] ??
+            '',
       );
       if (total != null) max = math.max(max, total);
     }
@@ -364,10 +387,7 @@ class HtmlTemplate implements Template {
   }
 
   @override
-  Future<NovelMetadata> metadata(
-    PluginContext context,
-    String novelUrl,
-  ) async {
+  Future<NovelMetadata> metadata(PluginContext context, String novelUrl) async {
     final html = await context.transport.fetchHtml(
       Uri.parse(novelUrl),
       headers: context.plugin.requestHeaders,
@@ -380,15 +400,19 @@ class HtmlTemplate implements Template {
     final metadata = selectors?.metadata;
 
     String? metaTag(String key) =>
-        doc.querySelector('meta[property="$key"]')?.attributes['content']?.trim() ??
+        doc
+            .querySelector('meta[property="$key"]')
+            ?.attributes['content']
+            ?.trim() ??
         doc.querySelector('meta[name="$key"]')?.attributes['content']?.trim();
 
     final title = _cleanTitle(
       _firstNonEmpty(
-        _fieldValue(doc, metadata?.title, selectors),
-        metaTag('og:title'),
-        doc.querySelector('title')?.text.trim(),
-      ) ?? 'Untitled',
+            _fieldValue(doc, metadata?.title, selectors),
+            metaTag('og:title'),
+            doc.querySelector('title')?.text.trim(),
+          ) ??
+          'Untitled',
       context,
     );
 
@@ -442,7 +466,11 @@ class HtmlTemplate implements Template {
 
   /// Applies a [MetadataField] declared in the plugin's `metadata` section, or
   /// returns null so the caller can fall back to the og: tag defaults.
-  String? _fieldValue(Document doc, MetadataField? field, SelectorSet? selectors) {
+  String? _fieldValue(
+    Document doc,
+    MetadataField? field,
+    SelectorSet? selectors,
+  ) {
     if (field is CssMetadataField && selectors != null) {
       return selectors.extract(doc.documentElement!, field.selector);
     }
@@ -461,20 +489,24 @@ class HtmlTemplate implements Template {
     return Uri.parse(baseUrl).resolve(raw).toString();
   }
 
-  List<String> _genresOf(Document doc, MetadataField? field, SelectorSet? selectors) {
+  List<String> _genresOf(
+    Document doc,
+    MetadataField? field,
+    SelectorSet? selectors,
+  ) {
     if (field is InfoRowMetadataField && field.links) {
       return _infoLinks(doc, field);
     }
     if (field is CssMetadataField && selectors != null) {
       final genres = <String>[];
-      for (final value in selectors.extractAll(doc.documentElement!, field.selector)) {
+      for (final value in selectors.extractAll(
+        doc.documentElement!,
+        field.selector,
+      )) {
         // Covers comma-separated values (NovelFull) and per-`<a>` genres
         // (Madara) alike.
         genres.addAll(
-          value
-              .split(',')
-              .map((g) => g.trim())
-              .where((g) => g.isNotEmpty),
+          value.split(',').map((g) => g.trim()).where((g) => g.isNotEmpty),
         );
       }
       return genres;
@@ -536,12 +568,18 @@ class HtmlTemplate implements Template {
 
     final sitePattern = sites.map(RegExp.escape).join('|');
 
-    final hasSiteSuffix = sitePattern.isNotEmpty &&
-        RegExp(r'(?:[-\u2013\u2014|]\s*(?:' + sitePattern +
-            r')|(?:\s+from\s+(?:' + sitePattern + r')))',
-                caseSensitive: false)
-            .hasMatch(t);
-    final isTemplated = hasSiteSuffix ||
+    final hasSiteSuffix =
+        sitePattern.isNotEmpty &&
+        RegExp(
+          r'(?:[-\u2013\u2014|]\s*(?:' +
+              sitePattern +
+              r')|(?:\s+from\s+(?:' +
+              sitePattern +
+              r')))',
+          caseSensitive: false,
+        ).hasMatch(t);
+    final isTemplated =
+        hasSiteSuffix ||
         RegExp(r'novel\s+online\s+free', caseSensitive: false).hasMatch(t);
 
     if (isTemplated) {
@@ -552,17 +590,22 @@ class HtmlTemplate implements Template {
     // follows it: "Read X novel online free - NOVGO.NET".
     if (sitePattern.isNotEmpty) {
       t = t.replaceFirst(
-          RegExp(r'\s+[-\u2013\u2014|]\s*(?:' + sitePattern + r')$',
-              caseSensitive: false),
-          '');
+        RegExp(
+          r'\s+[-\u2013\u2014|]\s*(?:' + sitePattern + r')$',
+          caseSensitive: false,
+        ),
+        '',
+      );
       t = t.replaceFirst(
-          RegExp(r'\s+from\s+(?:' + sitePattern + r')$',
-              caseSensitive: false),
-          '');
+        RegExp(r'\s+from\s+(?:' + sitePattern + r')$', caseSensitive: false),
+        '',
+      );
     }
 
     t = t.replaceFirst(
-        RegExp(r'\s+novel\s+online\s+free$', caseSensitive: false), '');
+      RegExp(r'\s+novel\s+online\s+free$', caseSensitive: false),
+      '',
+    );
     t = t.trim();
 
     return t.trim();

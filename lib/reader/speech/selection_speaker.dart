@@ -15,8 +15,9 @@ const _defaultSettings = NarrationSettings();
 /// voice when both are installed.
 Future<String?> resolveVoiceIdForLanguage(WidgetRef ref, String code) async {
   final normalized = code.toLowerCase();
-  final voices =
-      await ref.read(speechVoicesProvider.future).catchError((_) => const <VoiceDescriptor>[]);
+  final voices = await ref
+      .read(speechVoicesProvider.future)
+      .catchError((_) => const <VoiceDescriptor>[]);
   if (voices.isEmpty) return null;
 
   VoiceDescriptor? exact;
@@ -25,7 +26,8 @@ Future<String?> resolveVoiceIdForLanguage(WidgetRef ref, String code) async {
   for (final v in voices) {
     if (v.language.toLowerCase() == normalized) {
       exact ??= v;
-      if (normalized == 'zh' && (v.locale.startsWith('zh-CN') || v.locale.startsWith('zh-TW'))) {
+      if (normalized == 'zh' &&
+          (v.locale.startsWith('zh-CN') || v.locale.startsWith('zh-TW'))) {
         regionalZh ??= v;
       }
     } else if (v.locale.toLowerCase().startsWith('$normalized-')) {
@@ -71,18 +73,19 @@ class SelectionSpeaker {
         voiceId: voiceId ?? settings.selectedVoiceId,
         language: language,
       );
-      await driver.speak(SpeechItem(
-        bookId: bookId,
-        chapterId: chapterId,
-        paragraphIndex: paragraphIndex,
-        sentenceIndex: sentenceIndex,
-        text: text,
-        language: language,
-        voiceId: voiceId ?? settings.selectedVoiceId,
-      ));
+      await driver.speak(
+        SpeechItem(
+          bookId: bookId,
+          chapterId: chapterId,
+          paragraphIndex: paragraphIndex,
+          sentenceIndex: sentenceIndex,
+          text: text,
+          language: language,
+          voiceId: voiceId ?? settings.selectedVoiceId,
+        ),
+      );
     } catch (_) {}
   }
 
-  Future<void> stop(WidgetRef ref) =>
-      ref.read(speechDriverProvider).stop();
+  Future<void> stop(WidgetRef ref) => ref.read(speechDriverProvider).stop();
 }

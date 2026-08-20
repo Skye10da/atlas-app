@@ -29,14 +29,18 @@ class SpeechStartupResult {
 /// The configured voice that was persisted but is no longer installed.
 final speechDriverNoticeProvider = StateProvider<String?>((ref) => null);
 
-final speechDriverProvider = Provider<SpeechDriver>((ref) => FlutterTtsDriver());
+final speechDriverProvider = Provider<SpeechDriver>(
+  (ref) => FlutterTtsDriver(),
+);
 
 final speechRecoveryStoreProvider = Provider<RecoveryStore>(
   (ref) => SharedPrefsRecoveryStore(),
 );
 
 final narrationSettingsRepositoryProvider =
-    Provider<NarrationSettingsRepository>((ref) => NarrationSettingsRepository());
+    Provider<NarrationSettingsRepository>(
+      (ref) => NarrationSettingsRepository(),
+    );
 
 final voiceCacheProvider = Provider<VoiceCache>((ref) => VoiceCache());
 
@@ -61,11 +65,16 @@ final speechEventsProvider = StreamProvider<SpeechEvent>((ref) {
 
 /// Current narration transport status, derived from the driver state stream.
 final narrationStatusProvider = StreamProvider<NarrationStatus>((ref) {
-  return ref.watch(speechDriverProvider).stateStream.map((s) => switch (s) {
-    DriverState.speaking => NarrationStatus.playing,
-    DriverState.paused => NarrationStatus.paused,
-    _ => NarrationStatus.idle,
-  });
+  return ref
+      .watch(speechDriverProvider)
+      .stateStream
+      .map(
+        (s) => switch (s) {
+          DriverState.speaking => NarrationStatus.playing,
+          DriverState.paused => NarrationStatus.paused,
+          _ => NarrationStatus.idle,
+        },
+      );
 });
 
 /// The SpeechItem currently being narrated, for sentence highlighting. Set by
@@ -145,9 +154,14 @@ final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
   final settingsRepo = ref.read(narrationSettingsRepositoryProvider);
   final settings = await settingsRepo.load();
   final selected = settings.selectedVoiceId;
-  if (selected != null && voices.isNotEmpty && !voices.any((v) => v.id == selected)) {
+  if (selected != null &&
+      voices.isNotEmpty &&
+      !voices.any((v) => v.id == selected)) {
     notice = 'Selected narration voice is no longer available; using default.';
-    final reset = settings.copyWith(selectedVoiceId: null, clearActiveProfile: true);
+    final reset = settings.copyWith(
+      selectedVoiceId: null,
+      clearActiveProfile: true,
+    );
     await settingsRepo.save(reset);
     ref.read(speechDriverNoticeProvider.notifier).state = notice;
   }

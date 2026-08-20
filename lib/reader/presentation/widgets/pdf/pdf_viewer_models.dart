@@ -15,10 +15,10 @@ enum PdfReaderLayoutMode {
 
 extension PdfReaderLayoutModeX on PdfReaderLayoutMode {
   String get label => switch (this) {
-        PdfReaderLayoutMode.single => 'Single',
-        PdfReaderLayoutMode.continuous => 'Continuous',
-        PdfReaderLayoutMode.facing => 'Facing',
-      };
+    PdfReaderLayoutMode.single => 'Single',
+    PdfReaderLayoutMode.continuous => 'Continuous',
+    PdfReaderLayoutMode.facing => 'Facing',
+  };
 }
 
 /// A highlighted text selection kept on a page.

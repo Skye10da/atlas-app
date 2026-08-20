@@ -96,17 +96,29 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
       opacityHover: lerpDouble(opacityHover, other.opacityHover, t)!,
       opacityPress: lerpDouble(opacityPress, other.opacityPress, t)!,
       shadowSm: Shadow(
-        blurRadius: lerpDouble(shadowSm.blurRadius, other.shadowSm.blurRadius, t)!,
+        blurRadius: lerpDouble(
+          shadowSm.blurRadius,
+          other.shadowSm.blurRadius,
+          t,
+        )!,
         offset: Offset.lerp(shadowSm.offset, other.shadowSm.offset, t)!,
         color: Color.lerp(shadowSm.color, other.shadowSm.color, t)!,
       ),
       shadowMd: Shadow(
-        blurRadius: lerpDouble(shadowMd.blurRadius, other.shadowMd.blurRadius, t)!,
+        blurRadius: lerpDouble(
+          shadowMd.blurRadius,
+          other.shadowMd.blurRadius,
+          t,
+        )!,
         offset: Offset.lerp(shadowMd.offset, other.shadowMd.offset, t)!,
         color: Color.lerp(shadowMd.color, other.shadowMd.color, t)!,
       ),
       shadowLg: Shadow(
-        blurRadius: lerpDouble(shadowLg.blurRadius, other.shadowLg.blurRadius, t)!,
+        blurRadius: lerpDouble(
+          shadowLg.blurRadius,
+          other.shadowLg.blurRadius,
+          t,
+        )!,
         offset: Offset.lerp(shadowLg.offset, other.shadowLg.offset, t)!,
         color: Color.lerp(shadowLg.color, other.shadowLg.color, t)!,
       ),

@@ -48,8 +48,7 @@ class _HistorySheet extends ConsumerWidget {
       actions: [
         if (history.isNotEmpty)
           TextButton(
-            onPressed: () =>
-                ref.read(browserRepositoryProvider).clearHistory(),
+            onPressed: () => ref.read(browserRepositoryProvider).clearHistory(),
             child: const Text('Clear'),
           ),
       ],
@@ -74,8 +73,8 @@ class _HistorySheet extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -123,8 +122,8 @@ class _BookmarksSheet extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   trailing: IconButton(
                     tooltip: 'Remove bookmark',
@@ -171,10 +170,9 @@ class _SheetScaffold extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const Spacer(),
                   ...?actions,
@@ -209,8 +207,8 @@ class _Empty extends StatelessWidget {
             Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

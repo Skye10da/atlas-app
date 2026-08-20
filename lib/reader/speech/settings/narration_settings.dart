@@ -19,7 +19,8 @@ class NarrationSettings {
         selectedVoiceId: json['selectedVoiceId'] as String?,
         sleepTimer: json['sleepTimer'] is Map<String, dynamic>
             ? SleepTimerConfig.fromJson(
-                Map<String, dynamic>.from(json['sleepTimer'] as Map))
+                Map<String, dynamic>.from(json['sleepTimer'] as Map),
+              )
             : null,
         syncScrollToNarration: json['syncScrollToNarration'] as bool? ?? false,
         autoAdvanceChapter: json['autoAdvanceChapter'] as bool? ?? true,
@@ -53,24 +54,32 @@ class NarrationSettings {
       speechPitch: speechPitch ?? this.speechPitch,
       selectedVoiceId: selectedVoiceId ?? this.selectedVoiceId,
       sleepTimer: clearSleepTimer ? null : (sleepTimer ?? this.sleepTimer),
-      syncScrollToNarration: syncScrollToNarration ?? this.syncScrollToNarration,
+      syncScrollToNarration:
+          syncScrollToNarration ?? this.syncScrollToNarration,
       autoAdvanceChapter: autoAdvanceChapter ?? this.autoAdvanceChapter,
-      activeProfile: clearActiveProfile ? null : (activeProfile ?? this.activeProfile),
+      activeProfile: clearActiveProfile
+          ? null
+          : (activeProfile ?? this.activeProfile),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'speechRate': speechRate,
-        'speechPitch': speechPitch,
-        if (selectedVoiceId != null) 'selectedVoiceId': selectedVoiceId,
-        if (sleepTimer != null) 'sleepTimer': sleepTimer!.toJson(),
-        'syncScrollToNarration': syncScrollToNarration,
-        'autoAdvanceChapter': autoAdvanceChapter,
-        if (activeProfile != null) 'activeProfile': activeProfile,
-      };
+    'speechRate': speechRate,
+    'speechPitch': speechPitch,
+    if (selectedVoiceId != null) 'selectedVoiceId': selectedVoiceId,
+    if (sleepTimer != null) 'sleepTimer': sleepTimer!.toJson(),
+    'syncScrollToNarration': syncScrollToNarration,
+    'autoAdvanceChapter': autoAdvanceChapter,
+    if (activeProfile != null) 'activeProfile': activeProfile,
+  };
 }
 
-enum SleepTimerBoundary { immediate, endOfSentence, endOfParagraph, endOfChapter }
+enum SleepTimerBoundary {
+  immediate,
+  endOfSentence,
+  endOfParagraph,
+  endOfChapter,
+}
 
 class SleepTimerConfig {
   const SleepTimerConfig({required this.duration, required this.boundary});
@@ -85,9 +94,9 @@ class SleepTimerConfig {
   final SleepTimerBoundary boundary;
 
   Map<String, dynamic> toJson() => {
-        'durationMs': duration.inMilliseconds,
-        'boundary': boundary.name,
-      };
+    'durationMs': duration.inMilliseconds,
+    'boundary': boundary.name,
+  };
 }
 
 /// A named preset of (speechRate, speechPitch, selectedVoiceId). Applying
@@ -106,17 +115,33 @@ class NarrationProfile {
   final double speechPitch;
   final String? voiceId;
 
-  static const natural = NarrationProfile(name: 'Natural', speechRate: 1.0, speechPitch: 1.0);
-  static const fastReading = NarrationProfile(name: 'Fast Reading', speechRate: 1.35, speechPitch: 1.0);
-  static const slowReading = NarrationProfile(name: 'Slow Reading', speechRate: 0.8, speechPitch: 1.0);
-  static const nightMode = NarrationProfile(name: 'Night Mode', speechRate: 0.9, speechPitch: 0.95);
+  static const natural = NarrationProfile(
+    name: 'Natural',
+    speechRate: 1.0,
+    speechPitch: 1.0,
+  );
+  static const fastReading = NarrationProfile(
+    name: 'Fast Reading',
+    speechRate: 1.35,
+    speechPitch: 1.0,
+  );
+  static const slowReading = NarrationProfile(
+    name: 'Slow Reading',
+    speechRate: 0.8,
+    speechPitch: 1.0,
+  );
+  static const nightMode = NarrationProfile(
+    name: 'Night Mode',
+    speechRate: 0.9,
+    speechPitch: 0.95,
+  );
 
   static const defaults = [natural, fastReading, slowReading, nightMode];
 
   NarrationSettings applyTo(NarrationSettings settings) => settings.copyWith(
-        speechRate: speechRate,
-        speechPitch: speechPitch,
-        selectedVoiceId: voiceId,
-        activeProfile: name,
-      );
+    speechRate: speechRate,
+    speechPitch: speechPitch,
+    selectedVoiceId: voiceId,
+    activeProfile: name,
+  );
 }

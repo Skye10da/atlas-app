@@ -36,7 +36,8 @@ class SpeechItem {
   @override
   String toString() => 'SpeechItem($id, "${_truncate(text, 40)}")';
 
-  static String _truncate(String s, int n) => s.length <= n ? s : '${s.substring(0, n)}…';
+  static String _truncate(String s, int n) =>
+      s.length <= n ? s : '${s.substring(0, n)}…';
 }
 
 class VoiceDescriptor {
@@ -64,12 +65,12 @@ class VoiceDescriptor {
   final String? quality; // platform-reported where available
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'language': language,
-        'locale': locale,
-        if (gender != null) 'gender': gender,
-        if (quality != null) 'quality': quality,
-      };
+    'id': id,
+    'language': language,
+    'locale': locale,
+    if (gender != null) 'gender': gender,
+    if (quality != null) 'quality': quality,
+  };
 
   @override
   String toString() => 'VoiceDescriptor($id, $locale)';

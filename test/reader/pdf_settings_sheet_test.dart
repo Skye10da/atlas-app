@@ -27,7 +27,9 @@ void main() {
       expect(find.byType(ReadingSettingsScreen), findsNothing);
     });
 
-    testWidgets('tapping a theme opens preview and apply updates provider', (tester) async {
+    testWidgets('tapping a theme opens preview and apply updates provider', (
+      tester,
+    ) async {
       SharedPreferences.setMockInitialValues({});
       await tester.pumpWidget(
         const ProviderScope(
@@ -36,7 +38,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final container = ProviderScope.containerOf(tester.element(find.byType(PdfSettingsSheet)));
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PdfSettingsSheet)),
+      );
 
       // Before: default paper theme.
       expect(
@@ -70,7 +74,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final container = ProviderScope.containerOf(tester.element(find.byType(PdfSettingsSheet)));
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PdfSettingsSheet)),
+      );
       expect(
         container.read(readingSettingsProvider).valueOrNull!.keepScreenAwake,
         isFalse,

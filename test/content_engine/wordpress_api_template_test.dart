@@ -21,28 +21,36 @@ void main() {
         manifest: buildManifest(templateId: 'wordpress-api'),
       );
 
-      final doc = await const WordPressApiTemplate()
-          .chapterContent(context, 'https://example.com/novel/rest-chapter');
+      final doc = await const WordPressApiTemplate().chapterContent(
+        context,
+        'https://example.com/novel/rest-chapter',
+      );
 
       expect(doc.title, 'REST Chapter Title');
       expect(doc.renderToText(), contains('REST content here.'));
     });
 
-    test('falls back to scraping when the REST endpoint is unavailable',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com/novel/scraped',
-            '<html><body><p>Scraped fallback text.</p></body></html>');
-      final context = buildContext(
-        transport: transport,
-        manifest: buildManifest(templateId: 'wordpress-api'),
-      );
+    test(
+      'falls back to scraping when the REST endpoint is unavailable',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(
+            'https://example.com/novel/scraped',
+            '<html><body><p>Scraped fallback text.</p></body></html>',
+          );
+        final context = buildContext(
+          transport: transport,
+          manifest: buildManifest(templateId: 'wordpress-api'),
+        );
 
-      final doc = await const WordPressApiTemplate()
-          .chapterContent(context, 'https://example.com/novel/scraped');
+        final doc = await const WordPressApiTemplate().chapterContent(
+          context,
+          'https://example.com/novel/scraped',
+        );
 
-      expect(doc.renderToText(), contains('Scraped fallback text.'));
-    });
+        expect(doc.renderToText(), contains('Scraped fallback text.'));
+      },
+    );
   });
 
   group('WordPressApiTemplate.metadata', () {
@@ -59,8 +67,10 @@ void main() {
         manifest: buildManifest(templateId: 'wordpress-api'),
       );
 
-      final metadata = await const WordPressApiTemplate()
-          .metadata(context, 'https://example.com/novel/rest-title');
+      final metadata = await const WordPressApiTemplate().metadata(
+        context,
+        'https://example.com/novel/rest-title',
+      );
 
       expect(metadata.title, 'REST Novel Title');
       expect(metadata.sourceId, 'https://example.com/novel/rest-title');

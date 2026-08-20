@@ -4,10 +4,10 @@ import 'package:atlas_app/core/content_engine/index/content_indexer.dart';
 import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
 
 AtlasDocument _doc(String text) => AtlasDocument(
-      title: 'doc',
-      blocks: [ParagraphBlock(text: text)],
-      metadata: const DocumentMetadata(),
-    );
+  title: 'doc',
+  blocks: [ParagraphBlock(text: text)],
+  metadata: const DocumentMetadata(),
+);
 
 void main() {
   group('ContentIndexer', () {

@@ -25,7 +25,7 @@ class _ScriptEngine implements BrowserWebEngine {
   /// Arguments the simulated page passes back to the JS handler, mimicking a
   /// successful (`['<json envelope>']`) or failed (`[]`) in-page fetch.
   List<dynamic> cannedArgs = const [
-    '{"b":"<html>from-page</html>","s":200,"u":"https://novelfull.net/the-99th-divorce.html"}'
+    '{"b":"<html>from-page</html>","s":200,"u":"https://novelfull.net/the-99th-divorce.html"}',
   ];
 
   @override
@@ -87,14 +87,16 @@ class _ScriptEngine implements BrowserWebEngine {
   Future<void> clearFind() async {}
   @override
   Future<void> setSelectionListener(
-      void Function(WebSelection selection)? listener) async {}
+    void Function(WebSelection selection)? listener,
+  ) async {}
   @override
   Future<void> clearSelection() async {}
   @override
   Future<void> selectAllInPage() async {}
   @override
   Future<void> setDownloadListener(
-      void Function(String url, String? mimeType)? listener) async {}
+    void Function(String url, String? mimeType)? listener,
+  ) async {}
   @override
   Widget buildView() => throw UnimplementedError();
   @override
@@ -122,19 +124,23 @@ void main() {
       );
       expect(engine.evaluated, hasLength(1));
       expect(engine.evaluated.single, contains('fetch('));
-      expect(engine.evaluated.single,
-          contains('https://novelfull.net/ajax-chapter-option?novelId=261'));
+      expect(
+        engine.evaluated.single,
+        contains('https://novelfull.net/ajax-chapter-option?novelId=261'),
+      );
       expect(engine.evaluated.single, contains("'include'"));
       expect(engine.evaluated.single, contains('r.status'));
       expect(engine.removedHandlers, hasLength(1));
     });
 
     test('marks a 401 response as a session wall', () async {
-      final engine = _ScriptEngine(
-        currentUrl: 'https://novelfull.net/the-99th-divorce.html',
-      )..cannedArgs = const [
-          '{"b":"","s":401,"u":"https://novelfull.net/login"}'
-        ];
+      final engine =
+          _ScriptEngine(
+              currentUrl: 'https://novelfull.net/the-99th-divorce.html',
+            )
+            ..cannedArgs = const [
+              '{"b":"","s":401,"u":"https://novelfull.net/login"}',
+            ];
       final fetcher = WebViewPageFetcher(engine: engine);
 
       final result = await fetcher.fetchHtml(
@@ -147,12 +153,14 @@ void main() {
 
     test('POSTs a JSON body to a same-origin URL with the right method and '
         'content type', () async {
-      final engine = _ScriptEngine(
-        currentUrl: 'https://wtr-lab.com/en/novel/29058/charm-is-full',
-      )..cannedArgs = const [
-          '{"b":"{\\"success\\":true,\\"chapter\\":{\\"title\\":\\"Chapter 1\\"}}",'
-              '"s":200,"u":"https://wtr-lab.com/api/reader/get"}'
-        ];
+      final engine =
+          _ScriptEngine(
+              currentUrl: 'https://wtr-lab.com/en/novel/29058/charm-is-full',
+            )
+            ..cannedArgs = const [
+              '{"b":"{\\"success\\":true,\\"chapter\\":{\\"title\\":\\"Chapter 1\\"}}",'
+                  '"s":200,"u":"https://wtr-lab.com/api/reader/get"}',
+            ];
       final fetcher = WebViewPageFetcher(engine: engine);
 
       final result = await fetcher.fetchHtml(
@@ -161,10 +169,7 @@ void main() {
         jsonBody: {'translate': 'web', 'raw_id': 29058, 'chapter_no': 639},
       );
 
-      expect(
-        result?.body,
-        '{"success":true,"chapter":{"title":"Chapter 1"}}',
-      );
+      expect(result?.body, '{"success":true,"chapter":{"title":"Chapter 1"}}');
       expect(engine.evaluated, hasLength(1));
       final script = engine.evaluated.single;
       expect(script, contains('"POST"'));
@@ -183,7 +188,9 @@ void main() {
       );
       final fetcher = WebViewPageFetcher(engine: engine);
 
-      await fetcher.fetchHtml(Uri.parse('https://wtr-lab.com/api/chapters/29058'));
+      await fetcher.fetchHtml(
+        Uri.parse('https://wtr-lab.com/api/chapters/29058'),
+      );
 
       final script = engine.evaluated.single;
       expect(script, contains('"GET"'));
@@ -191,20 +198,23 @@ void main() {
       expect(script, isNot(contains('"translate"')));
     });
 
-    test('returns null (fall back to HTTP) for a cross-origin request', () async {
-      final engine = _ScriptEngine(
-        currentUrl: 'https://novelfull.net/the-99th-divorce.html',
-      );
-      final fetcher = WebViewPageFetcher(engine: engine);
+    test(
+      'returns null (fall back to HTTP) for a cross-origin request',
+      () async {
+        final engine = _ScriptEngine(
+          currentUrl: 'https://novelfull.net/the-99th-divorce.html',
+        );
+        final fetcher = WebViewPageFetcher(engine: engine);
 
-      final result = await fetcher.fetchHtml(
-        Uri.parse('https://other.com/the-99th-divorce.html'),
-      );
+        final result = await fetcher.fetchHtml(
+          Uri.parse('https://other.com/the-99th-divorce.html'),
+        );
 
-      expect(result, isNull);
-      expect(engine.evaluated, isEmpty);
-      expect(engine.handlers, isEmpty);
-    });
+        expect(result, isNull);
+        expect(engine.evaluated, isEmpty);
+        expect(engine.handlers, isEmpty);
+      },
+    );
 
     test('returns null when the web view is not on a page', () async {
       final engine = _ScriptEngine(currentUrl: null);

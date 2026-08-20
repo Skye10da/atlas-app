@@ -33,7 +33,8 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
 
   List<DictionaryWordEntity> _filterAndSort(List<DictionaryWordEntity> words) {
     final result = words.where((w) {
-      final matchesQuery = _query.isEmpty ||
+      final matchesQuery =
+          _query.isEmpty ||
           w.word.toLowerCase().contains(_query) ||
           w.definition.toLowerCase().contains(_query);
       final matchesLanguage =
@@ -41,11 +42,13 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
       return matchesQuery && matchesLanguage;
     }).toList();
 
-    result.sort((a, b) => _sortMode == _SortMode.alphabetical
-        ? a.word.toLowerCase().compareTo(b.word.toLowerCase())
-        : a.languageLabel
-            .toLowerCase()
-            .compareTo(b.languageLabel.toLowerCase()));
+    result.sort(
+      (a, b) => _sortMode == _SortMode.alphabetical
+          ? a.word.toLowerCase().compareTo(b.word.toLowerCase())
+          : a.languageLabel.toLowerCase().compareTo(
+              b.languageLabel.toLowerCase(),
+            ),
+    );
 
     return result;
   }
@@ -64,7 +67,8 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
           FilledButton.tonal(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error),
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             child: const Text('Remove'),
           ),
         ],
@@ -75,9 +79,9 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
       await ref.read(dictionaryRepositoryProvider).delete(word.id);
       ref.invalidate(savedWordsProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Removed "${word.word}"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Removed "${word.word}"')));
       }
     }
   }
@@ -127,7 +131,11 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                   preferredSize: const Size.fromHeight(56),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+                      AppSpacing.md,
+                      0,
+                      AppSpacing.md,
+                      AppSpacing.sm,
+                    ),
                     child: _SearchField(
                       controller: _searchController,
                       onChanged: (value) =>
@@ -142,7 +150,8 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                     height: 44,
                     child: ListView.separated(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md),
+                        horizontal: AppSpacing.md,
+                      ),
                       scrollDirection: Axis.horizontal,
                       itemCount: languages.length + 1,
                       separatorBuilder: (_, _) =>
@@ -160,10 +169,11 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                         return ChoiceChip(
                           label: Text(lang),
                           selected: _selectedLanguage == lang,
-                          onSelected: (_) => setState(() =>
-                              _selectedLanguage = _selectedLanguage == lang
-                                  ? null
-                                  : lang),
+                          onSelected: (_) => setState(
+                            () => _selectedLanguage = _selectedLanguage == lang
+                                ? null
+                                : lang,
+                          ),
                         );
                       },
                     ),
@@ -171,7 +181,11 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                 ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, 0),
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                  0,
+                ),
                 sliver: SliverToBoxAdapter(
                   child: _StatsBanner(
                     words: words,
@@ -188,15 +202,21 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, AppSpacing.xs),
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                  AppSpacing.xs,
+                ),
                 sliver: SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm),
+                      horizontal: AppSpacing.sm,
+                    ),
                     child: Text(
                       '${filtered.length} ${filtered.length == 1 ? 'word' : 'words'}',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: colorScheme.onSurface.withValues(alpha: 0.6)),
+                        color: colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
                     ),
                   ),
                 ),
@@ -223,7 +243,9 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                           await _confirmDelete(word);
                           return false;
                         },
-                        background: _DismissBackground(colorScheme: colorScheme),
+                        background: _DismissBackground(
+                          colorScheme: colorScheme,
+                        ),
                         child: _WordCard(
                           word: word,
                           expanded: isExpanded,
@@ -235,11 +257,15 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                             }
                           }),
                           onCopy: () {
-                            Clipboard.setData(ClipboardData(
-                                text: '${word.word} — ${word.definition}'));
+                            Clipboard.setData(
+                              ClipboardData(
+                                text: '${word.word} — ${word.definition}',
+                              ),
+                            );
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                  content: Text('Copied to clipboard')),
+                                content: Text('Copied to clipboard'),
+                              ),
                             );
                           },
                           onDelete: () => _confirmDelete(word),
@@ -296,7 +322,9 @@ class _StatsBanner extends StatelessWidget {
           FilledButton.tonalIcon(
             onPressed: due.isEmpty ? null : () => onReview(due),
             icon: const Icon(Icons.style_rounded, size: 18),
-            label: Text(due.isEmpty ? 'All caught up' : 'Review (${due.length})'),
+            label: Text(
+              due.isEmpty ? 'All caught up' : 'Review (${due.length})',
+            ),
           ),
         ],
       ),
@@ -322,11 +350,12 @@ class _StatChip extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: colorScheme.onPrimaryContainer),
         const SizedBox(width: 4),
-        Text(label,
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(color: colorScheme.onPrimaryContainer)),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: colorScheme.onPrimaryContainer,
+          ),
+        ),
       ],
     );
   }
@@ -392,8 +421,11 @@ class _EmptyState extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: colorScheme.primaryContainer.withValues(alpha: 0.5),
               ),
-              child: Icon(Icons.menu_book_rounded,
-                  size: 44, color: colorScheme.primary),
+              child: Icon(
+                Icons.menu_book_rounded,
+                size: 44,
+                color: colorScheme.primary,
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             Text('No saved words yet', style: textTheme.titleMedium),
@@ -401,8 +433,9 @@ class _EmptyState extends StatelessWidget {
             Text(
               'Select text in the reader and tap "Define" to build your personal dictionary.',
               textAlign: TextAlign.center,
-              style: textTheme.bodyMedium
-                  ?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.6)),
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -425,15 +458,19 @@ class _NoResultsState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off_rounded,
-                size: 48, color: colorScheme.onSurface.withValues(alpha: 0.3)),
+            Icon(
+              Icons.search_off_rounded,
+              size: 48,
+              color: colorScheme.onSurface.withValues(alpha: 0.3),
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text('No matches', style: textTheme.titleSmall),
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Try a different search term or filter.',
-              style: textTheme.bodySmall
-                  ?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.6)),
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -479,8 +516,9 @@ class _SourceBadge extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: colorScheme.onSecondaryContainer,
-            fontWeight: FontWeight.w600),
+          color: colorScheme.onSecondaryContainer,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -501,8 +539,8 @@ class _LanguageBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final index = label.codeUnits.fold<int>(0, (sum, c) => sum + c) %
-        _palette.length;
+    final index =
+        label.codeUnits.fold<int>(0, (sum, c) => sum + c) % _palette.length;
     final (background, foreground) = _palette[index];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -512,10 +550,10 @@ class _LanguageBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context)
-            .textTheme
-            .labelSmall
-            ?.copyWith(color: foreground, fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -550,7 +588,9 @@ class _WordCard extends StatelessWidget {
       color: colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -564,9 +604,12 @@ class _WordCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(word.word,
-                        style: textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    child: Text(
+                      word.word,
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   _SourceBadge(label: word.sourceLabel),
                   const SizedBox(width: AppSpacing.xs),
@@ -574,18 +617,24 @@ class _WordCard extends StatelessWidget {
                   const SizedBox(width: AppSpacing.xs),
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    icon: Icon(Icons.delete_outline,
-                        size: 18, color: colorScheme.error),
+                    icon: Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: colorScheme.error,
+                    ),
                     onPressed: onDelete,
                   ),
                 ],
               ),
               if (word.phonetic != null) ...[
                 const SizedBox(height: 2),
-                Text(word.phonetic!,
-                    style: textTheme.bodySmall?.copyWith(
-                        fontStyle: FontStyle.italic,
-                        color: colorScheme.onSurface.withValues(alpha: 0.6))),
+                Text(
+                  word.phonetic!,
+                  style: textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
               ],
               const SizedBox(height: AppSpacing.xs),
               if (parsed != null && parsed.senses.length > 1) ...[
@@ -598,14 +647,20 @@ class _WordCard extends StatelessWidget {
                   ),
               ] else ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(word.partOfSpeech,
-                      style: textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSecondaryContainer)),
+                  child: Text(
+                    word.partOfSpeech,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSecondaryContainer,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 AnimatedSize(
@@ -615,47 +670,63 @@ class _WordCard extends StatelessWidget {
                     word.definition,
                     style: textTheme.bodySmall,
                     maxLines: expanded ? null : 2,
-                    overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                    overflow: expanded
+                        ? TextOverflow.visible
+                        : TextOverflow.ellipsis,
                   ),
                 ),
                 if (parsed != null && parsed.senses.length == 1)
-                  ...parsed.senses.first.examples.take(1).map(
+                  ...parsed.senses.first.examples
+                      .take(1)
+                      .map(
                         (ex) => Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: Text('"$ex"',
-                              style: textTheme.bodySmall?.copyWith(
-                                  fontStyle: FontStyle.italic,
-                                  color: colorScheme.onSurface.withValues(alpha: 0.6))),
+                          child: Text(
+                            '"$ex"',
+                            style: textTheme.bodySmall?.copyWith(
+                              fontStyle: FontStyle.italic,
+                              color: colorScheme.onSurface.withValues(
+                                alpha: 0.6,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
               ],
-              if (word.sourceSentence != null && word.sourceSentence!.isNotEmpty)
+              if (word.sourceSentence != null &&
+                  word.sourceSentence!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.xs),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm, vertical: 6),
+                      horizontal: AppSpacing.sm,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.5),
+                      color: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.5,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.format_quote_rounded,
-                            size: 14,
-                            color:
-                                colorScheme.onSurface.withValues(alpha: 0.5)),
+                        Icon(
+                          Icons.format_quote_rounded,
+                          size: 14,
+                          color: colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             word.sourceSentence!,
                             style: textTheme.bodySmall?.copyWith(
-                                fontStyle: FontStyle.italic,
-                                color: colorScheme.onSurface
-                                    .withValues(alpha: 0.7)),
+                              fontStyle: FontStyle.italic,
+                              color: colorScheme.onSurface.withValues(
+                                alpha: 0.7,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -664,11 +735,14 @@ class _WordCard extends StatelessWidget {
                 ),
               if (word.sourceTitle != null) ...[
                 const SizedBox(height: 2),
-                Text(word.sourceTitle!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSurface.withValues(alpha: 0.5))),
+                Text(
+                  word.sourceTitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
               ],
               Align(
                 alignment: Alignment.centerRight,
@@ -715,10 +789,13 @@ class _RichSenseTile extends StatelessWidget {
               shape: BoxShape.circle,
               color: colorScheme.secondaryContainer,
             ),
-            child: Text('$index',
-                style: textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSecondaryContainer,
-                    fontWeight: FontWeight.w600)),
+            child: Text(
+              '$index',
+              style: textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSecondaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -726,14 +803,20 @@ class _RichSenseTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(sense.partOfSpeech,
-                      style: textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSecondaryContainer)),
+                  child: Text(
+                    sense.partOfSpeech,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSecondaryContainer,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(sense.definition, style: textTheme.bodySmall),
@@ -745,8 +828,9 @@ class _RichSenseTile extends StatelessWidget {
                       child: Text(
                         '"$ex"',
                         style: textTheme.bodySmall?.copyWith(
-                            fontStyle: FontStyle.italic,
-                            color: colorScheme.onSurface.withValues(alpha: 0.6)),
+                          fontStyle: FontStyle.italic,
+                          color: colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
                       ),
                     ),
                 ],

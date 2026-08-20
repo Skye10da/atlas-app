@@ -36,10 +36,7 @@ class ContentNormalizer {
         metadata: options.metadata,
       );
     }
-    return normalizeFromElement(
-      body,
-      options: options,
-    );
+    return normalizeFromElement(body, options: options);
   }
 
   AtlasDocument normalizeFromElement(
@@ -83,11 +80,13 @@ class ContentNormalizer {
     if (tag == 'img') {
       final src = el.attributes['src'] ?? el.attributes['data-src'] ?? '';
       if (src.isNotEmpty) {
-        blocks.add(ImageBlock(
-          src: src,
-          alt: el.attributes['alt'],
-          caption: _captionFor(el),
-        ));
+        blocks.add(
+          ImageBlock(
+            src: src,
+            alt: el.attributes['alt'],
+            caption: _captionFor(el),
+          ),
+        );
       }
       return;
     }

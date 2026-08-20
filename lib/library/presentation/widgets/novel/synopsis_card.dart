@@ -29,11 +29,17 @@ class _SynopsisCardState extends State<SynopsisCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Synopsis', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            'Synopsis',
+            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             desc,
-            style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant, height: 1.5),
+            style: textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+              height: 1.5,
+            ),
             maxLines: _expanded ? null : maxLines,
             overflow: _expanded ? null : TextOverflow.ellipsis,
           ),

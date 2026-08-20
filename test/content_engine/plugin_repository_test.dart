@@ -19,20 +19,25 @@ class _LimitedTemplate implements Template {
   String get templateId => 'limited';
 
   @override
-  Set<PluginCapability> get supportedCapabilities =>
-      const {PluginCapability.chapterContent};
+  Set<PluginCapability> get supportedCapabilities => const {
+    PluginCapability.chapterContent,
+  };
 
   @override
   Future<List<SearchResult>> search(PluginContext context, String query) =>
       throw UnimplementedError();
 
   @override
-  Future<List<ChapterRef>> chapterList(PluginContext context, String novelUrl) =>
-      throw UnimplementedError();
+  Future<List<ChapterRef>> chapterList(
+    PluginContext context,
+    String novelUrl,
+  ) => throw UnimplementedError();
 
   @override
-  Future<AtlasDocument> chapterContent(PluginContext context, String chapterUrl) =>
-      throw UnimplementedError();
+  Future<AtlasDocument> chapterContent(
+    PluginContext context,
+    String chapterUrl,
+  ) => throw UnimplementedError();
 
   @override
   Future<NovelMetadata> metadata(PluginContext context, String novelUrl) =>
@@ -63,20 +68,24 @@ void main() {
     await dir.create(recursive: true);
     await File(p.join(dir.path, 'plugin.json')).writeAsString(jsonEncode(json));
     if (selectors != null) {
-      await File(p.join(dir.path, 'selectors.json'))
-          .writeAsString(jsonEncode(selectors));
+      await File(
+        p.join(dir.path, 'selectors.json'),
+      ).writeAsString(jsonEncode(selectors));
     }
     if (filters != null) {
-      await File(p.join(dir.path, 'filters.json'))
-          .writeAsString(jsonEncode(filters));
+      await File(
+        p.join(dir.path, 'filters.json'),
+      ).writeAsString(jsonEncode(filters));
     }
     if (permissions != null) {
-      await File(p.join(dir.path, 'permissions.json'))
-          .writeAsString(jsonEncode(permissions));
+      await File(
+        p.join(dir.path, 'permissions.json'),
+      ).writeAsString(jsonEncode(permissions));
     }
   }
 
-  Map<String, Object?> manifestJson(String id, {String templateId = 'html'}) => {
+  Map<String, Object?> manifestJson(String id, {String templateId = 'html'}) =>
+      {
         'id': id,
         'name': 'Test $id',
         'version': '1.0.0',
@@ -85,9 +94,9 @@ void main() {
       };
 
   PluginRepository repo({TemplateRegistry? registry}) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: registry ?? TemplateRegistry.defaults,
-      );
+    baseDirectory: baseDir,
+    templateRegistry: registry ?? TemplateRegistry.defaults,
+  );
 
   group('PluginRepository.load', () {
     test('reads a manifest from disk', () async {
@@ -161,10 +170,14 @@ void main() {
 
   group('PluginRepository config loading', () {
     test('loadFilters reads extraStripSelectors', () async {
-      await writePlugin('alpha', manifestJson('alpha'), filters: {
-        'extraStripSelectors': ['.site-ad'],
-        'disableDefaultStrips': false,
-      });
+      await writePlugin(
+        'alpha',
+        manifestJson('alpha'),
+        filters: {
+          'extraStripSelectors': ['.site-ad'],
+          'disableDefaultStrips': false,
+        },
+      );
       final manifest = await repo().load('alpha');
       final filters = await repo().loadFilters(manifest);
 
@@ -173,10 +186,14 @@ void main() {
     });
 
     test('loadPermissions reads requestDelayMs', () async {
-      await writePlugin('alpha', manifestJson('alpha'), permissions: {
-        'maxConcurrentRequests': 1,
-        'requestDelayMs': [500, 1200],
-      });
+      await writePlugin(
+        'alpha',
+        manifestJson('alpha'),
+        permissions: {
+          'maxConcurrentRequests': 1,
+          'requestDelayMs': [500, 1200],
+        },
+      );
       final manifest = await repo().load('alpha');
       final permissions = await repo().loadPermissions(manifest);
 
@@ -185,12 +202,16 @@ void main() {
     });
 
     test('loadSelectors reads chapterContent selectors', () async {
-      await writePlugin('alpha', manifestJson('alpha'), selectors: {
-        'chapterContent': {
-          'container': '#chapter-content',
-          'title': '.chapter-title',
+      await writePlugin(
+        'alpha',
+        manifestJson('alpha'),
+        selectors: {
+          'chapterContent': {
+            'container': '#chapter-content',
+            'title': '.chapter-title',
+          },
         },
-      });
+      );
       final manifest = await repo().load('alpha');
       final selectors = await repo().loadSelectors(manifest);
 
@@ -203,24 +224,32 @@ void main() {
       final manifest = await repo().load('alpha');
 
       expect((await repo().loadFilters(manifest)).extraStripSelectors, isEmpty);
-      expect((await repo().loadPermissions(manifest)).requestDelayMs, [800, 2000]);
+      expect((await repo().loadPermissions(manifest)).requestDelayMs, [
+        800,
+        2000,
+      ]);
       expect((await repo().loadSelectors(manifest)).chapterContent, isNull);
     });
   });
 
   group('PluginRepository.buildSource', () {
-    test('builds a PluginSource wired to the manifest template and transport',
-        () async {
-      await writePlugin('alpha', {
-        ...manifestJson('alpha', templateId: 'html'),
-        'transport': 'cached',
-      });
-      final source = await repo().buildSource('alpha');
+    test(
+      'builds a PluginSource wired to the manifest template and transport',
+      () async {
+        await writePlugin('alpha', {
+          ...manifestJson('alpha', templateId: 'html'),
+          'transport': 'cached',
+        });
+        final source = await repo().buildSource('alpha');
 
-      expect(source, isA<PluginSource>());
-      expect(source.manifest.id, 'alpha');
-      expect(source.template, same(TemplateRegistry.defaults.resolve('html')));
-      expect(source.sourceName, 'Test alpha');
-    });
+        expect(source, isA<PluginSource>());
+        expect(source.manifest.id, 'alpha');
+        expect(
+          source.template,
+          same(TemplateRegistry.defaults.resolve('html')),
+        );
+        expect(source.sourceName, 'Test alpha');
+      },
+    );
   });
 }

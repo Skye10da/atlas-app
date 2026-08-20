@@ -72,14 +72,18 @@ class _ChapterGroupedListState extends State<ChapterGroupedList> {
         for (var g = 0; g < groups.length; g++) ...[
           _buildGroupHeader(g, groups[g], textTheme, cs),
           if (!_collapsedGroups.contains(g))
-            for (final ch in groups[g])
-              _buildChapterItem(ch, textTheme, cs),
+            for (final ch in groups[g]) _buildChapterItem(ch, textTheme, cs),
         ],
       ],
     );
   }
 
-  Widget _buildGroupHeader(int groupIndex, List<ChapterEntity> group, TextTheme textTheme, ColorScheme cs) {
+  Widget _buildGroupHeader(
+    int groupIndex,
+    List<ChapterEntity> group,
+    TextTheme textTheme,
+    ColorScheme cs,
+  ) {
     final start = group.first.index + 1;
     final end = group.last.index + 1;
     final isCollapsed = _collapsedGroups.contains(groupIndex);
@@ -90,11 +94,13 @@ class _ChapterGroupedListState extends State<ChapterGroupedList> {
         child: Row(
           children: [
             Expanded(
-              child: Text('Chapters $start–$end',
-                  style: textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: cs.primary,
-                  )),
+              child: Text(
+                'Chapters $start–$end',
+                style: textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: cs.primary,
+                ),
+              ),
             ),
             Icon(
               isCollapsed ? Icons.expand_more : Icons.expand_less,
@@ -106,8 +112,14 @@ class _ChapterGroupedListState extends State<ChapterGroupedList> {
     );
   }
 
-  Widget _buildChapterItem(ChapterEntity ch, TextTheme textTheme, ColorScheme cs) {
-    final isRead = widget.lastReadChapterIndex != null && ch.index < widget.lastReadChapterIndex!;
+  Widget _buildChapterItem(
+    ChapterEntity ch,
+    TextTheme textTheme,
+    ColorScheme cs,
+  ) {
+    final isRead =
+        widget.lastReadChapterIndex != null &&
+        ch.index < widget.lastReadChapterIndex!;
     final isCurrent = ch.index == widget.lastReadChapterIndex;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
@@ -119,25 +131,37 @@ class _ChapterGroupedListState extends State<ChapterGroupedList> {
             backgroundColor: isCurrent
                 ? cs.primary
                 : isRead
-                    ? cs.primaryContainer
-                    : cs.surfaceContainerHighest,
+                ? cs.primaryContainer
+                : cs.surfaceContainerHighest,
             child: isRead
                 ? Icon(Icons.check, size: 14, color: cs.onPrimaryContainer)
-                : Text('${ch.index + 1}',
+                : Text(
+                    '${ch.index + 1}',
                     style: textTheme.labelSmall?.copyWith(
-                        color: isCurrent ? cs.onPrimary : cs.onSurfaceVariant,
-                        fontWeight: FontWeight.w600)),
+                      color: isCurrent ? cs.onPrimary : cs.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
           ),
-          title: Text(ch.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: isCurrent ? FontWeight.w600 : null,
-                color: isRead ? cs.onSurfaceVariant : null,
-              )),
-          trailing: Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
+          title: Text(
+            ch.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: isCurrent ? FontWeight.w600 : null,
+              color: isRead ? cs.onSurfaceVariant : null,
+            ),
+          ),
+          trailing: Icon(
+            Icons.chevron_right,
+            size: 18,
+            color: cs.onSurfaceVariant,
+          ),
           onTap: () => widget.onOpenReader?.call(ch.id),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 2,
+          ),
         ),
       ),
     );

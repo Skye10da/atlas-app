@@ -25,10 +25,8 @@ class ThemeTab extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => ThemePreviewScreen(
-          initialTheme: initial,
-          onApply: onThemeChanged,
-        ),
+        builder: (_) =>
+            ThemePreviewScreen(initialTheme: initial, onApply: onThemeChanged),
       ),
     );
   }
@@ -108,7 +106,11 @@ class _ThemeTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.format_quote, size: 16, color: vt.resolve(colorScheme).text),
+            Icon(
+              Icons.format_quote,
+              size: 16,
+              color: vt.resolve(colorScheme).text,
+            ),
             const SizedBox(height: 2),
             Text(
               theme.label,

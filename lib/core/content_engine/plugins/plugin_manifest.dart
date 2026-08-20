@@ -3,12 +3,7 @@ import 'package:atlas_app/core/content_engine/plugins/verification.dart';
 /// A capability a plugin can declare. Manifests declare what they support;
 /// templates declare what they implement; `PluginSource` bridges the two and
 /// fails fast when a declared capability isn't available.
-enum PluginCapability {
-  search,
-  chapterList,
-  chapterContent,
-  cover,
-}
+enum PluginCapability { search, chapterList, chapterContent, cover }
 
 PluginCapability? _capabilityFromName(String name) {
   for (final capability in PluginCapability.values) {
@@ -141,9 +136,7 @@ class PluginManifest {
       language: language is String && language.isNotEmpty ? language : 'en',
       customUserAgent: userAgent is String ? userAgent : null,
       customImageHeaders: imageHeaders is Map
-          ? imageHeaders.map(
-              (k, v) => MapEntry('$k', v is String ? v : '$v'),
-            )
+          ? imageHeaders.map((k, v) => MapEntry('$k', v is String ? v : '$v'))
           : const {},
       capabilities: capabilities,
       selectorsFile: _stringOr(json['selectorsFile'], 'selectors.json'),
@@ -199,30 +192,27 @@ class PluginManifest {
   /// chapters.
   final bool requiresJsRendering;
 
-  Map<String, String> get requestHeaders => {
-        'User-Agent': ?customUserAgent,
-      };
+  Map<String, String> get requestHeaders => {'User-Agent': ?customUserAgent};
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'name': name,
-        'sourceName': sourceName,
-        'version': version.toString(),
-        'templateId': templateId,
-        'baseUrl': baseUrl,
-        'transport': transport,
-        'language': language,
-        'customUserAgent': ?customUserAgent,
-        if (customImageHeaders.isNotEmpty)
-          'customImageHeaders': customImageHeaders,
-        'capabilities': capabilities.map((c) => c.name).toList(),
-        'selectorsFile': selectorsFile,
-        'filtersFile': filtersFile,
-        'permissionsFile': permissionsFile,
-        if (extraStripSelectors.isNotEmpty)
-          'extraStripSelectors': extraStripSelectors,
-        'requiresJsRendering': requiresJsRendering,
-      };
+    'id': id,
+    'name': name,
+    'sourceName': sourceName,
+    'version': version.toString(),
+    'templateId': templateId,
+    'baseUrl': baseUrl,
+    'transport': transport,
+    'language': language,
+    'customUserAgent': ?customUserAgent,
+    if (customImageHeaders.isNotEmpty) 'customImageHeaders': customImageHeaders,
+    'capabilities': capabilities.map((c) => c.name).toList(),
+    'selectorsFile': selectorsFile,
+    'filtersFile': filtersFile,
+    'permissionsFile': permissionsFile,
+    if (extraStripSelectors.isNotEmpty)
+      'extraStripSelectors': extraStripSelectors,
+    'requiresJsRendering': requiresJsRendering,
+  };
 
   static String _stringOr(Object? value, String fallback) =>
       value is String && value.isNotEmpty ? value : fallback;

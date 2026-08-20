@@ -36,10 +36,10 @@ class MvlempyrTemplate extends WordPressApiTemplate {
   /// can drive, so plugins targeting it must omit the `search` capability.
   @override
   Set<PluginCapability> get supportedCapabilities => const {
-        PluginCapability.chapterList,
-        PluginCapability.chapterContent,
-        PluginCapability.cover,
-      };
+    PluginCapability.chapterList,
+    PluginCapability.chapterContent,
+    PluginCapability.cover,
+  };
 
   @override
   Future<List<SearchResult>> search(PluginContext context, String query) async {
@@ -50,20 +50,18 @@ class MvlempyrTemplate extends WordPressApiTemplate {
   }
 
   @override
-  Future<NovelMetadata> metadata(
-    PluginContext context,
-    String novelUrl,
-  ) async {
+  Future<NovelMetadata> metadata(PluginContext context, String novelUrl) async {
     final uri = Uri.parse(novelUrl);
     final targetUri = uri.path.startsWith('/chapter/')
         ? await _novelUriFromChapter(context, uri)
         : uri;
-    final html = await context.transport
-        .fetchHtml(targetUri, headers: context.plugin.requestHeaders);
+    final html = await context.transport.fetchHtml(
+      targetUri,
+      headers: context.plugin.requestHeaders,
+    );
     _checkCloudflare(html);
 
-    final novelCode =
-        _extract(html, RegExp(r'id="novel-code">\s*(\d+)')) ?? '';
+    final novelCode = _extract(html, RegExp(r'id="novel-code">\s*(\d+)')) ?? '';
     final slug = targetUri.pathSegments.last;
 
     var title = _extract(
@@ -80,16 +78,19 @@ class MvlempyrTemplate extends WordPressApiTemplate {
         r'<div[^>]*class="[^"]*synopsis[^"]*w-richtext[^"]*"[^>]*>([\s\S]*?)</div>',
       ),
     );
-    var description =
-        descriptionHtml != null ? _htmlToText(descriptionHtml) : null;
+    var description = descriptionHtml != null
+        ? _htmlToText(descriptionHtml)
+        : null;
     if (description == null || description.isEmpty) {
       description = _extract(
         html,
         RegExp(r'<meta[^>]*name="description"[^>]*content="([^"]*)"'),
       );
     }
-    var status =
-        _extract(html, RegExp(r'class="novelstatustextlarge">\s*([^<]+)'));
+    var status = _extract(
+      html,
+      RegExp(r'class="novelstatustextlarge">\s*([^<]+)'),
+    );
     final coverUrl = _extract(
       html,
       RegExp(r'<img[^>]*src="([^"]+)"[^>]*class="[^"]*novel-image[^"]*"'),
@@ -126,7 +127,8 @@ class MvlempyrTemplate extends WordPressApiTemplate {
       title: title?.trim() ?? 'Untitled',
       author: author,
       description: description,
-      coverUrl: coverUrl ??
+      coverUrl:
+          coverUrl ??
           (novelCode.isNotEmpty
               ? 'https://$_assetsDomain/images/900/$novelCode.webp'
               : null),
@@ -196,8 +198,10 @@ class MvlempyrTemplate extends WordPressApiTemplate {
         ? await _novelUriFromChapter(context, uri)
         : uri;
     try {
-      final html = await context.transport
-          .fetchHtml(target, headers: context.plugin.requestHeaders);
+      final html = await context.transport.fetchHtml(
+        target,
+        headers: context.plugin.requestHeaders,
+      );
       return _extract(html, RegExp(r'id="novel-code">\s*(\d+)'));
     } on TransportException {
       return null;
@@ -226,10 +230,13 @@ class MvlempyrTemplate extends WordPressApiTemplate {
             'per_page': '$_perPage',
             'page': '$page',
           });
-          final value = await context.transport
-              .fetchJson(uri, headers: context.plugin.requestHeaders);
-          final posts =
-              value is List ? value.whereType<Map>().toList() : <Map>[];
+          final value = await context.transport.fetchJson(
+            uri,
+            headers: context.plugin.requestHeaders,
+          );
+          final posts = value is List
+              ? value.whereType<Map>().toList()
+              : <Map>[];
           for (final raw in posts) {
             final post = Map<String, Object?>.from(raw);
             final acf = post['acf'];
@@ -270,10 +277,13 @@ class MvlempyrTemplate extends WordPressApiTemplate {
   ) async {
     final slug = Uri.parse(novelUrl).pathSegments.last;
     final total = await _getTotalChapters(context, slug, novelCode);
-    return List.generate(total, (i) => ChapterRef(
-          title: 'Chapter ${i + 1}',
-          url: 'https://$_domain/chapter/$novelCode-${i + 1}',
-        ));
+    return List.generate(
+      total,
+      (i) => ChapterRef(
+        title: 'Chapter ${i + 1}',
+        url: 'https://$_domain/chapter/$novelCode-${i + 1}',
+      ),
+    );
   }
 
   Future<int> _getTotalChapters(
@@ -330,10 +340,11 @@ class MvlempyrTemplate extends WordPressApiTemplate {
   ) async {
     if (slug.isEmpty) return null;
     try {
-      final uri =
-          restUri(context.plugin, '/mvl-novels', {'slug': slug});
-      final value = await context.transport
-          .fetchJson(uri, headers: context.plugin.requestHeaders);
+      final uri = restUri(context.plugin, '/mvl-novels', {'slug': slug});
+      final value = await context.transport.fetchJson(
+        uri,
+        headers: context.plugin.requestHeaders,
+      );
       final list = value is List ? value.whereType<Map>().toList() : <Map>[];
       if (list.isEmpty) return null;
       return Map<String, Object?>.from(list.first);
@@ -342,10 +353,15 @@ class MvlempyrTemplate extends WordPressApiTemplate {
     }
   }
 
-  Future<Uri> _novelUriFromChapter(PluginContext context, Uri chapterUri) async {
+  Future<Uri> _novelUriFromChapter(
+    PluginContext context,
+    Uri chapterUri,
+  ) async {
     try {
-      final html = await context.transport
-          .fetchHtml(chapterUri, headers: context.plugin.requestHeaders);
+      final html = await context.transport.fetchHtml(
+        chapterUri,
+        headers: context.plugin.requestHeaders,
+      );
       final novelLink = RegExp(r'href="(/novel/[^"]+)"').firstMatch(html);
       if (novelLink != null) {
         return Uri.parse('https://$_domain${novelLink.group(1)}');
@@ -394,9 +410,13 @@ class MvlempyrTemplate extends WordPressApiTemplate {
   String _htmlToText(String html) {
     var text = html
         .replaceAll(
-            RegExp(r'<script[^>]*>[\s\S]*?</script>', caseSensitive: false), '')
+          RegExp(r'<script[^>]*>[\s\S]*?</script>', caseSensitive: false),
+          '',
+        )
         .replaceAll(
-            RegExp(r'<style[^>]*>[\s\S]*?</style>', caseSensitive: false), '')
+          RegExp(r'<style[^>]*>[\s\S]*?</style>', caseSensitive: false),
+          '',
+        )
         .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '')
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n\n')
@@ -416,10 +436,13 @@ class MvlempyrTemplate extends WordPressApiTemplate {
         .replaceAll('&rdquo;', '\u201D')
         .replaceAll('&hellip;', '\u2026')
         .replaceAllMapped(
-            RegExp(r'&#x([0-9a-fA-F]+);'),
-            (m) => String.fromCharCode(int.parse(m.group(1)!, radix: 16)))
-        .replaceAllMapped(RegExp(r'&#(\d+);'),
-            (m) => String.fromCharCode(int.parse(m.group(1)!)));
+          RegExp(r'&#x([0-9a-fA-F]+);'),
+          (m) => String.fromCharCode(int.parse(m.group(1)!, radix: 16)),
+        )
+        .replaceAllMapped(
+          RegExp(r'&#(\d+);'),
+          (m) => String.fromCharCode(int.parse(m.group(1)!)),
+        );
 
     final lines = text.split('\n').map((l) => l.trim()).toList();
     return lines.join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();

@@ -25,99 +25,106 @@ void main() {
 
   group('ReaderSettingsSheet', () {
     testWidgets(
-        'shows a Translate tab for WTR-Lab novels and, on service change, '
-        'drops the downloaded chapter so the reader refetches it', (
-        tester) async {
-      final db = AppDatabase.memory();
-      final wtr = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: WtrAuthenticationManager(),
-      );
-      final tempDir = Directory.systemTemp.createTempSync('reader_settings');
-      final file = File(p.join(tempDir.path, '0.txt'));
-      file.writeAsStringSync('old translation text');
+      'shows a Translate tab for WTR-Lab novels and, on service change, '
+      'drops the downloaded chapter so the reader refetches it',
+      (tester) async {
+        final db = AppDatabase.memory();
+        final wtr = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: WtrAuthenticationManager(),
+        );
+        final tempDir = Directory.systemTemp.createTempSync('reader_settings');
+        final file = File(p.join(tempDir.path, '0.txt'));
+        file.writeAsStringSync('old translation text');
 
-      await db.into(db.chapters).insert(ChaptersCompanion(
-            id: const Value('b1_ch0'),
-            bookId: const Value('b1'),
-            index: const Value(0),
-            title: const Value('Chapter 1'),
-            contentPath: Value(file.path),
-            wordCount: const Value(100),
-            pageCount: const Value(1),
-            contentState: Value(ContentState.availableOffline.index),
-            version: const Value(2),
-            checksum: const Value('abc'),
-            previousVersionRef: const Value('b1_ch0'),
-            createdAt: Value(DateTime(2025, 1, 1)),
-          ));
+        await db
+            .into(db.chapters)
+            .insert(
+              ChaptersCompanion(
+                id: const Value('b1_ch0'),
+                bookId: const Value('b1'),
+                index: const Value(0),
+                title: const Value('Chapter 1'),
+                contentPath: Value(file.path),
+                wordCount: const Value(100),
+                pageCount: const Value(1),
+                contentState: Value(ContentState.availableOffline.index),
+                version: const Value(2),
+                checksum: const Value('abc'),
+                previousVersionRef: const Value('b1_ch0'),
+                createdAt: Value(DateTime(2025, 1, 1)),
+              ),
+            );
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            databaseProvider.overrideWithValue(db),
-            wtrRuntimeProvider.overrideWith((ref) async => wtr),
-          ],
-          child: const MaterialApp(
-            home: Scaffold(
-              body: ReaderSettingsSheet(
-                initialSettings: ReadingSettingsEntity(),
-                bookId: 'b1',
-                rawId: 29058,
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              databaseProvider.overrideWithValue(db),
+              wtrRuntimeProvider.overrideWith((ref) async => wtr),
+            ],
+            child: const MaterialApp(
+              home: Scaffold(
+                body: ReaderSettingsSheet(
+                  initialSettings: ReadingSettingsEntity(),
+                  bookId: 'b1',
+                  rawId: 29058,
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Translate'), findsOneWidget);
+        expect(find.text('Translate'), findsOneWidget);
 
-      await tester.tap(find.text('Translate'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Translate'));
+        await tester.pumpAndSettle();
 
-      // Starts on WebPlus (the signed-out default).
-      expect(find.text('WebPlus'), findsOneWidget);
-      expect(find.text('AI'), findsOneWidget);
+        // Starts on WebPlus (the signed-out default).
+        expect(find.text('WebPlus'), findsOneWidget);
+        expect(find.text('AI'), findsOneWidget);
 
-      await tester.tap(find.text('Web'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Web'));
+        await tester.pumpAndSettle();
 
-      expect(await wtr.serviceFor(29058), WtrTranslationService.web);
-      // The chapter was downloaded; switching the service must drop the stale
-      // on-disk text so the next read refetches under the new service.
-      expect(file.existsSync(), isFalse);
-      await db.close();
-      if (tempDir.existsSync()) {
-        tempDir.deleteSync(recursive: true);
-      }
-    });
+        expect(await wtr.serviceFor(29058), WtrTranslationService.web);
+        // The chapter was downloaded; switching the service must drop the stale
+        // on-disk text so the next read refetches under the new service.
+        expect(file.existsSync(), isFalse);
+        await db.close();
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      },
+    );
 
     testWidgets(
-        'shows the Translate tab for non-WTR-Lab novels with the translation '
-        'toggle instead of the WTR service selector', (tester) async {
-      await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ReaderSettingsSheet(
-                initialSettings: ReadingSettingsEntity(),
-                bookId: 'b1',
+      'shows the Translate tab for non-WTR-Lab novels with the translation '
+      'toggle instead of the WTR service selector',
+      (tester) async {
+        await tester.pumpWidget(
+          const ProviderScope(
+            child: MaterialApp(
+              home: Scaffold(
+                body: ReaderSettingsSheet(
+                  initialSettings: ReadingSettingsEntity(),
+                  bookId: 'b1',
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Every novel now has a Translate tab; non-WTR novels get the toggle.
-      expect(find.text('Translate'), findsOneWidget);
-      await tester.tap(find.text('Translate'));
-      await tester.pumpAndSettle();
+        // Every novel now has a Translate tab; non-WTR novels get the toggle.
+        expect(find.text('Translate'), findsOneWidget);
+        await tester.tap(find.text('Translate'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Translate this novel'), findsOneWidget);
-      expect(find.text('WebPlus'), findsNothing);
-      expect(find.text('AI'), findsNothing);
-    });
+        expect(find.text('Translate this novel'), findsOneWidget);
+        expect(find.text('WebPlus'), findsNothing);
+        expect(find.text('AI'), findsNothing);
+      },
+    );
   });
 }

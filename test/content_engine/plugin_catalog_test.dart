@@ -9,12 +9,11 @@ PluginCatalogEntry _entry({
   String id = 'mvlempyr',
   String version = '1.0.0',
   Map<String, String> checksums = const {'plugin.json': 'abc'},
-}) =>
-    PluginCatalogEntry.fromJson({
-      'id': id,
-      'version': version,
-      'checksums': checksums,
-    });
+}) => PluginCatalogEntry.fromJson({
+  'id': id,
+  'version': version,
+  'checksums': checksums,
+});
 
 void main() {
   group('PluginCatalogEntry.fromJson', () {
@@ -30,9 +29,10 @@ void main() {
 
     test('rejects a missing id', () {
       expect(
-        () => PluginCatalogEntry.fromJson(
-          {'version': '1.0.0', 'checksums': {'plugin.json': 'a'}},
-        ),
+        () => PluginCatalogEntry.fromJson({
+          'version': '1.0.0',
+          'checksums': {'plugin.json': 'a'},
+        }),
         throwsA(isA<PluginCatalogException>()),
       );
     });
@@ -73,8 +73,10 @@ void main() {
         ],
       });
       expect(catalog.plugins, hasLength(2));
-      expect(catalog.entryFor('a')?.version,
-          const PluginVersion(major: 1, minor: 0, patch: 0));
+      expect(
+        catalog.entryFor('a')?.version,
+        const PluginVersion(major: 1, minor: 0, patch: 0),
+      );
       expect(catalog.entryFor('missing'), isNull);
     });
 
@@ -103,8 +105,10 @@ void main() {
         jsonDecode(jsonEncode(catalog.toJson())) as Map<String, Object?>,
       );
       expect(roundTripped.plugins.single.id, 'a');
-      expect(roundTripped.plugins.single.version,
-          const PluginVersion(major: 1, minor: 2, patch: 3));
+      expect(
+        roundTripped.plugins.single.version,
+        const PluginVersion(major: 1, minor: 2, patch: 3),
+      );
     });
   });
 }

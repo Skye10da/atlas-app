@@ -122,10 +122,14 @@ class LayoutTab extends StatelessWidget {
           const AppSectionHeader(title: 'Screen Brightness'),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text('Follow System Brightness',
-                style: textTheme.labelLarge),
-            subtitle: Text('Use the device\'s brightness while reading',
-                style: textTheme.bodySmall),
+            title: Text(
+              'Follow System Brightness',
+              style: textTheme.labelLarge,
+            ),
+            subtitle: Text(
+              'Use the device\'s brightness while reading',
+              style: textTheme.bodySmall,
+            ),
             value: followSystemBrightness,
             onChanged: (v) {
               HapticFeedback.selectionClick();
@@ -134,11 +138,15 @@ class LayoutTab extends StatelessWidget {
           ),
           Row(
             children: [
-              Icon(Icons.brightness_low,
-                  size: 16,
-                  color: followSystemBrightness
-                      ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)
-                      : null),
+              Icon(
+                Icons.brightness_low,
+                size: 16,
+                color: followSystemBrightness
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.3)
+                    : null,
+              ),
               Expanded(
                 child: Slider(
                   value: brightness,
@@ -151,19 +159,25 @@ class LayoutTab extends StatelessWidget {
                       : onBrightnessChanged,
                 ),
               ),
-              Icon(Icons.brightness_high,
-                  size: 16,
-                  color: followSystemBrightness
-                      ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)
-                      : null),
+              Icon(
+                Icons.brightness_high,
+                size: 16,
+                color: followSystemBrightness
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.3)
+                    : null,
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text('Keep Screen Awake', style: textTheme.labelLarge),
-            subtitle: Text('Prevent device from sleeping while reading',
-                style: textTheme.bodySmall),
+            subtitle: Text(
+              'Prevent device from sleeping while reading',
+              style: textTheme.bodySmall,
+            ),
             value: keepScreenAwake,
             onChanged: (v) {
               HapticFeedback.selectionClick();
@@ -172,9 +186,14 @@ class LayoutTab extends StatelessWidget {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text('Auto-Optimize for Battery', style: textTheme.labelLarge),
-            subtitle: Text('Dim brightness when battery is low',
-                style: textTheme.bodySmall),
+            title: Text(
+              'Auto-Optimize for Battery',
+              style: textTheme.labelLarge,
+            ),
+            subtitle: Text(
+              'Dim brightness when battery is low',
+              style: textTheme.bodySmall,
+            ),
             value: autoOptimizeBrightness,
             onChanged: (v) {
               HapticFeedback.selectionClick();

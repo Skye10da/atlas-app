@@ -68,17 +68,21 @@ void main() {
     );
 
     when(() => repo.getBookById(any())).thenAnswer((_) async => Success(book));
-    when(() => repo.getChapters(any())).thenAnswer((_) async => Success([ch0, ch1]));
+    when(
+      () => repo.getChapters(any()),
+    ).thenAnswer((_) async => Success([ch0, ch1]));
     when(
       () => downloader.downloadAllChapters(
         any(),
         onProgress: any(named: 'onProgress'),
       ),
     ).thenAnswer((_) async => [const Success(null), const Success(null)]);
-    when(() => repo.getChapterContent('${outDir.path}/0.txt'))
-        .thenAnswer((_) async => const Success('Opening lines.\n\nMore prose.'));
-    when(() => repo.getChapterContent('${outDir.path}/1.txt'))
-        .thenAnswer((_) async => const Success('Closing words.'));
+    when(
+      () => repo.getChapterContent('${outDir.path}/0.txt'),
+    ).thenAnswer((_) async => const Success('Opening lines.\n\nMore prose.'));
+    when(
+      () => repo.getChapterContent('${outDir.path}/1.txt'),
+    ).thenAnswer((_) async => const Success('Closing words.'));
   });
 
   tearDown(() async {
@@ -102,9 +106,15 @@ void main() {
     final read = await EpubReader.readBook(bytes);
     expect(read.title, 'The Example Saga');
     expect(read.author, contains('A. Author'));
-    expect(read.schema?.package?.metadata?.description, 'A tale of examples and sagas.');
+    expect(
+      read.schema?.package?.metadata?.description,
+      'A tale of examples and sagas.',
+    );
     expect(read.schema?.package?.metadata?.languages, ['en']);
-    expect(read.schema?.package?.metadata?.subjects, containsAll(['fantasy', 'adventure']));
+    expect(
+      read.schema?.package?.metadata?.subjects,
+      containsAll(['fantasy', 'adventure']),
+    );
     expect(read.chapters.length, 2);
     expect(read.chapters.first.htmlContent, contains('Opening lines.'));
     expect(read.chapters.last.htmlContent, contains('Closing words.'));
@@ -142,7 +152,10 @@ void main() {
     expect(result, isA<Success<String>>());
     final bytes = await File((result as Success<String>).value).readAsBytes();
     final read = await EpubReader.readBook(bytes);
-    expect(read.schema!.package!.manifest!.items.map((i) => i.id), contains('cover-image'));
+    expect(
+      read.schema!.package!.manifest!.items.map((i) => i.id),
+      contains('cover-image'),
+    );
   });
 
   test('exportToEpub fails when a chapter download fails', () async {
@@ -166,64 +179,73 @@ void main() {
     expect(result, isA<Failure<String>>());
   });
 
-  test('exportSourceLink writes an .atlas manifest with source and chapters', () async {
-    final result = await service.exportSourceLink(
-      bookId: 'book1',
-      outputDirectory: outDir.path,
-    );
+  test(
+    'exportSourceLink writes an .atlas manifest with source and chapters',
+    () async {
+      final result = await service.exportSourceLink(
+        bookId: 'book1',
+        outputDirectory: outDir.path,
+      );
 
-    expect(result, isA<Success<String>>());
-    final path = (result as Success<String>).value;
-    expect(path, endsWith('.atlas'));
+      expect(result, isA<Success<String>>());
+      final path = (result as Success<String>).value;
+      expect(path, endsWith('.atlas'));
 
-    final decoded = jsonDecode(File(path).readAsStringSync()) as Map;
-    expect(decoded['format'], AtlasSourceImportService.format);
-    expect(decoded['category'], 'novel');
-    final source = decoded['source'] as Map;
-    expect(source['url'], book.sourceUrl);
-    expect(decoded['coverBase64'], isNull);
+      final decoded = jsonDecode(File(path).readAsStringSync()) as Map;
+      expect(decoded['format'], AtlasSourceImportService.format);
+      expect(decoded['category'], 'novel');
+      final source = decoded['source'] as Map;
+      expect(source['url'], book.sourceUrl);
+      expect(decoded['coverBase64'], isNull);
 
-    final bookMap = decoded['book'] as Map;
-    expect(bookMap['title'], 'The Example Saga');
-    expect(bookMap['status'], 'Ongoing');
+      final bookMap = decoded['book'] as Map;
+      expect(bookMap['title'], 'The Example Saga');
+      expect(bookMap['status'], 'Ongoing');
 
-    final chapters = decoded['chapters'] as List;
-    expect(chapters.length, 2);
-    expect((chapters[0] as Map)['index'], 0);
-    expect((chapters[1] as Map)['index'], 1);
-  });
+      final chapters = decoded['chapters'] as List;
+      expect(chapters.length, 2);
+      expect((chapters[0] as Map)['index'], 0);
+      expect((chapters[1] as Map)['index'], 1);
+    },
+  );
 
-  test('exportSourceLink embeds a base64 cover from the local cover file', () async {
-    final cover = File('${outDir.path}/cover.jpg');
-    await cover.writeAsBytes(List.filled(16, 0xFF));
-    book = BookEntity(
-      id: book.id,
-      title: book.title,
-      author: book.author,
-      format: book.format,
-      totalChapters: book.totalChapters,
-      language: book.language,
-      tags: book.tags,
-      status: book.status,
-      sourceUrl: book.sourceUrl,
-      coverPath: cover.path,
-      itemType: book.itemType,
-      createdAt: book.createdAt,
-      updatedAt: book.updatedAt,
-    );
+  test(
+    'exportSourceLink embeds a base64 cover from the local cover file',
+    () async {
+      final cover = File('${outDir.path}/cover.jpg');
+      await cover.writeAsBytes(List.filled(16, 0xFF));
+      book = BookEntity(
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        format: book.format,
+        totalChapters: book.totalChapters,
+        language: book.language,
+        tags: book.tags,
+        status: book.status,
+        sourceUrl: book.sourceUrl,
+        coverPath: cover.path,
+        itemType: book.itemType,
+        createdAt: book.createdAt,
+        updatedAt: book.updatedAt,
+      );
 
-    final result = await service.exportSourceLink(
-      bookId: 'book1',
-      outputDirectory: outDir.path,
-    );
+      final result = await service.exportSourceLink(
+        bookId: 'book1',
+        outputDirectory: outDir.path,
+      );
 
-    expect(result, isA<Success<String>>());
-    final decoded =
-        jsonDecode(File((result as Success<String>).value).readAsStringSync())
-            as Map;
-    expect(decoded['coverBase64'], isA<String>());
-    expect(base64Decode(decoded['coverBase64'] as String), List.filled(16, 0xFF));
-  });
+      expect(result, isA<Success<String>>());
+      final decoded =
+          jsonDecode(File((result as Success<String>).value).readAsStringSync())
+              as Map;
+      expect(decoded['coverBase64'], isA<String>());
+      expect(
+        base64Decode(decoded['coverBase64'] as String),
+        List.filled(16, 0xFF),
+      );
+    },
+  );
 
   test('exportSourceLink fails when the book has no source URL', () async {
     final noSource = BookEntity(
@@ -235,7 +257,9 @@ void main() {
       createdAt: DateTime(2020),
       updatedAt: DateTime(2020),
     );
-    when(() => repo.getBookById('book2')).thenAnswer((_) async => Success(noSource));
+    when(
+      () => repo.getBookById('book2'),
+    ).thenAnswer((_) async => Success(noSource));
 
     final result = await service.exportSourceLink(
       bookId: 'book2',

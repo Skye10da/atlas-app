@@ -6,10 +6,12 @@ void main() {
   group('Tokenizer', () {
     test('lowercases, splits on non-alphanumerics, keeps hyphenated words', () {
       const tokenizer = Tokenizer();
-      expect(
-        tokenizer.tokenize('Hello, World! The quick-brown fox.'),
-        ['hello', 'world', 'quick-brown', 'fox'],
-      );
+      expect(tokenizer.tokenize('Hello, World! The quick-brown fox.'), [
+        'hello',
+        'world',
+        'quick-brown',
+        'fox',
+      ]);
     });
 
     test('strips possessives', () {

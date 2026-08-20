@@ -41,23 +41,28 @@ void main() {
       expect(pages, [text]);
     });
 
-    test('splits long text into pages that fit and round-trip to the original',
-        () {
-      final text = List.generate(400, (i) => 'word$i').join(' ');
-      final pages = Pager.paginate(
-        text: text,
-        textStyle: style,
-        pageWidth: pageWidth,
-        pageHeight: pageHeight,
-      );
+    test(
+      'splits long text into pages that fit and round-trip to the original',
+      () {
+        final text = List.generate(400, (i) => 'word$i').join(' ');
+        final pages = Pager.paginate(
+          text: text,
+          textStyle: style,
+          pageWidth: pageWidth,
+          pageHeight: pageHeight,
+        );
 
-      expect(pages.length, greaterThan(1));
-      expect(pages.join(), text);
-      for (final page in pages) {
-        expect(fitsWithin(page), isTrue,
-            reason: 'page should fit within the page area');
-      }
-    });
+        expect(pages.length, greaterThan(1));
+        expect(pages.join(), text);
+        for (final page in pages) {
+          expect(
+            fitsWithin(page),
+            isTrue,
+            reason: 'page should fit within the page area',
+          );
+        }
+      },
+    );
 
     test('never splits a word across pages', () {
       final text = List.generate(400, (i) => 'word$i').join(' ');
@@ -69,14 +74,20 @@ void main() {
       );
 
       for (var i = 0; i < pages.length - 1; i++) {
-        expect(pages[i].endsWith(' '), isTrue,
-            reason: 'page ${i + 1} should end on a word boundary');
+        expect(
+          pages[i].endsWith(' '),
+          isTrue,
+          reason: 'page ${i + 1} should end on a word boundary',
+        );
       }
     });
 
     test('preserves paragraph breaks across pages', () {
       final paragraph = List.generate(60, (i) => 'sentence_$i').join(' ');
-      final text = List.generate(8, (i) => 'Chapter $i. $paragraph').join('\n\n');
+      final text = List.generate(
+        8,
+        (i) => 'Chapter $i. $paragraph',
+      ).join('\n\n');
       final pages = Pager.paginate(
         text: text,
         textStyle: style,
@@ -85,8 +96,11 @@ void main() {
       );
 
       expect(pages.length, greaterThan(1));
-      expect(pages.join(), text,
-          reason: 'newlines and paragraph breaks must survive pagination');
+      expect(
+        pages.join(),
+        text,
+        reason: 'newlines and paragraph breaks must survive pagination',
+      );
       expect(text.contains('\n'), isTrue);
     });
 

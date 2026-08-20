@@ -20,11 +20,7 @@ class SearchResult {
 }
 
 class ChapterRef {
-  const ChapterRef({
-    required this.title,
-    required this.url,
-    this.publishedAt,
-  });
+  const ChapterRef({required this.title, required this.url, this.publishedAt});
 
   final String title;
   final String url;

@@ -48,16 +48,46 @@ void main() {
     });
 
     test('adds highlights to the same chapter, keeping both', () {
-      controller.addHighlight(chapterId: 'c1', start: 0, end: 5, text: 'aaa', colorValue: 1);
-      controller.addHighlight(chapterId: 'c1', start: 10, end: 15, text: 'bbb', colorValue: 2);
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 0,
+        end: 5,
+        text: 'aaa',
+        colorValue: 1,
+      );
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 10,
+        end: 15,
+        text: 'bbb',
+        colorValue: 2,
+      );
 
       expect(controller.state.highlights['c1'], hasLength(2));
     });
 
     test('eraseOverlapping removes only ranges that overlap', () {
-      controller.addHighlight(chapterId: 'c1', start: 0, end: 10, text: 'aaa', colorValue: 1);
-      controller.addHighlight(chapterId: 'c1', start: 20, end: 30, text: 'bbb', colorValue: 2);
-      controller.addHighlight(chapterId: 'c1', start: 40, end: 50, text: 'ccc', colorValue: 3);
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 0,
+        end: 10,
+        text: 'aaa',
+        colorValue: 1,
+      );
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 20,
+        end: 30,
+        text: 'bbb',
+        colorValue: 2,
+      );
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 40,
+        end: 50,
+        text: 'ccc',
+        colorValue: 3,
+      );
 
       controller.eraseOverlapping('c1', 8, 12);
 
@@ -66,7 +96,13 @@ void main() {
     });
 
     test('eraseOverlapping removes the chapter list when nothing survives', () {
-      controller.addHighlight(chapterId: 'c1', start: 0, end: 10, text: 'aaa', colorValue: 1);
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 0,
+        end: 10,
+        text: 'aaa',
+        colorValue: 1,
+      );
 
       controller.eraseOverlapping('c1', 5, 15);
 
@@ -74,8 +110,20 @@ void main() {
     });
 
     test('eraseOverlapping is isolated across chapters', () {
-      controller.addHighlight(chapterId: 'c1', start: 0, end: 10, text: 'aaa', colorValue: 1);
-      controller.addHighlight(chapterId: 'c2', start: 0, end: 10, text: 'bbb', colorValue: 1);
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 0,
+        end: 10,
+        text: 'aaa',
+        colorValue: 1,
+      );
+      controller.addHighlight(
+        chapterId: 'c2',
+        start: 0,
+        end: 10,
+        text: 'bbb',
+        colorValue: 1,
+      );
 
       controller.eraseOverlapping('c1', 5, 15);
 
@@ -88,8 +136,20 @@ void main() {
     });
 
     test('highlightsIn returns only overlapping entries', () {
-      controller.addHighlight(chapterId: 'c1', start: 0, end: 10, text: 'aaa', colorValue: 1);
-      controller.addHighlight(chapterId: 'c1', start: 20, end: 30, text: 'bbb', colorValue: 2);
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 0,
+        end: 10,
+        text: 'aaa',
+        colorValue: 1,
+      );
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 20,
+        end: 30,
+        text: 'bbb',
+        colorValue: 2,
+      );
 
       final found = controller.highlightsIn('c1', 8, 25);
       expect(found.map((h) => h.text), ['aaa', 'bbb']);
@@ -101,13 +161,23 @@ void main() {
     test('family is isolated per book', () {
       final other = container.read(annotationsProvider('b-2').notifier);
 
-      controller.addHighlight(chapterId: 'c1', start: 0, end: 10, text: 'aaa', colorValue: 1);
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 0,
+        end: 10,
+        text: 'aaa',
+        colorValue: 1,
+      );
 
       expect(other.state.highlights, isEmpty);
     });
 
     test('addNote stores notes keyed by chapter', () {
-      controller.addNote(chapterId: 'c1', text: 'my note', sentence: 'source sentence');
+      controller.addNote(
+        chapterId: 'c1',
+        text: 'my note',
+        sentence: 'source sentence',
+      );
 
       final notes = controller.state.notes['c1'];
       expect(notes, hasLength(1));
@@ -137,7 +207,13 @@ void main() {
     });
 
     test('clear resets everything', () {
-      controller.addHighlight(chapterId: 'c1', start: 0, end: 5, text: 'a', colorValue: 1);
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 0,
+        end: 5,
+        text: 'a',
+        colorValue: 1,
+      );
       controller.addNote(chapterId: 'c1', text: 'n', sentence: 's');
 
       controller.clear();
@@ -147,7 +223,13 @@ void main() {
     });
 
     test('NoteEntry overlap semantics', () {
-      const h = HighlightEntry(chapterId: 'c1', start: 10, end: 20, text: 'x', colorValue: 1);
+      const h = HighlightEntry(
+        chapterId: 'c1',
+        start: 10,
+        end: 20,
+        text: 'x',
+        colorValue: 1,
+      );
       expect(h.overlaps(15, 25), isTrue);
       expect(h.overlaps(0, 5), isFalse);
       expect(h.overlaps(20, 30), isFalse);

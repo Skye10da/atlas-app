@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -64,7 +64,9 @@ class EpubImportService {
 
     return NovelModel(
       sourceId: fileName,
-      title: parsed.title == 'Untitled' ? fileName.replaceAll('.epub', '') : parsed.title,
+      title: parsed.title == 'Untitled'
+          ? fileName.replaceAll('.epub', '')
+          : parsed.title,
       author: parsed.author,
       description: parsed.description,
       coverBytes: parsed.coverBytes,
@@ -78,7 +80,10 @@ class EpubImportService {
     );
   }
 
-  Future<Result<String>> _importFromBytes(List<int> bytes, String fileName) async {
+  Future<Result<String>> _importFromBytes(
+    List<int> bytes,
+    String fileName,
+  ) async {
     try {
       final parsed = await _parseInIsolate(bytes);
 
@@ -88,7 +93,9 @@ class EpubImportService {
       final author = parsed.author;
       final bookId = _normalizeId(title);
 
-      final existing = await (_db.select(_db.books)..where((b) => b.id.equals(bookId))).get();
+      final existing = await (_db.select(
+        _db.books,
+      )..where((b) => b.id.equals(bookId))).get();
       if (existing.isNotEmpty) {
         return const Failure(DuplicateBookException('Book already exists'));
       }
@@ -112,12 +119,14 @@ class EpubImportService {
         final ch = parsed.chapters[i];
         final chapterId = '${bookId}_ch$i';
         final contentPath = p.join(bookDir.path, '$chapterId.txt');
-        chapterData.add(_ChapterData(
-          chapterId: chapterId,
-          title: ch.title,
-          text: ch.text,
-          contentPath: contentPath,
-        ));
+        chapterData.add(
+          _ChapterData(
+            chapterId: chapterId,
+            title: ch.title,
+            text: ch.text,
+            contentPath: contentPath,
+          ),
+        );
       }
 
       if (chapterData.isEmpty) {
@@ -133,35 +142,52 @@ class EpubImportService {
       await _db.batch((batch) {
         for (var i = 0; i < chapterData.length; i++) {
           final ch = chapterData[i];
-          batch.insert(_db.chapters, ChaptersCompanion(
-            id: Value(ch.chapterId),
-            bookId: Value(bookId),
-            index: Value(i),
-            title: Value(ch.title),
-            contentPath: Value(ch.contentPath),
-            wordCount: Value(ch.text.split(RegExp(r'\s+')).length),
-            pageCount: Value((ch.text.length / 2000).ceil()),
-            createdAt: Value(DateTime.now()),
-          ));
+          batch.insert(
+            _db.chapters,
+            ChaptersCompanion(
+              id: Value(ch.chapterId),
+              bookId: Value(bookId),
+              index: Value(i),
+              title: Value(ch.title),
+              contentPath: Value(ch.contentPath),
+              wordCount: Value(ch.text.split(RegExp(r'\s+')).length),
+              pageCount: Value((ch.text.length / 2000).ceil()),
+              createdAt: Value(DateTime.now()),
+            ),
+          );
         }
       });
 
-      await _db.into(_db.books).insert(BooksCompanion(
-        id: Value(bookId),
-        title: Value(title),
-        author: Value(author),
-        description: parsed.description != null ? Value(parsed.description) : const Value(null),
-        language: parsed.language != null ? Value(parsed.language) : const Value(null),
-        tags: parsed.tags != null ? Value(parsed.tags!.join(',')) : const Value(null),
-        sourceUrl: parsed.sourceUrl != null ? Value(parsed.sourceUrl) : const Value(null),
-        format: const Value('epub'),
-        itemType: const Value('book'),
-        filePath: Value(bookDir.path),
-        totalChapters: Value(chapterData.length),
-        coverPath: coverPath != null ? Value(coverPath) : const Value(null),
-        createdAt: Value(DateTime.now()),
-        updatedAt: Value(DateTime.now()),
-      ));
+      await _db
+          .into(_db.books)
+          .insert(
+            BooksCompanion(
+              id: Value(bookId),
+              title: Value(title),
+              author: Value(author),
+              description: parsed.description != null
+                  ? Value(parsed.description)
+                  : const Value(null),
+              language: parsed.language != null
+                  ? Value(parsed.language)
+                  : const Value(null),
+              tags: parsed.tags != null
+                  ? Value(parsed.tags!.join(','))
+                  : const Value(null),
+              sourceUrl: parsed.sourceUrl != null
+                  ? Value(parsed.sourceUrl)
+                  : const Value(null),
+              format: const Value('epub'),
+              itemType: const Value('book'),
+              filePath: Value(bookDir.path),
+              totalChapters: Value(chapterData.length),
+              coverPath: coverPath != null
+                  ? Value(coverPath)
+                  : const Value(null),
+              createdAt: Value(DateTime.now()),
+              updatedAt: Value(DateTime.now()),
+            ),
+          );
 
       return Success(bookId);
     } on Exception catch (e) {
@@ -172,7 +198,6 @@ class EpubImportService {
   String _normalizeId(String title) {
     return title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
   }
-
 }
 
 List<EpubChapter> _flattenChapters(List<EpubChapter> chapters) {
@@ -186,9 +211,18 @@ List<EpubChapter> _flattenChapters(List<EpubChapter> chapters) {
 
 String _stripHtml(String html) {
   return html
-      .replaceAll(RegExp(r'<head>.*?</head>', dotAll: true, caseSensitive: false), '')
-      .replaceAll(RegExp(r'<script.*?>.*?</script>', dotAll: true, caseSensitive: false), '')
-      .replaceAll(RegExp(r'<style.*?>.*?</style>', dotAll: true, caseSensitive: false), '')
+      .replaceAll(
+        RegExp(r'<head>.*?</head>', dotAll: true, caseSensitive: false),
+        '',
+      )
+      .replaceAll(
+        RegExp(r'<script.*?>.*?</script>', dotAll: true, caseSensitive: false),
+        '',
+      )
+      .replaceAll(
+        RegExp(r'<style.*?>.*?</style>', dotAll: true, caseSensitive: false),
+        '',
+      )
       .replaceAll(RegExp(r'<[^>]*>'), '')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
@@ -217,9 +251,13 @@ Future<_ParsedEpub> _parseEpubBytes(List<int> bytes) async {
 
   final meta = book.schema?.package?.metadata;
   final description = meta?.description;
-  final language = meta?.languages.isNotEmpty == true ? meta!.languages.first : null;
+  final language = meta?.languages.isNotEmpty == true
+      ? meta!.languages.first
+      : null;
   final tags = meta?.subjects.isNotEmpty == true ? meta!.subjects : null;
-  final sourceUrl = meta?.sources.isNotEmpty == true ? meta!.sources.first : null;
+  final sourceUrl = meta?.sources.isNotEmpty == true
+      ? meta!.sources.first
+      : null;
 
   // Extract cover in the isolate (CPU + memory work)
   Uint8List? coverBytes;
@@ -230,14 +268,20 @@ Future<_ParsedEpub> _parseEpubBytes(List<int> bytes) async {
 
   EpubManifestItem? coverItem;
   for (final item in items) {
-    if (item.id?.toLowerCase() == 'cover-image') { coverItem = item; break; }
+    if (item.id?.toLowerCase() == 'cover-image') {
+      coverItem = item;
+      break;
+    }
   }
   if (coverItem == null) {
     for (final m in metaItems) {
       if (m.name?.toLowerCase() == 'cover' && m.content != null) {
         final cid = m.content!.toLowerCase();
         for (final item in items) {
-          if (item.id?.toLowerCase() == cid) { coverItem = item; break; }
+          if (item.id?.toLowerCase() == cid) {
+            coverItem = item;
+            break;
+          }
         }
         if (coverItem != null) break;
       }
@@ -246,7 +290,8 @@ Future<_ParsedEpub> _parseEpubBytes(List<int> bytes) async {
   if (coverItem == null) {
     for (final item in items) {
       if ((item.properties ?? '').toLowerCase().contains('cover-image')) {
-        coverItem = item; break;
+        coverItem = item;
+        break;
       }
     }
   }
@@ -288,10 +333,12 @@ Future<_ParsedEpub> _parseEpubBytes(List<int> bytes) async {
         if (raw == null) continue;
         final text = _stripHtml(raw).trim();
         if (text.isEmpty) continue;
-        chapters.add(_ProcessedChapter(
-          title: 'Chapter ${chapters.length + 1}',
-          text: text,
-        ));
+        chapters.add(
+          _ProcessedChapter(
+            title: 'Chapter ${chapters.length + 1}',
+            text: text,
+          ),
+        );
       }
     }
   }
@@ -330,7 +377,9 @@ EpubBook _readBookFromSpine(List<int> bytes) {
   if (containerEntry == null) {
     throw const FormatException('EPUB container.xml not found');
   }
-  final containerDoc = xml.XmlDocument.parse(utf8.decode(containerEntry.content));
+  final containerDoc = xml.XmlDocument.parse(
+    utf8.decode(containerEntry.content),
+  );
   final rootFilePath = containerDoc
       .findAllElements('rootfile')
       .firstOrNull
@@ -351,17 +400,30 @@ EpubBook _readBookFromSpine(List<int> bytes) {
   // match on local name (namespace: '*') rather than the qualified name that
   // findAllElements defaults to.
   final metaNode = opfDoc.findAllElements('metadata').firstOrNull;
-  final title = metaNode?.findAllElements('title', namespace: '*').firstOrNull?.innerText;
-  final author = metaNode?.findAllElements('creator', namespace: '*').firstOrNull?.innerText;
-  final description =
-      metaNode?.findAllElements('description', namespace: '*').firstOrNull?.innerText;
-  final language =
-      metaNode?.findAllElements('language', namespace: '*').firstOrNull?.innerText;
+  final title = metaNode
+      ?.findAllElements('title', namespace: '*')
+      .firstOrNull
+      ?.innerText;
+  final author = metaNode
+      ?.findAllElements('creator', namespace: '*')
+      .firstOrNull
+      ?.innerText;
+  final description = metaNode
+      ?.findAllElements('description', namespace: '*')
+      .firstOrNull
+      ?.innerText;
+  final language = metaNode
+      ?.findAllElements('language', namespace: '*')
+      .firstOrNull
+      ?.innerText;
   final subjects = metaNode
       ?.findAllElements('subject', namespace: '*')
       .map((e) => e.innerText)
       .toList();
-  final source = metaNode?.findAllElements('source', namespace: '*').firstOrNull?.innerText;
+  final source = metaNode
+      ?.findAllElements('source', namespace: '*')
+      .firstOrNull
+      ?.innerText;
 
   final items = <String, _ManifestItem>{};
   final manifestItems = <EpubManifestItem>[];
@@ -418,7 +480,8 @@ EpubBook _readBookFromSpine(List<int> bytes) {
     if (contentFile?.content == null) continue;
     chapters.add(
       EpubChapter(
-        title: _chapterTitleFromHtml(contentFile!.content!) ??
+        title:
+            _chapterTitleFromHtml(contentFile!.content!) ??
             'Chapter ${chapters.length + 1}',
         contentFileName: item.href,
         htmlContent: contentFile.content,
@@ -435,13 +498,18 @@ EpubBook _readBookFromSpine(List<int> bytes) {
     author: author ?? 'Unknown Author',
     authors: author != null ? [author] : const [],
     schema: EpubSchema(
-      contentDirectoryPath: rootDir.isEmpty ? null : rootDir.substring(0, rootDir.length - 1),
+      contentDirectoryPath: rootDir.isEmpty
+          ? null
+          : rootDir.substring(0, rootDir.length - 1),
       package: EpubPackage(
         version: EpubVersion.epub3,
         metadata: EpubMetadata(
           titles: title != null ? [title] : const [],
           creators: [
-            EpubMetadataCreator(creator: author ?? 'Unknown Author', role: 'aut'),
+            EpubMetadataCreator(
+              creator: author ?? 'Unknown Author',
+              role: 'aut',
+            ),
           ],
           description: description,
           subjects: subjects ?? const [],
@@ -461,7 +529,11 @@ EpubBook _readBookFromSpine(List<int> bytes) {
 }
 
 class _ManifestItem {
-  const _ManifestItem({required this.href, required this.mediaType, this.properties});
+  const _ManifestItem({
+    required this.href,
+    required this.mediaType,
+    this.properties,
+  });
 
   final String href;
   final String mediaType;
@@ -472,10 +544,7 @@ class _ManifestItem {
 /// All HTML stripping is done inside the isolate so the main thread
 /// only needs to write files and insert DB rows.
 class _ProcessedChapter {
-  const _ProcessedChapter({
-    required this.title,
-    required this.text,
-  });
+  const _ProcessedChapter({required this.title, required this.text});
 
   final String title;
   final String text;

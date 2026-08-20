@@ -36,7 +36,9 @@ class OpenLibrarySource implements SearchableSource {
   @override
   Future<NovelModel> getMetadata(Uri uri) async {
     final workKey = _extractWorkKey(uri);
-    if (workKey == null) throw Exception('Could not extract work key from: $uri');
+    if (workKey == null) {
+      throw Exception('Could not extract work key from: $uri');
+    }
 
     final workJson = await _fetchJson('$_baseUrl/works/$workKey.json');
 
@@ -50,7 +52,8 @@ class OpenLibrarySource implements SearchableSource {
       description = desc['value'] as String?;
     }
 
-    final subjects = (workJson['subjects'] as List<dynamic>?)?.cast<String>() ?? [];
+    final subjects =
+        (workJson['subjects'] as List<dynamic>?)?.cast<String>() ?? [];
     final covers = (workJson['covers'] as List<dynamic>?) ?? [];
     final coverId = covers.isNotEmpty ? covers.first : null;
 
@@ -76,7 +79,9 @@ class OpenLibrarySource implements SearchableSource {
       iaId = iaParam;
     } else {
       try {
-        final editionsJson = await _fetchJson('$_baseUrl/works/$workKey/editions.json?limit=10');
+        final editionsJson = await _fetchJson(
+          '$_baseUrl/works/$workKey/editions.json?limit=10',
+        );
         final entries = editionsJson['entries'] as List<dynamic>? ?? [];
         for (final entry in entries) {
           if (entry is Map) {
@@ -91,7 +96,9 @@ class OpenLibrarySource implements SearchableSource {
     }
 
     final coverUrl = coverId != null ? '$_coverBase/$coverId-M.jpg' : null;
-    final sourceUrl = iaId != null ? '$_iaTextBase/$iaId/${iaId}_djvu.txt' : uri.toString();
+    final sourceUrl = iaId != null
+        ? '$_iaTextBase/$iaId/${iaId}_djvu.txt'
+        : uri.toString();
 
     return NovelModel(
       sourceId: workKey,
@@ -160,10 +167,7 @@ class OpenLibrarySource implements SearchableSource {
   @override
   Future<SourceSearchResponse> search(SourceSearchQuery query) async {
     final uri = Uri.parse('$_baseUrl/search.json').replace(
-      queryParameters: {
-        'q': query.term,
-        'page': query.page.toString(),
-      },
+      queryParameters: {'q': query.term, 'page': query.page.toString()},
     );
     final response = await _client.get(uri);
     if (response.statusCode != 200) {
@@ -193,20 +197,30 @@ class OpenLibrarySource implements SearchableSource {
 
       final firstPublishYear = doc['first_publish_year'] as int?;
       final descParts = <String>[];
-      if (firstPublishYear != null) descParts.add('First published $firstPublishYear');
-      descParts.add(hasFullText ? 'Full text available' : 'Browse on Open Library');
+      if (firstPublishYear != null) {
+        descParts.add('First published $firstPublishYear');
+      }
+      descParts.add(
+        hasFullText ? 'Full text available' : 'Browse on Open Library',
+      );
       final description = descParts.join(' · ');
 
-      final importUrl = hasFullText ? '$_baseUrl$key?ia=$iaId' : '$_baseUrl$key';
-      results.add(SourceSearchResult(
-        id: key,
-        title: title,
-        author: author,
-        coverUrl: coverUrl,
-        description: description,
-        importUrl: importUrl,
-        language: doc['language'] is List ? (doc['language'] as List).firstOrNull?.toString() : null,
-      ));
+      final importUrl = hasFullText
+          ? '$_baseUrl$key?ia=$iaId'
+          : '$_baseUrl$key';
+      results.add(
+        SourceSearchResult(
+          id: key,
+          title: title,
+          author: author,
+          coverUrl: coverUrl,
+          description: description,
+          importUrl: importUrl,
+          language: doc['language'] is List
+              ? (doc['language'] as List).firstOrNull?.toString()
+              : null,
+        ),
+      );
     }
 
     final totalPages = (numFound / pageSize).ceil();
@@ -222,16 +236,29 @@ class OpenLibrarySource implements SearchableSource {
   Future<Map<String, dynamic>> _fetchJson(String url) async {
     final response = await _client.get(Uri.parse(url));
     if (response.statusCode != 200) {
-      throw Exception('Open Library API returned ${response.statusCode} for $url');
+      throw Exception(
+        'Open Library API returned ${response.statusCode} for $url',
+      );
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   List<_ChapterSection> _splitChapters(String text) {
     final patterns = <RegExp>[
-      RegExp(r'^[ \t]*(CHAPTER|Chapter|Chapitre|Capítulo|Kapitel)\s+\w+', multiLine: true),
-      RegExp(r'^[ \t]*(CHAPTER|Chapter)\s+(THE\s+)?[IVXLCDM]+\b', multiLine: true, caseSensitive: false),
-      RegExp(r'^[ \t]*(CHAPTER|Chapter)\s+\d+', multiLine: true, caseSensitive: false),
+      RegExp(
+        r'^[ \t]*(CHAPTER|Chapter|Chapitre|Capítulo|Kapitel)\s+\w+',
+        multiLine: true,
+      ),
+      RegExp(
+        r'^[ \t]*(CHAPTER|Chapter)\s+(THE\s+)?[IVXLCDM]+\b',
+        multiLine: true,
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'^[ \t]*(CHAPTER|Chapter)\s+\d+',
+        multiLine: true,
+        caseSensitive: false,
+      ),
     ];
 
     final matches = <RegExpMatch>[];
@@ -246,7 +273,11 @@ class OpenLibrarySource implements SearchableSource {
     matches.sort((a, b) => a.start.compareTo(b.start));
 
     if (matches.length < 2) {
-      final broad = RegExp(r'^[ \t]*(CHAPTER|Chapter|Ch\.|§)\s*\w+', multiLine: true, caseSensitive: false);
+      final broad = RegExp(
+        r'^[ \t]*(CHAPTER|Chapter|Ch\.|§)\s*\w+',
+        multiLine: true,
+        caseSensitive: false,
+      );
       for (final m in broad.allMatches(text)) {
         if (seen.add(m.start)) {
           matches.add(m);
@@ -266,7 +297,9 @@ class OpenLibrarySource implements SearchableSource {
       final title = titleLineEnd > 0
           ? content.substring(0, titleLineEnd).trim()
           : matches[i].group(0)!.trim();
-      final body = titleLineEnd > 0 ? content.substring(titleLineEnd).trim() : '';
+      final body = titleLineEnd > 0
+          ? content.substring(titleLineEnd).trim()
+          : '';
 
       sections.add(_ChapterSection(title: title, content: body));
     }

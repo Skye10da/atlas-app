@@ -39,8 +39,8 @@ class BrowserTabsController extends ChangeNotifier {
     required BrowserEngineFactory engineFactory,
     this.maxTabs = 5,
     this.persist = true,
-  })  : _repository = repository,
-        _engineFactory = engineFactory;
+  }) : _repository = repository,
+       _engineFactory = engineFactory;
 
   final BrowserRepositoryInterface _repository;
   final BrowserEngineFactory _engineFactory;
@@ -69,7 +69,8 @@ class BrowserTabsController extends ChangeNotifier {
   /// Routes page-selection events from the active engine to [onSelection].
   /// Called by the browser screen when the active tab changes.
   Future<void> bindSelectionListener(
-      void Function(WebSelection selection)? onSelection) async {
+    void Function(WebSelection selection)? onSelection,
+  ) async {
     await activeTab?.engine.setSelectionListener(onSelection);
   }
 
@@ -77,7 +78,8 @@ class BrowserTabsController extends ChangeNotifier {
   /// to [onDownload]. Called by the browser screen alongside the selection
   /// binding.
   Future<void> bindDownloadListener(
-      void Function(String url, String? mimeType)? onDownload) async {
+    void Function(String url, String? mimeType)? onDownload,
+  ) async {
     await activeTab?.engine.setDownloadListener(onDownload);
   }
 
@@ -85,7 +87,8 @@ class BrowserTabsController extends ChangeNotifier {
   Future<void> restore() async {
     final result = await _repository.getTabs();
     final states = switch (result) {
-      Success(value: final tabs) => tabs..sort((a, b) => a.order.compareTo(b.order)),
+      Success(value: final tabs) =>
+        tabs..sort((a, b) => a.order.compareTo(b.order)),
       Failure() => <WebTabState>[],
     };
     for (final state in states.take(maxTabs)) {
@@ -193,24 +196,28 @@ class BrowserTabsController extends ChangeNotifier {
   Future<void> _saveTab(BrowserTab tab, {DateTime? lastActiveAt}) async {
     if (!persist) return;
     final order = _tabs.indexWhere((t) => t.id == tab.id);
-    await _repository.upsertTab(WebTabState(
-      id: tab.id,
-      url: tab.isOnStartPage ? null : tab.url,
-      title: tab.title,
-      order: order,
-      lastActiveAt: lastActiveAt ?? DateTime.now(),
-    ));
+    await _repository.upsertTab(
+      WebTabState(
+        id: tab.id,
+        url: tab.isOnStartPage ? null : tab.url,
+        title: tab.title,
+        order: order,
+        lastActiveAt: lastActiveAt ?? DateTime.now(),
+      ),
+    );
   }
 
   Future<void> _renumber() async {
     for (var i = 0; i < _tabs.length; i++) {
-      await _repository.upsertTab(WebTabState(
-        id: _tabs[i].id,
-        url: _tabs[i].isOnStartPage ? null : _tabs[i].url,
-        title: _tabs[i].title,
-        order: i,
-        lastActiveAt: DateTime.now(),
-      ));
+      await _repository.upsertTab(
+        WebTabState(
+          id: _tabs[i].id,
+          url: _tabs[i].isOnStartPage ? null : _tabs[i].url,
+          title: _tabs[i].title,
+          order: i,
+          lastActiveAt: DateTime.now(),
+        ),
+      );
     }
   }
 }

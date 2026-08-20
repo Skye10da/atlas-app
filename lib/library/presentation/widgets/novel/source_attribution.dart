@@ -23,7 +23,10 @@ class SourceAttribution extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Source', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            'Source',
+            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
@@ -33,7 +36,11 @@ class SourceAttribution extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.cloud_outlined, size: 18, color: colors.onSurfaceVariant),
+                Icon(
+                  Icons.cloud_outlined,
+                  size: 18,
+                  color: colors.onSurfaceVariant,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -43,7 +50,11 @@ class SourceAttribution extends StatelessWidget {
                 ),
                 if (book.sourceUrl != null)
                   IconButton(
-                    icon: Icon(Icons.open_in_new, size: 18, color: colors.primary),
+                    icon: Icon(
+                      Icons.open_in_new,
+                      size: 18,
+                      color: colors.primary,
+                    ),
                     onPressed: () => context.go(
                       '/web?url=${Uri.encodeQueryComponent(book.sourceUrl!)}',
                     ),

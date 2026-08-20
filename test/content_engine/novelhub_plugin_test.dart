@@ -18,10 +18,12 @@ import 'test_fixtures.dart';
 
 const _base = 'https://live.mangabooth.com/novelreader';
 const _novelUrl = '$_base/novel/deceive-me-marry-me/';
-const _chapter1Url = '$_base/novel/deceive-me-marry-me/chapter-1-deceive-me-marry-me/';
+const _chapter1Url =
+    '$_base/novel/deceive-me-marry-me/chapter-1-deceive-me-marry-me/';
 const _ajaxUrl = '$_base/wp-admin/admin-ajax.php';
 
-const _novelPage = '''
+const _novelPage =
+    '''
 <html><head>
 <meta property="og:title" content="Deceive me, Marry me">
 <meta property="og:image" content="$_base/wp-content/uploads/2019/08/deceive-me-marry-me.jpg">
@@ -70,7 +72,8 @@ const _novelPage = '''
 final _archiveJson = jsonEncode({
   'success': true,
   'data': {
-    'content': '''
+    'content':
+        '''
 <li class="wp-manga-chapter"><a href="$_chapter1Url">Chapter 1: Deceive me, Marry me</a></li>
 <li class="wp-manga-chapter"><a href="$_base/novel/deceive-me-marry-me/chapter-2-a-dream-like-wedding/">Chapter 2: A Dream-like Wedding</a></li>
 <li class="wp-manga-chapter"><a href="$_base/novel/deceive-me-marry-me/chapter-3-the-signing/">Chapter 3: The Signing</a></li>
@@ -95,7 +98,8 @@ const _chapterPage = '''
 </div>
 </body></html>''';
 
-const _searchPage = '''
+const _searchPage =
+    '''
 <html><body>
 <div id="loop-content">
   <div class="row c-tabs-item__content">
@@ -142,11 +146,16 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('atlas_novelhub_plugin');
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
-    final source =
-        Directory(p.join(Directory.current.path, 'atlas-plugins', 'novel-hub'));
-    expect(source.existsSync(), isTrue,
-        reason: 'flutter test must run from the package root so that '
-            'atlas-plugins/novel-hub resolves');
+    final source = Directory(
+      p.join(Directory.current.path, 'atlas-plugins', 'novel-hub'),
+    );
+    expect(
+      source.existsSync(),
+      isTrue,
+      reason:
+          'flutter test must run from the package root so that '
+          'atlas-plugins/novel-hub resolves',
+    );
     await _copyDir(source, Directory(p.join(baseDir.path, 'novel-hub')));
   });
 
@@ -155,10 +164,10 @@ void main() {
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: TemplateRegistry.defaults,
-        transportRegistry: _FakeTransportRegistry(transport),
-      );
+    baseDirectory: baseDir,
+    templateRegistry: TemplateRegistry.defaults,
+    transportRegistry: _FakeTransportRegistry(transport),
+  );
 
   group('atlas-plugins/novel-hub/plugin.json', () {
     test('loads a valid manifest for the generic html template', () async {
@@ -178,17 +187,15 @@ void main() {
         PluginCapability.chapterContent,
         PluginCapability.cover,
       });
-      expect(
-        TemplateRegistry.defaults.resolve('html'),
-        isA<HtmlTemplate>(),
-      );
+      expect(TemplateRegistry.defaults.resolve('html'), isA<HtmlTemplate>());
     });
 
     test('declared capabilities are implemented by the template', () async {
       final manifest = await repo(FakeTransport()).load('novel-hub');
       final template = TemplateRegistry.defaults.resolve(manifest.templateId);
-      final unsupported = manifest.capabilities
-          .where((c) => !template.supportedCapabilities.contains(c));
+      final unsupported = manifest.capabilities.where(
+        (c) => !template.supportedCapabilities.contains(c),
+      );
       expect(unsupported, isEmpty);
     });
 
@@ -197,8 +204,10 @@ void main() {
       final manifest = await repository.load('novel-hub');
 
       final filters = await repository.loadFilters(manifest);
-      expect(filters.extraStripSelectors,
-          contains('.reading-content .wp-manga-chapter-title'));
+      expect(
+        filters.extraStripSelectors,
+        contains('.reading-content .wp-manga-chapter-title'),
+      );
       expect(filters.disableDefaultStrips, isFalse);
 
       final permissions = await repository.loadPermissions(manifest);
@@ -213,8 +222,7 @@ void main() {
       final source = await repo(FakeTransport()).buildSource('novel-hub');
 
       expect(source.canHandle(Uri.parse('$_base/novel/x')), isTrue);
-      expect(source.canHandle(Uri.parse('https://other.com/novel/x')),
-          isFalse);
+      expect(source.canHandle(Uri.parse('https://other.com/novel/x')), isFalse);
     });
 
     test('search drives the ?s= endpoint with post_type=wp-manga', () async {
@@ -222,14 +230,17 @@ void main() {
         ..addHtml('$_base?s=deceive&post_type=wp-manga', _searchPage);
       final source = await repo(transport).buildSource('novel-hub');
 
-      final response =
-          await source.search(const SourceSearchQuery(term: 'deceive'));
+      final response = await source.search(
+        const SourceSearchQuery(term: 'deceive'),
+      );
 
       expect(response.results, hasLength(2));
       expect(response.results.first.title, 'Deceive me, Marry me');
       expect(response.results.first.importUrl, _novelUrl);
-      expect(response.results.first.coverUrl,
-          '$_base/wp-content/uploads/2019/08/deceive-me-marry-me-150x150.jpg');
+      expect(
+        response.results.first.coverUrl,
+        '$_base/wp-content/uploads/2019/08/deceive-me-marry-me-150x150.jpg',
+      );
     });
 
     test('getMetadata reads the child-theme summary blocks', () async {
@@ -245,8 +256,10 @@ void main() {
       expect(novel.genres, ['Romance', 'Drama', 'Mature']);
       expect(novel.status, 'Completed');
       expect(novel.description, contains('engaged to a man she never loved'));
-      expect(novel.coverUrl,
-          '$_base/wp-content/uploads/2019/08/deceive-me-marry-me.jpg');
+      expect(
+        novel.coverUrl,
+        '$_base/wp-content/uploads/2019/08/deceive-me-marry-me.jpg',
+      );
     });
 
     test('getChapters POSTs the archive and unwraps data.content', () async {

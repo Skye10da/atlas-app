@@ -106,7 +106,9 @@ final pluginSourcesProvider = FutureProvider<List<PluginSource>>((ref) async {
   return sources;
 });
 
-final contentAcquisitionEngineProvider = Provider<ContentAcquisitionEngine>((ref) {
+final contentAcquisitionEngineProvider = Provider<ContentAcquisitionEngine>((
+  ref,
+) {
   final registry = ref.watch(sourceRegistryProvider);
   final db = ref.watch(databaseProvider);
   return ContentAcquisitionEngine(
@@ -133,7 +135,9 @@ final imagePipelineProvider = Provider<ImagePipeline>((ref) {
 /// End-to-end chapter pipeline: discovery → source resolution → transport →
 /// clean → normalize → post-normalize (version+checksum) → index → cache →
 /// deliver.
-final pipelineOrchestratorProvider = Provider<ContentPipelineOrchestrator>((ref) {
+final pipelineOrchestratorProvider = Provider<ContentPipelineOrchestrator>((
+  ref,
+) {
   return ContentPipelineOrchestrator(
     registry: ref.watch(sourceRegistryProvider),
     cache: ref.watch(documentCacheProvider),
@@ -175,9 +179,11 @@ final taskSchedulerProvider = Provider<TaskScheduler>((ref) {
       );
       final updates = await updater.sync();
       final applied = updates
-          .where((u) =>
-              u.status == PluginUpdateStatus.installed ||
-              u.status == PluginUpdateStatus.upgraded)
+          .where(
+            (u) =>
+                u.status == PluginUpdateStatus.installed ||
+                u.status == PluginUpdateStatus.upgraded,
+          )
           .length;
       return applied > 0 ? 'refreshed $applied plugins' : null;
     },

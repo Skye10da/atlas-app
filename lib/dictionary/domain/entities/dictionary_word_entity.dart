@@ -1,5 +1,4 @@
 class DictionaryWordEntity {
-
   const DictionaryWordEntity({
     required this.id,
     required this.word,
@@ -72,12 +71,18 @@ class DictionaryWordEntity {
       definition: definition ?? this.definition,
       fullJson: fullJson ?? this.fullJson,
       savedAt: savedAt ?? this.savedAt,
-      sourceSentence: clearSourceSentence ? null : (sourceSentence ?? this.sourceSentence),
+      sourceSentence: clearSourceSentence
+          ? null
+          : (sourceSentence ?? this.sourceSentence),
       sourceTitle: clearSourceTitle ? null : (sourceTitle ?? this.sourceTitle),
       reviewLevel: reviewLevel ?? this.reviewLevel,
       reviewCount: reviewCount ?? this.reviewCount,
-      lastReviewedAt: clearLastReviewedAt ? null : (lastReviewedAt ?? this.lastReviewedAt),
-      nextReviewAt: clearNextReviewAt ? null : (nextReviewAt ?? this.nextReviewAt),
+      lastReviewedAt: clearLastReviewedAt
+          ? null
+          : (lastReviewedAt ?? this.lastReviewedAt),
+      nextReviewAt: clearNextReviewAt
+          ? null
+          : (nextReviewAt ?? this.nextReviewAt),
     );
   }
 }

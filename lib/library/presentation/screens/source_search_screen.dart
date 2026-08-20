@@ -18,7 +18,8 @@ class SourceSearchScreen extends ConsumerStatefulWidget {
   ConsumerState<SourceSearchScreen> createState() => _SourceSearchScreenState();
 }
 
-class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with SingleTickerProviderStateMixin {
+class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
+    with SingleTickerProviderStateMixin {
   late final SearchableSource _source;
   final _searchController = TextEditingController();
   String _term = '';
@@ -33,10 +34,13 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
   @override
   void initState() {
     super.initState();
-    _source = ref.read(searchableSourcesProvider).firstWhere(
-      (s) => s.sourceName == widget.sourceName,
-    );
-    _searchAnimCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+    _source = ref
+        .read(searchableSourcesProvider)
+        .firstWhere((s) => s.sourceName == widget.sourceName);
+    _searchAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
   }
 
   @override
@@ -60,7 +64,9 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
       _isLoadingMore = loadMore;
     });
 
-    final response = await _source.search(SourceSearchQuery(term: term, page: _page));
+    final response = await _source.search(
+      SourceSearchQuery(term: term, page: _page),
+    );
     setState(() {
       _lastResponse = response;
       _results.addAll(response.results);
@@ -136,7 +142,9 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
                         },
                       )
                     : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 filled: true,
               ),
               textInputAction: TextInputAction.search,
@@ -146,42 +154,62 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
           Expanded(
             child: _results.isEmpty
                 ? _isSearching
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AnimatedBuilder(
-                              animation: _searchAnimCtrl,
-                              builder: (_, _) => SizedBox(
-                                width: 48,
-                                height: 48,
-                                child: CustomPaint(
-                                  painter: _ArcPainter(progress: _searchAnimCtrl.value, color: theme.colorScheme.primary),
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AnimatedBuilder(
+                                animation: _searchAnimCtrl,
+                                builder: (_, _) => SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: CustomPaint(
+                                    painter: _ArcPainter(
+                                      progress: _searchAnimCtrl.value,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 20),
-                            Text('Searching...', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                          ],
-                        ),
-                      )
-                    : Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.search, size: 48, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
-                            const SizedBox(height: 16),
-                            Text(_term.isEmpty ? 'Search for books to import' : 'No results found',
-                                style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                          ],
-                        ),
-                      )
+                              const SizedBox(height: 20),
+                              Text(
+                                'Searching...',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.search,
+                                size: 48,
+                                color: theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.4),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _term.isEmpty
+                                    ? 'Search for books to import'
+                                    : 'No results found',
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
                 : NotificationListener<ScrollNotification>(
                     onNotification: (notification) {
                       if (notification is ScrollEndNotification &&
                           !_isLoadingMore &&
                           _lastResponse?.nextPage != null &&
-                          notification.metrics.pixels >= notification.metrics.maxScrollExtent - 200) {
+                          notification.metrics.pixels >=
+                              notification.metrics.maxScrollExtent - 200) {
                         _page = _lastResponse!.nextPage!;
                         _search(loadMore: true);
                       }
@@ -189,16 +217,19 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
                     },
                     child: GridView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        childAspectRatio: 0.6,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            childAspectRatio: 0.6,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
                       itemCount: _results.length + (_isLoadingMore ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (index == _results.length) {
-                          return const Center(child: CircularProgressIndicator());
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
                         }
                         final result = _results[index];
                         return _SearchResultCard(
@@ -237,7 +268,12 @@ class _SearchResultCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: result.coverUrl != null
-                    ? Image.network(result.coverUrl!, fit: BoxFit.cover, width: double.infinity, errorBuilder: (_, _, _) => _placeholder(theme))
+                    ? Image.network(
+                        result.coverUrl!,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        errorBuilder: (_, _, _) => _placeholder(theme),
+                      )
                     : _placeholder(theme),
               ),
             ),
@@ -246,14 +282,18 @@ class _SearchResultCard extends StatelessWidget {
               result.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             if (result.author != null)
               Text(
                 result.author!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
           ],
         ),
@@ -264,7 +304,11 @@ class _SearchResultCard extends StatelessWidget {
   Widget _placeholder(ThemeData theme) {
     return Container(
       color: theme.colorScheme.surfaceContainerHighest,
-      child: Icon(Icons.auto_stories, size: 40, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+      child: Icon(
+        Icons.auto_stories,
+        size: 40,
+        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+      ),
     );
   }
 }
@@ -297,5 +341,6 @@ class _ArcPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ArcPainter old) => old.progress != progress || old.color != color;
+  bool shouldRepaint(_ArcPainter old) =>
+      old.progress != progress || old.color != color;
 }

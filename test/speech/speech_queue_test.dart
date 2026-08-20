@@ -4,13 +4,13 @@ import 'package:atlas_app/reader/speech/speech_models.dart';
 import 'package:atlas_app/reader/speech/speech_queue.dart';
 
 SpeechItem _item(int p, int s) => SpeechItem(
-      bookId: 'b1',
-      chapterId: 'c1',
-      paragraphIndex: p,
-      sentenceIndex: s,
-      text: 'p$p s$s',
-      language: 'en-US',
-    );
+  bookId: 'b1',
+  chapterId: 'c1',
+  paragraphIndex: p,
+  sentenceIndex: s,
+  text: 'p$p s$s',
+  language: 'en-US',
+);
 
 void main() {
   group('SpeechQueue', () {

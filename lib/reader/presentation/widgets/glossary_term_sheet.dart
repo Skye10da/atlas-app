@@ -93,10 +93,8 @@ class _GlossaryTermSheetState extends ConsumerState<GlossaryTermSheet> {
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
 
-    final entries = ref
-        .watch(atlasGlossaryProvider(widget.bookId))
-        .valueOrNull ??
-        const [];
+    final entries =
+        ref.watch(atlasGlossaryProvider(widget.bookId)).valueOrNull ?? const [];
     final entry = _firstWhereOrNull(entries, widget.term);
     final effectiveTerm = entry?.term ?? widget.term;
 
@@ -159,9 +157,7 @@ class _GlossaryTermSheetState extends ConsumerState<GlossaryTermSheet> {
                 onPressed: () => _remove(entry),
                 icon: const Icon(Icons.delete_outline_rounded, size: 18),
                 label: const Text('Remove term'),
-                style: TextButton.styleFrom(
-                  foregroundColor: colors.error,
-                ),
+                style: TextButton.styleFrom(foregroundColor: colors.error),
               ),
             ],
             const SizedBox(height: AppSpacing.md),
@@ -189,7 +185,8 @@ class _GlossaryTermSheetState extends ConsumerState<GlossaryTermSheet> {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 FilledButton(
-                  onPressed: () => entry == null ? _apply() : _addOption(entry.id),
+                  onPressed: () =>
+                      entry == null ? _apply() : _addOption(entry.id),
                   child: Text(entry == null ? 'Set as term' : 'Add option'),
                 ),
               ],

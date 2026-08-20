@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderBox, RenderEditable;
+import 'package:flutter/rendering.dart'
+    show RenderAbstractViewport, RenderBox, RenderEditable;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -98,27 +99,65 @@ extension ReadingViewThemeX on ReadingViewTheme {
         accent: scheme.primary,
       ),
       ReadingViewTheme.midnight => ReadingColors(
-        background: _tint(bg, hueShift: -50, satBoost: 0.12, lightShift: isDark ? -0.05 : 0),
+        background: _tint(
+          bg,
+          hueShift: -50,
+          satBoost: 0.12,
+          lightShift: isDark ? -0.05 : 0,
+        ),
         text: _tint(txt, hueShift: -40, satBoost: 0.08),
-        surface: _tint(sf, hueShift: -50, satBoost: 0.15, lightShift: isDark ? -0.05 : 0),
+        surface: _tint(
+          sf,
+          hueShift: -50,
+          satBoost: 0.15,
+          lightShift: isDark ? -0.05 : 0,
+        ),
         accent: scheme.primary,
       ),
       ReadingViewTheme.charcoal => ReadingColors(
-        background: _desaturate(bg, amount: 0.25, lightShift: isDark ? 0.02 : -0.04),
+        background: _desaturate(
+          bg,
+          amount: 0.25,
+          lightShift: isDark ? 0.02 : -0.04,
+        ),
         text: _desaturate(txt, amount: 0.2),
-        surface: _desaturate(sf, amount: 0.28, lightShift: isDark ? 0.02 : -0.04),
+        surface: _desaturate(
+          sf,
+          amount: 0.28,
+          lightShift: isDark ? 0.02 : -0.04,
+        ),
         accent: scheme.primary,
       ),
       ReadingViewTheme.nord => ReadingColors(
-        background: _tint(bg, hueShift: -45, satBoost: 0.08, lightShift: isDark ? 0.02 : -0.01),
+        background: _tint(
+          bg,
+          hueShift: -45,
+          satBoost: 0.08,
+          lightShift: isDark ? 0.02 : -0.01,
+        ),
         text: _tint(txt, hueShift: -35, satBoost: 0.05),
-        surface: _tint(sf, hueShift: -45, satBoost: 0.1, lightShift: isDark ? 0.02 : -0.01),
+        surface: _tint(
+          sf,
+          hueShift: -45,
+          satBoost: 0.1,
+          lightShift: isDark ? 0.02 : -0.01,
+        ),
         accent: scheme.primary,
       ),
       ReadingViewTheme.dracula => ReadingColors(
-        background: _tint(bg, hueShift: 60, satBoost: 0.12, lightShift: isDark ? -0.02 : 0),
+        background: _tint(
+          bg,
+          hueShift: 60,
+          satBoost: 0.12,
+          lightShift: isDark ? -0.02 : 0,
+        ),
         text: _tint(txt, hueShift: 50, satBoost: 0.08),
-        surface: _tint(sf, hueShift: 60, satBoost: 0.15, lightShift: isDark ? -0.02 : 0),
+        surface: _tint(
+          sf,
+          hueShift: 60,
+          satBoost: 0.15,
+          lightShift: isDark ? -0.02 : 0,
+        ),
         accent: scheme.primary,
       ),
       ReadingViewTheme.amoled => ReadingColors(
@@ -130,17 +169,28 @@ extension ReadingViewThemeX on ReadingViewTheme {
     };
   }
 
-  static Color _tint(Color c, {double hueShift = 0, double satBoost = 0, double lightShift = 0}) {
+  static Color _tint(
+    Color c, {
+    double hueShift = 0,
+    double satBoost = 0,
+    double lightShift = 0,
+  }) {
     final hsl = HSLColor.fromColor(c);
-    return hsl.withHue((hsl.hue + hueShift) % 360)
+    return hsl
+        .withHue((hsl.hue + hueShift) % 360)
         .withSaturation((hsl.saturation + satBoost).clamp(0.0, 1.0))
         .withLightness((hsl.lightness + lightShift).clamp(0.0, 1.0))
         .toColor();
   }
 
-  static Color _desaturate(Color c, {double amount = 0.1, double lightShift = 0}) {
+  static Color _desaturate(
+    Color c, {
+    double amount = 0.1,
+    double lightShift = 0,
+  }) {
     final hsl = HSLColor.fromColor(c);
-    return hsl.withSaturation((hsl.saturation - amount).clamp(0.0, 1.0))
+    return hsl
+        .withSaturation((hsl.saturation - amount).clamp(0.0, 1.0))
         .withLightness((hsl.lightness + lightShift).clamp(0.0, 1.0))
         .toColor();
   }
@@ -221,6 +271,7 @@ class ChapterView extends ConsumerStatefulWidget {
 
   final double fontSize;
   final String? fontFamily;
+
   /// Numeric reader body-text weight; `null` keeps the family default.
   final int? fontWeight;
   final double lineHeight;
@@ -237,7 +288,8 @@ class ChapterView extends ConsumerStatefulWidget {
   /// Called with the selected text, chosen color and its [content] character
   /// offsets when the reader taps a highlight swatch in the context menu.
   /// Omit to hide highlighting.
-  final void Function(String text, Color color, int start, int end)? onHighlight;
+  final void Function(String text, Color color, int start, int end)?
+  onHighlight;
 
   /// Called with the selected text (and surrounding sentence, if available)
   /// when the reader taps "Note". Omit to hide the note action.
@@ -254,7 +306,7 @@ class ChapterView extends ConsumerStatefulWidget {
   /// Called to speak the selected sentence once ("Listen"). Omit to hide the
   /// listen action.
   final void Function(String text, String? sentence, int start, int end)?
-      onListen;
+  onListen;
 
   /// Called to remove any stored highlight overlapping the selection's
   /// [start, end) character range. Omit to hide the erase action.
@@ -353,14 +405,17 @@ class _ChapterViewState extends ConsumerState<ChapterView>
 
   EdgeInsets get _padding => switch (widget.marginPreset) {
     MarginPreset.narrow => const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md, vertical: AppSpacing.sm,
-      ),
+      horizontal: AppSpacing.md,
+      vertical: AppSpacing.sm,
+    ),
     MarginPreset.normal => const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg, vertical: AppSpacing.md,
-      ),
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
     MarginPreset.wide => const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xxl, vertical: AppSpacing.lg,
-      ),
+      horizontal: AppSpacing.xxl,
+      vertical: AppSpacing.lg,
+    ),
   };
 
   @override
@@ -396,7 +451,8 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       if (widget.activeSpeechItem == null) {
         _highlightController.value = 0.0;
         _refreshOutOfSync();
-      } else if (oldWidget.activeSpeechItem?.text != widget.activeSpeechItem?.text) {
+      } else if (oldWidget.activeSpeechItem?.text !=
+          widget.activeSpeechItem?.text) {
         _highlightController.forward(from: 0.0);
         _followActive();
       } else {
@@ -482,6 +538,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       }
       element.visitChildren(visitor);
     }
+
     context.visitChildElements(visitor);
     return found;
   }
@@ -509,8 +566,12 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     final viewport = render != null
         ? RenderAbstractViewport.maybeOf(render)
         : null;
-    if (item == null || idx == null || idx < 0 || scrollable == null ||
-        render == null || viewport == null) {
+    if (item == null ||
+        idx == null ||
+        idx < 0 ||
+        scrollable == null ||
+        render == null ||
+        viewport == null) {
       return;
     }
 
@@ -522,21 +583,26 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     );
     final position = scrollable.position;
     const margin = 24.0;
-    final target = (revealed.offset - margin).clamp(0.0, position.maxScrollExtent);
+    final target = (revealed.offset - margin).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
     _revealAnimating = true;
     _reportOutOfSync(false);
-    position.animateTo(
-      target,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
-    ).whenComplete(() {
-      _revealAnimating = false;
-      if (mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _refreshOutOfSync();
+    position
+        .animateTo(
+          target,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        )
+        .whenComplete(() {
+          _revealAnimating = false;
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _refreshOutOfSync();
+            });
+          }
         });
-      }
-    });
   }
 
   /// One-shot exact-position resume: scrolls this chapter's nearest scrollable
@@ -560,7 +626,9 @@ class _ChapterViewState extends ConsumerState<ChapterView>
 
     _didRestoreReveal = true;
     final edge = render
-        .getLocalRectForCaret(TextPosition(offset: offset.clamp(0, content.length)))
+        .getLocalRectForCaret(
+          TextPosition(offset: offset.clamp(0, content.length)),
+        )
         .top;
     final revealed = viewport.getOffsetToReveal(
       render,
@@ -568,7 +636,10 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       rect: Rect.fromLTWH(0, edge, 0, 0),
     );
     final position = scrollable.position;
-    final target = (revealed.offset - 24.0).clamp(0.0, position.maxScrollExtent);
+    final target = (revealed.offset - 24.0).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
     _revealAnimating = true;
     position.jumpTo(target);
     _revealAnimating = false;
@@ -588,8 +659,9 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     final render = _findRenderEditable();
     if (scrollable == null || render == null) return null;
     final viewport = RenderAbstractViewport.maybeOf(render);
-    final viewportBox = scrollable.position.context.storageContext.findRenderObject()
-        as RenderBox?;
+    final viewportBox =
+        scrollable.position.context.storageContext.findRenderObject()
+            as RenderBox?;
     if (viewport == null || viewportBox == null) return null;
 
     final caretTop = render.getLocalRectForCaret(TextPosition(offset: idx)).top;
@@ -643,7 +715,9 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       height: widget.lineHeight,
       letterSpacing: widget.letterSpacing,
       color: widget.theme.resolve(colorScheme).text,
-      fontWeight: widget.fontWeight != null ? FontWeight(widget.fontWeight!) : null,
+      fontWeight: widget.fontWeight != null
+          ? FontWeight(widget.fontWeight!)
+          : null,
     );
 
     final content = _buildText(baseStyle);
@@ -683,7 +757,13 @@ class _ChapterViewState extends ConsumerState<ChapterView>
         TextSpan(
           children: [
             TextSpan(text: c.substring(0, 1), style: ds),
-            ..._quoteAwareSpans(c, 1, c.length, textStyle, highlights: highlights),
+            ..._quoteAwareSpans(
+              c,
+              1,
+              c.length,
+              textStyle,
+              highlights: highlights,
+            ),
           ],
         ),
         key: _textKey,
@@ -694,7 +774,13 @@ class _ChapterViewState extends ConsumerState<ChapterView>
 
     return SelectableText.rich(
       TextSpan(
-        children: _quoteAwareSpans(c, 0, c.length, textStyle, highlights: highlights),
+        children: _quoteAwareSpans(
+          c,
+          0,
+          c.length,
+          textStyle,
+          highlights: highlights,
+        ),
       ),
       key: _textKey,
       textAlign: widget.textAlignment.flutterTextAlign,
@@ -755,10 +841,9 @@ class _ChapterViewState extends ConsumerState<ChapterView>
         }
       }
       if (extraStyle != null) segStyle = segStyle.merge(extraStyle);
-      spans.add(TextSpan(
-        text: content.substring(segStart, segEnd),
-        style: segStyle,
-      ));
+      spans.add(
+        TextSpan(text: content.substring(segStart, segEnd), style: segStyle),
+      );
     }
     return spans;
   }
@@ -790,7 +875,11 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       return SelectableText.rich(
         TextSpan(
           children: _quoteAwareSpans(
-            content, 0, content.length, textStyle, highlights: highlights,
+            content,
+            0,
+            content.length,
+            textStyle,
+            highlights: highlights,
           ),
         ),
         key: _textKey,
@@ -803,15 +892,20 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       animation: _highlightController,
       builder: (context, _) {
         final highlightStyle = TextStyle(
-          backgroundColor: widget.theme.resolve(Theme.of(context).colorScheme).accent.withValues(
-            alpha: 0.25 * _highlightController.value,
-          ),
+          backgroundColor: widget.theme
+              .resolve(Theme.of(context).colorScheme)
+              .accent
+              .withValues(alpha: 0.25 * _highlightController.value),
         );
         return SelectableText.rich(
           TextSpan(
             children: [
               ..._quoteAwareSpans(
-                content, 0, idx, textStyle, highlights: highlights,
+                content,
+                0,
+                idx,
+                textStyle,
+                highlights: highlights,
               ),
               ..._quoteAwareSpans(
                 content,
@@ -861,18 +955,23 @@ class _ChapterViewState extends ConsumerState<ChapterView>
         final word = hasSelection
             ? fullText.substring(sel.start, sel.end).trim()
             : '';
-        final sentence =
-            hasSelection && word.isNotEmpty ? _sentenceAround(fullText, sel) : null;
+        final sentence = hasSelection && word.isNotEmpty
+            ? _sentenceAround(fullText, sel)
+            : null;
         final showSelectionActions = hasSelection && word.isNotEmpty;
-        final hasOverlappingHighlight =
-            highlights.any((h) => h.overlaps(sel.start, sel.end));
+        final hasOverlappingHighlight = highlights.any(
+          (h) => h.overlaps(sel.start, sel.end),
+        );
         final eraseEnabled =
-            showSelectionActions && hasOverlappingHighlight && widget.onErase != null;
+            showSelectionActions &&
+            hasOverlappingHighlight &&
+            widget.onErase != null;
 
         return AppContextMenu(
           anchor: anchor,
           highlightColors: showSelectionActions ? _highlightPalette : const [],
-          onHighlightSelected: showSelectionActions && widget.onHighlight != null
+          onHighlightSelected:
+              showSelectionActions && widget.onHighlight != null
               ? (color) => widget.onHighlight!(word, color, sel.start, sel.end)
               : null,
           quickActions: [
@@ -896,7 +995,8 @@ class _ChapterViewState extends ConsumerState<ChapterView>
               AppContextMenuAction(
                 label: 'Listen',
                 icon: Icons.play_circle_outline_rounded,
-                onPressed: () => widget.onListen!(word, sentence, sel.start, sel.end),
+                onPressed: () =>
+                    widget.onListen!(word, sentence, sel.start, sel.end),
               ),
             if (showSelectionActions && widget.onShare != null)
               AppContextMenuAction(
@@ -934,7 +1034,8 @@ class _ChapterViewState extends ConsumerState<ChapterView>
             AppContextMenuAction(
               label: 'Select all',
               icon: Icons.select_all_rounded,
-              onPressed: () => editable.selectAll(SelectionChangedCause.toolbar),
+              onPressed: () =>
+                  editable.selectAll(SelectionChangedCause.toolbar),
             ),
           ],
         );

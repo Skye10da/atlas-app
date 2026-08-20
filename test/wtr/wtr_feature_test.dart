@@ -22,7 +22,8 @@ import 'package:atlas_app/wtr/domain/services/wtr_web_translate_service.dart';
 import '../content_engine/test_fixtures.dart';
 
 const _base = 'https://wtr-lab.com';
-const _novelUrl = '$_base/en/novel/29058/'
+const _novelUrl =
+    '$_base/en/novel/29058/'
     'charm-is-full-i-have-become-a-male-god-since-high-school';
 const _chapterUrl = '$_novelUrl/chapter-639';
 const _readerUrl = '$_base/api/reader/get';
@@ -64,10 +65,10 @@ class _FakeAuxiliary implements WtrSessionAuxiliary {
 /// AI auth gate, so the term-preferences auth-guard can be tested directly.
 class _AuthBypassingProvider extends WtrChapterProvider {
   _AuthBypassingProvider()
-      : super(
-          preferenceRepository: InMemoryWtrPreferenceRepository(),
-          authManager: WtrAuthenticationManager(),
-        );
+    : super(
+        preferenceRepository: InMemoryWtrPreferenceRepository(),
+        authManager: WtrAuthenticationManager(),
+      );
 
   @override
   Future<String> resolveTranslate(int rawId) async => 'ai';
@@ -82,7 +83,12 @@ String _encryptBody(List<String> paragraphs) {
   final cipher = GCMBlockCipher(AESEngine());
   cipher.init(
     true,
-    AEADParameters(KeyParameter(Uint8List.fromList(key)), 128, iv, Uint8List(0)),
+    AEADParameters(
+      KeyParameter(Uint8List.fromList(key)),
+      128,
+      iv,
+      Uint8List(0),
+    ),
   );
   final ctWithTag = cipher.process(utf8.encode(jsonEncode(paragraphs)));
   final tag = Uint8List.fromList(ctWithTag.sublist(ctWithTag.length - 16));
@@ -91,10 +97,13 @@ String _encryptBody(List<String> paragraphs) {
 }
 
 Map<String, Object?> _readerResponse(String body) => {
-      'success': true,
-      'chapter': {'id': 33607609, 'title': 'Chapter 638: He wrote both of them!?'},
-      'data': {'raw_id': 29058, 'data': {'body': body}},
-    };
+  'success': true,
+  'chapter': {'id': 33607609, 'title': 'Chapter 638: He wrote both of them!?'},
+  'data': {
+    'raw_id': 29058,
+    'data': {'body': body},
+  },
+};
 
 /// Records the JSON body of every `fetchJsonPost` so tests can assert what
 /// `translate` value the template actually POSTs, plus every GET so glossary
@@ -118,8 +127,7 @@ class _RecordingTransport implements Transport {
     Uri url, {
     Map<String, String>? headers,
     Map<String, String>? form,
-  }) =>
-      inner.fetchHtmlPost(url, headers: headers, form: form);
+  }) => inner.fetchHtmlPost(url, headers: headers, form: form);
 
   @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
@@ -153,8 +161,14 @@ void main() {
       expect(WtrTranslationService.web.apiValue, 'web');
       expect(WtrTranslationService.webPlus.apiValue, 'webplus');
       expect(WtrTranslationService.ai.apiValue, 'ai');
-      expect(WtrTranslationService.fromApiValue('ai'), WtrTranslationService.ai);
-      expect(WtrTranslationService.fromApiValue('web'), WtrTranslationService.web);
+      expect(
+        WtrTranslationService.fromApiValue('ai'),
+        WtrTranslationService.ai,
+      );
+      expect(
+        WtrTranslationService.fromApiValue('web'),
+        WtrTranslationService.web,
+      );
       expect(WtrTranslationService.fromApiValue('unknown'), isNull);
     });
   });
@@ -169,18 +183,21 @@ void main() {
       expect(auth.state.value, WtrAuthState.notAuthenticated);
     });
 
-    test('restores authenticated when the stored session is provable', () async {
-      final repo = InMemoryWtrSessionRepository();
-      await repo.save(
-        WtrSessionRecord(authenticated: true, connectedAt: DateTime.now()),
-      );
-      final auth = WtrAuthenticationManager(
-        sessionRepository: repo,
-        auxiliary: _FakeAuxiliary(hasCookies: true),
-      );
-      await auth.initialize();
-      expect(auth.state.value, WtrAuthState.authenticated);
-    });
+    test(
+      'restores authenticated when the stored session is provable',
+      () async {
+        final repo = InMemoryWtrSessionRepository();
+        await repo.save(
+          WtrSessionRecord(authenticated: true, connectedAt: DateTime.now()),
+        );
+        final auth = WtrAuthenticationManager(
+          sessionRepository: repo,
+          auxiliary: _FakeAuxiliary(hasCookies: true),
+        );
+        await auth.initialize();
+        expect(auth.state.value, WtrAuthState.authenticated);
+      },
+    );
 
     test('downgrades an unprovable stored session to expired', () async {
       final repo = InMemoryWtrSessionRepository();
@@ -255,38 +272,46 @@ void main() {
           continue;
         }
         auth.state.value = state;
-        expect(auth.ensureAuthenticatedOrThrow, throwsA(isA<WtrAuthException>()),
-            reason: 'state $state must be gated');
+        expect(
+          auth.ensureAuthenticatedOrThrow,
+          throwsA(isA<WtrAuthException>()),
+          reason: 'state $state must be gated',
+        );
       }
     });
   });
 
   group('WtrChapterProvider', () {
-    test('defaults by account: WebPlus signed out, AI signed in; persists selection',
-        () async {
-      final signedOut = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: WtrAuthenticationManager(),
-      );
-      expect(await signedOut.serviceFor(29058), WtrTranslationService.webPlus);
-      expect(await signedOut.serviceFor(9999), WtrTranslationService.webPlus);
+    test(
+      'defaults by account: WebPlus signed out, AI signed in; persists selection',
+      () async {
+        final signedOut = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: WtrAuthenticationManager(),
+        );
+        expect(
+          await signedOut.serviceFor(29058),
+          WtrTranslationService.webPlus,
+        );
+        expect(await signedOut.serviceFor(9999), WtrTranslationService.webPlus);
 
-      await signedOut.setService(29058, WtrTranslationService.web);
-      expect(await signedOut.serviceFor(29058), WtrTranslationService.web);
-      expect(await signedOut.serviceFor(9999), WtrTranslationService.webPlus);
+        await signedOut.setService(29058, WtrTranslationService.web);
+        expect(await signedOut.serviceFor(29058), WtrTranslationService.web);
+        expect(await signedOut.serviceFor(9999), WtrTranslationService.webPlus);
 
-      final auth = WtrAuthenticationManager(
-        sessionRepository: InMemoryWtrSessionRepository(),
-        auxiliary: _FakeAuxiliary(),
-      );
-      await auth.completeLogin();
-      final signedIn = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: auth,
-      );
-      expect(await signedIn.serviceFor(29058), WtrTranslationService.ai);
-      expect(await signedIn.serviceFor(7777), WtrTranslationService.ai);
-    });
+        final auth = WtrAuthenticationManager(
+          sessionRepository: InMemoryWtrSessionRepository(),
+          auxiliary: _FakeAuxiliary(),
+        );
+        await auth.completeLogin();
+        final signedIn = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: auth,
+        );
+        expect(await signedIn.serviceFor(29058), WtrTranslationService.ai);
+        expect(await signedIn.serviceFor(7777), WtrTranslationService.ai);
+      },
+    );
 
     test('resolveTranslate defaults to webplus when signed out', () async {
       final provider = WtrChapterProvider(
@@ -313,33 +338,38 @@ void main() {
       expect(await provider.resolveTranslate(29058), 'web');
     });
 
-    test('AI resolveTranslate throws before network when unauthenticated',
-        () async {
-      final provider = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: WtrAuthenticationManager(),
-      );
-      await provider.setService(29058, WtrTranslationService.ai);
-      expect(
-        provider.resolveTranslate(29058),
-        throwsA(isA<WtrAuthRequiredException>()),
-      );
-    });
+    test(
+      'AI resolveTranslate throws before network when unauthenticated',
+      () async {
+        final provider = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: WtrAuthenticationManager(),
+        );
+        await provider.setService(29058, WtrTranslationService.ai);
+        expect(
+          provider.resolveTranslate(29058),
+          throwsA(isA<WtrAuthRequiredException>()),
+        );
+      },
+    );
 
-    test('AI resolveTranslate passes when a session is authenticated', () async {
-      final auth = WtrAuthenticationManager(
-        sessionRepository: InMemoryWtrSessionRepository(),
-        auxiliary: _FakeAuxiliary(hasCookies: true),
-      );
-      await auth.completeLogin();
-      expect(auth.ensureAuthenticatedOrThrow, returnsNormally);
-      final provider = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: auth,
-      );
-      await provider.setService(29058, WtrTranslationService.ai);
-      expect(await provider.resolveTranslate(29058), 'ai');
-    });
+    test(
+      'AI resolveTranslate passes when a session is authenticated',
+      () async {
+        final auth = WtrAuthenticationManager(
+          sessionRepository: InMemoryWtrSessionRepository(),
+          auxiliary: _FakeAuxiliary(hasCookies: true),
+        );
+        await auth.completeLogin();
+        expect(auth.ensureAuthenticatedOrThrow, returnsNormally);
+        final provider = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: auth,
+        );
+        await provider.setService(29058, WtrTranslationService.ai);
+        expect(await provider.resolveTranslate(29058), 'ai');
+      },
+    );
   });
 
   group('WtrLabTemplate translation routing', () {
@@ -354,7 +384,8 @@ void main() {
         authManager: auth,
       );
       final recording = _RecordingTransport(
-        FakeTransport()..addPostJson(_readerUrl, _readerResponse(_encryptBody(_paragraphs))),
+        FakeTransport()
+          ..addPostJson(_readerUrl, _readerResponse(_encryptBody(_paragraphs))),
       );
       final template = WtrLabTemplate(chapterProvider: provider);
       final context = buildContext(
@@ -376,7 +407,8 @@ void main() {
       );
       await provider.setService(29058, WtrTranslationService.webPlus);
       final recording = _RecordingTransport(
-        FakeTransport()..addPostJson(_readerUrl, _readerResponse(_encryptBody(_paragraphs))),
+        FakeTransport()
+          ..addPostJson(_readerUrl, _readerResponse(_encryptBody(_paragraphs))),
       );
       final template = WtrLabTemplate(chapterProvider: provider);
       final context = buildContext(
@@ -424,7 +456,8 @@ void main() {
       );
       await provider.setService(29058, WtrTranslationService.ai);
       final recording = _RecordingTransport(
-        FakeTransport()..addPostJson(_readerUrl, _readerResponse(_encryptBody(_paragraphs))),
+        FakeTransport()
+          ..addPostJson(_readerUrl, _readerResponse(_encryptBody(_paragraphs))),
       );
       final template = WtrLabTemplate(chapterProvider: provider);
       final context = buildContext(
@@ -438,35 +471,39 @@ void main() {
       expect(doc.renderToText(), contains('大家安静一下'));
     });
 
-    test('maps the 1401 not-logged-in response to a WTR session failure',
-        () async {
-      final auth = WtrAuthenticationManager(
-        sessionRepository: InMemoryWtrSessionRepository(),
-        auxiliary: _FakeAuxiliary(hasCookies: true),
-      );
-      await auth.completeLogin();
-      final provider = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: auth,
-      );
-      await provider.setService(29058, WtrTranslationService.ai);
-      final recording = _RecordingTransport(
-        FakeTransport()
-          ..addPostJson(_readerUrl, {'code': 1401, 'error': 'You are not logged in!'}),
-      );
-      final template = WtrLabTemplate(chapterProvider: provider);
-      final context = buildContext(
-        manifest: buildManifest(baseUrl: _base),
-        transport: recording,
-      );
+    test(
+      'maps the 1401 not-logged-in response to a WTR session failure',
+      () async {
+        final auth = WtrAuthenticationManager(
+          sessionRepository: InMemoryWtrSessionRepository(),
+          auxiliary: _FakeAuxiliary(hasCookies: true),
+        );
+        await auth.completeLogin();
+        final provider = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: auth,
+        );
+        await provider.setService(29058, WtrTranslationService.ai);
+        final recording = _RecordingTransport(
+          FakeTransport()..addPostJson(_readerUrl, {
+            'code': 1401,
+            'error': 'You are not logged in!',
+          }),
+        );
+        final template = WtrLabTemplate(chapterProvider: provider);
+        final context = buildContext(
+          manifest: buildManifest(baseUrl: _base),
+          transport: recording,
+        );
 
-      await expectLater(
-        template.chapterContent(context, _chapterUrl),
-        throwsA(isA<WtrSessionExpiredException>()),
-      );
-      // The expired session is reflected in the auth state for the UI.
-      expect(auth.state.value, WtrAuthState.sessionExpired);
-    });
+        await expectLater(
+          template.chapterContent(context, _chapterUrl),
+          throwsA(isA<WtrSessionExpiredException>()),
+        );
+        // The expired session is reflected in the auth state for the UI.
+        expect(auth.state.value, WtrAuthState.sessionExpired);
+      },
+    );
   });
 
   group('WtrGlossaryTerm', () {
@@ -499,23 +536,31 @@ void main() {
       expect(WtrGlossaryTerm.fromAiTerm(['', '太爷爷']), isNull);
     });
 
-    test('parses the object-wrapped alias shape used by some AI glossaries',
-        () {
-      final term = WtrGlossaryTerm.fromPublicTerm([
-        [
-          {'value': ['Sheng Huaian'], 'Count': 1},
-          {'value': ['Sheng Huai-An'], 'Count': 2},
-        ],
-        '沈怀安',
-        1,
-        1,
-        6295,
-      ]);
-      expect(term, isNotNull);
-      expect(term!.zh, '沈怀安');
-      expect(term.enAliases, ['Sheng Huaian', 'Sheng Huai-An']);
-      expect(term.en, 'Sheng Huaian');
-    });
+    test(
+      'parses the object-wrapped alias shape used by some AI glossaries',
+      () {
+        final term = WtrGlossaryTerm.fromPublicTerm([
+          [
+            {
+              'value': ['Sheng Huaian'],
+              'Count': 1,
+            },
+            {
+              'value': ['Sheng Huai-An'],
+              'Count': 2,
+            },
+          ],
+          '沈怀安',
+          1,
+          1,
+          6295,
+        ]);
+        expect(term, isNotNull);
+        expect(term!.zh, '沈怀安');
+        expect(term.enAliases, ['Sheng Huaian', 'Sheng Huai-An']);
+        expect(term.en, 'Sheng Huaian');
+      },
+    );
   });
 
   group('WtrGlossaryService', () {
@@ -548,8 +593,7 @@ void main() {
     };
 
     test('loads and parses the public glossary', () async {
-      final transport = FakeTransport()
-        ..addJson(glossaryUrl, glossaryResponse);
+      final transport = FakeTransport()..addJson(glossaryUrl, glossaryResponse);
       final service = WtrGlossaryService();
 
       final terms = await service.load(
@@ -565,8 +609,7 @@ void main() {
     });
 
     test('caches per rawId across loads', () async {
-      final transport = FakeTransport()
-        ..addJson(glossaryUrl, glossaryResponse);
+      final transport = FakeTransport()..addJson(glossaryUrl, glossaryResponse);
       final service = WtrGlossaryService();
 
       await service.load(transport, Uri.parse(_base), rawId: 29058);
@@ -588,8 +631,7 @@ void main() {
     });
 
     test('clear() forces a refetch', () async {
-      final transport = FakeTransport()
-        ..addJson(glossaryUrl, glossaryResponse);
+      final transport = FakeTransport()..addJson(glossaryUrl, glossaryResponse);
       final service = WtrGlossaryService();
 
       await service.load(transport, Uri.parse(_base), rawId: 29058);
@@ -657,8 +699,7 @@ void main() {
     });
 
     test('loadAll caches per rawId independently of load', () async {
-      final transport = FakeTransport()
-        ..addJson(glossaryUrl, glossaryResponse);
+      final transport = FakeTransport()..addJson(glossaryUrl, glossaryResponse);
       final service = WtrGlossaryService();
 
       await service.load(transport, Uri.parse(_base), rawId: 29058);
@@ -684,32 +725,29 @@ void main() {
   group('WtrWebTranslateService', () {
     const translateUrl = 'https://translate-pa.googleapis.com/v1/translateHtml';
 
-    test('posts all paragraphs in one batch and returns translations',
-        () async {
-      final transport = FakeTransport()
-        ..addPostJson(translateUrl, [
-          [
-            'Lu Yan didn\u0027t speak.',
-            'Please be quiet.',
-          ],
-        ]);
-      const service = WtrWebTranslateService(key: 'test-key');
+    test(
+      'posts all paragraphs in one batch and returns translations',
+      () async {
+        final transport = FakeTransport()
+          ..addPostJson(translateUrl, [
+            ['Lu Yan didn\u0027t speak.', 'Please be quiet.'],
+          ]);
+        const service = WtrWebTranslateService(key: 'test-key');
 
-      final out = await service.translateParagraphs(
-        transport,
-        paragraphs: ['陆言没说话。', '大家安静一下。'],
-      );
+        final out = await service.translateParagraphs(
+          transport,
+          paragraphs: ['陆言没说话。', '大家安静一下。'],
+        );
 
-      expect(out, ['Lu Yan didn\u0027t speak.', 'Please be quiet.']);
-      expect(transport.jsonCalls, 1);
-    });
+        expect(out, ['Lu Yan didn\u0027t speak.', 'Please be quiet.']);
+        expect(transport.jsonCalls, 1);
+      },
+    );
 
     test('decodes the endpoint\u0027s HTML entities', () async {
       final transport = FakeTransport()
         ..addPostJson(translateUrl, [
-          [
-            'He said &#39;hello&#39; &amp; left.',
-          ],
+          ['He said &#39;hello&#39; &amp; left.'],
         ]);
       const service = WtrWebTranslateService(key: 'test-key');
 
@@ -732,19 +770,21 @@ void main() {
       expect(out, ['原文。', '第二段。']);
     });
 
-    test('returns source text without calling the network when no key is set',
-        () async {
-      const service = WtrWebTranslateService(key: '');
-      final transport = _RecordingTransport(FakeTransport());
+    test(
+      'returns source text without calling the network when no key is set',
+      () async {
+        const service = WtrWebTranslateService(key: '');
+        final transport = _RecordingTransport(FakeTransport());
 
-      final out = await service.translateParagraphs(
-        transport,
-        paragraphs: ['原文。', '第二段。'],
-      );
+        final out = await service.translateParagraphs(
+          transport,
+          paragraphs: ['原文。', '第二段。'],
+        );
 
-      expect(out, ['原文。', '第二段。']);
-      expect(transport.jsonPostCalls, 0);
-    });
+        expect(out, ['原文。', '第二段。']);
+        expect(transport.jsonPostCalls, 0);
+      },
+    );
 
     test('chunks oversized batches into multiple requests', () async {
       var calls = 0;
@@ -771,8 +811,7 @@ void main() {
   group('WtrLabTemplate glossary + translate', () {
     const glossaryUrl = '$_base/api/v2/reader/terms/29058.json';
     const translateUrl = 'https://translate-pa.googleapis.com/v1/translateHtml';
-    const chapterWithNames =
-        '林青青看了一眼陆逸尘，轻轻叹了口气。';
+    const chapterWithNames = '林青青看了一眼陆逸尘，轻轻叹了口气。';
 
     test('webplus applies the glossary then translates to English', () async {
       final provider = WtrChapterProvider(
@@ -790,17 +829,27 @@ void main() {
             {
               'data': {
                 'terms': [
-                  [['Lin Qingqing'], '林青青', 1, 2, 1],
-                  [['Lu Yichen'], '陆逸尘', 1, 1, 1],
+                  [
+                    ['Lin Qingqing'],
+                    '林青青',
+                    1,
+                    2,
+                    1,
+                  ],
+                  [
+                    ['Lu Yichen'],
+                    '陆逸尘',
+                    1,
+                    1,
+                    1,
+                  ],
                 ],
               },
             },
           ],
         })
         ..addPostJson(translateUrl, [
-          [
-            'Lin Qingqing looked at Lu Yichen and sighed softly.',
-          ],
+          ['Lin Qingqing looked at Lu Yichen and sighed softly.'],
         ]);
       final template = WtrLabTemplate(
         chapterProvider: provider,
@@ -833,9 +882,7 @@ void main() {
             _readerResponse(_encryptBody([chapterWithNames])),
           )
           ..addPostJson(translateUrl, [
-            [
-              'Lin Qingqing looked at the scene and sighed.',
-            ],
+            ['Lin Qingqing looked at the scene and sighed.'],
           ]),
       );
       final template = WtrLabTemplate(
@@ -915,148 +962,25 @@ void main() {
       expect(doc.renderToText(), contains('\u203B99\u26EC'));
     });
 
-    test('AI substitutes leftover source terms from the per-novel glossary',
-        () async {
-      final auth = WtrAuthenticationManager(
-        sessionRepository: InMemoryWtrSessionRepository(),
-        auxiliary: _FakeAuxiliary(hasCookies: true),
-      );
-      await auth.completeLogin();
-      final provider = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: auth,
-      );
-      await provider.setService(29058, WtrTranslationService.ai);
-      final transport = FakeTransport()
-        ..addPostJson(
-          _readerUrl,
-          _aiReaderResponse(
-            ['"Zhenni, \u203B5\u26EC is still young." 小夕 left.'],
-          ),
-        )
-        ..addJson(glossaryUrl, {
-          'glossaries': [
-            {
-              'data': {
-                'terms': [
-                  [
-                    ['Xiaoxi'],
-                    '小夕',
-                    1,
-                    1,
-                    1,
-                  ],
-                ],
-              },
-            },
-          ],
-        });
-      final template = WtrLabTemplate(chapterProvider: provider);
-      final context = buildContext(
-        manifest: buildManifest(baseUrl: _base),
-        transport: transport,
-      );
-
-      final doc = await template.chapterContent(context, _chapterUrl);
-
-      // Marker 5 resolves via glossary_data; the literal 小夕 comes from the
-      // per-novel glossary (no account preference is registered).
-      expect(
-        doc.renderToText(),
-        contains('"Zhenni, Xiaoxi is still young." Xiaoxi left.'),
-      );
-    });
-
-    test('AI applies the account term preference over the glossary value',
-        () async {
-      final auth = WtrAuthenticationManager(
-        sessionRepository: InMemoryWtrSessionRepository(),
-        auxiliary: _FakeAuxiliary(hasCookies: true),
-      );
-      await auth.completeLogin();
-      final provider = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: auth,
-      );
-      await provider.setService(29058, WtrTranslationService.ai);
-      final transport = FakeTransport()
-        ..addPostJson(
-          _readerUrl,
-          _aiReaderResponse(
-            ['"Zhenni, \u203B5\u26EC is still young." 小夕 arrived.'],
-          ),
-        )
-        ..addJson(glossaryUrl, {
-          'glossaries': [
-            {
-              'data': {
-                'terms': [
-                  [
-                    ['Xiaoxi'],
-                    '小夕',
-                    1,
-                    1,
-                    1,
-                  ],
-                ],
-              },
-            },
-          ],
-        });
-      // Every merged term gets an explicit term-preferences fixture so the
-      // path-based FakeTransport fallback can't leak one term's answer to
-      // another; only 小夕 carries a preference.
-      const terms = ['太爷爷', '林青青', '林子祥', '苏珍妮', '子祥', '小夕', '林泽', '陆言'];
-      for (final zh in terms) {
-        transport.addJson(
-          Uri.parse('$_base/api/v2/term-preferences')
-              .replace(
-                queryParameters: {
-                  'source_id': 'id.raw.29058',
-                  'hash': zh,
-                  'lang': 'en',
-                },
-              )
-              .toString(),
-          zh == '小夕'
-              ? {
-                  'success': true,
-                  'data': [
-                    {'replacement': 'Xiao Xi', 'count': 7},
-                  ],
-                }
-              : {'success': true, 'data': []},
+    test(
+      'AI substitutes leftover source terms from the per-novel glossary',
+      () async {
+        final auth = WtrAuthenticationManager(
+          sessionRepository: InMemoryWtrSessionRepository(),
+          auxiliary: _FakeAuxiliary(hasCookies: true),
         );
-      }
-      final template = WtrLabTemplate(chapterProvider: provider);
-      final context = buildContext(
-        manifest: buildManifest(baseUrl: _base),
-        transport: transport,
-      );
-
-      final doc = await template.chapterContent(context, _chapterUrl);
-
-      // Marker 5 still uses glossary_data; the literal 小夕 gets the account's
-      // preferred replacement.
-      expect(
-        doc.renderToText(),
-        contains('"Zhenni, Xiaoxi is still young." Xiao Xi arrived.'),
-      );
-    });
-
-    test('AI skips term-preferences without an account but still cleans up',
-        () async {
-      // Bypass `resolveTranslate`'s AI auth gate so the anonymous enhancement
-      // path can be exercised: the term-preferences pass must be auth-gated
-      // even if the reader routing somehow reaches AI signed out.
-      final provider = _AuthBypassingProvider();
-      final transport = _RecordingTransport(
-        FakeTransport()
+        await auth.completeLogin();
+        final provider = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: auth,
+        );
+        await provider.setService(29058, WtrTranslationService.ai);
+        final transport = FakeTransport()
           ..addPostJson(
             _readerUrl,
-            _aiReaderResponse(
-              ['"Zhenni, \u203B5\u26EC is still young." 小夕 left.'],
-            ),
+            _aiReaderResponse([
+              '"Zhenni, \u203B5\u26EC is still young." 小夕 left.',
+            ]),
           )
           ..addJson(glossaryUrl, {
             'glossaries': [
@@ -1074,27 +998,156 @@ void main() {
                 },
               },
             ],
-          }),
-      );
-      final template = WtrLabTemplate(chapterProvider: provider);
-      final context = buildContext(
-        manifest: buildManifest(baseUrl: _base),
-        transport: transport,
-      );
+          });
+        final template = WtrLabTemplate(chapterProvider: provider);
+        final context = buildContext(
+          manifest: buildManifest(baseUrl: _base),
+          transport: transport,
+        );
 
-      final doc = await template.chapterContent(context, _chapterUrl);
+        final doc = await template.chapterContent(context, _chapterUrl);
 
-      expect(
-        doc.renderToText(),
-        contains('"Zhenni, Xiaoxi is still young." Xiaoxi left.'),
-      );
-      expect(
-        transport.jsonGetUrls.where(
-          (u) => u.contains('/api/v2/term-preferences'),
-        ),
-        isEmpty,
-      );
-    });
+        // Marker 5 resolves via glossary_data; the literal 小夕 comes from the
+        // per-novel glossary (no account preference is registered).
+        expect(
+          doc.renderToText(),
+          contains('"Zhenni, Xiaoxi is still young." Xiaoxi left.'),
+        );
+      },
+    );
+
+    test(
+      'AI applies the account term preference over the glossary value',
+      () async {
+        final auth = WtrAuthenticationManager(
+          sessionRepository: InMemoryWtrSessionRepository(),
+          auxiliary: _FakeAuxiliary(hasCookies: true),
+        );
+        await auth.completeLogin();
+        final provider = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: auth,
+        );
+        await provider.setService(29058, WtrTranslationService.ai);
+        final transport = FakeTransport()
+          ..addPostJson(
+            _readerUrl,
+            _aiReaderResponse([
+              '"Zhenni, \u203B5\u26EC is still young." 小夕 arrived.',
+            ]),
+          )
+          ..addJson(glossaryUrl, {
+            'glossaries': [
+              {
+                'data': {
+                  'terms': [
+                    [
+                      ['Xiaoxi'],
+                      '小夕',
+                      1,
+                      1,
+                      1,
+                    ],
+                  ],
+                },
+              },
+            ],
+          });
+        // Every merged term gets an explicit term-preferences fixture so the
+        // path-based FakeTransport fallback can't leak one term's answer to
+        // another; only 小夕 carries a preference.
+        const terms = ['太爷爷', '林青青', '林子祥', '苏珍妮', '子祥', '小夕', '林泽', '陆言'];
+        for (final zh in terms) {
+          transport.addJson(
+            Uri.parse('$_base/api/v2/term-preferences')
+                .replace(
+                  queryParameters: {
+                    'source_id': 'id.raw.29058',
+                    'hash': zh,
+                    'lang': 'en',
+                  },
+                )
+                .toString(),
+            zh == '小夕'
+                ? {
+                    'success': true,
+                    'data': [
+                      {'replacement': 'Xiao Xi', 'count': 7},
+                    ],
+                  }
+                : {'success': true, 'data': []},
+          );
+        }
+        final template = WtrLabTemplate(chapterProvider: provider);
+        final context = buildContext(
+          manifest: buildManifest(baseUrl: _base),
+          transport: transport,
+        );
+
+        final doc = await template.chapterContent(context, _chapterUrl);
+
+        // Marker 5 still uses glossary_data; the literal 小夕 gets the account's
+        // preferred replacement.
+        expect(
+          doc.renderToText(),
+          contains('"Zhenni, Xiaoxi is still young." Xiao Xi arrived.'),
+        );
+      },
+    );
+
+    test(
+      'AI skips term-preferences without an account but still cleans up',
+      () async {
+        // Bypass `resolveTranslate`'s AI auth gate so the anonymous enhancement
+        // path can be exercised: the term-preferences pass must be auth-gated
+        // even if the reader routing somehow reaches AI signed out.
+        final provider = _AuthBypassingProvider();
+        final transport = _RecordingTransport(
+          FakeTransport()
+            ..addPostJson(
+              _readerUrl,
+              _aiReaderResponse([
+                '"Zhenni, \u203B5\u26EC is still young." 小夕 left.',
+              ]),
+            )
+            ..addJson(glossaryUrl, {
+              'glossaries': [
+                {
+                  'data': {
+                    'terms': [
+                      [
+                        ['Xiaoxi'],
+                        '小夕',
+                        1,
+                        1,
+                        1,
+                      ],
+                    ],
+                  },
+                },
+              ],
+            }),
+        );
+        final template = WtrLabTemplate(chapterProvider: provider);
+        final context = buildContext(
+          manifest: buildManifest(baseUrl: _base),
+          transport: transport,
+        );
+
+        final doc = await template.chapterContent(context, _chapterUrl);
+
+        expect(
+          doc.renderToText(),
+          contains('"Zhenni, Xiaoxi is still young." Xiaoxi left.'),
+        );
+        expect(
+          transport.jsonGetUrls.where(
+            (u) => u.contains('/api/v2/term-preferences'),
+          ),
+          isEmpty,
+        );
+      },
+    );
 
     test('AI with no leftover CJK skips the glossary network calls', () async {
       final auth = WtrAuthenticationManager(
@@ -1108,11 +1161,10 @@ void main() {
       );
       await provider.setService(29058, WtrTranslationService.ai);
       final transport = _RecordingTransport(
-        FakeTransport()
-          ..addPostJson(
-            _readerUrl,
-            _aiReaderResponse(['"Zhenni, \u203B5\u26EC is still young."']),
-          ),
+        FakeTransport()..addPostJson(
+          _readerUrl,
+          _aiReaderResponse(['"Zhenni, \u203B5\u26EC is still young."']),
+        ),
       );
       final template = WtrLabTemplate(chapterProvider: provider);
       final context = buildContext(
@@ -1122,10 +1174,7 @@ void main() {
 
       final doc = await template.chapterContent(context, _chapterUrl);
 
-      expect(
-        doc.renderToText(),
-        contains('"Zhenni, Xiaoxi is still young."'),
-      );
+      expect(doc.renderToText(), contains('"Zhenni, Xiaoxi is still young."'));
       // Fully-English text needs no glossary or term-preferences GETs, so a
       // chapter stays as fast as it was before the account-glossary pass.
       expect(transport.jsonGetUrls, isEmpty);
@@ -1162,26 +1211,26 @@ void main() {
 /// Reader response that carries the AI `glossary_data` the site uses to
 /// resolve `※n⛬` name placeholders.
 Map<String, Object?> _aiReaderResponse(List<String> paragraphs) => {
-      'success': true,
-      'chapter': {'id': 33607609, 'title': 'Chapter 638: He wrote both of them!?'},
-      'data': {
-        'raw_id': 29058,
-        'data': {
-          'body': paragraphs,
-          'glossary_data': {
-            'terms': [
-              ['Great-grandfather', '太爷爷'],
-              ['Lin Qingqing', '林青青'],
-              ['Lin Zixiang', '林子祥'],
-              ['Su Zhenni', '苏珍妮'],
-              ['Zixiang', '子祥'],
-              ['Xiaoxi', '小夕'],
-              ['Lin Ze', '林泽'],
-            ],
-          },
-        },
+  'success': true,
+  'chapter': {'id': 33607609, 'title': 'Chapter 638: He wrote both of them!?'},
+  'data': {
+    'raw_id': 29058,
+    'data': {
+      'body': paragraphs,
+      'glossary_data': {
+        'terms': [
+          ['Great-grandfather', '太爷爷'],
+          ['Lin Qingqing', '林青青'],
+          ['Lin Zixiang', '林子祥'],
+          ['Su Zhenni', '苏珍妮'],
+          ['Zixiang', '子祥'],
+          ['Xiaoxi', '小夕'],
+          ['Lin Ze', '林泽'],
+        ],
       },
-    };
+    },
+  },
+};
 
 /// Transport whose JSON POSTs translate each chunk into a synthetic
 /// `[[translated...]]` response so chunking can be asserted.
@@ -1213,8 +1262,7 @@ class _ChunkingTransport implements Transport {
     Uri url, {
     Map<String, String>? headers,
     Map<String, String>? form,
-  }) =>
-      throw UnimplementedError();
+  }) => throw UnimplementedError();
 
   @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) =>

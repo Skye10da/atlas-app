@@ -10,11 +10,13 @@ import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
 void main() {
   group('GlossaryTermSheet', () {
     testWidgets('creates a term from the typed replacement', (tester) async {
-      final container = ProviderContainer(overrides: [
-        atlasGlossaryRepositoryProvider.overrideWithValue(
-          InMemoryAtlasGlossaryRepository(),
-        ),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          atlasGlossaryRepositoryProvider.overrideWithValue(
+            InMemoryAtlasGlossaryRepository(),
+          ),
+        ],
+      );
       addTearDown(container.dispose);
 
       await tester.pumpWidget(
@@ -40,13 +42,16 @@ void main() {
       expect(find.text('middle'), findsOneWidget);
     });
 
-    testWidgets('adds more options and shows the active one as selected',
-        (tester) async {
-      final container = ProviderContainer(overrides: [
-        atlasGlossaryRepositoryProvider.overrideWithValue(
-          InMemoryAtlasGlossaryRepository(),
-        ),
-      ]);
+    testWidgets('adds more options and shows the active one as selected', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [
+          atlasGlossaryRepositoryProvider.overrideWithValue(
+            InMemoryAtlasGlossaryRepository(),
+          ),
+        ],
+      );
       addTearDown(container.dispose);
 
       await tester.pumpWidget(
@@ -81,11 +86,13 @@ void main() {
     });
 
     testWidgets('removing a term deletes the entry', (tester) async {
-      final container = ProviderContainer(overrides: [
-        atlasGlossaryRepositoryProvider.overrideWithValue(
-          InMemoryAtlasGlossaryRepository(),
-        ),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          atlasGlossaryRepositoryProvider.overrideWithValue(
+            InMemoryAtlasGlossaryRepository(),
+          ),
+        ],
+      );
       addTearDown(container.dispose);
 
       await tester.pumpWidget(
@@ -111,43 +118,45 @@ void main() {
     });
 
     testWidgets(
-        'selecting the displayed replacement opens the existing term instead '
-        'of creating a new one', (tester) async {
-      final repo = InMemoryAtlasGlossaryRepository();
-      await repo.save('b1', [
-        AtlasGlossaryEntry(
-          id: 'b1:中',
-          bookId: 'b1',
-          term: '中',
-          replacements: const ['middle', 'center'],
-          createdAt: DateTime(2025, 1, 1),
-        ),
-      ]);
-      final container = ProviderContainer(overrides: [
-        atlasGlossaryRepositoryProvider.overrideWithValue(repo),
-      ]);
-      addTearDown(container.dispose);
+      'selecting the displayed replacement opens the existing term instead '
+      'of creating a new one',
+      (tester) async {
+        final repo = InMemoryAtlasGlossaryRepository();
+        await repo.save('b1', [
+          AtlasGlossaryEntry(
+            id: 'b1:中',
+            bookId: 'b1',
+            term: '中',
+            replacements: const ['middle', 'center'],
+            createdAt: DateTime(2025, 1, 1),
+          ),
+        ]);
+        final container = ProviderContainer(
+          overrides: [atlasGlossaryRepositoryProvider.overrideWithValue(repo)],
+        );
+        addTearDown(container.dispose);
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            home: Scaffold(
-              body: GlossaryTermSheet(bookId: 'b1', term: 'middle'),
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              home: Scaffold(
+                body: GlossaryTermSheet(bookId: 'b1', term: 'middle'),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // The sheet recognises 'middle' as an existing replacement, so it shows
-      // the term's options and an edit affordance rather than a new-term flow.
-      expect(find.text('Edit term'), findsOneWidget);
-      expect(find.textContaining('Display "中" as'), findsOneWidget);
-      expect(find.text('middle'), findsOneWidget);
-      expect(find.text('center'), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Add option'), findsOneWidget);
-      expect(find.text('Remove term'), findsOneWidget);
-    });
+        // The sheet recognises 'middle' as an existing replacement, so it shows
+        // the term's options and an edit affordance rather than a new-term flow.
+        expect(find.text('Edit term'), findsOneWidget);
+        expect(find.textContaining('Display "中" as'), findsOneWidget);
+        expect(find.text('middle'), findsOneWidget);
+        expect(find.text('center'), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, 'Add option'), findsOneWidget);
+        expect(find.text('Remove term'), findsOneWidget);
+      },
+    );
   });
 }

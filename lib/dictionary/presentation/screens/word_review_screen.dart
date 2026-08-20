@@ -26,7 +26,10 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
 
   Future<void> _answer(bool correct) async {
     final word = _current;
-    final nextLevel = ReviewScheduler.nextLevel(word.reviewLevel, correct: correct);
+    final nextLevel = ReviewScheduler.nextLevel(
+      word.reviewLevel,
+      correct: correct,
+    );
     final updated = word.copyWith(
       reviewLevel: nextLevel,
       reviewCount: word.reviewCount + 1,
@@ -74,7 +77,8 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
                     Text(
                       '${_index + 1} of ${_queue.length}',
                       style: textTheme.labelMedium?.copyWith(
-                          color: colorScheme.onSurface.withValues(alpha: 0.6)),
+                        color: colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
                     ),
                     Expanded(
                       child: Center(
@@ -125,7 +129,8 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
                           'Tap the card to reveal · swipe to answer',
                           textAlign: TextAlign.center,
                           style: textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurface.withValues(alpha: 0.5)),
+                            color: colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
                         ),
                       ),
                   ],
@@ -165,7 +170,9 @@ class _FlashCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+          ),
         ),
         alignment: Alignment.center,
         child: revealed ? _buildBack(context) : _buildFront(context),
@@ -177,13 +184,19 @@ class _FlashCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(word.word,
-            textAlign: TextAlign.center,
-            style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+        Text(
+          word.word,
+          textAlign: TextAlign.center,
+          style: textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         if (word.phonetic != null) ...[
           const SizedBox(height: AppSpacing.xs),
-          Text(word.phonetic!,
-              style: textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic)),
+          Text(
+            word.phonetic!,
+            style: textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
+          ),
         ],
         const SizedBox(height: AppSpacing.md),
         Container(
@@ -192,9 +205,12 @@ class _FlashCard extends StatelessWidget {
             color: colorScheme.secondaryContainer,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(ReviewScheduler.levelLabel(word.reviewLevel),
-              style: textTheme.labelSmall
-                  ?.copyWith(color: colorScheme.onSecondaryContainer)),
+          child: Text(
+            ReviewScheduler.levelLabel(word.reviewLevel),
+            style: textTheme.labelSmall?.copyWith(
+              color: colorScheme.onSecondaryContainer,
+            ),
+          ),
         ),
       ],
     );
@@ -204,20 +220,30 @@ class _FlashCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(word.definition, textAlign: TextAlign.center, style: textTheme.bodyLarge),
+        Text(
+          word.definition,
+          textAlign: TextAlign.center,
+          style: textTheme.bodyLarge,
+        ),
         if (word.sourceSentence != null) ...[
           const SizedBox(height: AppSpacing.md),
-          Text('"${word.sourceSentence}"',
-              textAlign: TextAlign.center,
-              style: textTheme.bodySmall?.copyWith(
-                  fontStyle: FontStyle.italic,
-                  color: colorScheme.onSurface.withValues(alpha: 0.6))),
+          Text(
+            '"${word.sourceSentence}"',
+            textAlign: TextAlign.center,
+            style: textTheme.bodySmall?.copyWith(
+              fontStyle: FontStyle.italic,
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
           if (word.sourceTitle != null) ...[
             const SizedBox(height: 2),
-            Text('— ${word.sourceTitle}',
-                textAlign: TextAlign.center,
-                style: textTheme.labelSmall
-                    ?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.5))),
+            Text(
+              '— ${word.sourceTitle}',
+              textAlign: TextAlign.center,
+              style: textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
           ],
         ],
       ],
@@ -248,9 +274,12 @@ class _SessionSummary extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text('$correct / $total remembered', style: textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
-          Text('Come back tomorrow for the next batch.',
-              style: textTheme.bodyMedium
-                  ?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.6))),
+          Text(
+            'Come back tomorrow for the next batch.',
+            style: textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
           const SizedBox(height: AppSpacing.lg),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),

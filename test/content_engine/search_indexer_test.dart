@@ -4,18 +4,19 @@ import 'package:atlas_app/core/content_engine/index/search_indexer.dart';
 import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
 
 AtlasDocument _doc(String title, List<String> paragraphs) => AtlasDocument(
-      title: title,
-      blocks: [
-        for (final p in paragraphs) ParagraphBlock(text: p),
-      ],
-      metadata: DocumentMetadata(sourceUrl: 'https://example.com/$title'),
-    );
+  title: title,
+  blocks: [for (final p in paragraphs) ParagraphBlock(text: p)],
+  metadata: DocumentMetadata(sourceUrl: 'https://example.com/$title'),
+);
 
 void main() {
   group('SearchIndexer', () {
     test('indexes blocks and finds documents by term', () {
       final indexer = SearchIndexer();
-      indexer.index('d1', _doc('one', ['The dragon sleeps beneath the mountain.']));
+      indexer.index(
+        'd1',
+        _doc('one', ['The dragon sleeps beneath the mountain.']),
+      );
       indexer.index('d2', _doc('two', ['Knights ride at dawn.']));
 
       final hits = indexer.search('dragon');
@@ -28,7 +29,10 @@ void main() {
 
     test('is case-insensitive and matches multiple terms', () {
       final indexer = SearchIndexer();
-      indexer.index('d1', _doc('one', ['Dragon mountains and a DRAGON rider.']));
+      indexer.index(
+        'd1',
+        _doc('one', ['Dragon mountains and a DRAGON rider.']),
+      );
 
       final hits = indexer.search('dRaGoN');
 

@@ -24,8 +24,7 @@ class SharedPrefsAtlasGlossaryRepository implements AtlasGlossaryRepository {
       if (decoded is! List) return <AtlasGlossaryEntry>[];
       return [
         for (final item in decoded)
-          if (item is Map<String, dynamic>)
-            AtlasGlossaryEntry.fromJson(item),
+          if (item is Map<String, dynamic>) AtlasGlossaryEntry.fromJson(item),
       ];
     } catch (_) {
       return <AtlasGlossaryEntry>[];

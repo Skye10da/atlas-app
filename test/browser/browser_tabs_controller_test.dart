@@ -100,7 +100,8 @@ class FakeBrowserEngine implements BrowserWebEngine {
 
   @override
   Future<void> setSelectionListener(
-      void Function(WebSelection selection)? listener) async {
+    void Function(WebSelection selection)? listener,
+  ) async {
     selectionListeners.add(null);
     currentSelectionListener = listener;
   }
@@ -117,7 +118,8 @@ class FakeBrowserEngine implements BrowserWebEngine {
 
   @override
   Future<void> setDownloadListener(
-      void Function(String url, String? mimeType)? listener) async {
+    void Function(String url, String? mimeType)? listener,
+  ) async {
     currentDownloadListener = listener;
   }
 
@@ -218,8 +220,7 @@ class InMemoryBrowserRepository implements BrowserRepositoryInterface {
 
   @override
   Future<Result<List<WebTabState>>> getTabs() async {
-    final sorted = List.of(webTabs)
-      ..sort((a, b) => a.order.compareTo(b.order));
+    final sorted = List.of(webTabs)..sort((a, b) => a.order.compareTo(b.order));
     return Success(sorted);
   }
 
@@ -249,7 +250,8 @@ void main() {
   BrowserTabsController makeController({int maxTabs = 5, bool persist = true}) {
     return BrowserTabsController(
       repository: repo,
-      engineFactory: ({String? initialUrl}) => FakeBrowserEngine(initialUrl: initialUrl),
+      engineFactory: ({String? initialUrl}) =>
+          FakeBrowserEngine(initialUrl: initialUrl),
       maxTabs: maxTabs,
       persist: persist,
     );
@@ -260,33 +262,46 @@ void main() {
   });
 
   group('BrowserTabsController', () {
-    test('restore() opens the persisted strip, most recent order last', () async {
-      repo.webTabs
-        ..add(WebTabState(
-          id: 't1',
-          url: 'https://a.example',
-          title: 'A',
-          order: 1,
-          lastActiveAt: DateTime(2025, 1, 2),
-        ))
-        ..add(WebTabState(
-          id: 't0',
-          url: 'https://b.example',
-          title: 'B',
-          order: 0,
-          lastActiveAt: DateTime(2025, 1, 1),
-        ));
+    test(
+      'restore() opens the persisted strip, most recent order last',
+      () async {
+        repo.webTabs
+          ..add(
+            WebTabState(
+              id: 't1',
+              url: 'https://a.example',
+              title: 'A',
+              order: 1,
+              lastActiveAt: DateTime(2025, 1, 2),
+            ),
+          )
+          ..add(
+            WebTabState(
+              id: 't0',
+              url: 'https://b.example',
+              title: 'B',
+              order: 0,
+              lastActiveAt: DateTime(2025, 1, 1),
+            ),
+          );
 
-      final controller = makeController();
-      await controller.restore();
+        final controller = makeController();
+        await controller.restore();
 
-      expect(controller.tabs, hasLength(2));
-      expect(controller.tabs.map((t) => t.id).toList(), ['t0', 't1']);
-      expect(controller.tabs.first.engine.currentUrl.value, 'https://b.example');
-      expect(controller.tabs.last.engine.currentUrl.value, 'https://a.example');
-      expect(controller.activeIndex, 1);
-      controller.dispose();
-    });
+        expect(controller.tabs, hasLength(2));
+        expect(controller.tabs.map((t) => t.id).toList(), ['t0', 't1']);
+        expect(
+          controller.tabs.first.engine.currentUrl.value,
+          'https://b.example',
+        );
+        expect(
+          controller.tabs.last.engine.currentUrl.value,
+          'https://a.example',
+        );
+        expect(controller.activeIndex, 1);
+        controller.dispose();
+      },
+    );
 
     test('restore with no persisted tabs lands on the start page', () async {
       final controller = makeController();
@@ -303,7 +318,10 @@ void main() {
 
       expect(controller.tabs, hasLength(1));
       expect(controller.activeIndex, 0);
-      expect(controller.activeTab!.engine.currentUrl.value, 'https://c.example');
+      expect(
+        controller.activeTab!.engine.currentUrl.value,
+        'https://c.example',
+      );
       controller.dispose();
     });
 
@@ -364,7 +382,10 @@ void main() {
       final engines = controller.tabs.map((t) => t.engine).toList();
       controller.dispose();
 
-      expect(engines.map((e) => (e as FakeBrowserEngine).disposed), everyElement(isTrue));
+      expect(
+        engines.map((e) => (e as FakeBrowserEngine).disposed),
+        everyElement(isTrue),
+      );
     });
   });
 }

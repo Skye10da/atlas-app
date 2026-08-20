@@ -9,16 +9,22 @@ final searchableSourcesProvider = Provider<List<SearchableSource>>((ref) {
   return registry.searchable;
 });
 
-final searchResultsProvider = FutureProvider.family<SourceSearchResponse, _SearchParams>((ref, params) async {
-  return params.source.search(SourceSearchQuery(
-    term: params.term,
-    page: params.page,
-    pageSize: 20,
-  ));
-});
+final searchResultsProvider =
+    FutureProvider.family<SourceSearchResponse, _SearchParams>((
+      ref,
+      params,
+    ) async {
+      return params.source.search(
+        SourceSearchQuery(term: params.term, page: params.page, pageSize: 20),
+      );
+    });
 
 class _SearchParams {
-  const _SearchParams({required this.source, required this.term, required this.page});
+  const _SearchParams({
+    required this.source,
+    required this.term,
+    required this.page,
+  });
 
   final SearchableSource source;
   final String term;

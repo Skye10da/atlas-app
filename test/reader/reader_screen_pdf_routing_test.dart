@@ -18,18 +18,21 @@ BooksCompanion _book({
   required String id,
   required String format,
   required String filePath,
-}) =>
-    BooksCompanion(
-      id: Value(id),
-      title: Value('Test $id'),
-      format: Value(format),
-      filePath: Value(filePath),
-      totalChapters: const Value(0),
-      createdAt: Value(DateTime(2025, 1, 1)),
-      updatedAt: Value(DateTime(2025, 1, 1)),
-    );
+}) => BooksCompanion(
+  id: Value(id),
+  title: Value('Test $id'),
+  format: Value(format),
+  filePath: Value(filePath),
+  totalChapters: const Value(0),
+  createdAt: Value(DateTime(2025, 1, 1)),
+  updatedAt: Value(DateTime(2025, 1, 1)),
+);
 
-Future<void> _pumpReader(WidgetTester tester, AppDatabase db, String bookId) async {
+Future<void> _pumpReader(
+  WidgetTester tester,
+  AppDatabase db,
+  String bookId,
+) async {
   SharedPreferences.setMockInitialValues({});
   final router = GoRouter(
     initialLocation: '/reader/$bookId',
@@ -68,19 +71,18 @@ void main() {
     } catch (_) {}
   });
 
-  testWidgets('PDF books open the native PDF reader, not the chapter reader',
-      (WidgetTester tester) async {
+  testWidgets('PDF books open the native PDF reader, not the chapter reader', (
+    WidgetTester tester,
+  ) async {
     final bookDir = Directory(p.join(tempDir.path, 'books', 'pdf_book'));
     bookDir.createSync(recursive: true);
-    File(p.join(bookDir.path, 'book.pdf')).writeAsBytesSync([0x25, 0x50, 0x44, 0x46]);
+    File(
+      p.join(bookDir.path, 'book.pdf'),
+    ).writeAsBytesSync([0x25, 0x50, 0x44, 0x46]);
 
-    await db.into(db.books).insert(
-          _book(
-            id: 'pdf',
-            format: 'pdf',
-            filePath: bookDir.path,
-          ),
-        );
+    await db
+        .into(db.books)
+        .insert(_book(id: 'pdf', format: 'pdf', filePath: bookDir.path));
 
     await _pumpReader(tester, db, 'pdf');
 
@@ -88,15 +90,12 @@ void main() {
     expect(find.byType(ReaderContent), findsNothing);
   });
 
-  testWidgets('non-PDF formats still use the chapter reader',
-    (WidgetTester tester) async {
-    await db.into(db.books).insert(
-          _book(
-            id: 'epub',
-            format: 'epub',
-            filePath: tempDir.path,
-          ),
-        );
+  testWidgets('non-PDF formats still use the chapter reader', (
+    WidgetTester tester,
+  ) async {
+    await db
+        .into(db.books)
+        .insert(_book(id: 'epub', format: 'epub', filePath: tempDir.path));
 
     await _pumpReader(tester, db, 'epub');
 

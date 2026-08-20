@@ -62,13 +62,13 @@ class _FakeSource implements SourceAdapter {
 
   @override
   Future<ChapterModel> getChapter(ChapterModel chapter) async => ChapterModel(
-        id: chapter.id,
-        title: chapter.title,
-        index: chapter.index,
-        contentUrl: chapter.contentUrl,
-        content: 'content ${chapter.index}',
-        wordCount: 3,
-      );
+    id: chapter.id,
+    title: chapter.title,
+    index: chapter.index,
+    contentUrl: chapter.contentUrl,
+    content: 'content ${chapter.index}',
+    wordCount: 3,
+  );
 }
 
 void main() {
@@ -98,52 +98,51 @@ void main() {
   });
 
   ChapterModel chapter(int i) => ChapterModel(
-        id: 'ch$i',
-        title: 'Chapter $i',
-        index: i,
-        contentUrl: 'https://example.com/ch$i',
-      );
+    id: 'ch$i',
+    title: 'Chapter $i',
+    index: i,
+    contentUrl: 'https://example.com/ch$i',
+  );
 
   group('ContentAcquisitionEngine.resumeDownloads', () {
-    test('re-enqueues chapters whose DB state is not availableOffline',
-        () async {
-      final source = _FakeSource(
-        novel: const NovelModel(
-          title: 'Test Novel',
-          sourceId: 'novel-1',
-          source: 'fake',
-          sourceUrl: 'https://example.com/novel',
-          category: ContentCategory.novel,
-        ),
-        chapters: [chapter(0), chapter(1), chapter(2)],
-      );
-      final registry = SourceRegistry()..register(source);
-      final engine = ContentAcquisitionEngine(
-        registry: registry,
-        db: db,
-        cacheManager: CacheManager(basePath: '${tempDir.path}/cache'),
-      );
-
-      final outcome = await engine.importAndSave('https://example.com/novel');
-      final statuses = <DownloadStatus>[];
-      engine.downloadManager.events.listen((e) => statuses.add(e.status));
-
-      final resumed = await engine.resumeDownloads();
-      await engine.downloadManager.waitForIdle();
-
-      expect(resumed, 3);
-      expect(
-        statuses.where((s) => s == DownloadStatus.done),
-        hasLength(3),
-      );
-      for (var i = 0; i < 3; i++) {
-        expect(
-          await engine.downloadManager.isDownloaded(outcome.bookId, 'ch$i'),
-          isTrue,
+    test(
+      're-enqueues chapters whose DB state is not availableOffline',
+      () async {
+        final source = _FakeSource(
+          novel: const NovelModel(
+            title: 'Test Novel',
+            sourceId: 'novel-1',
+            source: 'fake',
+            sourceUrl: 'https://example.com/novel',
+            category: ContentCategory.novel,
+          ),
+          chapters: [chapter(0), chapter(1), chapter(2)],
         );
-      }
-      expect(outcome.category, ContentCategory.novel);
-    });
+        final registry = SourceRegistry()..register(source);
+        final engine = ContentAcquisitionEngine(
+          registry: registry,
+          db: db,
+          cacheManager: CacheManager(basePath: '${tempDir.path}/cache'),
+        );
+
+        final outcome = await engine.importAndSave('https://example.com/novel');
+        final statuses = <DownloadStatus>[];
+        engine.downloadManager.events.listen((e) => statuses.add(e.status));
+
+        final resumed = await engine.resumeDownloads();
+        await engine.downloadManager.waitForIdle();
+
+        expect(resumed, 3);
+        expect(statuses.where((s) => s == DownloadStatus.done), hasLength(3));
+        for (var i = 0; i < 3; i++) {
+          expect(
+            await engine.downloadManager.isDownloaded(outcome.bookId, 'ch$i'),
+            isTrue,
+          );
+        }
+        expect(outcome.category, ContentCategory.novel);
+      },
+    );
 
     test('does not re-enqueue chapters already available offline', () async {
       final source = _FakeSource(
@@ -206,9 +205,9 @@ void main() {
       );
 
       expect(transport.coverRequests, 1);
-      final book = await (db.select(db.books)
-            ..where((b) => b.id.equals(outcome.bookId)))
-          .getSingle();
+      final book = await (db.select(
+        db.books,
+      )..where((b) => b.id.equals(outcome.bookId))).getSingle();
       expect(book.coverPath, isNotNull);
       expect(File(book.coverPath!).existsSync(), isTrue);
       expect(await File(book.coverPath!).readAsBytes(), coverBytes);
@@ -234,9 +233,9 @@ void main() {
 
       final outcome = await engine.importAndSave('https://example.com/bare');
 
-      final book = await (db.select(db.books)
-            ..where((b) => b.id.equals(outcome.bookId)))
-          .getSingle();
+      final book = await (db.select(
+        db.books,
+      )..where((b) => b.id.equals(outcome.bookId))).getSingle();
       expect(book.coverPath, isNull);
     });
   });
@@ -254,16 +253,16 @@ void main() {
     tearDown(WtrChapterProvider.reset);
 
     _FakeSource wtrSource({int rawId = 29058}) => _FakeSource(
-          novel: NovelModel(
-            title: 'WTR Novel',
-            sourceId: '$rawId',
-            source: 'WTR-LAB',
-            sourceUrl: 'https://wtr-lab.com/en/novel/$rawId/charm-slug',
-            category: ContentCategory.novel,
-          ),
-          chapters: [chapter(0)],
-          host: 'wtr-lab.com',
-        );
+      novel: NovelModel(
+        title: 'WTR Novel',
+        sourceId: '$rawId',
+        source: 'WTR-LAB',
+        sourceUrl: 'https://wtr-lab.com/en/novel/$rawId/charm-slug',
+        category: ContentCategory.novel,
+      ),
+      chapters: [chapter(0)],
+      host: 'wtr-lab.com',
+    );
 
     ContentAcquisitionEngine buildEngine(SourceRegistry registry) =>
         ContentAcquisitionEngine(
@@ -296,17 +295,20 @@ void main() {
       );
     });
 
-    test('no service param leaves the default (AI signed-in) in place', () async {
-      final registry = SourceRegistry()..register(wtrSource());
-      await buildEngine(registry).importAndSave(
-        'https://wtr-lab.com/en/novel/29058/charm-slug/chapter-1',
-      );
+    test(
+      'no service param leaves the default (AI signed-in) in place',
+      () async {
+        final registry = SourceRegistry()..register(wtrSource());
+        await buildEngine(registry).importAndSave(
+          'https://wtr-lab.com/en/novel/29058/charm-slug/chapter-1',
+        );
 
-      expect(
-        await WtrChapterProvider.instance.serviceFor(29058),
-        WtrTranslationService.ai,
-      );
-    });
+        expect(
+          await WtrChapterProvider.instance.serviceFor(29058),
+          WtrTranslationService.ai,
+        );
+      },
+    );
 
     test('a duplicate import does not re-pin the service', () async {
       final registry = SourceRegistry()..register(wtrSource());
@@ -363,8 +365,7 @@ class _CoverTransport implements Transport {
     Uri url, {
     Map<String, String>? headers,
     Map<String, String>? form,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 
   @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async =>
@@ -375,8 +376,7 @@ class _CoverTransport implements Transport {
     Uri url, {
     Map<String, String>? headers,
     Object? jsonBody,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 
   @override
   Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {

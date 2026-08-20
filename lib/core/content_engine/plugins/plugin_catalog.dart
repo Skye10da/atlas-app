@@ -53,11 +53,7 @@ class PluginCatalogEntry {
       }
       return MapEntry('$key', value);
     });
-    return PluginCatalogEntry(
-      id: id,
-      version: version,
-      checksums: checksums,
-    );
+    return PluginCatalogEntry(id: id, version: version, checksums: checksums);
   }
 
   final String id;
@@ -67,10 +63,10 @@ class PluginCatalogEntry {
   final Map<String, String> checksums;
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'version': version.toString(),
-        'checksums': checksums,
-      };
+    'id': id,
+    'version': version.toString(),
+    'checksums': checksums,
+  };
 }
 
 /// `plugins/index.json` in the distribution GitHub repo.
@@ -80,9 +76,7 @@ class PluginCatalog {
   factory PluginCatalog.fromJson(Map<String, Object?> json) {
     final raw = json['plugins'];
     if (raw is! List) {
-      throw const PluginCatalogException(
-        'catalog must have a "plugins" list',
-      );
+      throw const PluginCatalogException('catalog must have a "plugins" list');
     }
     final plugins = <PluginCatalogEntry>[];
     for (final entry in raw) {
@@ -91,7 +85,9 @@ class PluginCatalog {
           'catalog "plugins" must be a list of objects',
         );
       }
-      plugins.add(PluginCatalogEntry.fromJson(Map<String, Object?>.from(entry)));
+      plugins.add(
+        PluginCatalogEntry.fromJson(Map<String, Object?>.from(entry)),
+      );
     }
     return PluginCatalog(plugins);
   }
@@ -105,6 +101,7 @@ class PluginCatalog {
     return null;
   }
 
-  Map<String, Object?> toJson() =>
-      {'plugins': [for (final entry in plugins) entry.toJson()]};
+  Map<String, Object?> toJson() => {
+    'plugins': [for (final entry in plugins) entry.toJson()],
+  };
 }

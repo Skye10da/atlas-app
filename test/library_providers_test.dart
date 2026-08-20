@@ -16,17 +16,16 @@ BooksCompanion _book({
   String title = 'Test Book',
   String? author,
   int totalChapters = 10,
-}) =>
-    BooksCompanion(
-      id: Value(id),
-      title: Value(title),
-      author: author != null ? Value(author) : const Value.absent(),
-      format: const Value('epub'),
-      filePath: const Value('/fake/path'),
-      totalChapters: Value(totalChapters),
-      createdAt: Value(DateTime(2025, 1, 1)),
-      updatedAt: Value(DateTime(2025, 1, 1)),
-    );
+}) => BooksCompanion(
+  id: Value(id),
+  title: Value(title),
+  author: author != null ? Value(author) : const Value.absent(),
+  format: const Value('epub'),
+  filePath: const Value('/fake/path'),
+  totalChapters: Value(totalChapters),
+  createdAt: Value(DateTime(2025, 1, 1)),
+  updatedAt: Value(DateTime(2025, 1, 1)),
+);
 
 Future<void> _settle() async {
   await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -51,7 +50,9 @@ void main() {
 
     List<BookEntity> booksFrom(AsyncValue<Result<List<BookEntity>>> async) {
       final result = async.valueOrNull;
-      return result is Success<List<BookEntity>> ? result.value : <BookEntity>[];
+      return result is Success<List<BookEntity>>
+          ? result.value
+          : <BookEntity>[];
     }
 
     test('re-emits when a book is inserted (import)', () async {
@@ -72,7 +73,10 @@ void main() {
       final sub = container.listen(libraryBooksProvider, (_, _) {});
       await db.into(db.books).insert(_book(id: 'b1'));
       await _settle();
-      expect(booksFrom(container.read(libraryBooksProvider)).single.progress, isNull);
+      expect(
+        booksFrom(container.read(libraryBooksProvider)).single.progress,
+        isNull,
+      );
 
       final readerRepo = DriftReaderRepository(db);
       await readerRepo.saveProgress(
@@ -96,15 +100,26 @@ void main() {
       final readerRepo = DriftReaderRepository(db);
 
       await readerRepo.saveProgress(
-        userId: 'local', bookId: 'b1', chapterId: 'ch1',
-        percentage: 10, position: 1, totalPositions: 100,
+        userId: 'local',
+        bookId: 'b1',
+        chapterId: 'ch1',
+        percentage: 10,
+        position: 1,
+        totalPositions: 100,
       );
       await _settle();
-      expect(booksFrom(container.read(libraryBooksProvider)).single.progress, 10);
+      expect(
+        booksFrom(container.read(libraryBooksProvider)).single.progress,
+        10,
+      );
 
       await readerRepo.saveProgress(
-        userId: 'local', bookId: 'b1', chapterId: 'ch9',
-        percentage: 90, position: 90, totalPositions: 100,
+        userId: 'local',
+        bookId: 'b1',
+        chapterId: 'ch9',
+        percentage: 90,
+        position: 90,
+        totalPositions: 100,
       );
       await _settle();
 

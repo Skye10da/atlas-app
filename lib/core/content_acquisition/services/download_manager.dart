@@ -98,7 +98,9 @@ class DownloadManager {
           task.bookId,
           ChapterCacheData(
             id: task.chapter.id,
-            title: fetched.title.isNotEmpty ? fetched.title : task.chapter.title,
+            title: fetched.title.isNotEmpty
+                ? fetched.title
+                : task.chapter.title,
             index: task.chapter.index,
             content: content,
             wordCount: fetched.wordCount,
@@ -114,12 +116,14 @@ class DownloadManager {
       } catch (e) {
         if (attempts >= maxAttempts) {
           _running.remove(task.key);
-          _events.add(DownloadEvent(
-            task.bookId,
-            task.chapter.id,
-            DownloadStatus.failed,
-            error: e.toString(),
-          ));
+          _events.add(
+            DownloadEvent(
+              task.bookId,
+              task.chapter.id,
+              DownloadStatus.failed,
+              error: e.toString(),
+            ),
+          );
           await _pump();
           return;
         }

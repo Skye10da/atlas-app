@@ -21,7 +21,7 @@ class PluginFilters {
   final bool disableDefaultStrips;
 
   Map<String, Object?> toJson() => {
-        'extraStripSelectors': extraStripSelectors,
-        'disableDefaultStrips': disableDefaultStrips,
-      };
+    'extraStripSelectors': extraStripSelectors,
+    'disableDefaultStrips': disableDefaultStrips,
+  };
 }

@@ -12,7 +12,9 @@ class NovelMetadataBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final style = textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant);
+    final style = textTheme.labelSmall?.copyWith(
+      color: colors.onSurfaceVariant,
+    );
 
     return Wrap(
       spacing: AppSpacing.sm,
@@ -40,14 +42,15 @@ class NovelMetadataBar extends StatelessWidget {
             child: Text(
               book.status!,
               style: textTheme.labelSmall?.copyWith(
-                color: book.status == 'Ongoing' ? Colors.green.shade700 : colors.onSurfaceVariant,
+                color: book.status == 'Ongoing'
+                    ? Colors.green.shade700
+                    : colors.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
                 fontSize: 11,
               ),
             ),
           ),
-        if (book.language != null)
-          Text(book.language!, style: style),
+        if (book.language != null) Text(book.language!, style: style),
         Text('${book.totalChapters}ch', style: style),
       ],
     );

@@ -8,7 +8,11 @@ import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/novel_metadata_bar.dart';
 
 class NovelHeroHeader extends StatelessWidget {
-  const NovelHeroHeader({super.key, required this.book, this.isEmbedded = false});
+  const NovelHeroHeader({
+    super.key,
+    required this.book,
+    this.isEmbedded = false,
+  });
 
   final BookEntity book;
   final bool isEmbedded;
@@ -27,7 +31,8 @@ class NovelHeroHeader extends StatelessWidget {
               child: Image.file(
                 File(book.coverPath!),
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(color: colors.surfaceContainerHigh),
+                errorBuilder: (_, _, _) =>
+                    Container(color: colors.surfaceContainerHigh),
               ),
             )
           else
@@ -54,10 +59,18 @@ class NovelHeroHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 isEmbedded
-                    ? BookCover(coverPath: book.coverPath, width: 110, height: 165)
+                    ? BookCover(
+                        coverPath: book.coverPath,
+                        width: 110,
+                        height: 165,
+                      )
                     : Hero(
                         tag: 'book-cover-${book.id}',
-                        child: BookCover(coverPath: book.coverPath, width: 110, height: 165),
+                        child: BookCover(
+                          coverPath: book.coverPath,
+                          width: 110,
+                          height: 165,
+                        ),
                       ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -67,7 +80,9 @@ class NovelHeroHeader extends StatelessWidget {
                     children: [
                       Text(
                         book.title,
-                        style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -75,7 +90,9 @@ class NovelHeroHeader extends StatelessWidget {
                         const SizedBox(height: AppSpacing.xs),
                         Text(
                           book.author!,
-                          style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
                         ),
                       ],
                       const SizedBox(height: AppSpacing.sm),

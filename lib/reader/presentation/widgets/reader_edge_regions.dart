@@ -69,7 +69,9 @@ class DesktopRightPanelRegion extends StatelessWidget {
             onEnter: (_) {
               if (!visible) onHoverReveal();
             },
-            cursor: visible ? SystemMouseCursors.basic : SystemMouseCursors.click,
+            cursor: visible
+                ? SystemMouseCursors.basic
+                : SystemMouseCursors.click,
             child: Container(color: Colors.transparent),
           ),
         ),

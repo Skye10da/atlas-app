@@ -90,18 +90,18 @@ class _ChapterIndexSheetState extends State<ChapterIndexSheet> {
   void _centerOnCurrent([int attempt = 0]) {
     if (!mounted || !_scrollController.hasClients) {
       if (attempt < 3) {
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _centerOnCurrent(attempt + 1));
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _centerOnCurrent(attempt + 1),
+        );
       }
       return;
     }
     final position = _scrollController.position;
-    final target = (widget.currentChapterIndex * _itemExtent) +
+    final target =
+        (widget.currentChapterIndex * _itemExtent) +
         (_itemExtent / 2) -
         (position.viewportDimension / 2);
-    _scrollController.jumpTo(
-      target.clamp(0.0, position.maxScrollExtent),
-    );
+    _scrollController.jumpTo(target.clamp(0.0, position.maxScrollExtent));
   }
 
   void _jumpToOffset(double offset) {
@@ -109,9 +109,7 @@ class _ChapterIndexSheetState extends State<ChapterIndexSheet> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _scrollController.hasClients) {
           final position = _scrollController.position;
-          _scrollController.jumpTo(
-            offset.clamp(0.0, position.maxScrollExtent),
-          );
+          _scrollController.jumpTo(offset.clamp(0.0, position.maxScrollExtent));
         }
       });
       return;
@@ -157,9 +155,7 @@ class _ChapterIndexSheetState extends State<ChapterIndexSheet> {
                   child: Text(
                     'No chapters found',
                     style: TextStyle(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 )

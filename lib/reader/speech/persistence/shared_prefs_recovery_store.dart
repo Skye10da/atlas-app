@@ -27,9 +27,7 @@ class SharedPrefsRecoveryStore implements RecoveryStore {
     final raw = prefs.getString('$_keyPrefix$bookId');
     if (raw == null) return null;
     try {
-      return SpeechCheckpoint.fromJson(
-        jsonDecode(raw) as Map<String, dynamic>,
-      );
+      return SpeechCheckpoint.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
       return null;
     }

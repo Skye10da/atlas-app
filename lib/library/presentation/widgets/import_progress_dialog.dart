@@ -37,25 +37,27 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
       duration: const Duration(milliseconds: 1200),
     )..repeat();
     widget.progress?.addListener(_onProgress);
-    widget.future.then((_) {
-      if (!mounted) return;
-      _controller.stop();
-      _controller.duration = const Duration(milliseconds: 600);
-      _controller.forward(from: 0).then((_) {
-        if (!mounted) return;
-        setState(() => _done = true);
-        _controller.duration = const Duration(milliseconds: 400);
-        _controller.forward(from: 0).then((_) {
-          Future.delayed(const Duration(milliseconds: 400), () {
+    widget.future
+        .then((_) {
+          if (!mounted) return;
+          _controller.stop();
+          _controller.duration = const Duration(milliseconds: 600);
+          _controller.forward(from: 0).then((_) {
             if (!mounted) return;
-            Navigator.of(context).pop(true);
+            setState(() => _done = true);
+            _controller.duration = const Duration(milliseconds: 400);
+            _controller.forward(from: 0).then((_) {
+              Future.delayed(const Duration(milliseconds: 400), () {
+                if (!mounted) return;
+                Navigator.of(context).pop(true);
+              });
+            });
           });
+        })
+        .catchError((_) {
+          if (!mounted) return;
+          Navigator.of(context).pop(false);
         });
-      });
-    }).catchError((_) {
-      if (!mounted) return;
-      Navigator.of(context).pop(false);
-    });
   }
 
   void _onProgress() {
@@ -86,10 +88,8 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
               animation: _controller,
               builder: (ctx, _) {
                 final real = widget.progress?.value;
-                final percent = (real ??
-                        _controller.value)
-                    .clamp(0.0, 1.0) *
-                    100;
+                final percent =
+                    (real ?? _controller.value).clamp(0.0, 1.0) * 100;
                 return SizedBox(
                   width: 96,
                   height: 96,
@@ -117,9 +117,9 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
             const SizedBox(height: 20),
             Text(
               _done ? 'Done' : widget.label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: cs.onSurfaceVariant,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
             ),
           ],
         ),
@@ -129,7 +129,8 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
 }
 
 class ProgressPainter extends StatelessWidget {
-  const ProgressPainter({super.key, 
+  const ProgressPainter({
+    super.key,
     required this.progress,
     required this.done,
     required this.color,
@@ -181,7 +182,11 @@ class _CircleCheckPainter extends CustomPainter {
     if (done) {
       final morphProgress = (progress * 2).clamp(0.0, 1.0);
 
-      canvas.drawCircle(center, radius, paint..color = color.withValues(alpha: 1.0 - morphProgress * 0.6));
+      canvas.drawCircle(
+        center,
+        radius,
+        paint..color = color.withValues(alpha: 1.0 - morphProgress * 0.6),
+      );
 
       final checkPaint = Paint()
         ..color = color
@@ -205,18 +210,12 @@ class _CircleCheckPainter extends CustomPainter {
       if (drawLength < 0.5) {
         final t = drawLength / 0.5;
         path.moveTo(startX, startY);
-        path.lineTo(
-          startX + (midX - startX) * t,
-          startY + (midY - startY) * t,
-        );
+        path.lineTo(startX + (midX - startX) * t, startY + (midY - startY) * t);
       } else {
         final t = (drawLength - 0.5) / 0.5;
         path.moveTo(startX, startY);
         path.lineTo(midX, midY);
-        path.lineTo(
-          midX + (endX - midX) * t,
-          midY + (endY - midY) * t,
-        );
+        path.lineTo(midX + (endX - midX) * t, midY + (endY - midY) * t);
       }
 
       canvas.drawPath(path, checkPaint);

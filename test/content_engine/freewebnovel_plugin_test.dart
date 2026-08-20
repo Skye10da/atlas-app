@@ -122,13 +122,20 @@ void main() {
   late Directory baseDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('atlas_freewebnovel_plugin');
+    tempDir = await Directory.systemTemp.createTemp(
+      'atlas_freewebnovel_plugin',
+    );
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
-    final source =
-        Directory(p.join(Directory.current.path, 'atlas-plugins', 'freewebnovel'));
-    expect(source.existsSync(), isTrue,
-        reason: 'flutter test must run from the package root so that '
-            'atlas-plugins/freewebnovel resolves');
+    final source = Directory(
+      p.join(Directory.current.path, 'atlas-plugins', 'freewebnovel'),
+    );
+    expect(
+      source.existsSync(),
+      isTrue,
+      reason:
+          'flutter test must run from the package root so that '
+          'atlas-plugins/freewebnovel resolves',
+    );
     await _copyDir(source, Directory(p.join(baseDir.path, 'freewebnovel')));
   });
 
@@ -137,10 +144,10 @@ void main() {
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: TemplateRegistry.defaults,
-        transportRegistry: _FakeTransportRegistry(transport),
-      );
+    baseDirectory: baseDir,
+    templateRegistry: TemplateRegistry.defaults,
+    transportRegistry: _FakeTransportRegistry(transport),
+  );
 
   group('atlas-plugins/freewebnovel/plugin.json', () {
     test('loads a valid manifest for the generic html template', () async {
@@ -161,17 +168,15 @@ void main() {
         PluginCapability.chapterContent,
         PluginCapability.cover,
       });
-      expect(
-        TemplateRegistry.defaults.resolve('html'),
-        isA<HtmlTemplate>(),
-      );
+      expect(TemplateRegistry.defaults.resolve('html'), isA<HtmlTemplate>());
     });
 
     test('declared capabilities are implemented by the template', () async {
       final manifest = await repo(FakeTransport()).load('freewebnovel');
       final template = TemplateRegistry.defaults.resolve(manifest.templateId);
-      final unsupported = manifest.capabilities
-          .where((c) => !template.supportedCapabilities.contains(c));
+      final unsupported = manifest.capabilities.where(
+        (c) => !template.supportedCapabilities.contains(c),
+      );
       expect(unsupported, isEmpty);
     });
 
@@ -195,42 +200,52 @@ void main() {
     test('canHandle matches freewebnovel.com hosts', () async {
       final source = await repo(FakeTransport()).buildSource('freewebnovel');
 
-      expect(source.canHandle(Uri.parse('https://freewebnovel.com/novel/x')),
-          isTrue);
-      expect(source.canHandle(Uri.parse('https://other.com/novel/x')),
-          isFalse);
+      expect(
+        source.canHandle(Uri.parse('https://freewebnovel.com/novel/x')),
+        isTrue,
+      );
+      expect(source.canHandle(Uri.parse('https://other.com/novel/x')), isFalse);
     });
 
     test('search drives the /search?keyword= endpoint', () async {
       final transport = FakeTransport()
         ..addHtml(
-            'https://freewebnovel.com/search?keyword=defying', _searchPage);
+          'https://freewebnovel.com/search?keyword=defying',
+          _searchPage,
+        );
       final source = await repo(transport).buildSource('freewebnovel');
 
-      final response =
-          await source.search(const SourceSearchQuery(term: 'defying'));
+      final response = await source.search(
+        const SourceSearchQuery(term: 'defying'),
+      );
 
       expect(response.results, hasLength(2));
       expect(response.results.first.title, 'Defying the Lycan King');
       expect(response.results.first.importUrl, _novelUrl);
-      expect(response.results.first.coverUrl,
-          'https://freewebnovel.com/files/article/image/13/13246/13246s.jpg');
+      expect(
+        response.results.first.coverUrl,
+        'https://freewebnovel.com/files/article/image/13/13246/13246s.jpg',
+      );
     });
 
-    test('getMetadata bridges the plugin to a novel-category NovelModel',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
-      final source = await repo(transport).buildSource('freewebnovel');
+    test(
+      'getMetadata bridges the plugin to a novel-category NovelModel',
+      () async {
+        final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
+        final source = await repo(transport).buildSource('freewebnovel');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.category, ContentCategory.novel);
-      expect(novel.source, 'FreeWebNovel');
-      expect(novel.title, 'Defying the Lycan King');
-      expect(novel.description, contains("she's cursed"));
-      expect(novel.coverUrl,
-          'https://freewebnovel.com/files/article/image/13/13246/13246s.jpg');
-    });
+        expect(novel.category, ContentCategory.novel);
+        expect(novel.source, 'FreeWebNovel');
+        expect(novel.title, 'Defying the Lycan King');
+        expect(novel.description, contains("she's cursed"));
+        expect(
+          novel.coverUrl,
+          'https://freewebnovel.com/files/article/image/13/13246/13246s.jpg',
+        );
+      },
+    );
 
     test('getChapters walks the paginated index and merges in order', () async {
       final transport = FakeTransport()
@@ -270,20 +285,28 @@ void main() {
       expect(chapter.wordCount, greaterThan(0));
     });
 
-    test('metadata selectors supply title and cover when og: tags are missing',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
-      final source = await repo(transport).buildSource('freewebnovel');
+    test(
+      'metadata selectors supply title and cover when og: tags are missing',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(_novelUrl, _novelPageNoOgTags);
+        final source = await repo(transport).buildSource('freewebnovel');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.title, 'Defying the Lycan King',
-          reason: '.m-desc h1.tit must be used instead of <title> tag');
-      expect(novel.description, contains("she's cursed"));
-      expect(novel.coverUrl,
+        expect(
+          novel.title,
+          'Defying the Lycan King',
+          reason: '.m-desc h1.tit must be used instead of <title> tag',
+        );
+        expect(novel.description, contains("she's cursed"));
+        expect(
+          novel.coverUrl,
           'https://freewebnovel.com/files/article/image/13/13246/13246s.jpg',
-          reason: '.pic img@src must resolve the relative URL');
-      expect(novel.source, 'FreeWebNovel');
-    });
+          reason: '.pic img@src must resolve the relative URL',
+        );
+        expect(novel.source, 'FreeWebNovel');
+      },
+    );
   });
 }

@@ -14,7 +14,9 @@ final fileOpenControllerProvider = Provider<FileOpenController>((ref) {
   return controller;
 });
 
-final openedFileImportServiceProvider = Provider<OpenedFileImportService>((ref) {
+final openedFileImportServiceProvider = Provider<OpenedFileImportService>((
+  ref,
+) {
   final db = ref.watch(databaseProvider);
   return OpenedFileImportService(
     epubService: EpubImportService(db),

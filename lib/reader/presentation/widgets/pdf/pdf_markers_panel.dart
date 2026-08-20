@@ -43,7 +43,10 @@ class PdfMarkersPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: nightMode ? Colors.white12 : Colors.black12, width: 0.5),
+                bottom: BorderSide(
+                  color: nightMode ? Colors.white12 : Colors.black12,
+                  width: 0.5,
+                ),
               ),
             ),
             child: Row(
@@ -51,7 +54,10 @@ class PdfMarkersPanel extends StatelessWidget {
                 Container(
                   width: 10,
                   height: 10,
-                  decoration: BoxDecoration(color: marker.color, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: marker.color,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -72,14 +78,20 @@ class PdfMarkersPanel extends StatelessWidget {
                         'page ${marker.range.pageNumber}',
                         style: TextStyle(
                           fontSize: 11,
-                          color: nightMode ? Colors.white54 : Colors.grey.shade600,
+                          color: nightMode
+                              ? Colors.white54
+                              : Colors.grey.shade600,
                         ),
                       ),
                     ],
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.delete_outline, size: 18, color: nightMode ? Colors.white54 : Colors.grey),
+                  icon: Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: nightMode ? Colors.white54 : Colors.grey,
+                  ),
                   onPressed: () => onDelete(marker),
                 ),
               ],

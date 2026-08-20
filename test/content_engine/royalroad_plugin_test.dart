@@ -19,11 +19,14 @@ const _novelUrl = 'https://www.royalroad.com/fiction/21220/mother-of-learning';
 const _chapter1Url =
     'https://www.royalroad.com/fiction/21220/mother-of-learning/chapter/301778/1-good-morning-brother';
 
-const _ldJson = '''{"@context":"https://schema.org","@type":"Book","name":"Mother of Learning","description":"\\u003Cp\\u003EZorian is a teenage mage of humble birth and slightly above-average skill, attending his third year of education at Cyoria\\u0027s magical academy.\\u003C/p\\u003E","dateModified":"2018-10-28T21:45:44Z","author":{"@type":"Person","@id":"/profile/100374","name":"nobody103"},"aggregateRating":{"@type":"AggregateRating","bestRating":5,"ratingValue":4.83,"ratingCount":17241}}''';
+const _ldJson =
+    '''{"@context":"https://schema.org","@type":"Book","name":"Mother of Learning","description":"\\u003Cp\\u003EZorian is a teenage mage of humble birth and slightly above-average skill, attending his third year of education at Cyoria\\u0027s magical academy.\\u003C/p\\u003E","dateModified":"2018-10-28T21:45:44Z","author":{"@type":"Person","@id":"/profile/100374","name":"nobody103"},"aggregateRating":{"@type":"AggregateRating","bestRating":5,"ratingValue":4.83,"ratingCount":17241}}''';
 
-const _chaptersScript = '''window.chapters = [{"id":301778,"volumeId":null,"title":"1. Good Morning Brother","slug":"1-good-morning-brother","date":"2018-10-28T21:34:43Z","order":0,"visible":1,"subscriptionTiers":null,"doesNotRollOver":false,"isUnlocked":true,"url":"/fiction/21220/mother-of-learning/chapter/301778/1-good-morning-brother"},{"id":301781,"volumeId":null,"title":"2. Life's Little Problems","slug":"2-lifes-little-problems","date":"2018-10-28T21:45:44Z","order":1,"visible":1,"subscriptionTiers":null,"doesNotRollOver":false,"isUnlocked":true,"url":"/fiction/21220/mother-of-learning/chapter/301781/2-lifes-little-problems"}]; window.volumes = []; window.readingProgress = null;''';
+const _chaptersScript =
+    '''window.chapters = [{"id":301778,"volumeId":null,"title":"1. Good Morning Brother","slug":"1-good-morning-brother","date":"2018-10-28T21:34:43Z","order":0,"visible":1,"subscriptionTiers":null,"doesNotRollOver":false,"isUnlocked":true,"url":"/fiction/21220/mother-of-learning/chapter/301778/1-good-morning-brother"},{"id":301781,"volumeId":null,"title":"2. Life's Little Problems","slug":"2-lifes-little-problems","date":"2018-10-28T21:45:44Z","order":1,"visible":1,"subscriptionTiers":null,"doesNotRollOver":false,"isUnlocked":true,"url":"/fiction/21220/mother-of-learning/chapter/301781/2-lifes-little-problems"}]; window.volumes = []; window.readingProgress = null;''';
 
-const _novelPage = '''
+const _novelPage =
+    '''
 <html><head>
 <title>Mother of Learning | Royal Road</title>
 <meta name="description" content="Zorian is a teenage mage of humble birth and slightly above-average skill.">
@@ -177,11 +180,16 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('atlas_royalroad_plugin');
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
-    final source =
-        Directory(p.join(Directory.current.path, 'atlas-plugins', 'royalroad'));
-    expect(source.existsSync(), isTrue,
-        reason: 'flutter test must run from the package root so that '
-            'atlas-plugins/royalroad resolves');
+    final source = Directory(
+      p.join(Directory.current.path, 'atlas-plugins', 'royalroad'),
+    );
+    expect(
+      source.existsSync(),
+      isTrue,
+      reason:
+          'flutter test must run from the package root so that '
+          'atlas-plugins/royalroad resolves',
+    );
     await _copyDir(source, Directory(p.join(baseDir.path, 'royalroad')));
   });
 
@@ -190,10 +198,10 @@ void main() {
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: TemplateRegistry.defaults,
-        transportRegistry: _FakeTransportRegistry(transport),
-      );
+    baseDirectory: baseDir,
+    templateRegistry: TemplateRegistry.defaults,
+    transportRegistry: _FakeTransportRegistry(transport),
+  );
 
   group('atlas-plugins/royalroad/plugin.json', () {
     test('loads a valid manifest for the royalroad template', () async {
@@ -223,8 +231,9 @@ void main() {
     test('declared capabilities are implemented by the template', () async {
       final manifest = await repo(FakeTransport()).load('royalroad');
       final template = TemplateRegistry.defaults.resolve(manifest.templateId);
-      final unsupported = manifest.capabilities
-          .where((c) => !template.supportedCapabilities.contains(c));
+      final unsupported = manifest.capabilities.where(
+        (c) => !template.supportedCapabilities.contains(c),
+      );
       expect(unsupported, isEmpty);
     });
 
@@ -246,20 +255,27 @@ void main() {
     test('canHandle matches royalroad.com hosts', () async {
       final source = await repo(FakeTransport()).buildSource('royalroad');
 
-      expect(source.canHandle(Uri.parse('https://www.royalroad.com/fiction/x')),
-          isTrue);
-      expect(source.canHandle(Uri.parse('https://other.com/fiction/x')),
-          isFalse);
+      expect(
+        source.canHandle(Uri.parse('https://www.royalroad.com/fiction/x')),
+        isTrue,
+      );
+      expect(
+        source.canHandle(Uri.parse('https://other.com/fiction/x')),
+        isFalse,
+      );
     });
 
     test('search drives the /fictions/search?title= endpoint', () async {
       final transport = FakeTransport()
         ..addHtml(
-            'https://www.royalroad.com/fictions/search?title=mother', _searchPage);
+          'https://www.royalroad.com/fictions/search?title=mother',
+          _searchPage,
+        );
       final source = await repo(transport).buildSource('royalroad');
 
-      final response =
-          await source.search(const SourceSearchQuery(term: 'mother'));
+      final response = await source.search(
+        const SourceSearchQuery(term: 'mother'),
+      );
 
       expect(response.results, hasLength(2));
       expect(response.results.first.title, 'Mother of Learning');
@@ -277,8 +293,10 @@ void main() {
       expect(novel.title, 'Mother of Learning');
       expect(novel.author, 'nobody103');
       expect(novel.description, contains('teenage mage of humble birth'));
-      expect(novel.coverUrl,
-          'https://www.royalroadcdn.com/public/covers-full/21220-mother-of-learning.jpg?time=1637247458');
+      expect(
+        novel.coverUrl,
+        'https://www.royalroadcdn.com/public/covers-full/21220-mother-of-learning.jpg?time=1637247458',
+      );
       expect(novel.genres, ['Time Loop', 'Adventure', 'Fantasy']);
       expect(novel.status, 'COMPLETED');
       expect(novel.rating, 4.83);
@@ -286,49 +304,61 @@ void main() {
       expect(novel.lastUpdated, DateTime.parse('2018-10-28T21:45:44Z'));
     });
 
-    test('getChapters parses window.chapters in order with publish dates',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
-      final source = await repo(transport).buildSource('royalroad');
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+    test(
+      'getChapters parses window.chapters in order with publish dates',
+      () async {
+        final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
+        final source = await repo(transport).buildSource('royalroad');
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      final chapters = await source.getChapters(novel);
+        final chapters = await source.getChapters(novel);
 
-      expect(chapters, hasLength(2));
-      expect(chapters.map((c) => c.title).toList(),
-          ['1. Good Morning Brother', "2. Life's Little Problems"]);
-      expect(chapters.first.contentUrl, _chapter1Url);
-      expect(chapters.first.publishedAt, DateTime.parse('2018-10-28T21:34:43Z'));
-    });
+        expect(chapters, hasLength(2));
+        expect(chapters.map((c) => c.title).toList(), [
+          '1. Good Morning Brother',
+          "2. Life's Little Problems",
+        ]);
+        expect(chapters.first.contentUrl, _chapter1Url);
+        expect(
+          chapters.first.publishedAt,
+          DateTime.parse('2018-10-28T21:34:43Z'),
+        );
+      },
+    );
 
-    test('getChapters falls back to table rows when window.chapters is absent',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoScript);
-      final source = await repo(transport).buildSource('royalroad');
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+    test(
+      'getChapters falls back to table rows when window.chapters is absent',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(_novelUrl, _novelPageNoScript);
+        final source = await repo(transport).buildSource('royalroad');
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      final chapters = await source.getChapters(novel);
+        final chapters = await source.getChapters(novel);
 
-      expect(chapters, hasLength(2));
-      expect(chapters.first.contentUrl, _chapter1Url);
-    });
+        expect(chapters, hasLength(2));
+        expect(chapters.first.contentUrl, _chapter1Url);
+      },
+    );
 
-    test('getChapter strips CSS-hidden paragraphs and reads the chapter title',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml(_novelUrl, _novelPage)
-        ..addHtml(_chapter1Url, _chapterPage);
-      final source = await repo(transport).buildSource('royalroad');
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
-      final chapters = await source.getChapters(novel);
+    test(
+      'getChapter strips CSS-hidden paragraphs and reads the chapter title',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(_novelUrl, _novelPage)
+          ..addHtml(_chapter1Url, _chapterPage);
+        final source = await repo(transport).buildSource('royalroad');
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final chapters = await source.getChapters(novel);
 
-      final chapter = await source.getChapter(chapters.first);
+        final chapter = await source.getChapter(chapters.first);
 
-      expect(chapter.title, '1. Good Morning Brother');
-      expect(chapter.content, contains("Zorian's eyes abruptly shot open"));
-      expect(chapter.content, contains('sharp pain went through his head'));
-      expect(chapter.content, isNot(contains('anti-copy decoy')));
-      expect(chapter.wordCount, greaterThan(0));
-    });
+        expect(chapter.title, '1. Good Morning Brother');
+        expect(chapter.content, contains("Zorian's eyes abruptly shot open"));
+        expect(chapter.content, contains('sharp pain went through his head'));
+        expect(chapter.content, isNot(contains('anti-copy decoy')));
+        expect(chapter.wordCount, greaterThan(0));
+      },
+    );
   });
 }

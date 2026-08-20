@@ -27,9 +27,12 @@ void main() {
   group('JsonBrowserSessionRepository', () {
     test('loads a persisted session back by origin', () async {
       final repository = JsonBrowserSessionRepository(file: sessionFile());
-      final origin = Uri.parse('https://novelfull.net/legend-of-swordsman.html');
-      final future =
-          DateTime.now().add(const Duration(hours: 2)).millisecondsSinceEpoch;
+      final origin = Uri.parse(
+        'https://novelfull.net/legend-of-swordsman.html',
+      );
+      final future = DateTime.now()
+          .add(const Duration(hours: 2))
+          .millisecondsSinceEpoch;
 
       await seed(
         '{"https://novelfull.net/":['
@@ -50,8 +53,9 @@ void main() {
       final past = DateTime.now()
           .subtract(const Duration(hours: 1))
           .millisecondsSinceEpoch;
-      final future =
-          DateTime.now().add(const Duration(hours: 1)).millisecondsSinceEpoch;
+      final future = DateTime.now()
+          .add(const Duration(hours: 1))
+          .millisecondsSinceEpoch;
 
       await seed(
         '{"https://novelfull.net/":['
@@ -80,12 +84,16 @@ void main() {
 
     test('missing or malformed files load as empty without throwing', () async {
       final missing = JsonBrowserSessionRepository(
-          file: File('${tempDir.path}${Platform.pathSeparator}missing.json'));
+        file: File('${tempDir.path}${Platform.pathSeparator}missing.json'),
+      );
       expect(await missing.loadForOrigin(Uri.parse('https://x.com/')), isEmpty);
 
       await seed('not json at all');
       final malformed = JsonBrowserSessionRepository(file: sessionFile());
-      expect(await malformed.loadForOrigin(Uri.parse('https://x.com/')), isEmpty);
+      expect(
+        await malformed.loadForOrigin(Uri.parse('https://x.com/')),
+        isEmpty,
+      );
     });
 
     test('session cookies (no expiry) survive the JSON round-trip', () async {
@@ -97,7 +105,8 @@ void main() {
         isHttpOnly: true,
       );
       final restored = BrowserSessionCookie.fromJson(
-          Map<String, Object?>.from(cookie.toJson()));
+        Map<String, Object?>.from(cookie.toJson()),
+      );
       expect(restored.name, 'sid');
       expect(restored.value, 'xyz');
       expect(restored.domain, '.novelfull.net');

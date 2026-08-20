@@ -37,20 +37,24 @@ void main() {
     int version = 1,
     String? previousVersionRef,
   }) async {
-    await db.into(db.chapters).insert(ChaptersCompanion(
-          id: Value(id),
-          bookId: Value(bookId),
-          index: Value(index),
-          title: Value('Chapter ${index + 1}'),
-          contentPath: Value(contentPath),
-          wordCount: const Value(100),
-          pageCount: const Value(1),
-          contentState: Value(state.index),
-          version: Value(version),
-          checksum: Value(checksum),
-          previousVersionRef: Value(previousVersionRef),
-          createdAt: Value(DateTime(2025, 1, 1)),
-        ));
+    await db
+        .into(db.chapters)
+        .insert(
+          ChaptersCompanion(
+            id: Value(id),
+            bookId: Value(bookId),
+            index: Value(index),
+            title: Value('Chapter ${index + 1}'),
+            contentPath: Value(contentPath),
+            wordCount: const Value(100),
+            pageCount: const Value(1),
+            contentState: Value(state.index),
+            version: Value(version),
+            checksum: Value(checksum),
+            previousVersionRef: Value(previousVersionRef),
+            createdAt: Value(DateTime(2025, 1, 1)),
+          ),
+        );
   }
 
   group('resetChapterContent', () {
@@ -141,7 +145,7 @@ void main() {
         state: ContentState.availableOffline,
       );
 
-        await repo.resetChapterContent('a');
+      await repo.resetChapterContent('a');
 
       expect(fileA.existsSync(), isFalse);
       expect(fileB.existsSync(), isTrue);
@@ -151,7 +155,7 @@ void main() {
 
 extension<T> on Result<T> {
   T get valueOrThrow => switch (this) {
-        Success(value: final value) => value,
-        Failure() => throw StateError('Unexpected failure'),
-      };
+    Success(value: final value) => value,
+    Failure() => throw StateError('Unexpected failure'),
+  };
 }

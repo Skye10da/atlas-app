@@ -44,83 +44,83 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onUpgrade: (migrator, from, to) async {
-          if (from == 1) {
-            await migrator.createTable(dictionaryWords);
-          } else if (from == 2) {
-            for (final col in [
-              dictionaryWords.sourceSentence,
-              dictionaryWords.sourceTitle,
-              dictionaryWords.reviewLevel,
-              dictionaryWords.reviewCount,
-              dictionaryWords.lastReviewedAt,
-              dictionaryWords.nextReviewAt,
-            ]) {
-              try {
-                await migrator.addColumn(dictionaryWords, col);
-              } catch (_) {}
-            }
-          }
-          if (from <= 3) {
-            for (final col in [
-              books.sourceName,
-              books.sourceId,
-              books.sourceUrl,
-            ]) {
-              try {
-                await migrator.addColumn(books, col as GeneratedColumn<Object>);
-              } catch (_) {}
-            }
-            try {
-              await migrator.addColumn(chapters, chapters.contentState as GeneratedColumn<Object>);
-            } catch (_) {}
-          }
-          if (from <= 4) {
-            try {
-              await migrator.addColumn(books, books.status);
-            } catch (_) {}
-          }
-          if (from <= 5) {
-            for (final col in [
-              dictionaryWords.source,
-              dictionaryWords.sourceLabel,
-            ]) {
-              try {
-                await migrator.addColumn(dictionaryWords, col);
-              } catch (_) {}
-            }
-          }
-          if (from <= 6) {
-            try {
-              await migrator.addColumn(books, books.itemType);
-            } catch (_) {}
-            await migrator.database.customStatement(
-              "UPDATE books SET item_type = 'novel' WHERE source_name = 'MVLEMPYR'",
-            );
-          }
-          if (from <= 7) {
-            // CDA v2.2 content versioning.
-            try {
-              await migrator.addColumn(chapters, chapters.version);
-            } catch (_) {}
-            try {
-              await migrator.addColumn(chapters, chapters.checksum);
-            } catch (_) {}
-            try {
-              await migrator.addColumn(chapters, chapters.previousVersionRef);
-            } catch (_) {}
-          }
-          if (from <= 8) {
-            // In-app browser persistence (schema 9).
-            await migrator.createTable(webHistory);
-            await migrator.createTable(webBookmarks);
-            await migrator.createTable(webTabs);
-          }
-        },
-      );
+    onUpgrade: (migrator, from, to) async {
+      if (from == 1) {
+        await migrator.createTable(dictionaryWords);
+      } else if (from == 2) {
+        for (final col in [
+          dictionaryWords.sourceSentence,
+          dictionaryWords.sourceTitle,
+          dictionaryWords.reviewLevel,
+          dictionaryWords.reviewCount,
+          dictionaryWords.lastReviewedAt,
+          dictionaryWords.nextReviewAt,
+        ]) {
+          try {
+            await migrator.addColumn(dictionaryWords, col);
+          } catch (_) {}
+        }
+      }
+      if (from <= 3) {
+        for (final col in [books.sourceName, books.sourceId, books.sourceUrl]) {
+          try {
+            await migrator.addColumn(books, col as GeneratedColumn<Object>);
+          } catch (_) {}
+        }
+        try {
+          await migrator.addColumn(
+            chapters,
+            chapters.contentState as GeneratedColumn<Object>,
+          );
+        } catch (_) {}
+      }
+      if (from <= 4) {
+        try {
+          await migrator.addColumn(books, books.status);
+        } catch (_) {}
+      }
+      if (from <= 5) {
+        for (final col in [
+          dictionaryWords.source,
+          dictionaryWords.sourceLabel,
+        ]) {
+          try {
+            await migrator.addColumn(dictionaryWords, col);
+          } catch (_) {}
+        }
+      }
+      if (from <= 6) {
+        try {
+          await migrator.addColumn(books, books.itemType);
+        } catch (_) {}
+        await migrator.database.customStatement(
+          "UPDATE books SET item_type = 'novel' WHERE source_name = 'MVLEMPYR'",
+        );
+      }
+      if (from <= 7) {
+        // CDA v2.2 content versioning.
+        try {
+          await migrator.addColumn(chapters, chapters.version);
+        } catch (_) {}
+        try {
+          await migrator.addColumn(chapters, chapters.checksum);
+        } catch (_) {}
+        try {
+          await migrator.addColumn(chapters, chapters.previousVersionRef);
+        } catch (_) {}
+      }
+      if (from <= 8) {
+        // In-app browser persistence (schema 9).
+        await migrator.createTable(webHistory);
+        await migrator.createTable(webBookmarks);
+        await migrator.createTable(webTabs);
+      }
+    },
+  );
 
-  Future<ReadingProgressData?> getReadingProgress(String bookId) =>
-      (select(readingProgress)..where((p) => p.id.equals(bookId))).getSingleOrNull();
+  Future<ReadingProgressData?> getReadingProgress(String bookId) => (select(
+    readingProgress,
+  )..where((p) => p.id.equals(bookId))).getSingleOrNull();
 }
 
 LazyDatabase _openConnection() {

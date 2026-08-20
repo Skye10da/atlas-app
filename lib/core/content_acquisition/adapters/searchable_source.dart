@@ -1,7 +1,11 @@
 import 'package:atlas_app/core/content_acquisition/adapters/source_adapter.dart';
 
 class SourceSearchQuery {
-  const SourceSearchQuery({required this.term, this.page = 1, this.pageSize = 20});
+  const SourceSearchQuery({
+    required this.term,
+    this.page = 1,
+    this.pageSize = 20,
+  });
 
   final String term;
   final int page;

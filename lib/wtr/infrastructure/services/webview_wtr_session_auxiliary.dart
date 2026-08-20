@@ -13,10 +13,8 @@ import 'package:atlas_app/wtr/domain/services/wtr_session_auxiliary.dart';
 /// stores: they live in the cookie store / browser-session repository, never
 /// in application preferences, and never in logs.
 class WebViewWtrSessionAuxiliary implements WtrSessionAuxiliary {
-  WebViewWtrSessionAuxiliary({
-    required this.sessionStore,
-    Uri? origin,
-  }) : _origin = origin ?? Uri.parse('https://wtr-lab.com');
+  WebViewWtrSessionAuxiliary({required this.sessionStore, Uri? origin})
+    : _origin = origin ?? Uri.parse('https://wtr-lab.com');
 
   final BrowserSessionRepositoryInterface sessionStore;
   final Uri _origin;
@@ -50,9 +48,7 @@ class WebViewWtrSessionAuxiliary implements WtrSessionAuxiliary {
     try {
       // Only WTR-Lab cookies are removed — the shared browser session store is
       // never swept as a side effect of logging out of this one origin.
-      await CookieManager.instance().deleteCookies(
-        url: WebUri.uri(_origin),
-      );
+      await CookieManager.instance().deleteCookies(url: WebUri.uri(_origin));
     } on Object catch (e) {
       AppLogger.warning('Failed to clear WTR-Lab cookies: $e');
     }

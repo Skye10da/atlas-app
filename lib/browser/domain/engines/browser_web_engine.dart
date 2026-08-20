@@ -71,7 +71,9 @@ abstract interface class BrowserWebEngine {
 
   /// Registers the callback fired whenever the page reports a text selection.
   /// Pass `null` to stop listening. Only the most recent listener is kept.
-  Future<void> setSelectionListener(void Function(WebSelection selection)? listener);
+  Future<void> setSelectionListener(
+    void Function(WebSelection selection)? listener,
+  );
 
   /// Clears the current page selection (also hides any open menu).
   Future<void> clearSelection();
@@ -82,7 +84,8 @@ abstract interface class BrowserWebEngine {
   /// Registers the callback fired when a downloadable resource is requested
   /// (intercepted epub links today). Pass `null` to stop reporting.
   Future<void> setDownloadListener(
-      void Function(String url, String? mimeType)? listener);
+    void Function(String url, String? mimeType)? listener,
+  );
 
   /// Registers a handler that becomes callable from page JS as
   /// `window.flutter_inappwebview.callHandler(name, ...args)`.

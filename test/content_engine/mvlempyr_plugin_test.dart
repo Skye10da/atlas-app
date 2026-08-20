@@ -61,11 +61,16 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('atlas_mvlempyr_plugin');
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
-    final source =
-        Directory(p.join(Directory.current.path, 'atlas-plugins', 'mvlempyr'));
-    expect(source.existsSync(), isTrue,
-        reason: 'flutter test must run from the package root so that '
-            'atlas-plugins/mvlempyr resolves');
+    final source = Directory(
+      p.join(Directory.current.path, 'atlas-plugins', 'mvlempyr'),
+    );
+    expect(
+      source.existsSync(),
+      isTrue,
+      reason:
+          'flutter test must run from the package root so that '
+          'atlas-plugins/mvlempyr resolves',
+    );
     await _copyDir(source, Directory(p.join(baseDir.path, 'mvlempyr')));
   });
 
@@ -74,10 +79,10 @@ void main() {
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: TemplateRegistry.defaults,
-        transportRegistry: _FakeTransportRegistry(transport),
-      );
+    baseDirectory: baseDir,
+    templateRegistry: TemplateRegistry.defaults,
+    transportRegistry: _FakeTransportRegistry(transport),
+  );
 
   group('atlas-plugins/mvlempyr/plugin.json', () {
     test('loads a valid manifest for the mvlempyr template', () async {
@@ -106,8 +111,9 @@ void main() {
     test('declared capabilities are implemented by the template', () async {
       final manifest = await repo(FakeTransport()).load('mvlempyr');
       final template = TemplateRegistry.defaults.resolve(manifest.templateId);
-      final unsupported = manifest.capabilities
-          .where((c) => !template.supportedCapabilities.contains(c));
+      final unsupported = manifest.capabilities.where(
+        (c) => !template.supportedCapabilities.contains(c),
+      );
       expect(unsupported, isEmpty);
     });
 
@@ -127,78 +133,94 @@ void main() {
   });
 
   group('mvlempyr PluginSource end-to-end', () {
-    test('canHandle matches mvlempyr.io hosts ignoring the www. prefix',
-        () async {
-      final source = await repo(FakeTransport()).buildSource('mvlempyr');
+    test(
+      'canHandle matches mvlempyr.io hosts ignoring the www. prefix',
+      () async {
+        final source = await repo(FakeTransport()).buildSource('mvlempyr');
 
-      expect(source.canHandle(Uri.parse('https://www.mvlempyr.io/novel/x')),
-          isTrue);
-      expect(source.canHandle(Uri.parse('https://mvlempyr.io/novel/x')),
-          isTrue);
-      expect(source.canHandle(Uri.parse('https://other.com/novel/x')),
-          isFalse);
-    });
-
-    test('getMetadata bridges the plugin to a novel-category NovelModel',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
-        ..addJson(
-          'https://chap.heliosarchive.online/wp-json/wp/v2/mvl-novels',
-          <Object?>[
-            {
-              'average-review': 4.5,
-              'total-chapters': 120,
-              'createdOn': '2024-01-15T00:00:00',
-              'genre': ['Fantasy', 'Adventure'],
-            },
-          ],
+        expect(
+          source.canHandle(Uri.parse('https://www.mvlempyr.io/novel/x')),
+          isTrue,
         );
-      final source = await repo(transport).buildSource('mvlempyr');
+        expect(
+          source.canHandle(Uri.parse('https://mvlempyr.io/novel/x')),
+          isTrue,
+        );
+        expect(
+          source.canHandle(Uri.parse('https://other.com/novel/x')),
+          isFalse,
+        );
+      },
+    );
 
-      final novel = await source
-          .getMetadata(Uri.parse('https://www.mvlempyr.io/novel/some-slug'));
-
-      expect(novel.category, ContentCategory.novel);
-      expect(novel.source, 'MVLEMPYR');
-      expect(novel.title, 'The Novel');
-      expect(novel.sourceId, '12345');
-      expect(novel.rating, 4.5);
-      expect(novel.chapterCount, 120);
-      expect(novel.genres, ['Fantasy', 'Adventure']);
-    });
-
-    test('getChapters and getChapter fetch content through the pipeline',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
-        ..addJson(
-          'https://chap.heliosarchive.online/wp-json/wp/v2/posts',
-          <Object?>[
-            {
-              'acf': {
-                'chapter_number': 1,
-                'novel_code': '12345',
-                'ch_name': 'Chapter One',
+    test(
+      'getMetadata bridges the plugin to a novel-category NovelModel',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
+          ..addJson(
+            'https://chap.heliosarchive.online/wp-json/wp/v2/mvl-novels',
+            <Object?>[
+              {
+                'average-review': 4.5,
+                'total-chapters': 120,
+                'createdOn': '2024-01-15T00:00:00',
+                'genre': ['Fantasy', 'Adventure'],
               },
-              'date': '2024-01-01T00:00:00',
-            },
-          ],
-        )
-        ..addHtml('https://www.mvlempyr.io/chapter/12345-1', _chapterPage);
-      final source = await repo(transport).buildSource('mvlempyr');
-      final novel = await source
-          .getMetadata(Uri.parse('https://www.mvlempyr.io/novel/some-slug'));
+            ],
+          );
+        final source = await repo(transport).buildSource('mvlempyr');
 
-      final chapters = await source.getChapters(novel);
-      expect(chapters, hasLength(1));
-      expect(chapters.single.title, 'Chapter One');
-      expect(chapters.single.contentUrl,
-          'https://www.mvlempyr.io/chapter/12345-1');
+        final novel = await source.getMetadata(
+          Uri.parse('https://www.mvlempyr.io/novel/some-slug'),
+        );
 
-      final chapter = await source.getChapter(chapters.single);
-      expect(chapter.content, contains('Body text.'));
-      expect(chapter.wordCount, greaterThan(0));
-    });
+        expect(novel.category, ContentCategory.novel);
+        expect(novel.source, 'MVLEMPYR');
+        expect(novel.title, 'The Novel');
+        expect(novel.sourceId, '12345');
+        expect(novel.rating, 4.5);
+        expect(novel.chapterCount, 120);
+        expect(novel.genres, ['Fantasy', 'Adventure']);
+      },
+    );
+
+    test(
+      'getChapters and getChapter fetch content through the pipeline',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
+          ..addJson(
+            'https://chap.heliosarchive.online/wp-json/wp/v2/posts',
+            <Object?>[
+              {
+                'acf': {
+                  'chapter_number': 1,
+                  'novel_code': '12345',
+                  'ch_name': 'Chapter One',
+                },
+                'date': '2024-01-01T00:00:00',
+              },
+            ],
+          )
+          ..addHtml('https://www.mvlempyr.io/chapter/12345-1', _chapterPage);
+        final source = await repo(transport).buildSource('mvlempyr');
+        final novel = await source.getMetadata(
+          Uri.parse('https://www.mvlempyr.io/novel/some-slug'),
+        );
+
+        final chapters = await source.getChapters(novel);
+        expect(chapters, hasLength(1));
+        expect(chapters.single.title, 'Chapter One');
+        expect(
+          chapters.single.contentUrl,
+          'https://www.mvlempyr.io/chapter/12345-1',
+        );
+
+        final chapter = await source.getChapter(chapters.single);
+        expect(chapter.content, contains('Body text.'));
+        expect(chapter.wordCount, greaterThan(0));
+      },
+    );
   });
 }

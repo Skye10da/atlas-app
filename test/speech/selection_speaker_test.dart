@@ -21,7 +21,8 @@ class FakeDriver implements SpeechDriver {
   String? lastLanguage;
 
   @override
-  Stream<SpeechDriverEvent> get events => const Stream<SpeechDriverEvent>.empty();
+  Stream<SpeechDriverEvent> get events =>
+      const Stream<SpeechDriverEvent>.empty();
   @override
   DriverState get state => DriverState.ready;
   @override
@@ -59,7 +60,6 @@ class FakeDriver implements SpeechDriver {
 }
 
 class FakeNarrationSettingsRepository extends NarrationSettingsRepository {
-
   FakeNarrationSettingsRepository(this.settings);
   final NarrationSettings settings;
 
@@ -142,10 +142,7 @@ Future<void> _pump(
 }
 
 class _ResolveHarness extends ConsumerStatefulWidget {
-  const _ResolveHarness({
-    required this.code,
-    required this.onResolved,
-  });
+  const _ResolveHarness({required this.code, required this.onResolved});
 
   final String code;
   final void Function(String?) onResolved;
@@ -179,9 +176,7 @@ Future<String?> _resolve(
   await tester.pumpWidget(
     ProviderScope(
       key: ObjectKey(code),
-      overrides: [
-        speechVoicesProvider.overrideWith((ref) async => voices),
-      ],
+      overrides: [speechVoicesProvider.overrideWith((ref) async => voices)],
       child: _ResolveHarness(code: code, onResolved: (r) => result = r),
     ),
   );
@@ -190,33 +185,38 @@ Future<String?> _resolve(
 }
 
 void main() {
-  testWidgets('SelectionSpeaker configures the driver with narration settings', (tester) async {
-    final driver = FakeDriver();
-    await _pump(
-      tester,
-      driver: driver,
-      text: 'Hello world.',
-      settings: const NarrationSettings(
-        speechRate: 1.4,
-        speechPitch: 0.8,
-        selectedVoiceId: 'voice-42',
-      ),
-      onSpoken: (d) {
-        expect(d.spoken, hasLength(1));
-        expect(d.spoken.single.text, 'Hello world.');
-      },
-    );
+  testWidgets(
+    'SelectionSpeaker configures the driver with narration settings',
+    (tester) async {
+      final driver = FakeDriver();
+      await _pump(
+        tester,
+        driver: driver,
+        text: 'Hello world.',
+        settings: const NarrationSettings(
+          speechRate: 1.4,
+          speechPitch: 0.8,
+          selectedVoiceId: 'voice-42',
+        ),
+        onSpoken: (d) {
+          expect(d.spoken, hasLength(1));
+          expect(d.spoken.single.text, 'Hello world.');
+        },
+      );
 
-    expect(driver.lastRate, 1.4);
-    expect(driver.lastPitch, 0.8);
-    expect(driver.lastVoiceId, 'voice-42');
-    expect(driver.lastLanguage, 'en-US');
-    expect(driver.spoken.single.bookId, 'b1');
-    expect(driver.spoken.single.chapterId, 'c1');
-    expect(driver.spoken.single.language, 'en-US');
-  });
+      expect(driver.lastRate, 1.4);
+      expect(driver.lastPitch, 0.8);
+      expect(driver.lastVoiceId, 'voice-42');
+      expect(driver.lastLanguage, 'en-US');
+      expect(driver.spoken.single.bookId, 'b1');
+      expect(driver.spoken.single.chapterId, 'c1');
+      expect(driver.spoken.single.language, 'en-US');
+    },
+  );
 
-  testWidgets('SelectionSpeaker uses defaults when settings are unloaded', (tester) async {
+  testWidgets('SelectionSpeaker uses defaults when settings are unloaded', (
+    tester,
+  ) async {
     final driver = FakeDriver();
     await _pump(
       tester,
@@ -232,29 +232,30 @@ void main() {
     expect(driver.spoken.single.text, 'Hello.');
   });
 
-  testWidgets('SelectionSpeaker applies an explicit voiceId and language override', (tester) async {
-    final driver = FakeDriver();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          speechDriverProvider.overrideWithValue(driver),
-        ],
-        child: _SpeakHarness(
-          driver: driver,
-          text: 'Bonjour. A greeting.',
-          language: 'fr-FR',
-          voiceId: 'fr-voice@fr-FR',
-          onSpoken: (d) {
-            expect(d.lastLanguage, 'fr-FR');
-            expect(d.lastVoiceId, 'fr-voice@fr-FR');
-            expect(d.spoken.single.language, 'fr-FR');
-            expect(d.spoken.single.voiceId, 'fr-voice@fr-FR');
-          },
+  testWidgets(
+    'SelectionSpeaker applies an explicit voiceId and language override',
+    (tester) async {
+      final driver = FakeDriver();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [speechDriverProvider.overrideWithValue(driver)],
+          child: _SpeakHarness(
+            driver: driver,
+            text: 'Bonjour. A greeting.',
+            language: 'fr-FR',
+            voiceId: 'fr-voice@fr-FR',
+            onSpoken: (d) {
+              expect(d.lastLanguage, 'fr-FR');
+              expect(d.lastVoiceId, 'fr-voice@fr-FR');
+              expect(d.spoken.single.language, 'fr-FR');
+              expect(d.spoken.single.voiceId, 'fr-voice@fr-FR');
+            },
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-  });
+      );
+      await tester.pumpAndSettle();
+    },
+  );
 
   group('resolveVoiceIdForLanguage', () {
     const voices = [
@@ -265,24 +266,30 @@ void main() {
     ];
 
     testWidgets('picks a voice matching the language code', (tester) async {
-      expect(await _resolve(tester, voices: voices, code: 'fr'),
-          'fr-paris@fr-FR');
-      expect(await _resolve(tester, voices: voices, code: 'en'),
-          'en-us-a@en-US');
+      expect(
+        await _resolve(tester, voices: voices, code: 'fr'),
+        'fr-paris@fr-FR',
+      );
+      expect(
+        await _resolve(tester, voices: voices, code: 'en'),
+        'en-us-a@en-US',
+      );
     });
 
-    testWidgets('zh prefers a mainland voice when both are installed', (tester) async {
-      expect(await _resolve(tester, voices: voices, code: 'zh'),
-          'zh-cn@zh-CN');
+    testWidgets('zh prefers a mainland voice when both are installed', (
+      tester,
+    ) async {
+      expect(await _resolve(tester, voices: voices, code: 'zh'), 'zh-cn@zh-CN');
     });
 
-    testWidgets('returns null when no voice exists for the language', (tester) async {
+    testWidgets('returns null when no voice exists for the language', (
+      tester,
+    ) async {
       expect(await _resolve(tester, voices: voices, code: 'km'), isNull);
     });
 
     testWidgets('returns null when the voice list is empty', (tester) async {
-      expect(
-          await _resolve(tester, voices: const [], code: 'en'), isNull);
+      expect(await _resolve(tester, voices: const [], code: 'en'), isNull);
     });
   });
 

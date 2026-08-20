@@ -62,7 +62,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
         // Wait for the book lookup so we never build the chapter reader for a
         // PDF (which would dispose it mid-load the moment the format resolves).
-        if ((book == null) && snapshot.connectionState != ConnectionState.done) {
+        if ((book == null) &&
+            snapshot.connectionState != ConnectionState.done) {
           return _readerShimmer(context);
         }
 
@@ -79,7 +80,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     );
   }
 
-Widget _readerShimmer(BuildContext context) {
+  Widget _readerShimmer(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: ReadingViewTheme.paper.resolve(colorScheme).background,

@@ -8,11 +8,11 @@ void main() {
   setUp(() => session.clearInvalid());
 
   group('SessionRefreshService', () {
-    test('originOf reduces a URL to its origin and nulls unparsable input',
-        () {
+    test('originOf reduces a URL to its origin and nulls unparsable input', () {
       expect(
-        SessionRefreshService.originOf('https://novelfull.net/the-99th.html')
-            ?.toString(),
+        SessionRefreshService.originOf(
+          'https://novelfull.net/the-99th.html',
+        )?.toString(),
         'https://novelfull.net/',
       );
       expect(SessionRefreshService.originOf('not a url'), isNull);
@@ -58,32 +58,39 @@ void main() {
       expect(session.lastInvalidSeedUrl.value, seed);
 
       session.markInvalid(origin);
-      expect(session.lastInvalidSeedUrl.value, isNull,
-          reason: 'a wall without a seed URL must not leak a stale one');
+      expect(
+        session.lastInvalidSeedUrl.value,
+        isNull,
+        reason: 'a wall without a seed URL must not leak a stale one',
+      );
 
       session.clearInvalid();
       expect(session.lastInvalidSeedUrl.value, isNull);
     });
 
-    test('markInvalid latches a verification probe and clears it with the latch',
-        () {
-      final origin = Uri.parse('https://wtr-lab.com/');
-      Future<bool> probe() async => true;
+    test(
+      'markInvalid latches a verification probe and clears it with the latch',
+      () {
+        final origin = Uri.parse('https://wtr-lab.com/');
+        Future<bool> probe() async => true;
 
-      session.markInvalid(origin, verificationProbe: probe);
-      expect(session.lastInvalidVerificationProbe, probe);
+        session.markInvalid(origin, verificationProbe: probe);
+        expect(session.lastInvalidVerificationProbe, probe);
 
-      session.markInvalid(origin);
-      expect(session.lastInvalidVerificationProbe, isNull,
-          reason: 'a wall without a probe must not leak a stale one');
+        session.markInvalid(origin);
+        expect(
+          session.lastInvalidVerificationProbe,
+          isNull,
+          reason: 'a wall without a probe must not leak a stale one',
+        );
 
-      session.markInvalid(origin, verificationProbe: probe);
-      session.clearInvalid();
-      expect(session.lastInvalidVerificationProbe, isNull);
-    });
+        session.markInvalid(origin, verificationProbe: probe);
+        session.clearInvalid();
+        expect(session.lastInvalidVerificationProbe, isNull);
+      },
+    );
 
-    test('hasAutoRefreshed / markAutoRefreshed gate one-shot auto refresh',
-        () {
+    test('hasAutoRefreshed / markAutoRefreshed gate one-shot auto refresh', () {
       final origin = Uri.parse('https://novelfull.net/');
       expect(session.hasAutoRefreshed(origin), isFalse);
 
@@ -111,21 +118,23 @@ void main() {
       expect(session.lastInvalidOrigin.value, isNull);
     });
 
-    test('ensureFresh forwards a latched verification probe to the driver',
-        () async {
-      final origin = Uri.parse('https://wtr-lab.com/');
-      Future<bool> probe() async => true;
-      session.markInvalid(origin, verificationProbe: probe);
-      SessionRefreshRequest? seen;
-      session.driver = (request) async {
-        seen = request;
-        return true;
-      };
+    test(
+      'ensureFresh forwards a latched verification probe to the driver',
+      () async {
+        final origin = Uri.parse('https://wtr-lab.com/');
+        Future<bool> probe() async => true;
+        session.markInvalid(origin, verificationProbe: probe);
+        SessionRefreshRequest? seen;
+        session.driver = (request) async {
+          seen = request;
+          return true;
+        };
 
-      await session.ensureFresh(origin);
+        await session.ensureFresh(origin);
 
-      expect(seen?.verificationProbe, probe);
-    });
+        expect(seen?.verificationProbe, probe);
+      },
+    );
 
     test('ensureFresh returns false and clears the latch when no driver is '
         'installed', () async {
@@ -138,8 +147,11 @@ void main() {
 
       expect(ok, isFalse);
       expect(session.lastInvalidOrigin.value, isNull);
-      expect(session.hasAutoRefreshed(origin), isFalse,
-          reason: 'a cleared latch must not leave stale one-shot gates');
+      expect(
+        session.hasAutoRefreshed(origin),
+        isFalse,
+        reason: 'a cleared latch must not leave stale one-shot gates',
+      );
     });
   });
 }

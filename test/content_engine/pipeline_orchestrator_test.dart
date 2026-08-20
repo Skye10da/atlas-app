@@ -78,13 +78,13 @@ class _FakeTextSource implements SourceAdapter {
 
   @override
   Future<ChapterModel> getChapter(ChapterModel chapter) async => ChapterModel(
-        id: chapter.id,
-        title: chapter.title,
-        index: chapter.index,
-        contentUrl: chapter.contentUrl,
-        content: '  plain text body  ',
-        wordCount: 3,
-      );
+    id: chapter.id,
+    title: chapter.title,
+    index: chapter.index,
+    contentUrl: chapter.contentUrl,
+    content: '  plain text body  ',
+    wordCount: 3,
+  );
 }
 
 void main() {
@@ -106,62 +106,68 @@ void main() {
         registry: _registry([_FakeRichSource()]),
         cache: cache,
       );
-      expect(orchestrator.discover(Uri.parse('https://example.com/a')),
-          isA<_FakeRichSource>());
+      expect(
+        orchestrator.discover(Uri.parse('https://example.com/a')),
+        isA<_FakeRichSource>(),
+      );
       expect(orchestrator.discover(Uri.parse('https://other.com/a')), isNull);
     });
 
-    test('delivers a rich document with post-normalize version+checksum',
-        () async {
-      final orchestrator = ContentPipelineOrchestrator(
-        registry: _registry([_FakeRichSource()]),
-        cache: cache,
-      );
-      const chapter = ChapterModel(
-        id: 'ch1',
-        title: 'Chapter 1',
-        index: 0,
-        contentUrl: 'https://example.com/ch1',
-      );
+    test(
+      'delivers a rich document with post-normalize version+checksum',
+      () async {
+        final orchestrator = ContentPipelineOrchestrator(
+          registry: _registry([_FakeRichSource()]),
+          cache: cache,
+        );
+        const chapter = ChapterModel(
+          id: 'ch1',
+          title: 'Chapter 1',
+          index: 0,
+          contentUrl: 'https://example.com/ch1',
+        );
 
-      final result = await orchestrator.deliver(
-        bookId: 'book1',
-        url: Uri.parse('https://example.com/ch1'),
-        chapter: chapter,
-      );
+        final result = await orchestrator.deliver(
+          bookId: 'book1',
+          url: Uri.parse('https://example.com/ch1'),
+          chapter: chapter,
+        );
 
-      expect(result.text, 'hello world\n\nSub');
-      expect(result.wordCount, 3);
-      expect(result.version, 2);
-      expect(result.checksum, hasLength(64));
-      expect(result.document.title, 'Chapter 1');
-      expect(result.document.blocks, hasLength(2));
-    });
+        expect(result.text, 'hello world\n\nSub');
+        expect(result.wordCount, 3);
+        expect(result.version, 2);
+        expect(result.checksum, hasLength(64));
+        expect(result.document.title, 'Chapter 1');
+        expect(result.document.blocks, hasLength(2));
+      },
+    );
 
-    test('indexes delivered documents into the post-normalize indexer stage',
-        () async {
-      final orchestrator = ContentPipelineOrchestrator(
-        registry: _registry([_FakeRichSource()]),
-        cache: cache,
-      );
-      const chapter = ChapterModel(
-        id: 'ch1',
-        title: 'Chapter 1',
-        index: 0,
-        contentUrl: 'https://example.com/ch1',
-      );
+    test(
+      'indexes delivered documents into the post-normalize indexer stage',
+      () async {
+        final orchestrator = ContentPipelineOrchestrator(
+          registry: _registry([_FakeRichSource()]),
+          cache: cache,
+        );
+        const chapter = ChapterModel(
+          id: 'ch1',
+          title: 'Chapter 1',
+          index: 0,
+          contentUrl: 'https://example.com/ch1',
+        );
 
-      await orchestrator.deliver(
-        bookId: 'book1',
-        url: Uri.parse('https://example.com/ch1'),
-        chapter: chapter,
-      );
+        await orchestrator.deliver(
+          bookId: 'book1',
+          url: Uri.parse('https://example.com/ch1'),
+          chapter: chapter,
+        );
 
-      final hits = orchestrator.indexer.search.search('hello');
-      expect(hits, hasLength(1));
-      expect(hits.single.docId, 'ch1');
-      expect(orchestrator.indexer.dictionary.frequency('ch1', 'hello'), 1);
-    });
+        final hits = orchestrator.indexer.search.search('hello');
+        expect(hits, hasLength(1));
+        expect(hits.single.docId, 'ch1');
+        expect(orchestrator.indexer.dictionary.frequency('ch1', 'hello'), 1);
+      },
+    );
 
     test('version stays unchanged when checksum matches previous', () async {
       final orchestrator = ContentPipelineOrchestrator(

@@ -9,10 +9,7 @@ import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
 /// gives the reader a first-pass "who appears here" surface that later stages
 /// (or an LLM) can refine.
 class CharacterExtractor {
-  const CharacterExtractor({
-    this.minMentions = 2,
-    this.minLength = 3,
-  });
+  const CharacterExtractor({this.minMentions = 2, this.minLength = 3});
 
   /// A candidate must appear this many times in mid-sentence position.
   final int minMentions;
@@ -23,15 +20,65 @@ class CharacterExtractor {
   static final _sentenceEnd = RegExp(r'[.!?]');
   static final _word = RegExp(r"[A-Za-z][A-Za-z']*");
   static const _stopwords = {
-    'The', 'A', 'An', 'And', 'But', 'Or', 'Nor', 'For', 'Yet', 'So',
-    'He', 'She', 'It', 'We', 'They', 'You', 'I', 'As', 'At', 'By', 'To',
-    'In', 'On', 'Of', 'From', 'With', 'This', 'That', 'These', 'Those',
-    'His', 'Her', 'Their', 'Our', 'My', 'Your',
+    'The',
+    'A',
+    'An',
+    'And',
+    'But',
+    'Or',
+    'Nor',
+    'For',
+    'Yet',
+    'So',
+    'He',
+    'She',
+    'It',
+    'We',
+    'They',
+    'You',
+    'I',
+    'As',
+    'At',
+    'By',
+    'To',
+    'In',
+    'On',
+    'Of',
+    'From',
+    'With',
+    'This',
+    'That',
+    'These',
+    'Those',
+    'His',
+    'Her',
+    'Their',
+    'Our',
+    'My',
+    'Your',
   };
   static const _placeMarkers = {
-    'City', 'Town', 'Village', 'Kingdom', 'Forest', 'Mountain', 'River',
-    'Palace', 'Castle', 'School', 'Tower', 'Island', 'Valley', 'Harbor',
-    'Harbour', 'Province', 'County', 'Street', 'Road', 'District', 'Hall',
+    'City',
+    'Town',
+    'Village',
+    'Kingdom',
+    'Forest',
+    'Mountain',
+    'River',
+    'Palace',
+    'Castle',
+    'School',
+    'Tower',
+    'Island',
+    'Valley',
+    'Harbor',
+    'Harbour',
+    'Province',
+    'County',
+    'Street',
+    'Road',
+    'District',
+    'Hall',
   };
 
   /// Returns `type: character|place` annotations for repeated mid-sentence
@@ -50,17 +97,17 @@ class CharacterExtractor {
       }
     }
 
-    final sorted = counts.entries
-        .where((e) => e.value >= minMentions)
-        .toList()
+    final sorted = counts.entries.where((e) => e.value >= minMentions).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return sorted
-        .map((e) => Annotation(
-              text: e.key,
-              type: _placeMarkers.contains(e.key) ? 'place' : 'character',
-              target: '${document.metadata.sourceUrl ?? ''}#${e.key}',
-            ))
+        .map(
+          (e) => Annotation(
+            text: e.key,
+            type: _placeMarkers.contains(e.key) ? 'place' : 'character',
+            target: '${document.metadata.sourceUrl ?? ''}#${e.key}',
+          ),
+        )
         .toList();
   }
 

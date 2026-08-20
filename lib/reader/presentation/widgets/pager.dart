@@ -98,7 +98,11 @@ class Pager {
     required int maxPages,
   }) {
     if (text.isEmpty || startIndex >= text.length) {
-      return const PaginateChunkResult(pages: [''], endIndex: 0, complete: true);
+      return const PaginateChunkResult(
+        pages: [''],
+        endIndex: 0,
+        complete: true,
+      );
     }
 
     final pages = <String>[];

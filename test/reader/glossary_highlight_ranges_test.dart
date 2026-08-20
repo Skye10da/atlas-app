@@ -4,8 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:atlas_app/reader/domain/entities/atlas_glossary_entry.dart';
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
 
-AtlasGlossaryEntry _entry(String term, List<String> replacements,
-    {int activeIndex = 0}) {
+AtlasGlossaryEntry _entry(
+  String term,
+  List<String> replacements, {
+  int activeIndex = 0,
+}) {
   return AtlasGlossaryEntry(
     id: 'b1:$term',
     bookId: 'b1',
@@ -24,12 +27,13 @@ void main() {
       final ranges = glossaryHighlightRanges(
         chapterId: 'b1_ch0',
         content: 'A middle a middle b',
-        entries: [_entry('中', const ['middle'])],
+        entries: [
+          _entry('中', const ['middle']),
+        ],
         color: color,
       );
 
-      expect(ranges.map((h) => (h.start, h.end)),
-          [(2, 8), (11, 17)]);
+      expect(ranges.map((h) => (h.start, h.end)), [(2, 8), (11, 17)]);
       expect(ranges.every((h) => h.chapterId == 'b1_ch0'), isTrue);
       expect(ranges.every((h) => h.colorValue == color.toARGB32()), isTrue);
     });
@@ -70,7 +74,9 @@ void main() {
       final ranges = glossaryHighlightRanges(
         chapterId: 'b1_ch0',
         content: 'nothing here',
-        entries: [_entry('中', const ['middle'])],
+        entries: [
+          _entry('中', const ['middle']),
+        ],
         color: color,
       );
 
@@ -96,7 +102,9 @@ void main() {
         glossaryHighlightRanges(
           chapterId: 'b1_ch0',
           content: '',
-          entries: [_entry('中', const ['middle'])],
+          entries: [
+            _entry('中', const ['middle']),
+          ],
           color: color,
         ),
         isEmpty,

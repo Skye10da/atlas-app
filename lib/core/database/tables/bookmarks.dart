@@ -15,7 +15,7 @@ class Bookmarks extends Table {
 
   @override
   List<Index> get indexes => [
-        Index('idx_bookmarks_book', 'bookId'),
-        Index('idx_bookmarks_chapter', 'chapterId'),
-      ];
+    Index('idx_bookmarks_book', 'bookId'),
+    Index('idx_bookmarks_chapter', 'chapterId'),
+  ];
 }

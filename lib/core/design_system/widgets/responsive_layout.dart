@@ -30,10 +30,7 @@ class AppResponsiveLayout extends StatelessWidget {
 }
 
 class AppAdaptive extends StatelessWidget {
-  const AppAdaptive({
-    super.key,
-    required this.builder,
-  });
+  const AppAdaptive({super.key, required this.builder});
 
   final Widget Function(BuildContext context, bool isWide) builder;
 

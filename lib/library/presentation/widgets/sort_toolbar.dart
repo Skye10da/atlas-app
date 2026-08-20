@@ -3,7 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 
 class SortToolbar extends StatelessWidget {
-  const SortToolbar({super.key, required this.currentOrder, required this.onSort});
+  const SortToolbar({
+    super.key,
+    required this.currentOrder,
+    required this.onSort,
+  });
 
   final LibrarySortOrder currentOrder;
   final void Function(LibrarySortOrder) onSort;

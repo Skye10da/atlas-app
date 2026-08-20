@@ -15,10 +15,7 @@ abstract final class AppAnimation {
 }
 
 class PageTransition {
-  const PageTransition({
-    required this.curve,
-    required this.duration,
-  });
+  const PageTransition({required this.curve, required this.duration});
 
   final Curve curve;
   final Duration duration;

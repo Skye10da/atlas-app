@@ -48,12 +48,12 @@ class BrowserSessionCookie {
   }
 
   Map<String, Object?> toJson() => {
-        'name': name,
-        'value': value,
-        if (domain != null) 'domain': domain,
-        if (path != null) 'path': path,
-        if (expiresDate != null) 'expiresDate': expiresDate,
-        'secure': isSecure,
-        'httpOnly': isHttpOnly,
-      };
+    'name': name,
+    'value': value,
+    if (domain != null) 'domain': domain,
+    if (path != null) 'path': path,
+    if (expiresDate != null) 'expiresDate': expiresDate,
+    'secure': isSecure,
+    'httpOnly': isHttpOnly,
+  };
 }

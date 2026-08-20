@@ -137,25 +137,21 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   void _syncWebViewFetcher() {
     final service = WebViewFetchService.instance;
     if (_tabs.hasTabs) {
-      service.fetcher = (
-        url, {
-        headers,
-        method,
-        jsonBody,
-        bool binary = false,
-      }) async {
-        for (final tab in _tabs.tabs) {
-          final result = await WebViewPageFetcher(engine: tab.engine).fetchHtml(
-            url,
-            headers: headers,
-            method: method,
-            jsonBody: jsonBody,
-            binary: binary,
-          );
-          if (result?.body != null || result?.bytes != null) return result;
-        }
-        return null;
-      };
+      service.fetcher =
+          (url, {headers, method, jsonBody, bool binary = false}) async {
+            for (final tab in _tabs.tabs) {
+              final result = await WebViewPageFetcher(engine: tab.engine)
+                  .fetchHtml(
+                    url,
+                    headers: headers,
+                    method: method,
+                    jsonBody: jsonBody,
+                    binary: binary,
+                  );
+              if (result?.body != null || result?.bytes != null) return result;
+            }
+            return null;
+          };
     } else {
       service.fetcher = null;
     }
@@ -208,10 +204,9 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     if (url == null || url.isEmpty || url == kBrowserStartPageUrl) return;
     if (url == _lastRecordedUrl) return;
     _lastRecordedUrl = url;
-    await ref.read(browserRepositoryProvider).recordVisit(
-          url: url,
-          title: _boundEngine?.currentTitle.value,
-        );
+    await ref
+        .read(browserRepositoryProvider)
+        .recordVisit(url: url, title: _boundEngine?.currentTitle.value);
     unawaited(_captureBrowserSession(url));
     if (mounted && _kNovelDetectionEnabled) {
       unawaited(_checkForNovel(url));
@@ -267,7 +262,9 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Import this ebook?'),
-        content: Text('$url\n\nAtlas will grab the ebook and add it to your library.'),
+        content: Text(
+          '$url\n\nAtlas will grab the ebook and add it to your library.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -290,7 +287,9 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('PDF found'),
-        content: Text('$url\n\nDownload the file or import it into your library.'),
+        content: Text(
+          '$url\n\nDownload the file or import it into your library.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'cancel'),
@@ -325,14 +324,14 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
       final file = File(p.join(directory.path, _pdfFileName(url)));
       await file.writeAsBytes(bytes, flush: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved to ${file.path}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Download failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Download failed: $e')));
     }
   }
 
@@ -352,9 +351,9 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Import failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
     }
   }
 
@@ -379,8 +378,9 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     final previousFetcher = webViewService.fetcher;
     final activeEngine = _tabs.activeTab?.engine;
     if (activeEngine != null) {
-      webViewService.fetcher =
-          WebViewPageFetcher(engine: activeEngine).fetchHtml;
+      webViewService.fetcher = WebViewPageFetcher(
+        engine: activeEngine,
+      ).fetchHtml;
     }
 
     try {
@@ -390,7 +390,7 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
         title: 'Add to Library',
         initialUrl: url,
         skipInputStage: true,
-        onImport: (bytes, fileName, onProgress) =>
+        onImport: (bytes, fileName, sheetUrl, onProgress) =>
             engine.importAndSave(url, onProgress: onProgress),
       );
       if (outcome == null || !mounted) return;
@@ -421,9 +421,9 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     final uri = Uri.tryParse(normalized);
     if (uri == null || (uri.scheme != 'about' && uri.host.isEmpty)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open "$trimmed".')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open "$trimmed".')));
       }
       return;
     }
@@ -542,8 +542,8 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: cs.onErrorContainer,
-                        ),
+                      color: cs.onErrorContainer,
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -576,7 +576,10 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
 
   Widget _buildFindBar(ColorScheme cs) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 6,
+      ),
       decoration: BoxDecoration(
         color: cs.surfaceContainer.withValues(alpha: 0.95),
         border: Border(
@@ -598,11 +601,14 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
                 hintText: 'Find on page',
                 filled: true,
                 fillColor: cs.surfaceContainerHigh.withValues(alpha: 0.85),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 9,
+                ),
                 border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(AppSpacing.borderRadiusFull),
+                  borderRadius: BorderRadius.circular(
+                    AppSpacing.borderRadiusFull,
+                  ),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -611,9 +617,9 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           const SizedBox(width: AppSpacing.sm),
           Text(
             '$_findMatchCount',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
           ),
           IconButton(
             tooltip: 'Previous match',
@@ -672,8 +678,7 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
                 IconButton(
                   tooltip: 'New tab',
                   icon: const Icon(Icons.add_rounded, size: 20),
-                  onPressed:
-                      _tabs.canAddTab ? () => _tabs.addTab() : null,
+                  onPressed: _tabs.canAddTab ? () => _tabs.addTab() : null,
                   visualDensity: VisualDensity.compact,
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -688,14 +693,19 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   Widget _buildChrome(ColorScheme cs) {
     final engine = _tabs.activeTab?.engine;
     final currentUrl = _tabs.activeTab?.url;
-    final isBookmarked = ref
+    final isBookmarked =
+        ref
             .watch(webBookmarksProvider)
             .value
             ?.any((b) => b.url == currentUrl) ??
         false;
-    final canBookmark = currentUrl != null && currentUrl != kBrowserStartPageUrl;
+    final canBookmark =
+        currentUrl != null && currentUrl != kBrowserStartPageUrl;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 6,
+      ),
       decoration: BoxDecoration(
         color: cs.surfaceContainer.withValues(alpha: 0.92),
         border: Border(
@@ -784,13 +794,15 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
       return;
     }
     final now = DateTime.now();
-    await repo.addBookmark(BrowserBookmark(
-      id: url,
-      url: url,
-      title: title == 'New tab' ? null : title,
-      createdAt: now,
-      updatedAt: now,
-    ));
+    await repo.addBookmark(
+      BrowserBookmark(
+        id: url,
+        url: url,
+        title: title == 'New tab' ? null : title,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
   }
 
   void _openLibrarySheets() {
@@ -806,9 +818,12 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
               title: const Text('History'),
               onTap: () {
                 Navigator.pop(ctx);
-                showBrowserHistorySheet(context, onOpenUrl: (url) {
-                  _tabs.activeTab?.engine.load(url);
-                });
+                showBrowserHistorySheet(
+                  context,
+                  onOpenUrl: (url) {
+                    _tabs.activeTab?.engine.load(url);
+                  },
+                );
               },
             ),
             ListTile(
@@ -816,9 +831,12 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
               title: const Text('Bookmarks'),
               onTap: () {
                 Navigator.pop(ctx);
-                showBrowserBookmarksSheet(context, onOpenUrl: (url) {
-                  _tabs.activeTab?.engine.load(url);
-                });
+                showBrowserBookmarksSheet(
+                  context,
+                  onOpenUrl: (url) {
+                    _tabs.activeTab?.engine.load(url);
+                  },
+                );
               },
             ),
           ],
@@ -887,9 +905,7 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           ],
         ),
         if (active.isOnStartPage)
-          BrowserStartPage(
-            onOpenSite: (url) => active.engine.load(url),
-          ),
+          BrowserStartPage(onOpenSite: (url) => active.engine.load(url)),
       ],
     );
 
@@ -1060,15 +1076,18 @@ class _AddToLibraryPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.library_add_rounded,
-                  size: 18, color: cs.onPrimaryContainer),
+              Icon(
+                Icons.library_add_rounded,
+                size: 18,
+                color: cs.onPrimaryContainer,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 'Add to Library',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: cs.onPrimaryContainer,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: cs.onPrimaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -1106,8 +1125,9 @@ class _TabChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
             onTap: onTap,
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 4),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm + 4,
+              ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1117,14 +1137,11 @@ class _TabChip extends StatelessWidget {
                       tab.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelMedium
-                          ?.copyWith(
-                            color: selected
-                                ? cs.onPrimaryContainer
-                                : cs.onSurfaceVariant,
-                          ),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: selected
+                            ? cs.onPrimaryContainer
+                            : cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),

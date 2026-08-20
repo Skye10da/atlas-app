@@ -26,7 +26,8 @@ class GenreTagRow extends ConsumerWidget {
           return ActionChip(
             label: Text(tag, style: const TextStyle(fontSize: 12)),
             onPressed: () {
-              ref.read(libraryCategoryProvider.notifier).state = LibraryCategory.novels;
+              ref.read(libraryCategoryProvider.notifier).state =
+                  LibraryCategory.novels;
               ref.read(libraryGenreFilterProvider.notifier).state = tag;
               popOrGoToLibrary(context);
             },

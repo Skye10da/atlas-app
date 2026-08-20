@@ -103,71 +103,74 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
           sourceUrl: book.sourceUrl,
           sourceName: book.sourceName,
         );
-        final wtrRawId = isWtrLab ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl) : null;
+        final wtrRawId = isWtrLab
+            ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl)
+            : null;
         final isDesktop = MediaQuery.of(context).size.width >= 900;
 
         final scrollView = CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: widget.isEmbedded ? 240 : 360,
-                pinned: true,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: NovelHeroHeader(book: book, isEmbedded: widget.isEmbedded),
+          slivers: [
+            SliverAppBar(
+              expandedHeight: widget.isEmbedded ? 240 : 360,
+              pinned: true,
+              flexibleSpace: FlexibleSpaceBar(
+                background: NovelHeroHeader(
+                  book: book,
+                  isEmbedded: widget.isEmbedded,
                 ),
-                backgroundColor: Theme.of(context).colorScheme.surface,
-                leading: widget.isEmbedded
-                    ? IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: widget.onClose,
-                      )
-                    : null,
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.file_upload_outlined),
-                    tooltip: 'Export',
-                    onPressed: () => _exportNovel(book),
+              ),
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              leading: widget.isEmbedded
+                  ? IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: widget.onClose,
+                    )
+                  : null,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.file_upload_outlined),
+                  tooltip: 'Export',
+                  onPressed: () => _exportNovel(book),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete novel',
+                  onPressed: () => _confirmDelete(context),
+                ),
+                const SizedBox(width: 4),
+              ],
+            ),
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: AppSpacing.sm),
+                  if (wtrRawId != null)
+                    WtrTranslationSelector(
+                      rawId: wtrRawId,
+                      onServiceChanged: () => _onWtrServiceChanged(),
+                    ),
+                  if (wtrRawId != null) const SizedBox(height: AppSpacing.sm),
+                  ContinueReadingCard(book: book, onReturn: _refreshBook),
+                  const SizedBox(height: AppSpacing.sm),
+                  GenreTagRow(book: book),
+                  const SizedBox(height: AppSpacing.lg),
+                  SynopsisCard(book: book),
+                  const SizedBox(height: AppSpacing.lg),
+                  SourceAttribution(book: book),
+                  const SizedBox(height: AppSpacing.lg),
+                  _ChapterSectionHeader(
+                    bookId: widget.bookId,
+                    totalChapters: book.totalChapters,
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: 'Delete novel',
-                    onPressed: () => _confirmDelete(context),
-                  ),
-                  const SizedBox(width: 4),
+                  const SizedBox(height: AppSpacing.sm),
+                  _ChapterPanel(bookId: widget.bookId, onReturn: _refreshBook),
+                  const SizedBox(height: AppSpacing.xxl),
                 ],
               ),
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: AppSpacing.sm),
-                    if (wtrRawId != null)
-                      WtrTranslationSelector(
-                        rawId: wtrRawId,
-                        onServiceChanged: () =>
-                            _onWtrServiceChanged(),
-                      ),
-                    if (wtrRawId != null)
-                      const SizedBox(height: AppSpacing.sm),
-                    ContinueReadingCard(book: book, onReturn: _refreshBook),
-                    const SizedBox(height: AppSpacing.sm),
-                    GenreTagRow(book: book),
-                    const SizedBox(height: AppSpacing.lg),
-                    SynopsisCard(book: book),
-                    const SizedBox(height: AppSpacing.lg),
-                    SourceAttribution(book: book),
-                    const SizedBox(height: AppSpacing.lg),
-                    _ChapterSectionHeader(
-                      bookId: widget.bookId,
-                      totalChapters: book.totalChapters,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _ChapterPanel(bookId: widget.bookId, onReturn: _refreshBook),
-                    const SizedBox(height: AppSpacing.xxl),
-                  ],
-                ),
-              ),
-            ],
-          );
+            ),
+          ],
+        );
 
         if (widget.isEmbedded) return scrollView;
 
@@ -190,7 +193,9 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete novel?'),
-        content: const Text('This will permanently remove the novel and all reading progress.'),
+        content: const Text(
+          'This will permanently remove the novel and all reading progress.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -217,9 +222,9 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
         ref.invalidate(libraryBooksProvider);
         popOrGoToLibrary(context);
       } else if (r is Failure) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(r.error.userMessage)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(r.error.userMessage)));
       }
     }
   }
@@ -254,7 +259,9 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
     }
 
     if (!mounted) {
-      try { await exportFuture; } catch (_) {}
+      try {
+        await exportFuture;
+      } catch (_) {}
       return;
     }
 
@@ -275,7 +282,9 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
       Failure(error: final error) => error.userMessage,
     };
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -298,9 +307,9 @@ class _ExportFormatSheet extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 'Export ${book.title}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 12),
@@ -361,7 +370,9 @@ class _ChapterSectionHeader extends ConsumerWidget {
     );
 
     final downloadedCount = chapters.maybeWhen(
-      data: (list) => list.where((ch) => ch.contentState == ContentState.availableOffline.index).length,
+      data: (list) => list
+          .where((ch) => ch.contentState == ContentState.availableOffline.index)
+          .length,
       orElse: () => 0,
     );
 
@@ -371,9 +382,9 @@ class _ChapterSectionHeader extends ConsumerWidget {
         children: [
           Text(
             'Chapters',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const Spacer(),
           Text(
@@ -468,14 +479,17 @@ class _ChapterPanelState extends ConsumerState<_ChapterPanel> {
             final isFirst = group == groups.first;
             return _ChapterGroup(
               title: group.title,
-              chapters: chapters.where((c) => c.index >= group.start && c.index <= group.end).toList(),
+              chapters: chapters
+                  .where((c) => c.index >= group.start && c.index <= group.end)
+                  .toList(),
               isFirst: isFirst,
               isLast: group == groups.last,
               colors: colors,
               downloadingSet: downloadingSet,
               onTap: (chapterId) async {
                 await context.push(
-                    '/reader/${widget.bookId}?chapterId=$chapterId');
+                  '/reader/${widget.bookId}?chapterId=$chapterId',
+                );
                 ref.invalidate(lastReadChapterProvider(widget.bookId));
                 widget.onReturn?.call();
               },
@@ -490,7 +504,9 @@ class _ChapterPanelState extends ConsumerState<_ChapterPanel> {
   Future<void> _downloadChapter(String chapterId) async {
     final service = ref.read(chapterDownloadServiceProvider);
     final downloadingSet = ref.read(chapterDownloadingSetProvider.notifier);
-    final chapters = await ref.read(novelChaptersProvider(widget.bookId).future);
+    final chapters = await ref.read(
+      novelChaptersProvider(widget.bookId).future,
+    );
     final ch = chapters.firstWhere((c) => c.id == chapterId);
 
     downloadingSet.update((set) => set..add(ch.id));
@@ -516,7 +532,11 @@ class _ChapterPanelState extends ConsumerState<_ChapterPanel> {
 }
 
 class _ChapterGroupInfo {
-  const _ChapterGroupInfo({required this.title, required this.start, required this.end});
+  const _ChapterGroupInfo({
+    required this.title,
+    required this.start,
+    required this.end,
+  });
   final String title;
   final int start;
   final int end;
@@ -577,17 +597,24 @@ class _ChapterGroupState extends State<_ChapterGroup> {
             borderRadius: BorderRadius.circular(12),
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
               child: Row(
                 children: [
                   Text(
                     widget.title,
-                    style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                    style: textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const Spacer(),
                   Text(
                     '${widget.chapters.length}',
-                    style: textTheme.bodySmall?.copyWith(color: widget.colors.onSurfaceVariant),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: widget.colors.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(width: 4),
                   Icon(
@@ -600,14 +627,17 @@ class _ChapterGroupState extends State<_ChapterGroup> {
             ),
           ),
           if (_expanded)
-            ...widget.chapters.map((ch) => _ChapterTile(
-              chapter: ch,
-              isDownloading: widget.downloadingSet.contains(ch.id),
-              onTap: () => widget.onTap(ch.id),
-              onDownload: ch.contentState != ContentState.availableOffline.index
-                  ? () => widget.onDownload(ch.id)
-                  : null,
-            )),
+            ...widget.chapters.map(
+              (ch) => _ChapterTile(
+                chapter: ch,
+                isDownloading: widget.downloadingSet.contains(ch.id),
+                onTap: () => widget.onTap(ch.id),
+                onDownload:
+                    ch.contentState != ContentState.availableOffline.index
+                    ? () => widget.onDownload(ch.id)
+                    : null,
+              ),
+            ),
         ],
       ),
     );
@@ -630,12 +660,16 @@ class _ChapterTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final isDownloaded = chapter.contentState == ContentState.availableOffline.index;
+    final isDownloaded =
+        chapter.contentState == ContentState.availableOffline.index;
 
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.xs,
+        ),
         child: Row(
           children: [
             Container(
@@ -649,7 +683,11 @@ class _ChapterTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: isDownloaded
-                  ? Icon(Icons.check, size: 14, color: colors.onPrimaryContainer)
+                  ? Icon(
+                      Icons.check,
+                      size: 14,
+                      color: colors.onPrimaryContainer,
+                    )
                   : Text(
                       '${chapter.index + 1}',
                       style: TextStyle(
@@ -665,7 +703,9 @@ class _ChapterTile extends StatelessWidget {
                 chapter.title,
                 style: TextStyle(
                   fontSize: 14,
-                  color: isDownloaded ? colors.onSurface : colors.onSurface.withValues(alpha: 0.7),
+                  color: isDownloaded
+                      ? colors.onSurface
+                      : colors.onSurface.withValues(alpha: 0.7),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -676,7 +716,10 @@ class _ChapterTile extends StatelessWidget {
                 padding: const EdgeInsets.only(left: AppSpacing.sm),
                 child: Text(
                   _formatWords(chapter.wordCount),
-                  style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.onSurfaceVariant,
+                  ),
                 ),
               ),
             if (isDownloading)
@@ -691,7 +734,11 @@ class _ChapterTile extends StatelessWidget {
             else if (onDownload != null)
               IconButton(
                 onPressed: onDownload,
-                icon: Icon(Icons.download_rounded, size: 18, color: colors.primary),
+                icon: Icon(
+                  Icons.download_rounded,
+                  size: 18,
+                  color: colors.primary,
+                ),
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),

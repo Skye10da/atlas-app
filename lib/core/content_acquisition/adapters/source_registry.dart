@@ -17,5 +17,6 @@ class SourceRegistry {
 
   List<SourceAdapter> get all => List.unmodifiable(_adapters);
 
-  List<SearchableSource> get searchable => _adapters.whereType<SearchableSource>().toList();
+  List<SearchableSource> get searchable =>
+      _adapters.whereType<SearchableSource>().toList();
 }

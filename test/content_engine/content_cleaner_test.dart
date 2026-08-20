@@ -42,8 +42,9 @@ void main() {
         </body></html>
       ''');
 
-      const ContentCleaner(extraStripSelectors: ['.site-specific-ad-slot'])
-          .clean(body);
+      const ContentCleaner(
+        extraStripSelectors: ['.site-specific-ad-slot'],
+      ).clean(body);
 
       expect(body.querySelector('.site-specific-ad-slot'), isNull);
       expect(body.querySelector('.adsbygoogle'), isNull);

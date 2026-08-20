@@ -39,6 +39,7 @@ class ChapterContentLoader extends ConsumerWidget {
   final ChapterEntity chapter;
   final double fontSize;
   final String? fontFamily;
+
   /// Numeric reader body-text weight; `null` keeps the family default.
   final int? fontWeight;
   final double lineHeight;
@@ -66,17 +67,18 @@ class ChapterContentLoader extends ConsumerWidget {
   final void Function(void Function() reveal)? onRegisterNarrationReveal;
 
   /// Context-menu callbacks forwarded to [ChapterView].
-  final void Function(String text, Color color, int start, int end)? onHighlight;
+  final void Function(String text, Color color, int start, int end)?
+  onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
-  final void Function(String text, String? sentence, int start, int end)? onListen;
+  final void Function(String text, String? sentence, int start, int end)?
+  onListen;
   final void Function(int start, int end)? onErase;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final contentAsync =
-        ref.watch(readerChapterContentProvider(chapter));
+    final contentAsync = ref.watch(readerChapterContentProvider(chapter));
 
     final activeItem = ref.watch(activeSpeechItemProvider);
     final activeForThisChapter =
@@ -99,7 +101,8 @@ class ChapterContentLoader extends ConsumerWidget {
           ReaderLoadingOverlay(chapter: chapter, vt: vt),
         ],
       ),
-      error: (err, _) => _ChapterErrorState(vt: vt, chapter: chapter, error: err),
+      error: (err, _) =>
+          _ChapterErrorState(vt: vt, chapter: chapter, error: err),
       data: (content) {
         // Content is ready to render in the continuous layout.
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -170,12 +173,17 @@ class _ChapterErrorState extends ConsumerWidget {
     final session = SessionRefreshService.instance;
     final sourceUrlAsync = ref.watch(chapterSourceUrlProvider(chapter));
     final err = error;
-    final message = err is AppException ? err.userMessage : 'Could not load chapter.';
+    final message = err is AppException
+        ? err.userMessage
+        : 'Could not load chapter.';
     return ValueListenableBuilder<Uri?>(
       valueListenable: session.lastInvalidOrigin,
       builder: (context, invalid, _) {
-        final origin = SessionRefreshService.originOf(sourceUrlAsync.valueOrNull);
-        final showReverify = origin != null &&
+        final origin = SessionRefreshService.originOf(
+          sourceUrlAsync.valueOrNull,
+        );
+        final showReverify =
+            origin != null &&
             invalid != null &&
             SessionRefreshService.sameOrigin(invalid, origin);
         return Center(
@@ -197,7 +205,8 @@ class _ChapterErrorState extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: () => ref.invalidate(readerChapterContentProvider(chapter)),
+                  onPressed: () =>
+                      ref.invalidate(readerChapterContentProvider(chapter)),
                   icon: const Icon(Icons.refresh),
                   label: const Text('Retry'),
                 ),

@@ -31,13 +31,14 @@ class ReaderBarSurface extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final background = switch (style) {
       ReaderChromeStyle.frosted => ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: ColoredBox(color: color.withValues(alpha: 0.5)),
-          ),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: ColoredBox(color: color.withValues(alpha: 0.5)),
         ),
-      ReaderChromeStyle.translucent =>
-        ColoredBox(color: color.withValues(alpha: 0.9)),
+      ),
+      ReaderChromeStyle.translucent => ColoredBox(
+        color: color.withValues(alpha: 0.9),
+      ),
     };
 
     return Stack(

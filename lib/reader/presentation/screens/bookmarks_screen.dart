@@ -41,11 +41,17 @@ class BookmarksScreen extends ConsumerWidget {
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(Icons.bookmark,
-                        size: 18,
-                        color: theme.colorScheme.onPrimaryContainer),
+                    child: Icon(
+                      Icons.bookmark,
+                      size: 18,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
                   ),
-                  title: const Text('Chapter', maxLines: 1, overflow: TextOverflow.ellipsis),
+                  title: const Text(
+                    'Chapter',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   subtitle: Text(
                     'Book ${bm.bookId}',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -54,9 +60,14 @@ class BookmarksScreen extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: Icon(Icons.chevron_right,
-                      size: 18, color: theme.colorScheme.onSurfaceVariant),
-                  onTap: () => context.push('/reader/${bm.bookId}?chapterId=${bm.chapterId}'),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  onTap: () => context.push(
+                    '/reader/${bm.bookId}?chapterId=${bm.chapterId}',
+                  ),
                 ),
               );
             },

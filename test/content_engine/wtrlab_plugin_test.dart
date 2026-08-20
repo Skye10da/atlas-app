@@ -21,7 +21,8 @@ import 'package:atlas_app/wtr/domain/services/wtr_session_auxiliary.dart';
 import 'test_fixtures.dart';
 
 const _base = 'https://wtr-lab.com';
-const _novelUrl = '$_base/en/novel/29058/'
+const _novelUrl =
+    '$_base/en/novel/29058/'
     'charm-is-full-i-have-become-a-male-god-since-high-school';
 const _chapterUrl = '$_novelUrl/chapter-639';
 const _searchUrl = '$_base/api/search';
@@ -39,10 +40,11 @@ const _searchResponse = {
       'data': {
         'title': 'Charm is Full: I Have Become a Male God Since High School',
         'author': 'Dong Bei Da Ju Mao',
-        'description': 'Reborn in high school, Lu Yan activates his charm system.',
+        'description':
+            'Reborn in high school, Lu Yan activates his charm system.',
         'image': 'https://img.wtr-lab.com/cdn/series/thumb.jpg',
       },
-    }
+    },
   ],
 };
 
@@ -104,11 +106,16 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('atlas_wtrlab_plugin');
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
-    final source =
-        Directory(p.join(Directory.current.path, 'atlas-plugins', 'wtrlab'));
-    expect(source.existsSync(), isTrue,
-        reason: 'flutter test must run from the package root so that '
-            'atlas-plugins/wtrlab resolves');
+    final source = Directory(
+      p.join(Directory.current.path, 'atlas-plugins', 'wtrlab'),
+    );
+    expect(
+      source.existsSync(),
+      isTrue,
+      reason:
+          'flutter test must run from the package root so that '
+          'atlas-plugins/wtrlab resolves',
+    );
     await _copyDir(source, Directory(p.join(baseDir.path, 'wtrlab')));
 
     // The default translation service is now AI (English), which requires an
@@ -128,10 +135,10 @@ void main() {
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: TemplateRegistry.defaults,
-        transportRegistry: _FakeTransportRegistry(transport),
-      );
+    baseDirectory: baseDir,
+    templateRegistry: TemplateRegistry.defaults,
+    transportRegistry: _FakeTransportRegistry(transport),
+  );
 
   group('atlas-plugins/wtrlab/plugin.json', () {
     test('loads a valid manifest for the wtrlab template', () async {
@@ -160,8 +167,9 @@ void main() {
     test('declared capabilities are implemented by the template', () async {
       final manifest = await repo(FakeTransport()).load('wtrlab');
       final template = TemplateRegistry.defaults.resolve(manifest.templateId);
-      final unsupported = manifest.capabilities
-          .where((c) => !template.supportedCapabilities.contains(c));
+      final unsupported = manifest.capabilities.where(
+        (c) => !template.supportedCapabilities.contains(c),
+      );
       expect(unsupported, isEmpty);
     });
 
@@ -188,15 +196,19 @@ void main() {
     });
 
     test('search POSTs /api/search and maps results to import URLs', () async {
-      final transport = FakeTransport()..addPostJson(_searchUrl, _searchResponse);
+      final transport = FakeTransport()
+        ..addPostJson(_searchUrl, _searchResponse);
       final source = await repo(transport).buildSource('wtrlab');
 
-      final response =
-          await source.search(const SourceSearchQuery(term: 'male god'));
+      final response = await source.search(
+        const SourceSearchQuery(term: 'male god'),
+      );
 
       expect(response.results, hasLength(1));
-      expect(response.results.first.title,
-          'Charm is Full: I Have Become a Male God Since High School');
+      expect(
+        response.results.first.title,
+        'Charm is Full: I Have Become a Male God Since High School',
+      );
       expect(response.results.first.importUrl, _novelUrl);
     });
 
@@ -211,12 +223,17 @@ void main() {
 
       expect(novel.category, ContentCategory.novel);
       expect(novel.source, 'WTR-LAB');
-      expect(novel.title, 'Charm is Full: I Have Become a Male God Since High School');
+      expect(
+        novel.title,
+        'Charm is Full: I Have Become a Male God Since High School',
+      );
       expect(novel.author, 'Dong Bei Da Ju Mao');
       expect(novel.status, 'Ongoing');
       expect(novel.description, contains('Reborn in high school, Lu Yan'));
-      expect(novel.coverUrl,
-          'https://img.wtr-lab.com/cdn/series/0viGWduh906iO1MGqXzOa6A9rVjTOkPMeCm9_Q41iuo.jpg');
+      expect(
+        novel.coverUrl,
+        'https://img.wtr-lab.com/cdn/series/0viGWduh906iO1MGqXzOa6A9rVjTOkPMeCm9_Q41iuo.jpg',
+      );
       expect(novel.chapterCount, 960);
     });
 
@@ -237,27 +254,31 @@ void main() {
       expect(chapters.first.contentUrl, _chapterUrl);
     });
 
-    test('getChapter POSTs reader/get and renders the decrypted body',
-        () async {
-      final novelHtml = await File(
-        p.join(baseDir.path, 'wtrlab', 'tests', 'fixtures', 'novel.html'),
-      ).readAsString();
-      final fixture = jsonDecode(await File(
-        p.join(baseDir.path, 'wtrlab', 'tests', 'fixtures', 'chapter.json'),
-      ).readAsString());
-      final transport = FakeTransport()
-        ..addHtml(_novelUrl, novelHtml)
-        ..addJson(_chaptersUrl, _chaptersResponse)
-        ..addPostJson(_readerUrl, fixture);
-      final source = await repo(transport).buildSource('wtrlab');
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
-      final chapters = await source.getChapters(novel);
+    test(
+      'getChapter POSTs reader/get and renders the decrypted body',
+      () async {
+        final novelHtml = await File(
+          p.join(baseDir.path, 'wtrlab', 'tests', 'fixtures', 'novel.html'),
+        ).readAsString();
+        final fixture = jsonDecode(
+          await File(
+            p.join(baseDir.path, 'wtrlab', 'tests', 'fixtures', 'chapter.json'),
+          ).readAsString(),
+        );
+        final transport = FakeTransport()
+          ..addHtml(_novelUrl, novelHtml)
+          ..addJson(_chaptersUrl, _chaptersResponse)
+          ..addPostJson(_readerUrl, fixture);
+        final source = await repo(transport).buildSource('wtrlab');
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final chapters = await source.getChapters(novel);
 
-      final chapter = await source.getChapter(chapters.first);
+        final chapter = await source.getChapter(chapters.first);
 
-      expect(chapter.title, 'Chapter 638: He wrote both of them!?');
-      expect(chapter.content, contains('鬼吹灯之龙中岳'));
-      expect(chapter.wordCount, greaterThan(0));
-    });
+        expect(chapter.title, 'Chapter 638: He wrote both of them!?');
+        expect(chapter.content, contains('鬼吹灯之龙中岳'));
+        expect(chapter.wordCount, greaterThan(0));
+      },
+    );
   });
 }

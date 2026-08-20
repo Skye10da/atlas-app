@@ -28,15 +28,17 @@ class SentenceSplitter {
       for (final sentence in sentences) {
         for (final piece in _hardSplitIfTooLong(sentence, maxChunkChars)) {
           if (piece.trim().isEmpty) continue;
-          items.add(SpeechItem(
-            bookId: bookId,
-            chapterId: chapterId,
-            paragraphIndex: pIndex,
-            sentenceIndex: sIndex,
-            text: piece.trim(),
-            language: language,
-            voiceId: voiceId,
-          ));
+          items.add(
+            SpeechItem(
+              bookId: bookId,
+              chapterId: chapterId,
+              paragraphIndex: pIndex,
+              sentenceIndex: sIndex,
+              text: piece.trim(),
+              language: language,
+              voiceId: voiceId,
+            ),
+          );
           sIndex++;
         }
       }
@@ -100,7 +102,18 @@ class SentenceSplitter {
   }
 
   static final _abbreviations = {
-    'mr', 'mrs', 'ms', 'dr', 'prof', 'sr', 'jr', 'st', 'vs', 'etc', 'e.g', 'i.e',
+    'mr',
+    'mrs',
+    'ms',
+    'dr',
+    'prof',
+    'sr',
+    'jr',
+    'st',
+    'vs',
+    'etc',
+    'e.g',
+    'i.e',
   };
 
   bool _looksLikeAbbreviationOrDecimal(String text, int dotIndex) {
@@ -118,7 +131,8 @@ class SentenceSplitter {
     return _abbreviations.contains(word);
   }
 
-  bool _isDigit(String s) => s.isNotEmpty && s.codeUnitAt(0) >= 48 && s.codeUnitAt(0) <= 57;
+  bool _isDigit(String s) =>
+      s.isNotEmpty && s.codeUnitAt(0) >= 48 && s.codeUnitAt(0) <= 57;
 
   List<String> _hardSplitIfTooLong(String sentence, int maxChars) {
     if (sentence.length <= maxChars) return [sentence];

@@ -9,7 +9,10 @@ class SourceBrowserScreen extends ConsumerWidget {
   const SourceBrowserScreen({super.key});
 
   static const _sourceMeta = {
-    'Project Gutenberg': _SourceMeta(Icons.auto_stories, '~75,000 free ebooks in the public domain'),
+    'Project Gutenberg': _SourceMeta(
+      Icons.auto_stories,
+      '~75,000 free ebooks in the public domain',
+    ),
   };
 
   @override
@@ -31,15 +34,22 @@ class SourceBrowserScreen extends ConsumerWidget {
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final source = sources[index];
-          final meta = _sourceMeta[source.sourceName] ??
+          final meta =
+              _sourceMeta[source.sourceName] ??
               const _SourceMeta(Icons.library_books, 'Explore new books');
 
           return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 8,
+            ),
             leading: CircleAvatar(
               radius: 24,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(meta.icon, color: theme.colorScheme.onPrimaryContainer),
+              child: Icon(
+                meta.icon,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
             ),
             title: Text(source.sourceName, style: theme.textTheme.titleMedium),
             subtitle: Padding(
@@ -47,7 +57,9 @@ class SourceBrowserScreen extends ConsumerWidget {
               child: Text(meta.description, style: theme.textTheme.bodySmall),
             ),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/sources/${Uri.encodeComponent(source.sourceName)}'),
+            onTap: () => context.push(
+              '/sources/${Uri.encodeComponent(source.sourceName)}',
+            ),
           );
         },
       ),

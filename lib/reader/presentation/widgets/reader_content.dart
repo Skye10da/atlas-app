@@ -86,10 +86,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   @override
   void initState() {
     super.initState();
-    _speechSub = ref
-        .read(speechEngineProvider)
-        .events
-        .listen(_onSpeechEvent);
+    _speechSub = ref.read(speechEngineProvider).events.listen(_onSpeechEvent);
     _loadChapters();
   }
 
@@ -103,8 +100,12 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
           ref.read(activeSpeechItemProvider.notifier).state = item;
         }
       case WordBoundary(:final item, :final start, :final end, :final word):
-        ref.read(activeWordBoundaryProvider.notifier).state =
-            WordBoundary(item, start, end, word);
+        ref.read(activeWordBoundaryProvider.notifier).state = WordBoundary(
+          item,
+          start,
+          end,
+          word,
+        );
       case SpeechStopped() || SpeechCompleted():
         ref.read(activeSpeechItemProvider.notifier).state = null;
         ref.read(activeWordBoundaryProvider.notifier).state = null;
@@ -137,8 +138,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     if (engine.session?.chapterId == chapter.id) return;
 
     final settings =
-        ref.read(narrationSettingsProvider).value ??
-        const NarrationSettings();
+        ref.read(narrationSettingsProvider).value ?? const NarrationSettings();
     final checkpoint = _restoredCheckpoint;
     final restoreHere =
         checkpoint != null &&
@@ -228,12 +228,14 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
           ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl)
           : null;
     }
-    final checkpoint =
-        await ref.read(speechRecoveryStoreProvider).load(widget.bookId);
+    final checkpoint = await ref
+        .read(speechRecoveryStoreProvider)
+        .load(widget.bookId);
     if (!mounted) return;
     setState(() {
       _restoredCheckpoint =
-          checkpoint != null && _chapters.any((c) => c.id == checkpoint.chapterId)
+          checkpoint != null &&
+              _chapters.any((c) => c.id == checkpoint.chapterId)
           ? checkpoint
           : null;
     });
@@ -253,8 +255,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     if (!mounted) return;
     if (result is Success<List<BookmarkEntity>>) {
       setState(() {
-        _bookmarkedChapterIds =
-            result.value.map((b) => b.chapterId).toSet();
+        _bookmarkedChapterIds = result.value.map((b) => b.chapterId).toSet();
       });
     }
   }
@@ -265,22 +266,25 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     if (_bookmarkedChapterIds.contains(chapter.id)) {
       final result = await widget.repo.getBookmarks(widget.bookId);
       if (result is Success<List<BookmarkEntity>>) {
-        final existing =
-            result.value.where((b) => b.chapterId == chapter.id).toList();
+        final existing = result.value
+            .where((b) => b.chapterId == chapter.id)
+            .toList();
         for (final b in existing) {
           await widget.repo.removeBookmark(b.id);
         }
       }
     } else {
       final now = DateTime.now();
-      await widget.repo.addBookmark(BookmarkEntity(
-        id: '${widget.bookId}_${chapter.id}_${now.millisecondsSinceEpoch}',
-        bookId: widget.bookId,
-        chapterId: chapter.id,
-        position: 0,
-        createdAt: now,
-        updatedAt: now,
-      ));
+      await widget.repo.addBookmark(
+        BookmarkEntity(
+          id: '${widget.bookId}_${chapter.id}_${now.millisecondsSinceEpoch}',
+          bookId: widget.bookId,
+          chapterId: chapter.id,
+          position: 0,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
     }
     ref.invalidate(bookmarksProvider(widget.bookId));
     setState(() {
@@ -299,8 +303,9 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       final params = GoRouterState.of(context).uri.queryParameters;
       _initialChapterId = params['chapterId'];
       final progressParam = params['progress'];
-      _initialScrollProgress =
-          progressParam != null ? double.tryParse(progressParam) : null;
+      _initialScrollProgress = progressParam != null
+          ? double.tryParse(progressParam)
+          : null;
       _readQueryParam = true;
     }
     _applySystemSettings();
@@ -387,11 +392,14 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       if (ref.read(activeChapterIdProvider) != currentChapter.id) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            ref.read(activeChapterIdProvider.notifier).state = currentChapter.id;
+            ref.read(activeChapterIdProvider.notifier).state =
+                currentChapter.id;
           }
         });
       }
-      final content = ref.watch(readerChapterContentProvider(currentChapter)).valueOrNull;
+      final content = ref
+          .watch(readerChapterContentProvider(currentChapter))
+          .valueOrNull;
       if (content != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _syncSpeechSession(currentChapter, content);
@@ -399,7 +407,8 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       }
     }
 
-    final isBookmarked = _currentChapter != null &&
+    final isBookmarked =
+        _currentChapter != null &&
         _bookmarkedChapterIds.contains(_currentChapter!.id);
 
     final savedProgress = _scrollProgress > 0
@@ -408,8 +417,9 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     // The live sentence index (relative to the current chapter) is preferred
     // when it has been reported, so a mid-book mode switch carries the reader
     // forward instead of snapping back to the chapter-1-era resume point.
-    final resumePosition =
-        _currentSentenceIndex > 0 ? _currentSentenceIndex : _initialPosition;
+    final resumePosition = _currentSentenceIndex > 0
+        ? _currentSentenceIndex
+        : _initialPosition;
     if (settings.readingMode == ReadingMode.continuous) {
       return ContinuousReaderLayout(
         chapters: chapters,
@@ -557,19 +567,22 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   void _handleHighlight(String text, Color color, int start, int end) {
     final chapter = _currentChapter;
     if (chapter == null) return;
-    ref.read(annotationsProvider(widget.bookId).notifier).addHighlight(
-      chapterId: chapter.id,
-      start: start,
-      end: end,
-      text: text,
-      colorValue: color.toARGB32(),
-    );
+    ref
+        .read(annotationsProvider(widget.bookId).notifier)
+        .addHighlight(
+          chapterId: chapter.id,
+          start: start,
+          end: end,
+          text: text,
+          colorValue: color.toARGB32(),
+        );
   }
 
   void _handleErase(int start, int end) {
     final chapter = _currentChapter;
     if (chapter == null) return;
-    ref.read(annotationsProvider(widget.bookId).notifier)
+    ref
+        .read(annotationsProvider(widget.bookId).notifier)
         .eraseOverlapping(chapter.id, start, end);
   }
 
@@ -581,11 +594,13 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       initialText: '',
       onSave: (noteText) {
         if (noteText.trim().isEmpty) return;
-        ref.read(annotationsProvider(widget.bookId).notifier).addNote(
-          chapterId: chapter.id,
-          text: noteText,
-          sentence: sentence ?? text,
-        );
+        ref
+            .read(annotationsProvider(widget.bookId).notifier)
+            .addNote(
+              chapterId: chapter.id,
+              text: noteText,
+              sentence: sentence ?? text,
+            );
       },
     );
   }

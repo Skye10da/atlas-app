@@ -39,7 +39,7 @@ class FakeBrowserEngine implements BrowserWebEngine {
   /// [cannedArgs], standing in for the web view's in-page `fetch` callback.
   final Map<String, JsHandlerCallback> handlers = {};
   List<dynamic> cannedArgs = const [
-    '{"b":"<html>from-browser</html>","s":200,"u":"https://novelfull.net/the-99th-divorce.html"}'
+    '{"b":"<html>from-browser</html>","s":200,"u":"https://novelfull.net/the-99th-divorce.html"}',
   ];
 
   @override
@@ -93,6 +93,7 @@ class FakeBrowserEngine implements BrowserWebEngine {
     }
     return null;
   }
+
   @override
   Future<int> search(String query) async => 0;
   @override
@@ -103,27 +104,32 @@ class FakeBrowserEngine implements BrowserWebEngine {
   Future<void> clearFind() async {}
   @override
   Future<void> setSelectionListener(
-          void Function(WebSelection selection)? listener) async {}
+    void Function(WebSelection selection)? listener,
+  ) async {}
   @override
   Future<void> clearSelection() async {}
   @override
   Future<void> selectAllInPage() async {}
   @override
   Future<void> setDownloadListener(
-      void Function(String url, String? mimeType)? listener) async {}
+    void Function(String url, String? mimeType)? listener,
+  ) async {}
   @override
   void addJsHandler(String name, JsHandlerCallback handler) {
     handlers[name] = handler;
   }
+
   @override
   void removeJsHandler(String name) {
     handlers.remove(name);
   }
+
   @override
   Widget buildView() {
     buildCount++;
     return const SizedBox.shrink();
   }
+
   @override
   void dispose() {
     disposed = true;
@@ -238,20 +244,16 @@ void main() {
     return ProviderScope(
       overrides: [
         browserRepositoryProvider.overrideWithValue(repo),
-        browserEngineFactoryProvider.overrideWithValue(
-          ({String? initialUrl}) {
-            final engine = FakeBrowserEngine(initialUrl: initialUrl);
-            createdEngines.add(engine);
-            return engine;
-          },
-        ),
+        browserEngineFactoryProvider.overrideWithValue(({String? initialUrl}) {
+          final engine = FakeBrowserEngine(initialUrl: initialUrl);
+          createdEngines.add(engine);
+          return engine;
+        }),
         // The start page watches plugin discovery for its source tiles; short-
         // circuit it so tests never touch the filesystem or GitHub.
         pluginSourcesProvider.overrideWith((ref) async => <PluginSource>[]),
       ],
-      child: MaterialApp(
-        home: BrowserScreen(initialUrl: initialUrl),
-      ),
+      child: MaterialApp(home: BrowserScreen(initialUrl: initialUrl)),
     );
   }
 
@@ -280,15 +282,18 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('load errors show a banner without unmounting the web view',
-      (tester) async {
+  testWidgets('load errors show a banner without unmounting the web view', (
+    tester,
+  ) async {
     await tester.pumpWidget(harness(initialUrl: 'https://a.example'));
     await tester.pumpAndSettle();
 
     final engine = createdEngines.single;
     expect(find.textContaining('Could not load'), findsNothing);
 
-    engine.reportError('Could not load this page: net::ERR_INTERNET_DISCONNECTED');
+    engine.reportError(
+      'Could not load this page: net::ERR_INTERNET_DISCONNECTED',
+    );
     await tester.pump();
     await tester.pump();
 
@@ -305,8 +310,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a blank start-page tab still mounts the web view and loads',
-      (tester) async {
+  testWidgets('a blank start-page tab still mounts the web view and loads', (
+    tester,
+  ) async {
     await tester.pumpWidget(harness(initialUrl: null));
     await tester.pumpAndSettle();
 
@@ -329,8 +335,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Home returns the current tab to the new-tab page',
-      (tester) async {
+  testWidgets('Home returns the current tab to the new-tab page', (
+    tester,
+  ) async {
     await tester.pumpWidget(harness(initialUrl: 'https://a.example'));
     await tester.pumpAndSettle();
 
@@ -339,15 +346,21 @@ void main() {
     expect(find.byType(BrowserStartPage), findsNothing);
 
     final urlField = find.byType(TextField).first;
-    expect(tester.widget<TextField>(urlField).controller!.text, 'https://a.example');
+    expect(
+      tester.widget<TextField>(urlField).controller!.text,
+      'https://a.example',
+    );
 
     await tester.tap(find.byIcon(Icons.home_rounded));
     await tester.pumpAndSettle();
 
     expect(engine.currentUrl.value, kBrowserStartPageUrl);
     expect(find.byType(BrowserStartPage), findsOneWidget);
-    expect(tester.widget<TextField>(urlField).controller!.text, isEmpty,
-        reason: 'the address pill should clear when Home lands on the start page');
+    expect(
+      tester.widget<TextField>(urlField).controller!.text,
+      isEmpty,
+      reason: 'the address pill should clear when Home lands on the start page',
+    );
     expect(tester.takeException(), isNull);
 
     // Leaving the start page again restores the pill and drops the overlay.
@@ -355,7 +368,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(engine.currentUrl.value, 'https://a.example');
     expect(find.byType(BrowserStartPage), findsNothing);
-    expect(tester.widget<TextField>(urlField).controller!.text, 'https://a.example');
+    expect(
+      tester.widget<TextField>(urlField).controller!.text,
+      'https://a.example',
+    );
   });
 
   testWidgets('routes same-origin plugin fetches through the live web view '
@@ -369,8 +385,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final fetcher = service.fetcher;
-    expect(fetcher, isNotNull,
-        reason: 'the browser shell keeps the shared web-view fetcher installed');
+    expect(
+      fetcher,
+      isNotNull,
+      reason: 'the browser shell keeps the shared web-view fetcher installed',
+    );
 
     // A same-origin chapter URL is served from the live page context...
     final result = await fetcher!(
@@ -379,10 +398,7 @@ void main() {
     expect(result?.body, '<html>from-browser</html>');
 
     // ...and a cross-origin target falls through to null (→ plain HTTP).
-    expect(
-      await fetcher(Uri.parse('https://other.example/x.html')),
-      isNull,
-    );
+    expect(await fetcher(Uri.parse('https://other.example/x.html')), isNull);
 
     // Closing the browser drops the shared fetcher so later plugin fetches
     // don't route into a torn-down web view.

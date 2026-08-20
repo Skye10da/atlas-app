@@ -33,7 +33,7 @@ class FakeBackgroundEngine implements BrowserWebEngine {
   final Map<String, JsHandlerCallback> handlers = {};
   final List<String> evaluated = [];
   List<dynamic> cannedArgs = const [
-    '{"b":"<html>from-background</html>","s":200,"u":"https://novelfull.net/"}'
+    '{"b":"<html>from-background</html>","s":200,"u":"https://novelfull.net/"}',
   ];
 
   /// When set, each `evaluate` call fires handlers with a *fresh* argument list
@@ -111,14 +111,16 @@ class FakeBackgroundEngine implements BrowserWebEngine {
   Future<void> clearFind() async {}
   @override
   Future<void> setSelectionListener(
-      void Function(WebSelection selection)? listener) async {}
+    void Function(WebSelection selection)? listener,
+  ) async {}
   @override
   Future<void> clearSelection() async {}
   @override
   Future<void> selectAllInPage() async {}
   @override
   Future<void> setDownloadListener(
-      void Function(String url, String? mimeType)? listener) async {}
+    void Function(String url, String? mimeType)? listener,
+  ) async {}
   @override
   Widget buildView() => const SizedBox.shrink();
 
@@ -142,8 +144,7 @@ class FakeBackgroundEngine implements BrowserWebEngine {
 enum LoadBehavior { settle, stall, throwOnLoad }
 
 class FakeSessionStore implements BrowserSessionRepositoryInterface {
-  FakeSessionStore([this.cookies = const []])
-      : capturedOrigins = <Uri>[];
+  FakeSessionStore([this.cookies = const []]) : capturedOrigins = <Uri>[];
 
   final List<BrowserSessionCookie> cookies;
   final List<Uri> capturedOrigins;
@@ -159,14 +160,14 @@ class FakeSessionStore implements BrowserSessionRepositoryInterface {
 
 void main() {
   const originRoot = 'https://novelfull.net/';
-  final chapter =
-      Uri.parse('https://novelfull.net/legend-of-swordsman/chapter-1.html');
+  final chapter = Uri.parse(
+    'https://novelfull.net/legend-of-swordsman/chapter-1.html',
+  );
   final other = Uri.parse('https://readnovelfull.com/novel.html');
 
   group('SilentWebViewService', () {
     test('serves a same-origin fetch without navigating', () async {
-      final engine = FakeBackgroundEngine()
-        .._currentUrl.value = originRoot;
+      final engine = FakeBackgroundEngine().._currentUrl.value = originRoot;
       final service = SilentWebViewService(engine: engine);
 
       final html = await service.fetchHtml(chapter);
@@ -187,42 +188,54 @@ void main() {
       expect(engine.currentUrl.value, originRoot);
     });
 
-    test('does not re-navigate once the background view is on the origin',
-        () async {
-      final engine = FakeBackgroundEngine();
-      final service = SilentWebViewService(engine: engine);
+    test(
+      'does not re-navigate once the background view is on the origin',
+      () async {
+        final engine = FakeBackgroundEngine();
+        final service = SilentWebViewService(engine: engine);
 
-      await service.fetchHtml(chapter);
-      final second =
-          await service.fetchHtml(Uri.parse('https://novelfull.net/chapter-2.html'));
+        await service.fetchHtml(chapter);
+        final second = await service.fetchHtml(
+          Uri.parse('https://novelfull.net/chapter-2.html'),
+        );
 
-      expect(second?.body, '<html>from-background</html>');
-      expect(engine.loadedUrls, [originRoot],
-          reason: 'second fetch is same-origin -> no extra navigation');
-    });
+        expect(second?.body, '<html>from-background</html>');
+        expect(
+          engine.loadedUrls,
+          [originRoot],
+          reason: 'second fetch is same-origin -> no extra navigation',
+        );
+      },
+    );
 
-    test('serves a same-origin JSON POST through the background view', () async {
-      final engine = FakeBackgroundEngine();
-      final service = SilentWebViewService(engine: engine);
-      final reader = Uri.parse('https://wtr-lab.com/api/reader/get');
+    test(
+      'serves a same-origin JSON POST through the background view',
+      () async {
+        final engine = FakeBackgroundEngine();
+        final service = SilentWebViewService(engine: engine);
+        final reader = Uri.parse('https://wtr-lab.com/api/reader/get');
 
-      final result = await service.fetchHtml(
-        reader,
-        method: 'POST',
-        jsonBody: {'raw_id': 29058, 'chapter_no': 639},
-      );
+        final result = await service.fetchHtml(
+          reader,
+          method: 'POST',
+          jsonBody: {'raw_id': 29058, 'chapter_no': 639},
+        );
 
-      expect(result?.body, '<html>from-background</html>');
-      expect(engine.loadedUrls, ['https://wtr-lab.com/'],
-          reason: 'the background view syncs to the API origin first');
-      expect(engine.evaluated, isNotEmpty);
-      final script = engine.evaluated.single;
-      expect(script, contains('"POST"'));
-      expect(script, contains('raw_id'));
-      expect(script, contains('29058'));
-      expect(script, contains('chapter_no'));
-      expect(script, contains('639'));
-    });
+        expect(result?.body, '<html>from-background</html>');
+        expect(
+          engine.loadedUrls,
+          ['https://wtr-lab.com/'],
+          reason: 'the background view syncs to the API origin first',
+        );
+        expect(engine.evaluated, isNotEmpty);
+        final script = engine.evaluated.single;
+        expect(script, contains('"POST"'));
+        expect(script, contains('raw_id'));
+        expect(script, contains('29058'));
+        expect(script, contains('chapter_no'));
+        expect(script, contains('639'));
+      },
+    );
 
     test('returns null for a non-servable URL without navigating', () async {
       final engine = FakeBackgroundEngine();
@@ -232,33 +245,36 @@ void main() {
       expect(engine.loadedUrls, isEmpty);
     });
 
-    test('retries through a Cloudflare challenge page before returning',
-        () async {
-      final engine = FakeBackgroundEngine();
-      final sleeps = <Duration>[];
-      final service = SilentWebViewService(
-        engine: engine,
-        sleep: (d) async => sleeps.add(d),
-        challengeRetryDelay: const Duration(milliseconds: 5),
-        maxChallengeRetries: 3,
-      );
-      const challenge = '<html><head><title>Just a moment...</title></head>'
-          '<body class="challenge-platform">cf_chl</body></html>';
+    test(
+      'retries through a Cloudflare challenge page before returning',
+      () async {
+        final engine = FakeBackgroundEngine();
+        final sleeps = <Duration>[];
+        final service = SilentWebViewService(
+          engine: engine,
+          sleep: (d) async => sleeps.add(d),
+          challengeRetryDelay: const Duration(milliseconds: 5),
+          maxChallengeRetries: 3,
+        );
+        const challenge =
+            '<html><head><title>Just a moment...</title></head>'
+            '<body class="challenge-platform">cf_chl</body></html>';
 
-      // First attempt returns the challenge; subsequent attempts return the page.
-      var calls = 0;
-      engine.cannedArgsBuilder = () => [
-            (++calls == 1)
-                ? '{"b":${jsonEncode(challenge)},'
+        // First attempt returns the challenge; subsequent attempts return the page.
+        var calls = 0;
+        engine.cannedArgsBuilder = () => [
+          (++calls == 1)
+              ? '{"b":${jsonEncode(challenge)},'
                     '"s":403,"u":"https://novelfull.net/"}'
-                : '{"b":${jsonEncode('<html>real-chapter</html>')},'
-                    '"s":200,"u":"https://novelfull.net/"}'
-          ];
-      final html = await service.fetchHtml(chapter);
+              : '{"b":${jsonEncode('<html>real-chapter</html>')},'
+                    '"s":200,"u":"https://novelfull.net/"}',
+        ];
+        final html = await service.fetchHtml(chapter);
 
-      expect(html?.body, '<html>real-chapter</html>');
-      expect(sleeps, isNotEmpty, reason: 'waited between challenge retries');
-    });
+        expect(html?.body, '<html>real-chapter</html>');
+        expect(sleeps, isNotEmpty, reason: 'waited between challenge retries');
+      },
+    );
 
     test('gives up on an unresolved challenge and returns null', () async {
       final engine = FakeBackgroundEngine();
@@ -269,39 +285,39 @@ void main() {
       );
       engine.cannedArgs = [
         '{"b":"<html><head><title>Just a moment...</title></head></html>",'
-            '"s":403,"u":"https://novelfull.net/"}'
+            '"s":403,"u":"https://novelfull.net/"}',
       ];
 
       expect(await service.fetchHtml(chapter), isNull);
     });
 
-    test('gives up immediately on an auth wall without challenge retries',
-        () async {
-      final engine = FakeBackgroundEngine()
-        .._currentUrl.value = originRoot;
-      final sleeps = <Duration>[];
-      final service = SilentWebViewService(
-        engine: engine,
-        sleep: (d) async => sleeps.add(d),
-        challengeRetryDelay: const Duration(milliseconds: 5),
-      );
-      engine.cannedArgs = const [
-        '{"b":"<html>sign in</html>","s":401,"u":"https://novelfull.net/login"}'
-      ];
+    test(
+      'gives up immediately on an auth wall without challenge retries',
+      () async {
+        final engine = FakeBackgroundEngine().._currentUrl.value = originRoot;
+        final sleeps = <Duration>[];
+        final service = SilentWebViewService(
+          engine: engine,
+          sleep: (d) async => sleeps.add(d),
+          challengeRetryDelay: const Duration(milliseconds: 5),
+        );
+        engine.cannedArgs = const [
+          '{"b":"<html>sign in</html>","s":401,"u":"https://novelfull.net/login"}',
+        ];
 
-      expect(await service.fetchHtml(chapter), isNull);
-      expect(sleeps, isEmpty,
-          reason: 'an auth wall is not a passable challenge -> no retries');
-    });
+        expect(await service.fetchHtml(chapter), isNull);
+        expect(
+          sleeps,
+          isEmpty,
+          reason: 'an auth wall is not a passable challenge -> no retries',
+        );
+      },
+    );
 
     test('persists a fresh solve back into the session store', () async {
-      final engine = FakeBackgroundEngine()
-        .._currentUrl.value = originRoot;
+      final engine = FakeBackgroundEngine().._currentUrl.value = originRoot;
       final store = FakeSessionStore();
-      final service = SilentWebViewService(
-        engine: engine,
-        sessionStore: store,
-      );
+      final service = SilentWebViewService(engine: engine, sessionStore: store);
 
       await service.fetchHtml(chapter);
 
@@ -320,7 +336,8 @@ void main() {
 
     test('returns null when the engine load throws', () async {
       final engine = FakeBackgroundEngine(
-          loadBehavior: LoadBehavior.throwOnLoad);
+        loadBehavior: LoadBehavior.throwOnLoad,
+      );
       final service = SilentWebViewService(engine: engine);
 
       expect(await service.fetchHtml(chapter), isNull);
@@ -343,8 +360,9 @@ void main() {
 
       await service.fetchHtml(chapter);
 
-      expect(seeded, [Uri.parse(originRoot)],
-          reason: 'session is seeded for the navigated origin');
+      expect(seeded, [
+        Uri.parse(originRoot),
+      ], reason: 'session is seeded for the navigated origin');
     });
 
     test('serializes concurrent cross-origin navigations', () async {

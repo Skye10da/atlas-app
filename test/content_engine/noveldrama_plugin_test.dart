@@ -15,7 +15,8 @@ import 'package:atlas_app/core/content_engine/transport/transport_registry.dart'
 
 import 'test_fixtures.dart';
 
-const _novelUrl = 'https://noveldrama.org/noveldrama/rebirth-super-banking-system';
+const _novelUrl =
+    'https://noveldrama.org/noveldrama/rebirth-super-banking-system';
 const _archiveUrl =
     'https://noveldrama.org/ajax/chapter-archive?novelId=rebirth-super-banking-system';
 const _chapter1Url =
@@ -148,11 +149,16 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('atlas_noveldrama_plugin');
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
-    final source =
-        Directory(p.join(Directory.current.path, 'atlas-plugins', 'noveldrama'));
-    expect(source.existsSync(), isTrue,
-        reason: 'flutter test must run from the package root so that '
-            'atlas-plugins/noveldrama resolves');
+    final source = Directory(
+      p.join(Directory.current.path, 'atlas-plugins', 'noveldrama'),
+    );
+    expect(
+      source.existsSync(),
+      isTrue,
+      reason:
+          'flutter test must run from the package root so that '
+          'atlas-plugins/noveldrama resolves',
+    );
     await _copyDir(source, Directory(p.join(baseDir.path, 'noveldrama')));
   });
 
@@ -161,10 +167,10 @@ void main() {
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: TemplateRegistry.defaults,
-        transportRegistry: _FakeTransportRegistry(transport),
-      );
+    baseDirectory: baseDir,
+    templateRegistry: TemplateRegistry.defaults,
+    transportRegistry: _FakeTransportRegistry(transport),
+  );
 
   group('atlas-plugins/noveldrama/plugin.json', () {
     test('loads a valid manifest for the generic html template', () async {
@@ -185,17 +191,15 @@ void main() {
         PluginCapability.chapterContent,
         PluginCapability.cover,
       });
-      expect(
-        TemplateRegistry.defaults.resolve('html'),
-        isA<HtmlTemplate>(),
-      );
+      expect(TemplateRegistry.defaults.resolve('html'), isA<HtmlTemplate>());
     });
 
     test('declared capabilities are implemented by the template', () async {
       final manifest = await repo(FakeTransport()).load('noveldrama');
       final template = TemplateRegistry.defaults.resolve(manifest.templateId);
-      final unsupported = manifest.capabilities
-          .where((c) => !template.supportedCapabilities.contains(c));
+      final unsupported = manifest.capabilities.where(
+        (c) => !template.supportedCapabilities.contains(c),
+      );
       expect(unsupported, isEmpty);
     });
 
@@ -219,8 +223,9 @@ void main() {
       final source = await repo(FakeTransport()).buildSource('noveldrama');
 
       expect(
-          source.canHandle(Uri.parse('https://noveldrama.org/noveldrama/x')),
-          isTrue);
+        source.canHandle(Uri.parse('https://noveldrama.org/noveldrama/x')),
+        isTrue,
+      );
       expect(source.canHandle(Uri.parse('https://other.com/novel/x')), isFalse);
     });
 
@@ -229,31 +234,36 @@ void main() {
         ..addHtml('https://noveldrama.org/search?keyword=rebirth', _searchPage);
       final source = await repo(transport).buildSource('noveldrama');
 
-      final response =
-          await source.search(const SourceSearchQuery(term: 'rebirth'));
+      final response = await source.search(
+        const SourceSearchQuery(term: 'rebirth'),
+      );
 
       expect(response.results, hasLength(2));
       expect(response.results.first.title, 'Rebirth: Super Banking System');
       expect(response.results.first.importUrl, _novelUrl);
     });
 
-    test('getMetadata bridges the plugin to a novel-category NovelModel',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
-      final source = await repo(transport).buildSource('noveldrama');
+    test(
+      'getMetadata bridges the plugin to a novel-category NovelModel',
+      () async {
+        final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
+        final source = await repo(transport).buildSource('noveldrama');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.category, ContentCategory.novel);
-      expect(novel.source, 'NovelDrama');
-      expect(novel.title, 'Rebirth: Super Banking System');
-      expect(novel.author, 'Mouse No. 6');
-      expect(novel.description, contains('Tang Qing is reborn in 2004'));
-      expect(novel.coverUrl,
-          'https://images.noveldrama.org/novel/rebirth-super-banking-system.jpg');
-      expect(novel.genres, ['Drama', 'Romance']);
-      expect(novel.status, 'Ongoing');
-    });
+        expect(novel.category, ContentCategory.novel);
+        expect(novel.source, 'NovelDrama');
+        expect(novel.title, 'Rebirth: Super Banking System');
+        expect(novel.author, 'Mouse No. 6');
+        expect(novel.description, contains('Tang Qing is reborn in 2004'));
+        expect(
+          novel.coverUrl,
+          'https://images.noveldrama.org/novel/rebirth-super-banking-system.jpg',
+        );
+        expect(novel.genres, ['Drama', 'Romance']);
+        expect(novel.status, 'Ongoing');
+      },
+    );
 
     test('getChapters fetches the full archive from ajaxPath and returns '
         'ascending order', () async {
@@ -303,22 +313,30 @@ void main() {
       expect(chapter.wordCount, greaterThan(0));
     });
 
-    test('metadata selectors supply title and cover when og: tags are polluted',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
-      final source = await repo(transport).buildSource('noveldrama');
+    test(
+      'metadata selectors supply title and cover when og: tags are polluted',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(_novelUrl, _novelPageNoOgTags);
+        final source = await repo(transport).buildSource('noveldrama');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.title, 'Rebirth: Super Banking System',
-          reason: '.desc h3.title must be used instead of polluted og:title');
-      expect(novel.author, 'Mouse No. 6');
-      expect(novel.description, contains('Tang Qing is reborn in 2004'));
-      expect(novel.coverUrl,
+        expect(
+          novel.title,
+          'Rebirth: Super Banking System',
+          reason: '.desc h3.title must be used instead of polluted og:title',
+        );
+        expect(novel.author, 'Mouse No. 6');
+        expect(novel.description, contains('Tang Qing is reborn in 2004'));
+        expect(
+          novel.coverUrl,
           'https://images.noveldrama.org/novel/rebirth-super-banking-system.jpg',
-          reason: '.book img@data-src must resolve the lazy-loaded cover');
-      expect(novel.genres, ['Drama', 'Romance']);
-      expect(novel.source, 'NovelDrama');
-    });
+          reason: '.book img@data-src must resolve the lazy-loaded cover',
+        );
+        expect(novel.genres, ['Drama', 'Romance']);
+        expect(novel.source, 'NovelDrama');
+      },
+    );
   });
 }

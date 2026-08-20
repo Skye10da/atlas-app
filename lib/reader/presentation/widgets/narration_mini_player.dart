@@ -34,11 +34,12 @@ class NarrationMiniPlayer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final engine = ref.watch(speechEngineProvider);
     final session = engine.session;
-    if (session == null || session.queue.isEmpty) return const SizedBox.shrink();
+    if (session == null || session.queue.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     final status =
-        ref.watch(narrationStatusProvider).valueOrNull ??
-        NarrationStatus.idle;
+        ref.watch(narrationStatusProvider).valueOrNull ?? NarrationStatus.idle;
     if (status == NarrationStatus.idle) return const SizedBox.shrink();
 
     final colorScheme = Theme.of(context).colorScheme;
@@ -54,12 +55,7 @@ class NarrationMiniPlayer extends ConsumerWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.sm,
-          0,
-          AppSpacing.sm,
-          6,
-        ),
+        padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 0, AppSpacing.sm, 6),
         child: Material(
           elevation: 6,
           borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
@@ -87,11 +83,11 @@ class NarrationMiniPlayer extends ConsumerWidget {
                     children: [
                       const SizedBox(width: 8),
                       IconButton(
-                        onPressed: () =>
-                            unawaited(_toggle(engine, status)),
+                        onPressed: () => unawaited(_toggle(engine, status)),
                         icon: Icon(
                           switch (status) {
-                            NarrationStatus.playing => Icons.pause_circle_filled,
+                            NarrationStatus.playing =>
+                              Icons.pause_circle_filled,
                             NarrationStatus.paused => Icons.play_circle_filled,
                             NarrationStatus.idle => Icons.play_circle_filled,
                           },
@@ -111,12 +107,17 @@ class NarrationMiniPlayer extends ConsumerWidget {
                           boundary: boundary,
                           playing: status == NarrationStatus.playing,
                           fallback: chapterTitle ?? bookTitle ?? 'Narrating',
-                          dimColor: colorScheme.onSurface.withValues(alpha: 0.65),
+                          dimColor: colorScheme.onSurface.withValues(
+                            alpha: 0.65,
+                          ),
                           accent: tint,
                         ),
                       ),
                       const SizedBox(width: 4),
-                      NarrationSpeedControl(accent: tint, color: colorScheme.onSurface),
+                      NarrationSpeedControl(
+                        accent: tint,
+                        color: colorScheme.onSurface,
+                      ),
                       const SizedBox(width: 2),
                       IconButton(
                         onPressed: () => unawaited(engine.skipNext()),
@@ -308,9 +309,10 @@ class _MiniLyricState extends State<_MiniLyric>
   }
 
   static bool _sameWord(String a, String b) {
-    String normalize(String s) => s
-        .toLowerCase()
-        .replaceAll(RegExp(r"[^\p{L}\p{N}'’\u2019-]", unicode: true), '');
+    String normalize(String s) => s.toLowerCase().replaceAll(
+      RegExp(r"[^\p{L}\p{N}'’\u2019-]", unicode: true),
+      '',
+    );
     final na = normalize(a);
     return na.isNotEmpty && na == normalize(b);
   }
@@ -340,8 +342,9 @@ class _MiniLyricState extends State<_MiniLyric>
 
   TextStyle get _baseStyle => TextStyle(
     fontSize: 13,
-    fontWeight:
-        _sentence == widget.fallback ? FontWeight.w600 : FontWeight.w500,
+    fontWeight: _sentence == widget.fallback
+        ? FontWeight.w600
+        : FontWeight.w500,
     color: widget.dimColor,
   );
 
@@ -376,15 +379,13 @@ class _MiniLyricState extends State<_MiniLyric>
     return TextSpan(text: _sentence, style: _baseStyle);
   }
 
-  int? get _startBounds =>
-      (_activeWord >= 0 && _activeWord < _words.length)
-          ? _words[_activeWord].start
-          : null;
+  int? get _startBounds => (_activeWord >= 0 && _activeWord < _words.length)
+      ? _words[_activeWord].start
+      : null;
 
-  int? get _endBounds =>
-      (_activeWord >= 0 && _activeWord < _words.length)
-          ? _words[_activeWord].end
-          : null;
+  int? get _endBounds => (_activeWord >= 0 && _activeWord < _words.length)
+      ? _words[_activeWord].end
+      : null;
 
   /// Horizontal position of the word starting at [wordStart] within the laid
   /// out line, in logical pixels.
@@ -407,11 +408,7 @@ class _MiniLyricState extends State<_MiniLyric>
 
   @override
   Widget build(BuildContext context) {
-    final text = Text.rich(
-      _span(),
-      maxLines: 1,
-      overflow: TextOverflow.clip,
-    );
+    final text = Text.rich(_span(), maxLines: 1, overflow: TextOverflow.clip);
 
     return ClipRect(
       child: AnimatedBuilder(
@@ -429,7 +426,11 @@ class _MiniLyricState extends State<_MiniLyric>
 }
 
 class _WordRange {
-  const _WordRange({required this.start, required this.end, required this.word});
+  const _WordRange({
+    required this.start,
+    required this.end,
+    required this.word,
+  });
 
   final int start;
   final int end;

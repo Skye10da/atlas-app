@@ -16,13 +16,14 @@ import 'package:atlas_app/core/session/session_refresh_service.dart';
 /// Returning `null` means "cannot serve this request" (the web view is on a
 /// different origin, or the in-page fetch failed); [WebViewTransport] then
 /// falls back to plain HTTP.
-typedef WebViewFetcher = Future<WebViewFetchResult?> Function(
-  Uri url, {
-  Map<String, String>? headers,
-  String? method,
-  Object? jsonBody,
-  bool binary,
-});
+typedef WebViewFetcher =
+    Future<WebViewFetchResult?> Function(
+      Uri url, {
+      Map<String, String>? headers,
+      String? method,
+      Object? jsonBody,
+      bool binary,
+    });
 
 /// Process-wide handle the in-app browser fills for the duration of a
 /// browser-initiated import, so already-constructed plugin sources route their
@@ -51,7 +52,7 @@ class WebViewFetchService {
 /// Unset / unusable fetchers degrade transparently to the inner transport.
 class WebViewTransport implements Transport {
   WebViewTransport({required this.inner, WebViewFetchService? service})
-      : _service = service ?? WebViewFetchService.instance;
+    : _service = service ?? WebViewFetchService.instance;
 
   final Transport inner;
   final WebViewFetchService _service;
@@ -168,10 +169,7 @@ class WebViewTransport implements Transport {
     Object? jsonBody,
     bool binary = false,
   }) async {
-    for (final fetcher in [
-      _service.fetcher,
-      _service.fallbackFetcher,
-    ]) {
+    for (final fetcher in [_service.fetcher, _service.fallbackFetcher]) {
       if (fetcher == null) continue;
       try {
         final result = await fetcher(

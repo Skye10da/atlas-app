@@ -80,33 +80,35 @@ void main() {
   });
 
   PluginUpdater buildUpdater(FakeTransport transport) => PluginUpdater(
-        source: GithubPluginSource(
-          config: _config,
-          transport: transport,
-        ),
-        targetDirectory: tempDir,
+    source: GithubPluginSource(config: _config, transport: transport),
+    targetDirectory: tempDir,
+    templateRegistry: TemplateRegistry.defaults,
+  );
+
+  test(
+    'installs a plugin and makes it discoverable via PluginRepository',
+    () async {
+      final transport = FakeTransport();
+      _servePlugin(transport, 'mvlempyr', '1.0.0');
+
+      final results = await buildUpdater(transport).sync();
+      final result = results.single;
+      expect(result.pluginId, 'mvlempyr');
+      expect(result.status, PluginUpdateStatus.installed);
+      expect(result.fromVersion, isNull);
+
+      final repository = PluginRepository(
+        baseDirectory: tempDir,
         templateRegistry: TemplateRegistry.defaults,
       );
-
-  test('installs a plugin and makes it discoverable via PluginRepository',
-      () async {
-    final transport = FakeTransport();
-    _servePlugin(transport, 'mvlempyr', '1.0.0');
-
-    final results = await buildUpdater(transport).sync();
-    final result = results.single;
-    expect(result.pluginId, 'mvlempyr');
-    expect(result.status, PluginUpdateStatus.installed);
-    expect(result.fromVersion, isNull);
-
-    final repository = PluginRepository(
-      baseDirectory: tempDir,
-      templateRegistry: TemplateRegistry.defaults,
-    );
-    final manifest = await repository.load('mvlempyr');
-    expect(manifest.version, const PluginVersion(major: 1, minor: 0, patch: 0));
-    expect(await repository.loadAll(), hasLength(1));
-  });
+      final manifest = await repository.load('mvlempyr');
+      expect(
+        manifest.version,
+        const PluginVersion(major: 1, minor: 0, patch: 0),
+      );
+      expect(await repository.loadAll(), hasLength(1));
+    },
+  );
 
   test('upgrades when the catalog version is newer', () async {
     final transport = FakeTransport();
@@ -118,7 +120,10 @@ void main() {
     final results = await buildUpdater(transport).sync();
     final result = results.single;
     expect(result.status, PluginUpdateStatus.upgraded);
-    expect(result.fromVersion, const PluginVersion(major: 1, minor: 0, patch: 0));
+    expect(
+      result.fromVersion,
+      const PluginVersion(major: 1, minor: 0, patch: 0),
+    );
 
     final manifest = await PluginRepository(
       baseDirectory: tempDir,
@@ -143,50 +148,59 @@ void main() {
     );
   });
 
-  test('a checksum mismatch fails the plugin and leaves nothing installed',
-      () async {
-    final transport = FakeTransport();
-    _servePlugin(transport, 'mvlempyr', '1.0.0');
-    // Corrupt the on-the-wire payload after checksums were computed.
-    final url = _config.fileUrl('mvlempyr', 'plugin.json').toString();
-    transport.htmlByUrl[url] = 'tampered';
-    transport.htmlByPath[Uri.parse(url).path] = 'tampered';
+  test(
+    'a checksum mismatch fails the plugin and leaves nothing installed',
+    () async {
+      final transport = FakeTransport();
+      _servePlugin(transport, 'mvlempyr', '1.0.0');
+      // Corrupt the on-the-wire payload after checksums were computed.
+      final url = _config.fileUrl('mvlempyr', 'plugin.json').toString();
+      transport.htmlByUrl[url] = 'tampered';
+      transport.htmlByPath[Uri.parse(url).path] = 'tampered';
 
-    final result = (await buildUpdater(transport).sync()).single;
-    expect(result.status, PluginUpdateStatus.failed);
-    expect(result.error, contains('Checksum mismatch'));
+      final result = (await buildUpdater(transport).sync()).single;
+      expect(result.status, PluginUpdateStatus.failed);
+      expect(result.error, contains('Checksum mismatch'));
 
-    final pluginDir = Directory(p.join(tempDir.path, 'mvlempyr'));
-    expect(await pluginDir.exists(), isFalse);
-  });
+      final pluginDir = Directory(p.join(tempDir.path, 'mvlempyr'));
+      expect(await pluginDir.exists(), isFalse);
+    },
+  );
 
-  test('a catalog that cannot be fetched throws PluginDistributionException',
-      () async {
-    final transport = FakeTransport(); // no fixtures
-    expect(
-      () => buildUpdater(transport).sync(),
-      throwsA(isA<PluginDistributionException>()),
-    );
-  });
+  test(
+    'a catalog that cannot be fetched throws PluginDistributionException',
+    () async {
+      final transport = FakeTransport(); // no fixtures
+      expect(
+        () => buildUpdater(transport).sync(),
+        throwsA(isA<PluginDistributionException>()),
+      );
+    },
+  );
 
-  test('a plugin whose manifest version differs from the catalog entry fails',
-      () async {
-    final transport = FakeTransport();
-    // Catalog entry says 1.0.0, but the served (and correctly checksummed)
-    // manifest claims 2.0.0. The checksum verifies fine; the version
-    // mismatch is caught on reload.
-    _servePlugin(
-      transport,
-      'mvlempyr',
-      '1.0.0',
-      pluginJsonOverride: _pluginJson('mvlempyr', '2.0.0'),
-    );
+  test(
+    'a plugin whose manifest version differs from the catalog entry fails',
+    () async {
+      final transport = FakeTransport();
+      // Catalog entry says 1.0.0, but the served (and correctly checksummed)
+      // manifest claims 2.0.0. The checksum verifies fine; the version
+      // mismatch is caught on reload.
+      _servePlugin(
+        transport,
+        'mvlempyr',
+        '1.0.0',
+        pluginJsonOverride: _pluginJson('mvlempyr', '2.0.0'),
+      );
 
-    final result = (await buildUpdater(transport).sync()).single;
-    expect(result.status, PluginUpdateStatus.failed);
-    expect(result.error, contains('does not match the catalog'));
-    expect(await Directory(p.join(tempDir.path, 'mvlempyr')).exists(), isFalse);
-  });
+      final result = (await buildUpdater(transport).sync()).single;
+      expect(result.status, PluginUpdateStatus.failed);
+      expect(result.error, contains('does not match the catalog'));
+      expect(
+        await Directory(p.join(tempDir.path, 'mvlempyr')).exists(),
+        isFalse,
+      );
+    },
+  );
 
   test('extra support files are downloaded and written', () async {
     final transport = FakeTransport();

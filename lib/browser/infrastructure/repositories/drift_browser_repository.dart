@@ -15,10 +15,11 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
   @override
   Future<Result<List<WebHistoryEntry>>> getAllHistory({int limit = 50}) async {
     try {
-      final rows = await (_db.select(_db.webHistory)
-            ..orderBy([(h) => OrderingTerm.desc(h.visitedAt)])
-            ..limit(limit))
-          .get();
+      final rows =
+          await (_db.select(_db.webHistory)
+                ..orderBy([(h) => OrderingTerm.desc(h.visitedAt)])
+                ..limit(limit))
+              .get();
       return Success(rows.map(_historyFrom).toList());
     } catch (e, st) {
       return Failure(DatabaseException('Failed to load web history', e), st);
@@ -46,13 +47,16 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
         return const Success(null);
       }
       final now = visitedAt ?? DateTime.now();
-      final latest = await (_db.select(_db.webHistory)
-            ..orderBy([(h) => OrderingTerm.desc(h.visitedAt)])
-            ..limit(1))
-          .getSingleOrNull();
+      final latest =
+          await (_db.select(_db.webHistory)
+                ..orderBy([(h) => OrderingTerm.desc(h.visitedAt)])
+                ..limit(1))
+              .getSingleOrNull();
 
       if (latest != null && latest.url == url0) {
-        await (_db.update(_db.webHistory)..where((h) => h.id.equals(latest.id))).write(
+        await (_db.update(
+          _db.webHistory,
+        )..where((h) => h.id.equals(latest.id))).write(
           WebHistoryCompanion(
             title: title != null ? Value(title) : const Value.absent(),
             visitedAt: Value(now),
@@ -62,7 +66,9 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
       }
 
       final id = '$url0#${now.microsecondsSinceEpoch}';
-      await _db.into(_db.webHistory).insert(
+      await _db
+          .into(_db.webHistory)
+          .insert(
             WebHistoryCompanion.insert(
               id: id,
               url: url0,
@@ -89,9 +95,9 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
   @override
   Future<Result<List<BrowserBookmark>>> getAllBookmarks() async {
     try {
-      final rows = await (_db.select(_db.webBookmarks)
-            ..orderBy([(b) => OrderingTerm.desc(b.createdAt)]))
-          .get();
+      final rows = await (_db.select(
+        _db.webBookmarks,
+      )..orderBy([(b) => OrderingTerm.desc(b.createdAt)])).get();
       return Success(rows.map(_bookmarkFrom).toList());
     } catch (e, st) {
       return Failure(DatabaseException('Failed to load web bookmarks', e), st);
@@ -109,7 +115,9 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
   @override
   Future<Result<void>> addBookmark(BrowserBookmark bookmark) async {
     try {
-      await _db.into(_db.webBookmarks).insertOnConflictUpdate(
+      await _db
+          .into(_db.webBookmarks)
+          .insertOnConflictUpdate(
             WebBookmarksCompanion(
               id: Value(bookmark.id),
               url: Value(bookmark.url),
@@ -129,7 +137,9 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
   @override
   Future<Result<void>> removeBookmark(String bookmarkId) async {
     try {
-      await (_db.delete(_db.webBookmarks)..where((b) => b.id.equals(bookmarkId))).go();
+      await (_db.delete(
+        _db.webBookmarks,
+      )..where((b) => b.id.equals(bookmarkId))).go();
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to remove web bookmark', e), st);
@@ -139,9 +149,9 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
   @override
   Future<Result<List<WebTabState>>> getTabs() async {
     try {
-      final rows = await (_db.select(_db.webTabs)
-            ..orderBy([(t) => OrderingTerm.asc(t.order)]))
-          .get();
+      final rows = await (_db.select(
+        _db.webTabs,
+      )..orderBy([(t) => OrderingTerm.asc(t.order)])).get();
       return Success(rows.map(_tabFrom).toList());
     } catch (e, st) {
       return Failure(DatabaseException('Failed to load web tabs', e), st);
@@ -151,7 +161,9 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
   @override
   Future<Result<void>> upsertTab(WebTabState tab) async {
     try {
-      await _db.into(_db.webTabs).insertOnConflictUpdate(
+      await _db
+          .into(_db.webTabs)
+          .insertOnConflictUpdate(
             WebTabsCompanion(
               id: Value(tab.id),
               url: Value(tab.url),
@@ -187,25 +199,25 @@ class DriftBrowserRepository implements BrowserRepositoryInterface {
   }
 
   WebHistoryEntry _historyFrom(WebHistoryData row) => WebHistoryEntry(
-        id: row.id,
-        url: row.url,
-        title: row.title,
-        visitedAt: row.visitedAt,
-      );
+    id: row.id,
+    url: row.url,
+    title: row.title,
+    visitedAt: row.visitedAt,
+  );
 
   BrowserBookmark _bookmarkFrom(WebBookmark row) => BrowserBookmark(
-        id: row.id,
-        url: row.url,
-        title: row.title,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-      );
+    id: row.id,
+    url: row.url,
+    title: row.title,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  );
 
   WebTabState _tabFrom(WebTab row) => WebTabState(
-        id: row.id,
-        url: row.url,
-        title: row.title,
-        order: row.order,
-        lastActiveAt: row.lastActiveAt,
-      );
+    id: row.id,
+    url: row.url,
+    title: row.title,
+    order: row.order,
+    lastActiveAt: row.lastActiveAt,
+  );
 }

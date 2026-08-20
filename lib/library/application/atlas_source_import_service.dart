@@ -71,10 +71,7 @@ class AtlasSourceImportService {
 
   /// Parses an `.atlas` source-link package and returns a [NovelModel] for
   /// the preview stage without performing the actual import.
-  Future<NovelModel> extractMetadata(
-    List<int> bytes,
-    String fileName,
-  ) async {
+  Future<NovelModel> extractMetadata(List<int> bytes, String fileName) async {
     final decoded = jsonDecode(utf8.decode(bytes)) as Map;
     final book = decoded['book'] as Map? ?? {};
     final source = decoded['source'] as Map? ?? {};
@@ -88,23 +85,22 @@ class AtlasSourceImportService {
 
     return NovelModel(
       sourceId: source['id']?.toString() ?? fileName,
-      title:
-          book['title']?.toString() ?? fileName.replaceAll('.atlas', ''),
+      title: book['title']?.toString() ?? fileName.replaceAll('.atlas', ''),
       author: book['author']?.toString(),
       description: book['description']?.toString(),
       coverBytes: coverBytes,
       language: book['language']?.toString(),
       genres: (book['genres'] as List?)?.cast<String>() ?? [],
       status: book['status']?.toString(),
-      rating:
-          book['rating'] is num ? (book['rating'] as num).toDouble() : null,
+      rating: book['rating'] is num ? (book['rating'] as num).toDouble() : null,
       source: source['name']?.toString() ?? 'Atlas',
       sourceUrl: source['url']?.toString() ?? '',
       category: decoded['category'] == 'novel'
           ? ContentCategory.novel
           : ContentCategory.book,
-      chapterCount:
-          book['totalChapters'] is int ? book['totalChapters'] as int : 0,
+      chapterCount: book['totalChapters'] is int
+          ? book['totalChapters'] as int
+          : 0,
     );
   }
 }

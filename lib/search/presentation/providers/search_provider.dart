@@ -12,7 +12,9 @@ final searchRepositoryProvider = Provider((ref) {
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
-final searchResultsProvider = FutureProvider<Result<List<SearchResultEntity>>>((ref) {
+final searchResultsProvider = FutureProvider<Result<List<SearchResultEntity>>>((
+  ref,
+) {
   final query = ref.watch(searchQueryProvider).trim();
   if (query.isEmpty) return const Success([]);
   final repo = ref.watch(searchRepositoryProvider);

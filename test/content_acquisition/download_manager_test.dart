@@ -10,10 +10,7 @@ import 'package:atlas_app/core/content_acquisition/services/cache_manager.dart';
 import 'package:atlas_app/core/content_acquisition/services/download_manager.dart';
 
 class _FakeSource implements SourceAdapter {
-  _FakeSource({
-    this.failFirst = false,
-    this.delay = Duration.zero,
-  });
+  _FakeSource({this.failFirst = false, this.delay = Duration.zero});
 
   final bool failFirst;
   bool failAlways = false;
@@ -71,38 +68,44 @@ void main() {
   });
 
   ChapterModel chapter(int i) => ChapterModel(
-        id: 'ch$i',
-        title: 'Chapter $i',
-        index: i,
-        contentUrl: 'https://example.com/$i',
-      );
+    id: 'ch$i',
+    title: 'Chapter $i',
+    index: i,
+    contentUrl: 'https://example.com/$i',
+  );
 
   group('DownloadManager', () {
-    test('downloads a chapter and reports queued → downloading → done',
-        () async {
-      final source = _FakeSource();
-      final manager = DownloadManager(cacheManager: cache, workerCount: 1);
+    test(
+      'downloads a chapter and reports queued → downloading → done',
+      () async {
+        final source = _FakeSource();
+        final manager = DownloadManager(cacheManager: cache, workerCount: 1);
 
-      final statuses = <DownloadStatus>[];
-      manager.events.listen((e) => statuses.add(e.status));
+        final statuses = <DownloadStatus>[];
+        manager.events.listen((e) => statuses.add(e.status));
 
-      manager.enqueue('book1', chapter(0), source);
-      await manager.waitForIdle();
+        manager.enqueue('book1', chapter(0), source);
+        await manager.waitForIdle();
 
-      expect(statuses, [
-        DownloadStatus.queued,
-        DownloadStatus.downloading,
-        DownloadStatus.done,
-      ]);
-      expect(await cache.hasChapter('book1', 'ch0'), isTrue);
-      expect(await cache.getChapter('book1', 'ch0'), 'content of ch0');
-    });
+        expect(statuses, [
+          DownloadStatus.queued,
+          DownloadStatus.downloading,
+          DownloadStatus.done,
+        ]);
+        expect(await cache.hasChapter('book1', 'ch0'), isTrue);
+        expect(await cache.getChapter('book1', 'ch0'), 'content of ch0');
+      },
+    );
 
     test('enqueues multiple chapters', () async {
       final source = _FakeSource();
       final manager = DownloadManager(cacheManager: cache, workerCount: 2);
 
-      manager.enqueueMany('book1', [chapter(0), chapter(1), chapter(2)], source);
+      manager.enqueueMany('book1', [
+        chapter(0),
+        chapter(1),
+        chapter(2),
+      ], source);
       await manager.waitForIdle();
 
       for (var i = 0; i < 3; i++) {
@@ -128,7 +131,12 @@ void main() {
         started.add(e.chapterId);
       });
 
-      manager.enqueueMany('book1', [chapter(0), chapter(1), chapter(2), chapter(3)], source);
+      manager.enqueueMany('book1', [
+        chapter(0),
+        chapter(1),
+        chapter(2),
+        chapter(3),
+      ], source);
       await manager.waitForIdle();
 
       expect(maxConcurrent.reduce((a, b) => a > b ? a : b), 2);
@@ -150,7 +158,10 @@ void main() {
       manager.enqueue('book1', chapter(0), source);
       await manager.waitForIdle();
 
-      expect(statuses.where((s) => s == DownloadStatus.downloading), hasLength(2));
+      expect(
+        statuses.where((s) => s == DownloadStatus.downloading),
+        hasLength(2),
+      );
       expect(statuses.last, DownloadStatus.done);
       expect(source.fetchCount, 2);
       expect(await cache.hasChapter('book1', 'ch0'), isTrue);

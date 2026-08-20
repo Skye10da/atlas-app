@@ -54,43 +54,41 @@ final chapterLoadPhaseProvider =
 
 final readerChapterContentProvider =
     FutureProvider.family<String, ChapterEntity>((ref, chapter) async {
-  final repo = ref.watch(readerRepositoryProvider);
-  void publish(ChapterLoadPhase phase) =>
-      scheduleMicrotask(() {
+      final repo = ref.watch(readerRepositoryProvider);
+      void publish(ChapterLoadPhase phase) => scheduleMicrotask(() {
         ref.read(chapterLoadPhaseProvider(chapter).notifier).state = phase;
       });
 
-  publish(ChapterLoadPhase.gettingText);
+      publish(ChapterLoadPhase.gettingText);
 
-  if (!await File(chapter.contentPath).exists()) {
-    final downloadService = ref.watch(chapterDownloadServiceProvider);
-    final downloadResult = await _downloadChapterWithSessionRefresh(
-      ref,
-      chapter,
-      downloadService,
-    );
-    if (downloadResult is Failure) {
-      // Propagate as a real provider failure (AsyncError) instead of
-      // resolving with the error text as if it were chapter content — the
-      // reader's error UI (with its Retry action) only ever sees this
-      // through the `error` case of `AsyncValue.when`.
-      throw downloadResult.error;
-    }
-  }
+      if (!await File(chapter.contentPath).exists()) {
+        final downloadService = ref.watch(chapterDownloadServiceProvider);
+        final downloadResult = await _downloadChapterWithSessionRefresh(
+          ref,
+          chapter,
+          downloadService,
+        );
+        if (downloadResult is Failure) {
+          // Propagate as a real provider failure (AsyncError) instead of
+          // resolving with the error text as if it were chapter content — the
+          // reader's error UI (with its Retry action) only ever sees this
+          // through the `error` case of `AsyncValue.when`.
+          throw downloadResult.error;
+        }
+      }
 
-  publish(ChapterLoadPhase.processing);
-  final result = await repo.getChapterContent(chapter.contentPath);
-  publish(ChapterLoadPhase.preparing);
-  return switch (result) {
-    Success(value: final content) =>
-      await _applyAtlasGlossary(
-        ref,
-        chapter.bookId,
-        await _applyTranslation(ref, chapter, content),
-      ),
-    Failure(error: final error) => throw error,
-  };
-});
+      publish(ChapterLoadPhase.processing);
+      final result = await repo.getChapterContent(chapter.contentPath);
+      publish(ChapterLoadPhase.preparing);
+      return switch (result) {
+        Success(value: final content) => await _applyAtlasGlossary(
+          ref,
+          chapter.bookId,
+          await _applyTranslation(ref, chapter, content),
+        ),
+        Failure(error: final error) => throw error,
+      };
+    });
 
 /// Translates [content] for a non-WTR novel when the reader's translation
 /// toggle is on. WTR novels are skipped: their Web / WebPlus / AI services
@@ -113,9 +111,13 @@ Future<String> _applyTranslation(
     return content;
   }
 
-  final enabled = await ref.watch(translationEnabledProvider(chapter.bookId).future);
+  final enabled = await ref.watch(
+    translationEnabledProvider(chapter.bookId).future,
+  );
   if (!enabled) return content;
-  final language = await ref.watch(targetLanguageProvider(chapter.bookId).future);
+  final language = await ref.watch(
+    targetLanguageProvider(chapter.bookId).future,
+  );
   if (language == null) return content;
 
   final service = ref.watch(googleTranslateServiceProvider);
@@ -153,8 +155,10 @@ Future<String> _applyAtlasGlossary(
 
 /// The book's source URL for a chapter's book — used to map a session-expired
 /// failure (which latches an origin) back to the chapter being displayed.
-final chapterSourceUrlProvider =
-    FutureProvider.family<String?, ChapterEntity>((ref, chapter) async {
+final chapterSourceUrlProvider = FutureProvider.family<String?, ChapterEntity>((
+  ref,
+  chapter,
+) async {
   final result = await ref
       .read(readerRepositoryProvider)
       .getBookById(chapter.bookId);
@@ -224,8 +228,10 @@ Future<String?> _targetLanguageCode(Ref ref, String bookId) async {
 
 final readerLoadingProvider = StateProvider<bool>((_) => false);
 
-final bookmarksProvider =
-    FutureProvider.family<List<BookmarkEntity>, String>((ref, bookId) async {
+final bookmarksProvider = FutureProvider.family<List<BookmarkEntity>, String>((
+  ref,
+  bookId,
+) async {
   final repo = ref.watch(readerRepositoryProvider);
   final result = await repo.getBookmarks(bookId);
   return switch (result) {
@@ -234,8 +240,7 @@ final bookmarksProvider =
   };
 });
 
-final allBookmarksProvider =
-    FutureProvider<List<BookmarkEntity>>((ref) async {
+final allBookmarksProvider = FutureProvider<List<BookmarkEntity>>((ref) async {
   final repo = ref.watch(readerRepositoryProvider);
   final result = await repo.getAllBookmarks();
   return switch (result) {
@@ -267,18 +272,20 @@ final novelExportServiceProvider = Provider((ref) {
 
 final novelChaptersProvider =
     FutureProvider.family<List<ChapterEntity>, String>((ref, bookId) async {
-  final repo = ref.watch(readerRepositoryProvider);
-  final result = await repo.getChapters(bookId);
-  return switch (result) {
-    Success(value: final chapters) => chapters,
-    Failure() => <ChapterEntity>[],
-  };
-});
+      final repo = ref.watch(readerRepositoryProvider);
+      final result = await repo.getChapters(bookId);
+      return switch (result) {
+        Success(value: final chapters) => chapters,
+        Failure() => <ChapterEntity>[],
+      };
+    });
 
 final chapterDownloadingSetProvider = StateProvider<Set<String>>((ref) => {});
 
-final lastReadChapterProvider =
-    FutureProvider.family<ChapterEntity?, String>((ref, bookId) async {
+final lastReadChapterProvider = FutureProvider.family<ChapterEntity?, String>((
+  ref,
+  bookId,
+) async {
   final db = ref.watch(databaseProvider);
   final progress = await db.getReadingProgress(bookId);
   if (progress == null) return null;

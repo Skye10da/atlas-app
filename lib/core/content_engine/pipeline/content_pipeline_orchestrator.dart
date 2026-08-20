@@ -24,8 +24,8 @@ class ContentPipelineOrchestrator {
     DocumentCache? cache,
     ContentIndexer? indexer,
     this.hasher = const ContentHasher(),
-  })  : cache = cache ?? DocumentCache(),
-        indexer = indexer ?? ContentIndexer();
+  }) : cache = cache ?? DocumentCache(),
+       indexer = indexer ?? ContentIndexer();
 
   final SourceRegistry registry;
   final DocumentCache cache;
@@ -80,9 +80,7 @@ class ContentPipelineOrchestrator {
     final text = fetched.content ?? '';
     return AtlasDocument(
       title: chapter.title,
-      blocks: [
-        ParagraphBlock(text: text.trim()),
-      ],
+      blocks: [ParagraphBlock(text: text.trim())],
       metadata: DocumentMetadata(
         sourceUrl: chapter.contentUrl,
         sourceId: source.sourceName,

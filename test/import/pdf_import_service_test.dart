@@ -77,8 +77,13 @@ void main() {
     await service.importBytes(bytes, 'Dup.pdf');
     final result = await service.importBytes(bytes, 'Dup.pdf');
     expect(result, isA<Failure<void>>());
-    expect(result, isA<Failure<void>>().having(
-      (f) => f.error.code, 'code', 'DUPLICATE_BOOK',
-    ));
+    expect(
+      result,
+      isA<Failure<void>>().having(
+        (f) => f.error.code,
+        'code',
+        'DUPLICATE_BOOK',
+      ),
+    );
   });
 }

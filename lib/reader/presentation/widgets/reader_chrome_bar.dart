@@ -44,7 +44,9 @@ class ReaderChromeBar extends StatelessWidget implements PreferredSizeWidget {
         if (showPanelToggle) ...[
           IconButton(
             icon: Icon(
-              rightPanelVisible ? Icons.view_sidebar : Icons.view_sidebar_outlined,
+              rightPanelVisible
+                  ? Icons.view_sidebar
+                  : Icons.view_sidebar_outlined,
               size: 18,
               color: textColor,
             ),

@@ -5,12 +5,14 @@ import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
 
 void main() {
   group('SelectorSet.applySearch', () {
-    const selectors = SelectorSet(search: SearchSelectors(
-      resultItem: '.search-result',
-      title: '.title',
-      coverUrl: 'img@src',
-      detailUrl: 'a@href',
-    ));
+    const selectors = SelectorSet(
+      search: SearchSelectors(
+        resultItem: '.search-result',
+        title: '.title',
+        coverUrl: 'img@src',
+        detailUrl: 'a@href',
+      ),
+    );
 
     test('extracts items with @attr extraction instructions', () {
       final doc = html_parser.parse('''
@@ -29,8 +31,10 @@ void main() {
         </body></html>
       ''');
 
-      final results =
-          selectors.applySearch(doc, baseUrl: 'https://example.com');
+      final results = selectors.applySearch(
+        doc,
+        baseUrl: 'https://example.com',
+      );
 
       expect(results, hasLength(2));
       expect(results[0].title, 'Novel A');
@@ -76,14 +80,18 @@ void main() {
   });
 
   group('SelectorSet.applyChapterList', () {
-    const selectors = SelectorSet(chapterList: ChapterListSelectors(
-      item: '.chapter-list li a',
-      title: '@text',
-      url: '@href',
-    ));
+    const selectors = SelectorSet(
+      chapterList: ChapterListSelectors(
+        item: '.chapter-list li a',
+        title: '@text',
+        url: '@href',
+      ),
+    );
 
-    test('extracts title and url using the @text/@href item-level defaults', () {
-      final doc = html_parser.parse('''
+    test(
+      'extracts title and url using the @text/@href item-level defaults',
+      () {
+        final doc = html_parser.parse('''
         <html><body>
           <ul class="chapter-list">
             <li><a href="/chapter/1">Chapter 1</a></li>
@@ -92,14 +100,15 @@ void main() {
         </body></html>
       ''');
 
-      final refs = selectors.applyChapterList(doc);
+        final refs = selectors.applyChapterList(doc);
 
-      expect(refs, hasLength(2));
-      expect(refs[0].title, 'Chapter 1');
-      expect(refs[0].url, '/chapter/1');
-      expect(refs[1].title, 'Chapter 2');
-      expect(refs[1].url, '/chapter/2');
-    });
+        expect(refs, hasLength(2));
+        expect(refs[0].title, 'Chapter 1');
+        expect(refs[0].url, '/chapter/1');
+        expect(refs[1].title, 'Chapter 2');
+        expect(refs[1].url, '/chapter/2');
+      },
+    );
 
     test('parses pagination and reverse fields from JSON', () {
       final selectors = SelectorSet.fromJson({
@@ -148,7 +157,10 @@ void main() {
       expect(chapterList.ajaxArchive!.item, 'select > option[value]');
       expect(chapterList.ajaxArchive!.title, '@text');
       expect(chapterList.ajaxArchive!.url, '@value');
-      expect(chapterList.ajaxArchive!.novelIdSelector, '[data-novel-id]@data-novel-id');
+      expect(
+        chapterList.ajaxArchive!.novelIdSelector,
+        '[data-novel-id]@data-novel-id',
+      );
       expect(chapterList.ajaxArchive!.method, 'GET');
       expect(chapterList.ajaxArchive!.form, isEmpty);
       expect(chapterList.ajaxArchive!.responseField, isNull);
@@ -177,16 +189,23 @@ void main() {
 
       final archive = selectors.chapterList!.ajaxArchive!;
       expect(archive.item, 'li.wp-manga-chapter a');
-      expect(archive.novelIdSelector,
-          '#manga-chapters-holder@data-id|#madara-chapters-holder@data-id');
+      expect(
+        archive.novelIdSelector,
+        '#manga-chapters-holder@data-id|#madara-chapters-holder@data-id',
+      );
       expect(archive.method, 'POST');
-      expect(archive.form, {'action': 'manga_get_chapters', 'manga': '{novelId}'});
+      expect(archive.form, {
+        'action': 'manga_get_chapters',
+        'manga': '{novelId}',
+      });
       expect(archive.responseField, 'data.content');
       expect(archive.ajaxBase, 'base');
     });
 
     test('defaults pagination fields', () {
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(item: 'li'));
+      const selectors = SelectorSet(
+        chapterList: ChapterListSelectors(item: 'li'),
+      );
 
       expect(selectors.chapterList!.pageParam, 'page');
       expect(selectors.chapterList!.maxPages, 1);
@@ -233,7 +252,10 @@ void main() {
       final doc = html_parser.parse('<html><body><a>Nothing</a></body></html>');
       final item = doc.body!.querySelector('a')!;
 
-      expect(selectors.extract(item, '.missing@text|.also-missing@text'), isNull);
+      expect(
+        selectors.extract(item, '.missing@text|.also-missing@text'),
+        isNull,
+      );
     });
   });
 
@@ -251,11 +273,10 @@ void main() {
         </body></html>
       ''');
 
-      expect(
-        selectors.extractAll(
-            doc.body!, '.genres-content a@text'),
-        ['Romance', 'Drama'],
-      );
+      expect(selectors.extractAll(doc.body!, '.genres-content a@text'), [
+        'Romance',
+        'Drama',
+      ]);
     });
 
     test('collects attribute values when requested', () {
@@ -266,8 +287,10 @@ void main() {
         </body></html>
       ''');
 
-      expect(selectors.extractAll(doc.body!, 'span@data-tag'),
-          ['Action', 'Adventure']);
+      expect(selectors.extractAll(doc.body!, 'span@data-tag'), [
+        'Action',
+        'Adventure',
+      ]);
     });
 
     test('returns an empty list when nothing matches', () {
@@ -282,7 +305,10 @@ void main() {
       final selectors = SelectorSet.fromJson({
         'metadata': {
           'author': {'label': 'Author:'},
-          'genres': {'labels': ['Genres:', 'Genre:'], 'links': true},
+          'genres': {
+            'labels': ['Genres:', 'Genre:'],
+            'links': true,
+          },
           'description': '.desc-text p',
           'coverUrl': 'img@src',
         },
@@ -302,9 +328,9 @@ void main() {
 
   group('SelectorSet.applyContentContainer', () {
     test('returns the matching container element', () {
-      const selectors = SelectorSet(chapterContent: ChapterContentSelectors(
-        container: '#chapter-content',
-      ));
+      const selectors = SelectorSet(
+        chapterContent: ChapterContentSelectors(container: '#chapter-content'),
+      );
       final doc = html_parser.parse('''
         <html><body><div id="chapter-content"><p>Body</p></div></body></html>
       ''');
@@ -313,9 +339,9 @@ void main() {
     });
 
     test('falls back to the document body when the container is missing', () {
-      const selectors = SelectorSet(chapterContent: ChapterContentSelectors(
-        container: '#nope',
-      ));
+      const selectors = SelectorSet(
+        chapterContent: ChapterContentSelectors(container: '#nope'),
+      );
       final doc = html_parser.parse('<html><body><p>Body</p></body></html>');
 
       expect(selectors.applyContentContainer(doc), same(doc.body));

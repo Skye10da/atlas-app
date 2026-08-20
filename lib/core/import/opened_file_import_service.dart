@@ -88,21 +88,28 @@ class OpenedFileImportService {
     };
   }
 
-  Future<Result<ImportOutcome>> _importEpub(List<int> bytes, String fileName) async {
+  Future<Result<ImportOutcome>> _importEpub(
+    List<int> bytes,
+    String fileName,
+  ) async {
     final result = await epubService.importBytes(bytes, fileName);
     return switch (result) {
       Success(value: final bookId) => Success(
-          ImportOutcome(bookId: bookId, category: ContentCategory.book)),
+        ImportOutcome(bookId: bookId, category: ContentCategory.book),
+      ),
       Failure(error: final error) => Failure(error),
     };
   }
 
-  Future<Result<ImportOutcome>> _importPdf(List<int> bytes, String fileName) async {
+  Future<Result<ImportOutcome>> _importPdf(
+    List<int> bytes,
+    String fileName,
+  ) async {
     final result = await pdfService.importBytes(bytes, fileName);
     return switch (result) {
       Success(value: final bookId) => Success(
-          ImportOutcome(bookId: bookId, category: ContentCategory.book),
-        ),
+        ImportOutcome(bookId: bookId, category: ContentCategory.book),
+      ),
       Failure(error: final error) => Failure(error),
     };
   }

@@ -5,16 +5,16 @@ import 'package:atlas_app/core/content_engine/plugins/verification.dart';
 
 void main() {
   Map<String, Object?> validJson() => {
-        'id': 'mvlempyr',
-        'name': 'Mvlempyr',
-        'sourceName': 'Mvlempyr',
-        'version': '1.2.3',
-        'language': 'en',
-        'templateId': 'wordpress-api',
-        'transport': 'stealth',
-        'baseUrl': 'https://example-novel-site.com',
-        'capabilities': ['search', 'chapterList', 'chapterContent', 'cover'],
-      };
+    'id': 'mvlempyr',
+    'name': 'Mvlempyr',
+    'sourceName': 'Mvlempyr',
+    'version': '1.2.3',
+    'language': 'en',
+    'templateId': 'wordpress-api',
+    'transport': 'stealth',
+    'baseUrl': 'https://example-novel-site.com',
+    'capabilities': ['search', 'chapterList', 'chapterContent', 'cover'],
+  };
 
   group('PluginManifest.fromJson', () {
     test('parses a valid manifest', () {
@@ -23,7 +23,10 @@ void main() {
       expect(manifest.id, 'mvlempyr');
       expect(manifest.name, 'Mvlempyr');
       expect(manifest.sourceName, 'Mvlempyr');
-      expect(manifest.version, const PluginVersion(major: 1, minor: 2, patch: 3));
+      expect(
+        manifest.version,
+        const PluginVersion(major: 1, minor: 2, patch: 3),
+      );
       expect(manifest.templateId, 'wordpress-api');
       expect(manifest.transport, 'stealth');
       expect(manifest.language, 'en');
@@ -70,8 +73,7 @@ void main() {
     });
 
     test('unknown capability throws', () {
-      final json = validJson()
-        ..['capabilities'] = ['search', 'teleport'];
+      final json = validJson()..['capabilities'] = ['search', 'teleport'];
       expect(() => PluginManifest.fromJson(json), throwsPluginManifest);
     });
 
@@ -83,10 +85,14 @@ void main() {
 
   group('PluginVersion', () {
     test('tryParse accepts plain and prerelease semver', () {
-      expect(PluginVersion.tryParse('1.0.0'),
-          const PluginVersion(major: 1, minor: 0, patch: 0));
-      expect(PluginVersion.tryParse('2.3.4-beta.1'),
-          const PluginVersion(major: 2, minor: 3, patch: 4));
+      expect(
+        PluginVersion.tryParse('1.0.0'),
+        const PluginVersion(major: 1, minor: 0, patch: 0),
+      );
+      expect(
+        PluginVersion.tryParse('2.3.4-beta.1'),
+        const PluginVersion(major: 2, minor: 3, patch: 4),
+      );
     });
 
     test('tryParse rejects garbage', () {
@@ -97,23 +103,35 @@ void main() {
 
     test('comparison orders by major then minor then patch', () {
       expect(
-        const PluginVersion(major: 2, minor: 0, patch: 0)
-            .compareTo(const PluginVersion(major: 1, minor: 9, patch: 9)),
+        const PluginVersion(
+          major: 2,
+          minor: 0,
+          patch: 0,
+        ).compareTo(const PluginVersion(major: 1, minor: 9, patch: 9)),
         greaterThan(0),
       );
       expect(
-        const PluginVersion(major: 1, minor: 2, patch: 0)
-            .compareTo(const PluginVersion(major: 1, minor: 1, patch: 9)),
+        const PluginVersion(
+          major: 1,
+          minor: 2,
+          patch: 0,
+        ).compareTo(const PluginVersion(major: 1, minor: 1, patch: 9)),
         greaterThan(0),
       );
       expect(
-        const PluginVersion(major: 1, minor: 1, patch: 2)
-            .compareTo(const PluginVersion(major: 1, minor: 1, patch: 1)),
+        const PluginVersion(
+          major: 1,
+          minor: 1,
+          patch: 2,
+        ).compareTo(const PluginVersion(major: 1, minor: 1, patch: 1)),
         greaterThan(0),
       );
       expect(
-        const PluginVersion(major: 1, minor: 1, patch: 1)
-            .compareTo(const PluginVersion(major: 1, minor: 1, patch: 1)),
+        const PluginVersion(
+          major: 1,
+          minor: 1,
+          patch: 1,
+        ).compareTo(const PluginVersion(major: 1, minor: 1, patch: 1)),
         0,
       );
     });

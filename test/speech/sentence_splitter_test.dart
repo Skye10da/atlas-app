@@ -10,7 +10,10 @@ void main() {
       final items = splitter.splitChapter(
         bookId: 'b1',
         chapterId: 'c1',
-        paragraphs: const ['Hello world. This is good.', 'A second paragraph. With two sentences.'],
+        paragraphs: const [
+          'Hello world. This is good.',
+          'A second paragraph. With two sentences.',
+        ],
         language: 'en-US',
       );
 
@@ -31,12 +34,17 @@ void main() {
       final items = splitter.splitChapter(
         bookId: 'b1',
         chapterId: 'c1',
-        paragraphs: const ['The value is 3.14 and Dr. Smith arrived at 9.30 pm.'],
+        paragraphs: const [
+          'The value is 3.14 and Dr. Smith arrived at 9.30 pm.',
+        ],
         language: 'en-US',
       );
 
       expect(items.length, 1);
-      expect(items.first.text, 'The value is 3.14 and Dr. Smith arrived at 9.30 pm.');
+      expect(
+        items.first.text,
+        'The value is 3.14 and Dr. Smith arrived at 9.30 pm.',
+      );
     });
 
     test('splits on multiple terminators', () {
@@ -61,7 +69,10 @@ void main() {
 
       expect(items.length, greaterThan(1));
       for (final item in items) {
-        expect(item.text.length, lessThanOrEqualTo(SentenceSplitter.maxChunkChars));
+        expect(
+          item.text.length,
+          lessThanOrEqualTo(SentenceSplitter.maxChunkChars),
+        );
       }
     });
 
@@ -82,7 +93,10 @@ void main() {
   group('SentenceSplitter.splitParagraphSpans', () {
     test('reports each sentence offset within the paragraph', () {
       final spans = splitter.splitParagraphSpans('Hello world. This is good.');
-      expect(spans.map((s) => s.text).toList(), ['Hello world.', 'This is good.']);
+      expect(spans.map((s) => s.text).toList(), [
+        'Hello world.',
+        'This is good.',
+      ]);
       expect(spans[0].offset, 0);
       expect(spans[1].offset, 13); // "Hello world. " is 13 chars
     });
@@ -133,7 +147,9 @@ void main() {
       // Third paragraph, first sentence -> must point at "John said hi.", not the opener.
       final (segOffset, segRaw) = segments[2];
       final para = segRaw.trim();
-      final start = segOffset + segRaw.indexOf(para) +
+      final start =
+          segOffset +
+          segRaw.indexOf(para) +
           splitter.splitParagraphSpans(para).first.offset;
       expect(content.substring(start, start + p2.length), p2);
     });

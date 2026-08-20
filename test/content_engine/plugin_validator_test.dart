@@ -43,14 +43,18 @@ void main() {
   test(
     'atlas-plugins/ passes PluginValidator (schema, checksums, fixtures)',
     () async {
-      final issues =
-          await PluginValidator().validateAll(Directory('atlas-plugins'));
-      expect(issues, isEmpty,
-          reason: issues.isEmpty
-              ? null
-              : 'validation issues:\n'
+      final issues = await PluginValidator().validateAll(
+        Directory('atlas-plugins'),
+      );
+      expect(
+        issues,
+        isEmpty,
+        reason: issues.isEmpty
+            ? null
+            : 'validation issues:\n'
                   '${issues.map((i) => ' - $i').join('\n')}\n'
-                  'Re-run the tools if checksums/registry are stale.');
+                  'Re-run the tools if checksums/registry are stale.',
+      );
     },
   );
 
@@ -58,8 +62,9 @@ void main() {
     final tempDir = await Directory.systemTemp.createTemp('validator_test');
     final pluginDir = Directory('${tempDir.path}${Platform.pathSeparator}fake');
     await pluginDir.create(recursive: true);
-    await File('${pluginDir.path}${Platform.pathSeparator}plugin.json')
-        .writeAsString('''
+    await File(
+      '${pluginDir.path}${Platform.pathSeparator}plugin.json',
+    ).writeAsString('''
 {
   "id": "fake",
   "name": "Fake",
@@ -72,21 +77,27 @@ void main() {
 }
 ''');
     await Directory(
-            '${pluginDir.path}${Platform.pathSeparator}tests${Platform.pathSeparator}fixtures')
-        .create(recursive: true);
-    await File('${pluginDir.path}${Platform.pathSeparator}tests'
-            '${Platform.pathSeparator}fixtures${Platform.pathSeparator}chapter.html')
-        .writeAsString('<html><body><div class="content"><p>Wrong text.</p>'
-            '</div></body></html>');
-    await File('${pluginDir.path}${Platform.pathSeparator}tests'
-            '${Platform.pathSeparator}expected.json')
-        .writeAsString(jsonEncode({
-      'chapter': {
-        'url': 'https://example.com/chapter/1',
-        'method': 'chapterContent',
-        'textContains': ['Expected text'],
-      },
-    }));
+      '${pluginDir.path}${Platform.pathSeparator}tests${Platform.pathSeparator}fixtures',
+    ).create(recursive: true);
+    await File(
+      '${pluginDir.path}${Platform.pathSeparator}tests'
+      '${Platform.pathSeparator}fixtures${Platform.pathSeparator}chapter.html',
+    ).writeAsString(
+      '<html><body><div class="content"><p>Wrong text.</p>'
+      '</div></body></html>',
+    );
+    await File(
+      '${pluginDir.path}${Platform.pathSeparator}tests'
+      '${Platform.pathSeparator}expected.json',
+    ).writeAsString(
+      jsonEncode({
+        'chapter': {
+          'url': 'https://example.com/chapter/1',
+          'method': 'chapterContent',
+          'textContains': ['Expected text'],
+        },
+      }),
+    );
 
     final issues = await PluginValidator().validateAll(tempDir);
     expect(

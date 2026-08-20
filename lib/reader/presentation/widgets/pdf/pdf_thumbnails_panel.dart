@@ -48,7 +48,9 @@ class PdfThumbnailsPanel extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: isCurrent ? Colors.amber : (nightMode ? Colors.white24 : Colors.black26),
+                      color: isCurrent
+                          ? Colors.amber
+                          : (nightMode ? Colors.white24 : Colors.black26),
                       width: isCurrent ? 2 : 1,
                     ),
                   ),

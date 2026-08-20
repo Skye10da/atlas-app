@@ -34,10 +34,4 @@ abstract final class AppLogger {
   }
 }
 
-enum Level {
-  debug,
-  info,
-  warning,
-  error,
-  silent,
-}
+enum Level { debug, info, warning, error, silent }

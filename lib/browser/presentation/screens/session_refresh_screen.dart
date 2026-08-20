@@ -74,7 +74,8 @@ class _SessionRefreshScreenState extends State<SessionRefreshScreen> {
   @override
   void initState() {
     super.initState();
-    final factory = widget.engineFactory ??
+    final factory =
+        widget.engineFactory ??
         ({String? initialUrl}) => InappWebviewEngine(initialUrl: initialUrl);
     _engine = factory(
       initialUrl: widget.seedUrl?.toString() ?? widget.origin.toString(),
@@ -153,37 +154,30 @@ class _SessionRefreshScreenState extends State<SessionRefreshScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               SizedBox(width: 12),
-              Expanded(
-                child: Text('Waiting for verification…'),
-              ),
+              Expanded(child: Text('Waiting for verification…')),
               Text('Up to 90 s'),
             ],
           )
         : _timedOut
-            ? Row(
-                children: [
-                  Icon(Icons.error_outline, color: colorScheme.error),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text('Verification timed out.'),
-                  ),
-                  TextButton(
-                    onPressed: _onRetry,
-                    child: const Text('Retry'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Cancel'),
-                  ),
-                ],
-              )
-            : Row(
-                children: [
-                  Icon(Icons.check_circle, color: colorScheme.primary),
-                  const SizedBox(width: 12),
-                  const Expanded(child: Text('Verified — closing…')),
-                ],
-              );
+        ? Row(
+            children: [
+              Icon(Icons.error_outline, color: colorScheme.error),
+              const SizedBox(width: 12),
+              const Expanded(child: Text('Verification timed out.')),
+              TextButton(onPressed: _onRetry, child: const Text('Retry')),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+            ],
+          )
+        : Row(
+            children: [
+              Icon(Icons.check_circle, color: colorScheme.primary),
+              const SizedBox(width: 12),
+              const Expanded(child: Text('Verified — closing…')),
+            ],
+          );
 
     return Scaffold(
       appBar: AppBar(

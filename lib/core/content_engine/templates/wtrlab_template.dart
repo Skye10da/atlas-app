@@ -87,8 +87,7 @@ class WtrLabTemplate implements Template {
   WtrChapterProvider get _provider =>
       chapterProvider ?? WtrChapterProvider.instance;
 
-  WtrGlossaryService get _glossary =>
-      glossaryService ?? WtrGlossaryService();
+  WtrGlossaryService get _glossary => glossaryService ?? WtrGlossaryService();
 
   WtrTermPreferenceService get _termPreferences =>
       termPreferenceService ?? WtrTermPreferenceService();
@@ -96,28 +95,24 @@ class WtrLabTemplate implements Template {
   WtrWebTranslateService get _webTranslate =>
       webTranslateService ?? const WtrWebTranslateService();
 
-  Transport get _translateTransport =>
-      translateTransport ?? HttpTransport();
+  Transport get _translateTransport => translateTransport ?? HttpTransport();
 
   @override
   String get templateId => 'wtrlab';
 
   @override
   Set<PluginCapability> get supportedCapabilities => const {
-        PluginCapability.search,
-        PluginCapability.chapterList,
-        PluginCapability.chapterContent,
-        PluginCapability.cover,
-      };
+    PluginCapability.search,
+    PluginCapability.chapterList,
+    PluginCapability.chapterContent,
+    PluginCapability.cover,
+  };
 
   Uri _api(PluginContext context, String path) =>
       Uri.parse(context.plugin.baseUrl).resolve(path);
 
   @override
-  Future<List<SearchResult>> search(
-    PluginContext context,
-    String query,
-  ) async {
+  Future<List<SearchResult>> search(PluginContext context, String query) async {
     final value = await context.transport.fetchJsonPost(
       _api(context, '/api/search'),
       headers: context.plugin.requestHeaders,
@@ -135,34 +130,35 @@ class WtrLabTemplate implements Template {
       final slug = novel['slug'];
       final title = fields['title'];
       if (rawId is! num || slug is! String || title is! String) continue;
-      results.add(SearchResult(
-        title: title,
-        url: _api(context, '/en/novel/${rawId.toInt()}/$slug').toString(),
-        author: fields['author'] is String ? fields['author'] as String : null,
-        coverUrl: fields['image'] is String ? fields['image'] as String : null,
-        description: fields['description'] is String
-            ? fields['description'] as String
-            : null,
-        language: context.plugin.language,
-      ));
+      results.add(
+        SearchResult(
+          title: title,
+          url: _api(context, '/en/novel/${rawId.toInt()}/$slug').toString(),
+          author: fields['author'] is String
+              ? fields['author'] as String
+              : null,
+          coverUrl: fields['image'] is String
+              ? fields['image'] as String
+              : null,
+          description: fields['description'] is String
+              ? fields['description'] as String
+              : null,
+          language: context.plugin.language,
+        ),
+      );
     }
     return results;
   }
 
   @override
-  Future<NovelMetadata> metadata(
-    PluginContext context,
-    String novelUrl,
-  ) async {
+  Future<NovelMetadata> metadata(PluginContext context, String novelUrl) async {
     final html = await context.transport.fetchHtml(
       Uri.parse(novelUrl),
       headers: context.plugin.requestHeaders,
     );
     final nextData = _parseNextData(html);
     if (nextData == null) {
-      throw TransportException(
-        'WTR-LAB: no __NEXT_DATA__ found on $novelUrl',
-      );
+      throw TransportException('WTR-LAB: no __NEXT_DATA__ found on $novelUrl');
     }
     final props = nextData['props'];
     if (props is! Map) {
@@ -209,11 +205,13 @@ class WtrLabTemplate implements Template {
     return NovelMetadata(
       // Prefer the translated title/author/description, falling back to the
       // raw (Chinese) fields.
-      title: _firstString(fields['title']) ??
+      title:
+          _firstString(fields['title']) ??
           _firstString(raw?['title']) ??
           'Untitled',
       author: _firstString(fields['author']) ?? _firstString(raw?['author']),
-      description: _firstString(fields['description']) ??
+      description:
+          _firstString(fields['description']) ??
           _firstString(raw?['description']),
       coverUrl: _firstString(fields['image']),
       language: context.plugin.language,
@@ -256,11 +254,13 @@ class WtrLabTemplate implements Template {
       if (order is! num) continue;
       final title = _firstString(item['title']);
       final name = _firstString(item['name']);
-      refs.add(ChapterRef(
-        title: title ?? name ?? 'Chapter ${order.toInt()}',
-        url: '$cleanUrl/chapter-${order.toInt()}',
-        publishedAt: _parseDate(item['updated_at']),
-      ));
+      refs.add(
+        ChapterRef(
+          title: title ?? name ?? 'Chapter ${order.toInt()}',
+          url: '$cleanUrl/chapter-${order.toInt()}',
+          publishedAt: _parseDate(item['updated_at']),
+        ),
+      );
     }
     return refs;
   }
@@ -306,8 +306,9 @@ class WtrLabTemplate implements Template {
       // default, so it uses no param.
       final seedUrl = translate == WtrTranslationService.ai.apiValue
           ? Uri.tryParse(chapterUrl)
-          : Uri.tryParse(chapterUrl)
-              ?.replace(queryParameters: {'service': translate});
+          : Uri.tryParse(
+              chapterUrl,
+            )?.replace(queryParameters: {'service': translate});
       if (origin != null) {
         SessionRefreshService.instance.markInvalid(
           origin,
@@ -395,9 +396,7 @@ class WtrLabTemplate implements Template {
       return encrypted.map((e) => '$e').toList();
     }
     if (encrypted is! String) {
-      throw const TransportException(
-        'WTR-LAB: unknown chapter content type',
-      );
+      throw const TransportException('WTR-LAB: unknown chapter content type');
     }
     var payload = encrypted;
     var isArray = false;
@@ -407,15 +406,11 @@ class WtrLabTemplate implements Template {
     } else if (payload.startsWith('str:')) {
       payload = payload.substring(4);
     } else {
-      throw const TransportException(
-        'WTR-LAB: unknown chapter content format',
-      );
+      throw const TransportException('WTR-LAB: unknown chapter content format');
     }
     final parts = payload.split(':');
     if (parts.length != 3) {
-      throw const TransportException(
-        'WTR-LAB: invalid encrypted data format',
-      );
+      throw const TransportException('WTR-LAB: invalid encrypted data format');
     }
     final iv = base64Decode(parts[0]);
     final tag = base64Decode(parts[1]);
@@ -591,8 +586,9 @@ class WtrLabTemplate implements Template {
       headers: context.plugin.requestHeaders,
     );
     final merged = _mergeTerms(_glossaryData(readerValue), perNovel);
-    final present =
-        merged.where((t) => _containsTerm(paragraphs, t.zh)).toList();
+    final present = merged
+        .where((t) => _containsTerm(paragraphs, t.zh))
+        .toList();
     if (present.isEmpty) return present;
 
     final preferences = _termPreferences;
@@ -679,8 +675,7 @@ class WtrLabTemplate implements Template {
   /// The WTR reader API answers `{"code":1401,"error":"You are not logged in!"}`
   /// when the request lacks a valid authenticated session (the AI service, or
   /// an expired/rejected stored session).
-  bool _isNotLoggedIn(Object? value) =>
-      value is Map && value['code'] == 1401;
+  bool _isNotLoggedIn(Object? value) => value is Map && value['code'] == 1401;
 
   /// The WTR reader API answers `{"success":false,"requireTurnstile":true, ...}`
   /// when it demands a Cloudflare Turnstile solve before serving content.

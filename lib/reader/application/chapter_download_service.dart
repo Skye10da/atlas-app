@@ -36,7 +36,9 @@ class ChapterDownloadService {
 
       final source = _resolveSource(book);
       if (source == null) {
-        return const Failure(DatabaseException('No source available for this book'));
+        return const Failure(
+          DatabaseException('No source available for this book'),
+        );
       }
 
       final chapterModels = await _loadChapterModels(book, targetLanguage);
@@ -47,10 +49,16 @@ class ChapterDownloadService {
       final model = chapterModels[chapterIndex];
       final fetched = await source.getChapter(model);
       if (fetched.content == null) {
-        return const Failure(DatabaseException('Source returned empty content'));
+        return const Failure(
+          DatabaseException('Source returned empty content'),
+        );
       }
 
-      return readerRepo.updateChapterContent(bookId, chapterIndex, fetched.content!);
+      return readerRepo.updateChapterContent(
+        bookId,
+        chapterIndex,
+        fetched.content!,
+      );
     } on WtrAuthException catch (e) {
       // WTR-Lab sign-in / expired-session problems are expected user flows, not
       // generic failures — surface the actionable message directly.
@@ -67,7 +75,10 @@ class ChapterDownloadService {
       // request, unsolved bot challenge, etc.) — still network-flavored from
       // the reader's point of view, so it gets the "check your connection
       // and retry" treatment rather than a generic database error.
-      return Failure(NetworkException('Failed to download chapter: ${e.message}', e), st);
+      return Failure(
+        NetworkException('Failed to download chapter: ${e.message}', e),
+        st,
+      );
     } catch (e, st) {
       return Failure(DatabaseException('Failed to download chapter', e), st);
     }
@@ -79,7 +90,9 @@ class ChapterDownloadService {
     String? targetLanguage,
   }) async {
     final chaptersResult = await readerRepo.getChapters(bookId);
-    if (chaptersResult is! Success<List<ChapterEntity>>) return [chaptersResult];
+    if (chaptersResult is! Success<List<ChapterEntity>>) {
+      return [chaptersResult];
+    }
     final chapters = chaptersResult.value;
 
     final results = <Result<void>>[];
@@ -91,8 +104,11 @@ class ChapterDownloadService {
         completed++;
         continue;
       }
-      final result = await downloadChapter(bookId, ch.index,
-          targetLanguage: targetLanguage);
+      final result = await downloadChapter(
+        bookId,
+        ch.index,
+        targetLanguage: targetLanguage,
+      );
       results.add(result);
       completed++;
       onProgress?.call(completed, total);

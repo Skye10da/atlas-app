@@ -11,55 +11,57 @@ import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart
 
 void main() {
   group('WtrTranslationSelector', () {
-    testWidgets('fires onServiceChanged only when the service actually changes',
-        (tester) async {
-      final provider = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: WtrAuthenticationManager(),
-      );
-      var changes = 0;
+    testWidgets(
+      'fires onServiceChanged only when the service actually changes',
+      (tester) async {
+        final provider = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: WtrAuthenticationManager(),
+        );
+        var changes = 0;
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            wtrRuntimeProvider.overrideWith((ref) async => provider),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: WtrTranslationSelector(
-                rawId: 29058,
-                onServiceChanged: () => changes++,
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              wtrRuntimeProvider.overrideWith((ref) async => provider),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: WtrTranslationSelector(
+                  rawId: 29058,
+                  onServiceChanged: () => changes++,
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Starts on WebPlus (the signed-out default).
-      expect(find.text('Web'), findsOneWidget);
+        // Starts on WebPlus (the signed-out default).
+        expect(find.text('Web'), findsOneWidget);
 
-      // Switch WebPlus -> Web fires the callback.
-      await tester.tap(find.text('Web'));
-      await tester.pumpAndSettle();
-      expect(changes, 1);
-      expect(await provider.serviceFor(29058), WtrTranslationService.web);
+        // Switch WebPlus -> Web fires the callback.
+        await tester.tap(find.text('Web'));
+        await tester.pumpAndSettle();
+        expect(changes, 1);
+        expect(await provider.serviceFor(29058), WtrTranslationService.web);
 
-      // Re-tapping the already-selected service does not fire again.
-      await tester.tap(find.text('Web'));
-      await tester.pumpAndSettle();
-      expect(changes, 1);
+        // Re-tapping the already-selected service does not fire again.
+        await tester.tap(find.text('Web'));
+        await tester.pumpAndSettle();
+        expect(changes, 1);
 
-      // Web -> AI fires the callback.
-      await tester.tap(find.text('AI'));
-      await tester.pumpAndSettle();
-      expect(changes, 2);
+        // Web -> AI fires the callback.
+        await tester.tap(find.text('AI'));
+        await tester.pumpAndSettle();
+        expect(changes, 2);
 
-      // AI -> WebPlus fires the callback.
-      await tester.tap(find.text('WebPlus'));
-      await tester.pumpAndSettle();
-      expect(changes, 3);
-      expect(await provider.serviceFor(29058), WtrTranslationService.webPlus);
-    });
+        // AI -> WebPlus fires the callback.
+        await tester.tap(find.text('WebPlus'));
+        await tester.pumpAndSettle();
+        expect(changes, 3);
+        expect(await provider.serviceFor(29058), WtrTranslationService.webPlus);
+      },
+    );
   });
 }

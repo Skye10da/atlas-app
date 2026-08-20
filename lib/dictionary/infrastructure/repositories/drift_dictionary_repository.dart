@@ -17,7 +17,9 @@ class DriftDictionaryRepository implements DictionaryRepositoryInterface {
 
   @override
   Future<void> save(DictionaryWordEntity word) async {
-    await _db.into(_db.dictionaryWords).insertOnConflictUpdate(
+    await _db
+        .into(_db.dictionaryWords)
+        .insertOnConflictUpdate(
           DictionaryWordsCompanion.insert(
             id: word.id,
             word: word.word,
@@ -47,9 +49,9 @@ class DriftDictionaryRepository implements DictionaryRepositoryInterface {
 
   @override
   Future<bool> exists(String id) async {
-    final count = await (_db.select(_db.dictionaryWords)
-          ..where((w) => w.id.equals(id)))
-        .get();
+    final count = await (_db.select(
+      _db.dictionaryWords,
+    )..where((w) => w.id.equals(id))).get();
     return count.isNotEmpty;
   }
 

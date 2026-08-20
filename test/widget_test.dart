@@ -7,9 +7,7 @@ import 'package:atlas_app/core/theme/app_theme.dart';
 void main() {
   testWidgets('App theme compiles', (WidgetTester tester) async {
     await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(theme: AppTheme.light(AppBrand.violet)),
-      ),
+      ProviderScope(child: MaterialApp(theme: AppTheme.light(AppBrand.violet))),
     );
     expect(find.byType(MaterialApp), findsOneWidget);
   });

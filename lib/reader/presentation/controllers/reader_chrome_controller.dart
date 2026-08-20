@@ -28,7 +28,8 @@ mixin ReaderChromeController<T extends StatefulWidget> on State<T> {
   double? _brightnessDragStartValue;
 
   bool get isDesktop => MediaQuery.of(context).size.width >= 840;
-  bool get isWideDesktop => isDesktop && MediaQuery.of(context).size.width >= 1200;
+  bool get isWideDesktop =>
+      isDesktop && MediaQuery.of(context).size.width >= 1200;
 
   /// Call from initState.
   void initReaderChrome({required bool isDarkTheme}) {
@@ -49,10 +50,13 @@ mixin ReaderChromeController<T extends StatefulWidget> on State<T> {
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDarkTheme ? Brightness.light : Brightness.dark,
+        statusBarIconBrightness: isDarkTheme
+            ? Brightness.light
+            : Brightness.dark,
         systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness:
-            isDarkTheme ? Brightness.light : Brightness.dark,
+        systemNavigationBarIconBrightness: isDarkTheme
+            ? Brightness.light
+            : Brightness.dark,
       ),
     );
   }
@@ -80,16 +84,16 @@ mixin ReaderChromeController<T extends StatefulWidget> on State<T> {
   }
 
   void toggleRightPanel() => setState(() {
-      rightPanelVisible = !rightPanelVisible;
-      if (rightPanelVisible) narrationPanelVisible = false;
-    });
+    rightPanelVisible = !rightPanelVisible;
+    if (rightPanelVisible) narrationPanelVisible = false;
+  });
 
   /// Shows the Now Playing UI in the right side panel (desktop), replacing
   /// any reader panel already open.
   void openNarrationPanel() => setState(() {
-        narrationPanelVisible = true;
-        rightPanelVisible = false;
-      });
+    narrationPanelVisible = true;
+    rightPanelVisible = false;
+  });
 
   /// Toggles the Now Playing panel, mirroring how Listen behaves on mobile
   /// (tapping again closes it).
@@ -144,7 +148,9 @@ mixin ReaderChromeController<T extends StatefulWidget> on State<T> {
     DragUpdateDetails details, {
     required void Function(double newBrightness) onChanged,
   }) {
-    if (_brightnessDragStartY == null || _brightnessDragStartValue == null) return;
+    if (_brightnessDragStartY == null || _brightnessDragStartValue == null) {
+      return;
+    }
     final delta = (details.localPosition.dy - _brightnessDragStartY!) / 300;
     final newBrightness = (_brightnessDragStartValue! - delta).clamp(0.0, 1.0);
     onChanged(newBrightness);

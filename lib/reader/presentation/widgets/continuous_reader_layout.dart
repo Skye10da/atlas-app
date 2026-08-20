@@ -81,11 +81,13 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
   final String? coverPath;
 
   /// Context-menu callbacks forwarded to every chapter view.
-  final void Function(String text, Color color, int start, int end)? onHighlight;
+  final void Function(String text, Color color, int start, int end)?
+  onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
-  final void Function(String text, String? sentence, int start, int end)? onListen;
+  final void Function(String text, String? sentence, int start, int end)?
+  onListen;
   final void Function(int start, int end)? onErase;
 
   @override
@@ -93,8 +95,8 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
       _ContinuousReaderLayoutState();
 }
 
-class _ContinuousReaderLayoutState
-    extends ConsumerState<ContinuousReaderLayout> with ReaderChromeController {
+class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
+    with ReaderChromeController {
   static const _snapScrollDuration = Duration(milliseconds: 300);
 
   final _itemScrollController = ItemScrollController();
@@ -131,10 +133,14 @@ class _ContinuousReaderLayoutState
     _animation = widget.settings.scrollAnimation;
     _lastReportedChapterIndex = widget.currentChapterIndex;
     _itemPositionsListener.itemPositions.addListener(_onPositionsChanged);
-    _scrollOffsetSubscription =
-        _scrollOffsetListener.changes.listen(_onScrollOffsetChange);
+    _scrollOffsetSubscription = _scrollOffsetListener.changes.listen(
+      _onScrollOffsetChange,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      initReaderChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      initReaderChrome(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
       // widget.currentChapterIndex is always the reliable resume chapter
       // (reader_content.dart tracks it directly, never derived). Using
       // initialScrollProgress to pick a DIFFERENT chapter here — via
@@ -194,15 +200,20 @@ class _ContinuousReaderLayoutState
       event,
       commandPaletteVisible: commandPaletteVisible,
       onClosePalette: () => setState(() => commandPaletteVisible = false),
-      onToggleChrome: () =>
-          toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark),
+      onToggleChrome: () => toggleChrome(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      ),
       onOpenPalette: () => setState(() => commandPaletteVisible = true),
     );
     if (common != KeyEventResult.ignored) return common;
 
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       if (!_itemScrollController.isAttached) return KeyEventResult.handled;
-      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      resetChromeTimer(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
       unawaited(
         _scrollOffsetController.animateScroll(
           offset: -MediaQuery.of(context).size.height * 0.4,
@@ -214,7 +225,10 @@ class _ContinuousReaderLayoutState
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       if (!_itemScrollController.isAttached) return KeyEventResult.handled;
-      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      resetChromeTimer(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
       unawaited(
         _scrollOffsetController.animateScroll(
           offset: MediaQuery.of(context).size.height * 0.4,
@@ -226,7 +240,10 @@ class _ContinuousReaderLayoutState
     }
     if (event.logicalKey == LogicalKeyboardKey.pageUp) {
       if (!_itemScrollController.isAttached) return KeyEventResult.handled;
-      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      resetChromeTimer(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
       unawaited(
         _scrollOffsetController.animateScroll(
           offset: -MediaQuery.of(context).size.height * 0.85,
@@ -238,7 +255,10 @@ class _ContinuousReaderLayoutState
     }
     if (event.logicalKey == LogicalKeyboardKey.pageDown) {
       if (!_itemScrollController.isAttached) return KeyEventResult.handled;
-      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      resetChromeTimer(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
       unawaited(
         _scrollOffsetController.animateScroll(
           offset: MediaQuery.of(context).size.height * 0.85,
@@ -305,7 +325,10 @@ class _ContinuousReaderLayoutState
       _autoScrollActive = true;
       chromeVisible = false;
     });
-    setFullscreen(true, isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+    setFullscreen(
+      true,
+      isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark,
+    );
     _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (!mounted || !_itemScrollController.isAttached) return;
       if (_progress.value >= 0.99) {
@@ -349,9 +372,10 @@ class _ContinuousReaderLayoutState
       }
       return;
     }
-    final index = (progress * widget.chapters.length)
-        .floor()
-        .clamp(0, widget.chapters.length - 1);
+    final index = (progress * widget.chapters.length).floor().clamp(
+      0,
+      widget.chapters.length - 1,
+    );
     _scrollToChapter(index, animate: false);
   }
 
@@ -362,7 +386,9 @@ class _ContinuousReaderLayoutState
   /// UI's Retry action succeeds (which re-resolves the same provider).
   bool _isChapterLoading(int index) {
     if (index < 0 || index >= widget.chapters.length) return false;
-    final state = ref.read(readerChapterContentProvider(widget.chapters[index]));
+    final state = ref.read(
+      readerChapterContentProvider(widget.chapters[index]),
+    );
     return state is AsyncLoading || state is AsyncError;
   }
 
@@ -370,8 +396,9 @@ class _ContinuousReaderLayoutState
   /// matching the rule ScrollablePositionedList itself uses to track the
   /// topmost item, or `null` when nothing is laid out yet.
   int? _currentChapterFromPositions(Iterable<ItemPosition> positions) {
-    final visible = positions
-        .where((p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0);
+    final visible = positions.where(
+      (p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0,
+    );
     if (visible.isEmpty) return null;
     return visible
         .reduce((a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b)
@@ -385,8 +412,9 @@ class _ContinuousReaderLayoutState
   double _progressFromPositions(Iterable<ItemPosition> positions) {
     final total = widget.chapters.length;
     if (total == 0) return 0.0;
-    final visible = positions
-        .where((p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0);
+    final visible = positions.where(
+      (p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0,
+    );
     if (visible.isEmpty) return _progress.value;
     final top = visible.reduce(
       (a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b,
@@ -445,8 +473,9 @@ class _ContinuousReaderLayoutState
     if (onPosition == null) return;
     final total = widget.chapters.length;
     if (total == 0) return;
-    final visible = positions
-        .where((p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0);
+    final visible = positions.where(
+      (p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0,
+    );
     if (visible.isEmpty) return;
     final top = visible.reduce(
       (a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b,
@@ -456,7 +485,10 @@ class _ContinuousReaderLayoutState
         .valueOrNull;
     if (content == null || content.isEmpty) return;
     final within = (-top.itemLeadingEdge).clamp(0.0, 1.0);
-    final charOffset = (within * content.length).round().clamp(0, content.length);
+    final charOffset = (within * content.length).round().clamp(
+      0,
+      content.length,
+    );
     final resolved = _resolver.resolve(content, charOffset);
     final last = _lastReportedPosition;
     if (last != null &&
@@ -479,7 +511,9 @@ class _ContinuousReaderLayoutState
       return null;
     }
     final content = ref
-        .read(readerChapterContentProvider(widget.chapters[_resumeChapterIndex]))
+        .read(
+          readerChapterContentProvider(widget.chapters[_resumeChapterIndex]),
+        )
         .valueOrNull;
     if (content == null || content.isEmpty) return null;
     return _resolver.charOffsetForSentenceIndex(content, pos);
@@ -489,7 +523,9 @@ class _ContinuousReaderLayoutState
     if (!mounted) return;
     _accumulatedOffset += delta;
     _scrollOffset = _accumulatedOffset;
-    resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+    resetChromeTimer(
+      isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark,
+    );
     if (_jumpInFlight) return;
     if (delta.abs() > 4) {
       final direction = delta > 0 ? ScrollDirection.down : ScrollDirection.up;
@@ -497,7 +533,11 @@ class _ContinuousReaderLayoutState
       setState(() {
         if (direction == ScrollDirection.up) {
           chromeVisible = true;
-          setFullscreen(false, isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+          setFullscreen(
+            false,
+            isDarkTheme:
+                Theme.of(context).colorScheme.brightness == Brightness.dark,
+          );
         }
       });
     }
@@ -761,7 +801,11 @@ class _ContinuousReaderLayoutState
                   hideRightPanel();
                   return;
                 }
-                toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+                toggleChrome(
+                  isDarkTheme:
+                      Theme.of(context).colorScheme.brightness ==
+                      Brightness.dark,
+                );
               },
               child: _wrapWithAnimation(
                 ScrollablePositionedList.builder(
@@ -775,8 +819,9 @@ class _ContinuousReaderLayoutState
                     chapters[index],
                     index,
                     showHeaders: true,
-                    restoreCharOffset:
-                        index == _resumeChapterIndex ? _pendingRestoreCharOffset : null,
+                    restoreCharOffset: index == _resumeChapterIndex
+                        ? _pendingRestoreCharOffset
+                        : null,
                     onRestoreRevealed: () {
                       if (mounted) {
                         setState(() {
@@ -797,10 +842,8 @@ class _ContinuousReaderLayoutState
                 followSystemBrightness: widget.settings.followSystemBrightness,
                 currentBrightness: widget.settings.brightness,
               ),
-              onVerticalDragUpdate: (details) => onEdgeBrightnessUpdate(
-                details,
-                onChanged: _applyBrightness,
-              ),
+              onVerticalDragUpdate: (details) =>
+                  onEdgeBrightnessUpdate(details, onChanged: _applyBrightness),
               onVerticalDragEnd: onEdgeBrightnessEnd,
             ),
           if (_autoScrollActive)
@@ -904,7 +947,9 @@ class _ContinuousReaderLayoutState
                 bookTitle: widget.bookTitle,
                 coverPath: widget.coverPath,
                 progress: _progress,
-                progressColor: widget.settings.theme.resolve(colorScheme).accent,
+                progressColor: widget.settings.theme
+                    .resolve(colorScheme)
+                    .accent,
                 onListenTap: isDesktop ? toggleNarrationPanel : null,
               ),
             )
@@ -920,7 +965,9 @@ class _ContinuousReaderLayoutState
       currentChapterIndex: widget.currentChapterIndex,
       onChapterTap: (idx) {
         widget.onChapterSelected(idx);
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToChapter(idx));
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _scrollToChapter(idx),
+        );
       },
     );
   }
@@ -939,10 +986,7 @@ class _GlowScrollbarPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final track = Paint()..color = color.withValues(alpha: 0.15);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Offset.zero & size,
-        const Radius.circular(4),
-      ),
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(4)),
       track,
     );
     if (progress <= 0) return;
@@ -1034,10 +1078,7 @@ class _AutoScrollControl extends StatelessWidget {
 /// sentence has scrolled out of view. Tapping it scrolls the reader back to
 /// the current narration position.
 class _NarrationSyncButton extends StatelessWidget {
-  const _NarrationSyncButton({
-    required this.accent,
-    required this.onPressed,
-  });
+  const _NarrationSyncButton({required this.accent, required this.onPressed});
 
   final Color accent;
   final VoidCallback onPressed;
@@ -1045,8 +1086,8 @@ class _NarrationSyncButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isDark = ThemeData.estimateBrightnessForColor(scheme.surface) ==
-        Brightness.dark;
+    final isDark =
+        ThemeData.estimateBrightnessForColor(scheme.surface) == Brightness.dark;
     return Material(
       color: scheme.surface,
       elevation: 6,

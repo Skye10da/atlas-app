@@ -170,10 +170,8 @@ class _ProgressTrack extends StatelessWidget {
     if (listenable == null) return const SizedBox.shrink();
     return ValueListenableBuilder<double>(
       valueListenable: listenable,
-      builder: (context, value, _) => ReaderProgressBar(
-        progress: value,
-        color: color,
-      ),
+      builder: (context, value, _) =>
+          ReaderProgressBar(progress: value, color: color),
     );
   }
 }

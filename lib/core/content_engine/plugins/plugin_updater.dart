@@ -122,8 +122,9 @@ class PluginUpdater {
     } catch (e) {
       // Roll back a partial install so a broken plugin is never left behind.
       try {
-        await Directory(p.join(targetDirectory.path, entry.id))
-            .delete(recursive: true);
+        await Directory(
+          p.join(targetDirectory.path, entry.id),
+        ).delete(recursive: true);
       } catch (_) {}
       return PluginUpdate(
         pluginId: entry.id,

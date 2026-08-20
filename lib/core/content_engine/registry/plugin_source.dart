@@ -39,21 +39,21 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
   final PluginPermissions? permissions;
 
   PluginContext get _context => PluginContext(
-        plugin: manifest,
-        transport: transport,
-        selectors: selectors,
-        filters: filters,
-        permissions: permissions,
-      );
+    plugin: manifest,
+    transport: transport,
+    selectors: selectors,
+    filters: filters,
+    permissions: permissions,
+  );
 
   PluginContext _contextFor(String? language) => PluginContext(
-        plugin: manifest,
-        transport: transport,
-        selectors: selectors,
-        filters: filters,
-        permissions: permissions,
-        language: language,
-      );
+    plugin: manifest,
+    transport: transport,
+    selectors: selectors,
+    filters: filters,
+    permissions: permissions,
+    language: language,
+  );
 
   void _validateCapabilities() {
     if (manifest.requiresJsRendering) {
@@ -94,10 +94,9 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
   /// source. Merges the plugin's request-level headers (User-Agent) with any
   /// source-specific image headers (e.g. Referer spoofing for hotlink-protected
   /// covers) declared in `customImageHeaders`.
-  Map<String, String> get coverHeaders => {
-        ...manifest.requestHeaders,
-        ...manifest.customImageHeaders,
-      }..removeWhere((_, v) => v.isEmpty);
+  Map<String, String> get coverHeaders =>
+      {...manifest.requestHeaders, ...manifest.customImageHeaders}
+        ..removeWhere((_, v) => v.isEmpty);
 
   @override
   Future<NovelModel> getMetadata(Uri uri) async {
@@ -124,13 +123,16 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
   Future<List<ChapterModel>> getChapters(NovelModel novel) async {
     _ensureCapability(PluginCapability.chapterList);
     final refs = await template.chapterList(_context, novel.sourceUrl);
-    return List.generate(refs.length, (i) => ChapterModel(
-          id: _chapterId(refs[i].url, i),
-          title: refs[i].title,
-          index: i,
-          contentUrl: refs[i].url,
-          publishedAt: refs[i].publishedAt,
-        ));
+    return List.generate(
+      refs.length,
+      (i) => ChapterModel(
+        id: _chapterId(refs[i].url, i),
+        title: refs[i].title,
+        index: i,
+        contentUrl: refs[i].url,
+        publishedAt: refs[i].publishedAt,
+      ),
+    );
   }
 
   @override
@@ -166,15 +168,17 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
     final results = await template.search(_context, query.term);
     return SourceSearchResponse(
       results: results
-          .map((r) => SourceSearchResult(
-                id: r.url,
-                title: r.title,
-                importUrl: r.url,
-                author: r.author,
-                coverUrl: r.coverUrl,
-                description: r.description,
-                language: r.language,
-              ))
+          .map(
+            (r) => SourceSearchResult(
+              id: r.url,
+              title: r.title,
+              importUrl: r.url,
+              author: r.author,
+              coverUrl: r.coverUrl,
+              description: r.description,
+              language: r.language,
+            ),
+          )
           .toList(),
     );
   }

@@ -22,7 +22,9 @@ class SettingsScreen extends StatelessWidget {
             title: 'Appearance',
             subtitle: 'Brand theme, system font, theme mode',
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AppearanceSettingsScreen()),
+              MaterialPageRoute(
+                builder: (_) => const AppearanceSettingsScreen(),
+              ),
             ),
           ),
           _MenuTile(
@@ -50,9 +52,9 @@ class SettingsScreen extends StatelessWidget {
             subtitle: 'Delete all books, novels, and data',
             iconColor: colors.error,
             titleColor: colors.error,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const DangerZoneScreen()),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const DangerZoneScreen())),
           ),
         ],
       ),
@@ -82,7 +84,10 @@ class _MenuTile extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return ListTile(
       leading: Icon(icon, color: iconColor ?? colors.onSurfaceVariant),
-      title: Text(title, style: titleColor != null ? TextStyle(color: titleColor) : null),
+      title: Text(
+        title,
+        style: titleColor != null ? TextStyle(color: titleColor) : null,
+      ),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
       onTap: onTap,

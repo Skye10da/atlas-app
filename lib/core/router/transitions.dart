@@ -13,9 +13,10 @@ CustomTransitionPage buildPageTransition({
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       return FadeTransition(
         opacity: animation.drive(
-          Tween<double>(begin: 0.0, end: 1.0).chain(
-            CurveTween(curve: AppAnimation.defaultCurve),
-          ),
+          Tween<double>(
+            begin: 0.0,
+            end: 1.0,
+          ).chain(CurveTween(curve: AppAnimation.defaultCurve)),
         ),
         child: SlideTransition(
           position: animation.drive(

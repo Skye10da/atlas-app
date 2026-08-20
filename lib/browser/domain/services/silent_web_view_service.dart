@@ -32,14 +32,11 @@ class SilentWebViewService {
     this.challengeRetryDelay = const Duration(milliseconds: 1500),
     this.maxChallengeRetries = 5,
     Future<void> Function(Duration duration)? sleep,
-    Future<void> Function(
-      Uri origin,
-      List<BrowserSessionCookie> cookies,
-    )?
-        seeder,
-  })  : _pageFetcher = WebViewPageFetcher(engine: engine),
-        _sleep = sleep ?? _defaultSleep,
-        _seeder = seeder;
+    Future<void> Function(Uri origin, List<BrowserSessionCookie> cookies)?
+    seeder,
+  }) : _pageFetcher = WebViewPageFetcher(engine: engine),
+       _sleep = sleep ?? _defaultSleep,
+       _seeder = seeder;
 
   final BrowserWebEngine engine;
   final BrowserSessionRepositoryInterface? sessionStore;
@@ -49,7 +46,7 @@ class SilentWebViewService {
   final WebViewPageFetcher _pageFetcher;
   final Future<void> Function(Duration duration) _sleep;
   final Future<void> Function(Uri origin, List<BrowserSessionCookie> cookies)?
-      _seeder;
+  _seeder;
 
   static Future<void> _defaultSleep(Duration duration) =>
       Future<void>.delayed(duration);
@@ -114,8 +111,10 @@ class SilentWebViewService {
       await engine.load(origin.toString());
       listener(); // a load that already finished before we could observe it
       if (completer.isCompleted) return true;
-      return await completer.future
-          .timeout(navigationTimeout, onTimeout: () => false);
+      return await completer.future.timeout(
+        navigationTimeout,
+        onTimeout: () => false,
+      );
     } on Object {
       return false;
     } finally {

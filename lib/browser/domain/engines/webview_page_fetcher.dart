@@ -56,13 +56,13 @@ class WebViewPageFetcher {
     });
 
     try {
-      final httpMethod =
-          (method == null || method.isEmpty) ? 'GET' : method.toUpperCase();
+      final httpMethod = (method == null || method.isEmpty)
+          ? 'GET'
+          : method.toUpperCase();
       final body = jsonBody == null ? null : jsonEncode(jsonBody);
       final requestHeaders = <String, String>{...?headers};
       if (body != null &&
-          !requestHeaders.keys
-              .any((k) => k.toLowerCase() == 'content-type')) {
+          !requestHeaders.keys.any((k) => k.toLowerCase() == 'content-type')) {
         requestHeaders['Content-Type'] = 'application/json';
       }
 

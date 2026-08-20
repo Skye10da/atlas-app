@@ -75,11 +75,11 @@ class AtlasGlossaryEntry {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'bookId': bookId,
-        'term': term,
-        'replacements': replacements,
-        'activeIndex': activeIndex,
-        'createdAt': createdAt.toIso8601String(),
-      };
+    'id': id,
+    'bookId': bookId,
+    'term': term,
+    'replacements': replacements,
+    'activeIndex': activeIndex,
+    'createdAt': createdAt.toIso8601String(),
+  };
 }

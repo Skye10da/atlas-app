@@ -37,8 +37,8 @@ class PluginValidator {
   PluginValidator({
     TemplateRegistry? registry,
     ContentHasher hasher = const ContentHasher(),
-  })  : _registry = registry ?? TemplateRegistry.defaults,
-        _hasher = hasher;
+  }) : _registry = registry ?? TemplateRegistry.defaults,
+       _hasher = hasher;
 
   final TemplateRegistry _registry;
   final ContentHasher _hasher;
@@ -60,11 +60,13 @@ class PluginValidator {
       final id = p.basename(pluginDir.path);
       final manifestFile = File(p.join(pluginDir.path, 'plugin.json'));
       if (!await manifestFile.exists()) {
-        issues.add(PluginValidationIssue(
-          pluginId: id,
-          category: 'schema',
-          message: 'missing plugin.json',
-        ));
+        issues.add(
+          PluginValidationIssue(
+            pluginId: id,
+            category: 'schema',
+            message: 'missing plugin.json',
+          ),
+        );
         continue;
       }
       issues.addAll(await validatePlugin(pluginDir));
@@ -72,13 +74,17 @@ class PluginValidator {
     return issues;
   }
 
-  Future<List<PluginValidationIssue>> validatePlugin(Directory pluginDir) async {
+  Future<List<PluginValidationIssue>> validatePlugin(
+    Directory pluginDir,
+  ) async {
     final id = p.basename(pluginDir.path);
     final issues = <PluginValidationIssue>[];
 
     final PluginManifest manifest;
     try {
-      manifest = PluginManifest.fromJson(await _readJsonMap(pluginDir, 'plugin.json'));
+      manifest = PluginManifest.fromJson(
+        await _readJsonMap(pluginDir, 'plugin.json'),
+      );
     } catch (e) {
       return [
         PluginValidationIssue(
@@ -99,15 +105,21 @@ class PluginValidator {
     return issues;
   }
 
-  List<PluginValidationIssue> _schemaIssues(String id, PluginManifest manifest) {
+  List<PluginValidationIssue> _schemaIssues(
+    String id,
+    PluginManifest manifest,
+  ) {
     final issues = <PluginValidationIssue>[];
     if (manifest.id != id) {
-      issues.add(PluginValidationIssue(
-        pluginId: id,
-        category: 'schema',
-        message: 'plugin.json "id" (${manifest.id}) does not match directory '
-            'name "$id"',
-      ));
+      issues.add(
+        PluginValidationIssue(
+          pluginId: id,
+          category: 'schema',
+          message:
+              'plugin.json "id" (${manifest.id}) does not match directory '
+              'name "$id"',
+        ),
+      );
     }
     return issues;
   }
@@ -119,24 +131,29 @@ class PluginValidator {
   ) {
     final issues = <PluginValidationIssue>[];
     if (manifest.requiresJsRendering) {
-      issues.add(PluginValidationIssue(
-        pluginId: id,
-        category: 'template',
-        message: 'requiresJsRendering is not supported',
-      ));
+      issues.add(
+        PluginValidationIssue(
+          pluginId: id,
+          category: 'template',
+          message: 'requiresJsRendering is not supported',
+        ),
+      );
       return issues;
     }
     final unsupported = manifest.capabilities
         .where((c) => !template.supportedCapabilities.contains(c))
         .toList();
     if (unsupported.isNotEmpty) {
-      issues.add(PluginValidationIssue(
-        pluginId: id,
-        category: 'template',
-        message: 'capabilities not implemented by template '
-            '"${manifest.templateId}": '
-            '${unsupported.map((c) => c.name).join(', ')}',
-      ));
+      issues.add(
+        PluginValidationIssue(
+          pluginId: id,
+          category: 'template',
+          message:
+              'capabilities not implemented by template '
+              '"${manifest.templateId}": '
+              '${unsupported.map((c) => c.name).join(', ')}',
+        ),
+      );
     }
     return issues;
   }
@@ -167,11 +184,13 @@ class PluginValidator {
             break;
         }
       } catch (e) {
-        issues.add(PluginValidationIssue(
-          pluginId: id,
-          category: 'schema',
-          message: '$filename does not parse: $e',
-        ));
+        issues.add(
+          PluginValidationIssue(
+            pluginId: id,
+            category: 'schema',
+            message: '$filename does not parse: $e',
+          ),
+        );
       }
     }
     return issues;
@@ -199,7 +218,8 @@ class PluginValidator {
         PluginValidationIssue(
           pluginId: id,
           category: 'checksum',
-          message: 'missing from index.json; run '
+          message:
+              'missing from index.json; run '
               '`dart run tool/generate_plugin_catalog.dart`',
         ),
       ];
@@ -213,20 +233,24 @@ class PluginValidator {
       final name = p.basename(file.path);
       final expected = checksums[name];
       if (expected is! String) {
-        issues.add(PluginValidationIssue(
-          pluginId: id,
-          category: 'checksum',
-          message: 'index.json has no checksum for "$name"',
-        ));
+        issues.add(
+          PluginValidationIssue(
+            pluginId: id,
+            category: 'checksum',
+            message: 'index.json has no checksum for "$name"',
+          ),
+        );
         continue;
       }
       final actual = _hasher.sha256OfBytes(await file.readAsBytes());
       if (actual != expected) {
-        issues.add(PluginValidationIssue(
-          pluginId: id,
-          category: 'checksum',
-          message: 'checksum mismatch for "$name"; re-run the catalog tool',
-        ));
+        issues.add(
+          PluginValidationIssue(
+            pluginId: id,
+            category: 'checksum',
+            message: 'checksum mismatch for "$name"; re-run the catalog tool',
+          ),
+        );
       }
     }
     return issues;
@@ -264,46 +288,57 @@ class PluginValidator {
       final fixtureName = entry.key;
       final spec = entry.value;
       if (spec is! Map) {
-        issues.add(PluginValidationIssue(
-          pluginId: id,
-          category: 'fixture',
-          message: 'expected.json entry "$fixtureName" is not an object',
-        ));
+        issues.add(
+          PluginValidationIssue(
+            pluginId: id,
+            category: 'fixture',
+            message: 'expected.json entry "$fixtureName" is not an object',
+          ),
+        );
         continue;
       }
       final specMap = Map<String, Object?>.from(spec);
       final url = specMap['url'];
       if (url is! String) {
-        issues.add(PluginValidationIssue(
-          pluginId: id,
-          category: 'fixture',
-          message: 'expected.json entry "$fixtureName" has no "url"',
-        ));
+        issues.add(
+          PluginValidationIssue(
+            pluginId: id,
+            category: 'fixture',
+            message: 'expected.json entry "$fixtureName" has no "url"',
+          ),
+        );
         continue;
       }
-      final htmlFile =
-          File(p.join(pluginDir.path, 'tests', 'fixtures', '$fixtureName.html'));
-      final jsonFile =
-          File(p.join(pluginDir.path, 'tests', 'fixtures', '$fixtureName.json'));
+      final htmlFile = File(
+        p.join(pluginDir.path, 'tests', 'fixtures', '$fixtureName.html'),
+      );
+      final jsonFile = File(
+        p.join(pluginDir.path, 'tests', 'fixtures', '$fixtureName.json'),
+      );
       if (!await htmlFile.exists() && !await jsonFile.exists()) {
-        issues.add(PluginValidationIssue(
-          pluginId: id,
-          category: 'fixture',
-          message: 'missing tests/fixtures/$fixtureName.html '
-              '(or .json for API-driven chapter fixtures)',
-        ));
+        issues.add(
+          PluginValidationIssue(
+            pluginId: id,
+            category: 'fixture',
+            message:
+                'missing tests/fixtures/$fixtureName.html '
+                '(or .json for API-driven chapter fixtures)',
+          ),
+        );
         continue;
       }
-issues.addAll(await _runFixture(
-        pluginDir,
-        id,
-        manifest,
-        template,
-        fixtureName,
-        url,
-        specMap,
-        htmlFile,
-      ));
+      issues.addAll(
+        await _runFixture(
+          pluginDir,
+          id,
+          manifest,
+          template,
+          fixtureName,
+          url,
+          specMap,
+          htmlFile,
+        ),
+      );
     }
     return issues;
   }
@@ -318,8 +353,9 @@ issues.addAll(await _runFixture(
     Map<String, Object?> spec,
     File htmlFile,
   ) async {
-    final jsonFile =
-        File(p.join(pluginDir.path, 'tests', 'fixtures', '$fixtureName.json'));
+    final jsonFile = File(
+      p.join(pluginDir.path, 'tests', 'fixtures', '$fixtureName.json'),
+    );
     final transport = OfflineTransport();
     if (await htmlFile.exists()) {
       transport.addHtml(url, await htmlFile.readAsString());
@@ -331,7 +367,8 @@ issues.addAll(await _runFixture(
           PluginValidationIssue(
             pluginId: id,
             category: 'fixture',
-            message: 'fixture "$fixtureName": tests/fixtures/$fixtureName.json '
+            message:
+                'fixture "$fixtureName": tests/fixtures/$fixtureName.json '
                 'is present, so expected.json must declare a "postUrl" '
                 '(the API endpoint the template POSTs to)',
           ),
@@ -345,7 +382,8 @@ issues.addAll(await _runFixture(
           PluginValidationIssue(
             pluginId: id,
             category: 'fixture',
-            message: 'fixture "$fixtureName": '
+            message:
+                'fixture "$fixtureName": '
                 'tests/fixtures/$fixtureName.json does not parse: $e',
           ),
         ];
@@ -356,11 +394,20 @@ issues.addAll(await _runFixture(
       plugin: manifest,
       transport: transport,
       filters: await _optionalConfig<PluginFilters>(
-          pluginDir, manifest.filtersFile, PluginFilters.fromJson),
+        pluginDir,
+        manifest.filtersFile,
+        PluginFilters.fromJson,
+      ),
       permissions: await _optionalConfig<PluginPermissions>(
-          pluginDir, manifest.permissionsFile, PluginPermissions.fromJson),
+        pluginDir,
+        manifest.permissionsFile,
+        PluginPermissions.fromJson,
+      ),
       selectors: await _optionalConfig<SelectorSet>(
-          pluginDir, manifest.selectorsFile, SelectorSet.fromJson),
+        pluginDir,
+        manifest.selectorsFile,
+        SelectorSet.fromJson,
+      ),
     );
 
     final issues = <PluginValidationIssue>[];
@@ -397,23 +444,29 @@ issues.addAll(await _runFixture(
 
     final wantTitle = spec['title'];
     if (wantTitle is String && actualTitle != wantTitle) {
-      issues.add(PluginValidationIssue(
-        pluginId: id,
-        category: 'fixture',
-        message: 'fixture "$fixtureName": expected title "$wantTitle", '
-            'got "$actualTitle"',
-      ));
+      issues.add(
+        PluginValidationIssue(
+          pluginId: id,
+          category: 'fixture',
+          message:
+              'fixture "$fixtureName": expected title "$wantTitle", '
+              'got "$actualTitle"',
+        ),
+      );
     }
     final wantContains = spec['textContains'];
     if (wantContains is List) {
       for (final fragment in wantContains.whereType<String>()) {
         if (actualText == null || !actualText.contains(fragment)) {
-          issues.add(PluginValidationIssue(
-            pluginId: id,
-            category: 'fixture',
-            message: 'fixture "$fixtureName": rendered text missing '
-                '"$fragment"',
-          ));
+          issues.add(
+            PluginValidationIssue(
+              pluginId: id,
+              category: 'fixture',
+              message:
+                  'fixture "$fixtureName": rendered text missing '
+                  '"$fragment"',
+            ),
+          );
         }
       }
     }

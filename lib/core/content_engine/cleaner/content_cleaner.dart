@@ -64,10 +64,10 @@ class ContentCleaner {
   final bool disableDefaultStrips;
 
   List<String> get _selectors => [
-        if (!disableDefaultStrips) ...defaultStripSelectors,
-        if (!disableDefaultStrips) ...defaultAdSelectors,
-        ...extraStripSelectors,
-      ];
+    if (!disableDefaultStrips) ...defaultStripSelectors,
+    if (!disableDefaultStrips) ...defaultAdSelectors,
+    ...extraStripSelectors,
+  ];
 
   Element? clean(Element? root) {
     if (root == null) return null;
@@ -104,8 +104,9 @@ class ContentCleaner {
           // Keep elements with meaningful attributes (ids, classes, data
           // attrs) so selector-based extraction still has anchors. Only
           // pure presentation attrs (style) don't count.
-          final meaningful =
-              el.attributes.keys.where((k) => k != 'style').isNotEmpty;
+          final meaningful = el.attributes.keys
+              .where((k) => k != 'style')
+              .isNotEmpty;
           if (meaningful) continue;
         }
 

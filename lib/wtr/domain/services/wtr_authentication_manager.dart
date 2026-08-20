@@ -29,8 +29,8 @@ class WtrAuthenticationManager {
   WtrAuthenticationManager({
     WtrSessionRepository? sessionRepository,
     WtrSessionAuxiliary? auxiliary,
-  })  : _repository = sessionRepository ?? InMemoryWtrSessionRepository(),
-        _auxiliary = auxiliary;
+  }) : _repository = sessionRepository ?? InMemoryWtrSessionRepository(),
+       _auxiliary = auxiliary;
 
   /// Origin scoping all WTR-Lab session state (cookies, preference keying).
   static final Uri origin = Uri.parse('https://wtr-lab.com');
@@ -43,8 +43,9 @@ class WtrAuthenticationManager {
   final WtrSessionAuxiliary? _auxiliary;
 
   /// Current auth state; the UI (and [WtrChapterProvider]'s AI gate) watch it.
-  final ValueNotifier<WtrAuthState> state =
-      ValueNotifier<WtrAuthState>(WtrAuthState.notAuthenticated);
+  final ValueNotifier<WtrAuthState> state = ValueNotifier<WtrAuthState>(
+    WtrAuthState.notAuthenticated,
+  );
 
   /// When the session was captured (null before any successful login).
   DateTime? connectedAt;

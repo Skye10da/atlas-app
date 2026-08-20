@@ -18,8 +18,9 @@ void main() {
   });
 
   group('LanguageSelector', () {
-    testWidgets('shows the current language and persists a change',
-        (tester) async {
+    testWidgets('shows the current language and persists a change', (
+      tester,
+    ) async {
       final translations = InMemoryTranslationRepository();
       var changed = false;
 
@@ -27,8 +28,9 @@ void main() {
         ProviderScope(
           overrides: [
             translationRepositoryProvider.overrideWithValue(translations),
-            supportedLanguagesProvider
-                .overrideWith((_) async => SupportedLanguage.defaults),
+            supportedLanguagesProvider.overrideWith(
+              (_) async => SupportedLanguage.defaults,
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -63,8 +65,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            supportedLanguagesProvider
-                .overrideWith((_) async => SupportedLanguage.defaults),
+            supportedLanguagesProvider.overrideWith(
+              (_) async => SupportedLanguage.defaults,
+            ),
           ],
           child: const MaterialApp(
             home: Scaffold(body: LanguageSelector(bookId: 'b1')),
@@ -160,8 +163,9 @@ void main() {
       expect(find.text('正'), findsOneWidget);
     });
 
-    testWidgets('removes a term from its trailing delete button',
-        (tester) async {
+    testWidgets('removes a term from its trailing delete button', (
+      tester,
+    ) async {
       final glossary = InMemoryAtlasGlossaryRepository();
       await glossary.save('b1', [
         AtlasGlossaryEntry(

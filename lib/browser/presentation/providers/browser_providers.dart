@@ -19,8 +19,7 @@ final browserEngineFactoryProvider = Provider<BrowserEngineFactory>((ref) {
 });
 
 /// Drift-backed persistence for history, favorites and tabs.
-final browserRepositoryProvider =
-    Provider<BrowserRepositoryInterface>((ref) {
+final browserRepositoryProvider = Provider<BrowserRepositoryInterface>((ref) {
   final db = ref.watch(databaseProvider);
   return DriftBrowserRepository(db);
 });
@@ -30,25 +29,29 @@ final browserRepositoryProvider =
 /// protected origin after a restart.
 final browserSessionRepositoryProvider =
     Provider<BrowserSessionRepositoryInterface>((ref) {
-  return JsonBrowserSessionRepository();
-});
+      return JsonBrowserSessionRepository();
+    });
 
 final webHistoryProvider = StreamProvider<List<WebHistoryEntry>>((ref) {
   return ref
       .watch(browserRepositoryProvider)
       .watchHistory()
-      .map((result) => switch (result) {
-            Success(value: final history) => history,
-            Failure() => <WebHistoryEntry>[],
-          });
+      .map(
+        (result) => switch (result) {
+          Success(value: final history) => history,
+          Failure() => <WebHistoryEntry>[],
+        },
+      );
 });
 
 final webBookmarksProvider = StreamProvider<List<BrowserBookmark>>((ref) {
   return ref
       .watch(browserRepositoryProvider)
       .watchBookmarks()
-      .map((result) => switch (result) {
-            Success(value: final bookmarks) => bookmarks,
-            Failure() => <BrowserBookmark>[],
-          });
+      .map(
+        (result) => switch (result) {
+          Success(value: final bookmarks) => bookmarks,
+          Failure() => <BrowserBookmark>[],
+        },
+      );
 });

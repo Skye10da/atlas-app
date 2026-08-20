@@ -39,10 +39,10 @@ class HttpTransport implements Transport {
     if (server.toLowerCase().contains('cloudflare')) return true;
     if ((response.headers['cf-mitigated'] ?? '').isNotEmpty) return true;
     if (response.statusCode != 403) return false;
-    final title = RegExp(r'<title>\s*([^<]*)', caseSensitive: false)
-        .firstMatch(response.body)
-        ?.group(1)
-        ?.trim();
+    final title = RegExp(
+      r'<title>\s*([^<]*)',
+      caseSensitive: false,
+    ).firstMatch(response.body)?.group(1)?.trim();
     return title == 'Just a moment...' ||
         title == 'Attention Required! | Cloudflare';
   }
@@ -89,10 +89,7 @@ class HttpTransport implements Transport {
   }) async {
     final response = await _client.post(
       url,
-      headers: {
-        'Content-Type': 'application/json',
-        ...?headers,
-      },
+      headers: {'Content-Type': 'application/json', ...?headers},
       body: jsonBody == null ? null : jsonEncode(jsonBody),
     );
     _ensureSuccess(response, url);

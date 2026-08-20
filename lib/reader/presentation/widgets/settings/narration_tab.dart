@@ -58,14 +58,18 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
           settings.speechRate,
           0.4,
           2.0,
-          (v) => _apply(settings.copyWith(speechRate: v, clearActiveProfile: true)),
+          (v) => _apply(
+            settings.copyWith(speechRate: v, clearActiveProfile: true),
+          ),
         ),
         _labeledSlider(
           'Pitch',
           settings.speechPitch,
           0.4,
           2.0,
-          (v) => _apply(settings.copyWith(speechPitch: v, clearActiveProfile: true)),
+          (v) => _apply(
+            settings.copyWith(speechPitch: v, clearActiveProfile: true),
+          ),
         ),
         const Divider(height: AppSpacing.lg),
 
@@ -75,14 +79,12 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
         SwitchListTile(
           title: const Text('Auto-advance chapters'),
           value: settings.autoAdvanceChapter,
-          onChanged: (v) =>
-              _apply(settings.copyWith(autoAdvanceChapter: v)),
+          onChanged: (v) => _apply(settings.copyWith(autoAdvanceChapter: v)),
         ),
         SwitchListTile(
           title: const Text('Sync scroll to narration'),
           value: settings.syncScrollToNarration,
-          onChanged: (v) =>
-              _apply(settings.copyWith(syncScrollToNarration: v)),
+          onChanged: (v) => _apply(settings.copyWith(syncScrollToNarration: v)),
         ),
       ],
     );
@@ -128,7 +130,8 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
             ChoiceChip(
               label: const Text('Off'),
               selected: timer == null,
-              onSelected: (_) => _apply(settings.copyWith(clearSleepTimer: true)),
+              onSelected: (_) =>
+                  _apply(settings.copyWith(clearSleepTimer: true)),
             ),
             for (final minutes in const [5, 10, 15, 30, 60])
               ChoiceChip(
@@ -138,7 +141,8 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
                   settings.copyWith(
                     sleepTimer: SleepTimerConfig(
                       duration: Duration(minutes: minutes),
-                      boundary: timer?.boundary ?? SleepTimerBoundary.endOfChapter,
+                      boundary:
+                          timer?.boundary ?? SleepTimerBoundary.endOfChapter,
                     ),
                   ),
                 ),
@@ -175,7 +179,14 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
             ],
             onChanged: (b) {
               if (b != null) {
-                _apply(settings.copyWith(sleepTimer: SleepTimerConfig(duration: timer.duration, boundary: b)));
+                _apply(
+                  settings.copyWith(
+                    sleepTimer: SleepTimerConfig(
+                      duration: timer.duration,
+                      boundary: b,
+                    ),
+                  ),
+                );
               }
             },
           ),
@@ -228,15 +239,23 @@ class _VoicePicker extends StatelessWidget {
         Text('Voice', style: textTheme.bodyMedium),
         const SizedBox(height: AppSpacing.xs),
         DropdownButtonFormField<String?>(
-          initialValue: selectedVoiceId != null && _hasVoice(selectedVoiceId!) ? selectedVoiceId : null,
+          initialValue: selectedVoiceId != null && _hasVoice(selectedVoiceId!)
+              ? selectedVoiceId
+              : null,
           isExpanded: true,
           decoration: const InputDecoration(
             isDense: true,
             border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
           ),
           items: [
-            const DropdownMenuItem<String?>(value: null, child: Text('Platform default')),
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Platform default'),
+            ),
             ...voices.map(
               (v) => DropdownMenuItem<String?>(
                 value: v.id,

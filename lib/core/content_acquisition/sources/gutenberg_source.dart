@@ -41,9 +41,13 @@ class GutenbergSource implements SearchableSource {
   @override
   Future<NovelModel> getMetadata(Uri uri) async {
     final bookId = _extractId(uri);
-    final response = await _client.get(Uri.parse('$_gutendexBase/books/$bookId'));
+    final response = await _client.get(
+      Uri.parse('$_gutendexBase/books/$bookId'),
+    );
     if (response.statusCode != 200) {
-      throw Exception('Gutenberg API returned ${response.statusCode} for book $bookId');
+      throw Exception(
+        'Gutenberg API returned ${response.statusCode} for book $bookId',
+      );
     }
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     final novel = _parseBook(json, bookId);
@@ -67,7 +71,9 @@ class GutenbergSource implements SearchableSource {
   NovelModel _parseBook(Map<String, dynamic> json, int bookId) {
     final title = json['title'] as String? ?? 'Untitled';
     final authors = json['authors'] as List<dynamic>? ?? [];
-    final author = authors.isNotEmpty ? (authors[0] as Map)['name'] as String? : null;
+    final author = authors.isNotEmpty
+        ? (authors[0] as Map)['name'] as String?
+        : null;
     final subjects = json['subjects'] as List<dynamic>? ?? [];
     final genres = subjects
         .map((s) => s.toString())
@@ -80,9 +86,10 @@ class GutenbergSource implements SearchableSource {
     final coverUrl = formats['image/jpeg'] as String?;
 
     final epubUrl = formats['application/epub+zip'] as String?;
-    final textUrl = formats['text/plain; charset=us-ascii'] as String?
-        ?? formats['text/plain; charset=utf-8'] as String?
-        ?? '$_textBase/$bookId/pg$bookId.txt';
+    final textUrl =
+        formats['text/plain; charset=us-ascii'] as String? ??
+        formats['text/plain; charset=utf-8'] as String? ??
+        '$_textBase/$bookId/pg$bookId.txt';
     final sourceUrl = epubUrl ?? textUrl;
 
     return NovelModel(
@@ -96,7 +103,9 @@ class GutenbergSource implements SearchableSource {
       sourceUrl: sourceUrl,
       fileFormat: epubUrl != null ? 'epub' : 'text',
       chapterCount: 0,
-      lastUpdated: downloads != null ? DateTime.fromMillisecondsSinceEpoch(downloads) : null,
+      lastUpdated: downloads != null
+          ? DateTime.fromMillisecondsSinceEpoch(downloads)
+          : null,
     );
   }
 
@@ -173,14 +182,16 @@ class GutenbergSource implements SearchableSource {
       final text = _stripHtml(html).trim();
       if (text.isEmpty) continue;
       final chTitle = ch.title ?? 'Chapter ${index + 1}';
-      results.add(ChapterModel(
-        id: '${novel.sourceId}_ch$index',
-        title: chTitle,
-        index: index,
-        content: text,
-        contentUrl: novel.sourceUrl,
-        wordCount: text.split(RegExp(r'\s+')).length,
-      ));
+      results.add(
+        ChapterModel(
+          id: '${novel.sourceId}_ch$index',
+          title: chTitle,
+          index: index,
+          content: text,
+          contentUrl: novel.sourceUrl,
+          wordCount: text.split(RegExp(r'\s+')).length,
+        ),
+      );
       index++;
     }
 
@@ -199,9 +210,22 @@ class GutenbergSource implements SearchableSource {
 
   String _stripHtml(String html) {
     return html
-        .replaceAll(RegExp(r'<head>.*?</head>', dotAll: true, caseSensitive: false), '')
-        .replaceAll(RegExp(r'<script.*?>.*?</script>', dotAll: true, caseSensitive: false), '')
-        .replaceAll(RegExp(r'<style.*?>.*?</style>', dotAll: true, caseSensitive: false), '')
+        .replaceAll(
+          RegExp(r'<head>.*?</head>', dotAll: true, caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<script.*?>.*?</script>',
+            dotAll: true,
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'<style.*?>.*?</style>', dotAll: true, caseSensitive: false),
+          '',
+        )
         .replaceAll(RegExp(r'<[^>]*>'), '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
@@ -251,14 +275,20 @@ class GutenbergSource implements SearchableSource {
 
     EpubManifestItem? coverItem;
     for (final item in items) {
-      if (item.id?.toLowerCase() == 'cover-image') { coverItem = item; break; }
+      if (item.id?.toLowerCase() == 'cover-image') {
+        coverItem = item;
+        break;
+      }
     }
     if (coverItem == null) {
       for (final meta in metaItems) {
         if (meta.name?.toLowerCase() == 'cover' && meta.content != null) {
           final cid = meta.content!.toLowerCase();
           for (final item in items) {
-            if (item.id?.toLowerCase() == cid) { coverItem = item; break; }
+            if (item.id?.toLowerCase() == cid) {
+              coverItem = item;
+              break;
+            }
           }
           if (coverItem != null) break;
         }
@@ -267,7 +297,8 @@ class GutenbergSource implements SearchableSource {
     if (coverItem == null) {
       for (final item in items) {
         if ((item.properties ?? '').toLowerCase().contains('cover-image')) {
-          coverItem = item; break;
+          coverItem = item;
+          break;
         }
       }
     }
@@ -304,12 +335,26 @@ class GutenbergSource implements SearchableSource {
 
   List<_ChapterSection> _splitChapters(String text) {
     final patterns = <RegExp>[
-      RegExp(r'^[ \t]*(CHAPTER|Chapter|Chapitre|Capítulo|Kapitel)\s+\w+', multiLine: true),
-      RegExp(r'^[ \t]*(CHAPTER|Chapter)\s+(THE\s+)?[IVXLCDM]+\b', multiLine: true, caseSensitive: false),
-      RegExp(r'^[ \t]*(CHAPTER|Chapter)\s+(THE\s+)?(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|'
-          r'Eleven|Twelve|Thirteen|Fourteen|Fifteen|Sixteen|Seventeen|Eighteen|Nineteen|Twenty)\b',
-          multiLine: true, caseSensitive: false),
-      RegExp(r'^[ \t]*(CHAPTER|Chapter)\s+\d+', multiLine: true, caseSensitive: false),
+      RegExp(
+        r'^[ \t]*(CHAPTER|Chapter|Chapitre|Capítulo|Kapitel)\s+\w+',
+        multiLine: true,
+      ),
+      RegExp(
+        r'^[ \t]*(CHAPTER|Chapter)\s+(THE\s+)?[IVXLCDM]+\b',
+        multiLine: true,
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'^[ \t]*(CHAPTER|Chapter)\s+(THE\s+)?(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|'
+        r'Eleven|Twelve|Thirteen|Fourteen|Fifteen|Sixteen|Seventeen|Eighteen|Nineteen|Twenty)\b',
+        multiLine: true,
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'^[ \t]*(CHAPTER|Chapter)\s+\d+',
+        multiLine: true,
+        caseSensitive: false,
+      ),
     ];
 
     final matches = <RegExpMatch>[];
@@ -323,7 +368,11 @@ class GutenbergSource implements SearchableSource {
     }
     matches.sort((a, b) => a.start.compareTo(b.start));
     if (matches.length < 2) {
-      final broad = RegExp(r'^[ \t]*(CHAPTER|Chapter|Ch\.|§)\s*\w+', multiLine: true, caseSensitive: false);
+      final broad = RegExp(
+        r'^[ \t]*(CHAPTER|Chapter|Ch\.|§)\s*\w+',
+        multiLine: true,
+        caseSensitive: false,
+      );
       for (final m in broad.allMatches(text)) {
         if (seen.add(m.start)) {
           matches.add(m);
@@ -343,7 +392,9 @@ class GutenbergSource implements SearchableSource {
       final title = titleLineEnd > 0
           ? content.substring(0, titleLineEnd).trim()
           : matches[i].group(0)!.trim();
-      final body = titleLineEnd > 0 ? content.substring(titleLineEnd).trim() : '';
+      final body = titleLineEnd > 0
+          ? content.substring(titleLineEnd).trim()
+          : '';
 
       sections.add(_ChapterSection(title: title, content: body));
     }
@@ -353,10 +404,7 @@ class GutenbergSource implements SearchableSource {
   @override
   Future<SourceSearchResponse> search(SourceSearchQuery query) async {
     final uri = Uri.parse('$_gutendexBase/books').replace(
-      queryParameters: {
-        'search': query.term,
-        'page': query.page.toString(),
-      },
+      queryParameters: {'search': query.term, 'page': query.page.toString()},
     );
     final response = await _client.get(uri);
     if (response.statusCode != 200) {
@@ -370,11 +418,15 @@ class GutenbergSource implements SearchableSource {
       final book = b as Map<String, dynamic>;
       final id = book['id'] as int;
       final authors = book['authors'] as List<dynamic>? ?? [];
-      final author = authors.isNotEmpty ? (authors[0] as Map)['name'] as String? : null;
+      final author = authors.isNotEmpty
+          ? (authors[0] as Map)['name'] as String?
+          : null;
       final formats = book['formats'] as Map<String, dynamic>? ?? {};
       final coverUrl = formats['image/jpeg'] as String?;
       final subjects = book['subjects'] as List<dynamic>? ?? [];
-      final desc = subjects.isNotEmpty ? subjects.take(3).map((s) => s.toString()).join(', ') : null;
+      final desc = subjects.isNotEmpty
+          ? subjects.take(3).map((s) => s.toString()).join(', ')
+          : null;
 
       return SourceSearchResult(
         id: id.toString(),

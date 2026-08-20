@@ -35,13 +35,14 @@ class WordPressApiTemplate implements Template {
     PluginManifest plugin,
     String path, [
     Map<String, String> query = const {},
-  ]) =>
-      Uri.parse('${restOrigin(plugin)}/wp-json/wp/v2$path')
-          .replace(queryParameters: query);
+  ]) => Uri.parse(
+    '${restOrigin(plugin)}/wp-json/wp/v2$path',
+  ).replace(queryParameters: query);
 
   String? _slugOf(String url) {
-    final segments =
-        Uri.parse(url).pathSegments.where((s) => s.isNotEmpty).toList();
+    final segments = Uri.parse(
+      url,
+    ).pathSegments.where((s) => s.isNotEmpty).toList();
     return segments.isEmpty ? null : segments.last;
   }
 
@@ -70,8 +71,10 @@ class WordPressApiTemplate implements Template {
           'per_page': '1',
           '_fields': 'title,content,date,link',
         });
-        final value = await context.transport
-            .fetchJson(uri, headers: context.plugin.requestHeaders);
+        final value = await context.transport.fetchJson(
+          uri,
+          headers: context.plugin.requestHeaders,
+        );
         final posts = value is List ? value.whereType<Map>().toList() : null;
         if (posts != null && posts.isNotEmpty) {
           final post = Map<String, Object?>.from(posts.first);
@@ -105,10 +108,7 @@ class WordPressApiTemplate implements Template {
 
   /// Best-effort metadata via the post's REST entry; falls back to scraping.
   @override
-  Future<NovelMetadata> metadata(
-    PluginContext context,
-    String novelUrl,
-  ) async {
+  Future<NovelMetadata> metadata(PluginContext context, String novelUrl) async {
     final slug = _slugOf(novelUrl);
     if (slug != null) {
       try {
@@ -117,8 +117,10 @@ class WordPressApiTemplate implements Template {
           'per_page': '1',
           '_fields': 'title,date,link',
         });
-        final value = await context.transport
-            .fetchJson(uri, headers: context.plugin.requestHeaders);
+        final value = await context.transport.fetchJson(
+          uri,
+          headers: context.plugin.requestHeaders,
+        );
         final posts = value is List ? value.whereType<Map>().toList() : null;
         if (posts != null && posts.isNotEmpty) {
           final post = Map<String, Object?>.from(posts.first);
@@ -144,15 +146,12 @@ class WordPressApiTemplate implements Template {
   Future<List<ChapterRef>> chapterList(
     PluginContext context,
     String novelUrl,
-  ) =>
-      _fallback.chapterList(context, novelUrl);
+  ) => _fallback.chapterList(context, novelUrl);
 
   @override
-  Future<List<SearchResult>> search(
-    PluginContext context,
-    String query,
-  ) =>
+  Future<List<SearchResult>> search(PluginContext context, String query) =>
       _fallback.search(context, query);
 
-  DateTime? _tryParseDate(String? raw) => raw == null ? null : DateTime.tryParse(raw);
+  DateTime? _tryParseDate(String? raw) =>
+      raw == null ? null : DateTime.tryParse(raw);
 }

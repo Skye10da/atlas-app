@@ -38,11 +38,13 @@ class EpubUrlSource implements SourceAdapter {
           if (raw == null) continue;
           final text = _stripHtml(raw).trim();
           if (text.isEmpty) continue;
-          _cachedFlatChapters!.add(EpubChapter(
-            title: 'Chapter ${_cachedFlatChapters!.length + 1}',
-            htmlContent: raw,
-            subChapters: [],
-          ));
+          _cachedFlatChapters!.add(
+            EpubChapter(
+              title: 'Chapter ${_cachedFlatChapters!.length + 1}',
+              htmlContent: raw,
+              subChapters: [],
+            ),
+          );
         }
       }
     }
@@ -91,14 +93,16 @@ class EpubUrlSource implements SourceAdapter {
       if (text.isEmpty) continue;
 
       final chTitle = ch.title ?? 'Chapter ${index + 1}';
-      results.add(ChapterModel(
-        id: '${novel.sourceId}_ch$index',
-        title: chTitle,
-        index: index,
-        content: text,
-        contentUrl: novel.sourceUrl,
-        wordCount: text.split(RegExp(r'\s+')).length,
-      ));
+      results.add(
+        ChapterModel(
+          id: '${novel.sourceId}_ch$index',
+          title: chTitle,
+          index: index,
+          content: text,
+          contentUrl: novel.sourceUrl,
+          wordCount: text.split(RegExp(r'\s+')).length,
+        ),
+      );
       index++;
     }
 
@@ -137,7 +141,10 @@ class EpubUrlSource implements SourceAdapter {
     final filename = segments.isNotEmpty
         ? segments.last.replaceAll('.epub', '')
         : 'Untitled';
-    return filename.replaceAll(RegExp(r'[-_]'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    return filename
+        .replaceAll(RegExp(r'[-_]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   Uint8List? _extractCoverBytes(EpubBook book) {
@@ -147,14 +154,20 @@ class EpubUrlSource implements SourceAdapter {
 
     EpubManifestItem? coverItem;
     for (final item in items) {
-      if (item.id?.toLowerCase() == 'cover-image') { coverItem = item; break; }
+      if (item.id?.toLowerCase() == 'cover-image') {
+        coverItem = item;
+        break;
+      }
     }
     if (coverItem == null) {
       for (final meta in metaItems) {
         if (meta.name?.toLowerCase() == 'cover' && meta.content != null) {
           final cid = meta.content!.toLowerCase();
           for (final item in items) {
-            if (item.id?.toLowerCase() == cid) { coverItem = item; break; }
+            if (item.id?.toLowerCase() == cid) {
+              coverItem = item;
+              break;
+            }
           }
           if (coverItem != null) break;
         }
@@ -163,7 +176,8 @@ class EpubUrlSource implements SourceAdapter {
     if (coverItem == null) {
       for (final item in items) {
         if ((item.properties ?? '').toLowerCase().contains('cover-image')) {
-          coverItem = item; break;
+          coverItem = item;
+          break;
         }
       }
     }
@@ -176,9 +190,22 @@ class EpubUrlSource implements SourceAdapter {
 
   String _stripHtml(String html) {
     return html
-        .replaceAll(RegExp(r'<head>.*?</head>', dotAll: true, caseSensitive: false), '')
-        .replaceAll(RegExp(r'<script.*?>.*?</script>', dotAll: true, caseSensitive: false), '')
-        .replaceAll(RegExp(r'<style.*?>.*?</style>', dotAll: true, caseSensitive: false), '')
+        .replaceAll(
+          RegExp(r'<head>.*?</head>', dotAll: true, caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<script.*?>.*?</script>',
+            dotAll: true,
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'<style.*?>.*?</style>', dotAll: true, caseSensitive: false),
+          '',
+        )
         .replaceAll(RegExp(r'<[^>]*>'), '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();

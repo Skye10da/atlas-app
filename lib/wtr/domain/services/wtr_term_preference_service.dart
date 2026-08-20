@@ -14,7 +14,7 @@ import 'package:atlas_app/core/content_engine/transport/transport.dart';
 /// it just loses the account-specific substitution.
 class WtrTermPreferenceService {
   WtrTermPreferenceService({Map<(int, String), String?>? cache})
-      : _cache = cache ?? <(int, String), String?>{};
+    : _cache = cache ?? <(int, String), String?>{};
 
   final Map<(int, String), String?> _cache;
 
@@ -81,35 +81,29 @@ class WtrTermPreferenceService {
     String? best;
     num bestCount = -1;
     for (final entry in entries) {
-      final replacement = _firstString(
-        entry,
-        const [
-          'replacement',
-          'term',
-          'target',
-          'target_text',
-          'targetText',
-          'translation',
-          'value',
-          'en',
-          'to',
-        ],
-      );
+      final replacement = _firstString(entry, const [
+        'replacement',
+        'term',
+        'target',
+        'target_text',
+        'targetText',
+        'translation',
+        'value',
+        'en',
+        'to',
+      ]);
       if (replacement == null || replacement.isEmpty) continue;
-      final count = _firstNumber(
-        entry,
-        const [
-          'count',
-          'Count',
-          'score',
-          'votes',
-          'uses',
-          'usage_count',
-          'user_count',
-          'userCount',
-          'preference_count',
-        ],
-      );
+      final count = _firstNumber(entry, const [
+        'count',
+        'Count',
+        'score',
+        'votes',
+        'uses',
+        'usage_count',
+        'user_count',
+        'userCount',
+        'preference_count',
+      ]);
       if (best == null || count > bestCount) {
         best = replacement;
         bestCount = count;

@@ -3,7 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 
 class SortDropdown extends StatelessWidget {
-  const SortDropdown({super.key, required this.currentOrder, required this.onSort});
+  const SortDropdown({
+    super.key,
+    required this.currentOrder,
+    required this.onSort,
+  });
 
   final LibrarySortOrder currentOrder;
   final void Function(LibrarySortOrder) onSort;
@@ -63,10 +67,7 @@ class SortDropdown extends StatelessWidget {
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 4),
-          Text(
-            currentLabel,
-            style: const TextStyle(fontSize: 12),
-          ),
+          Text(currentLabel, style: const TextStyle(fontSize: 12)),
           const SizedBox(width: 2),
           const Icon(Icons.arrow_drop_down, size: 18),
         ],

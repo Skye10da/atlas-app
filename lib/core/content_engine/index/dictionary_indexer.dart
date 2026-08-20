@@ -7,7 +7,7 @@ import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
 /// and downstream AI context building.
 class DictionaryIndexer {
   DictionaryIndexer({Tokenizer tokenizer = const Tokenizer()})
-      : _tokenizer = tokenizer;
+    : _tokenizer = tokenizer;
 
   final Tokenizer _tokenizer;
   final Map<String, Map<String, int>> _documents = {};
@@ -35,10 +35,11 @@ class DictionaryIndexer {
   List<DictionaryEntry> vocabulary(String docId) {
     final frequencies = _documents[docId];
     if (frequencies == null) return const [];
-    final entries = frequencies.entries
-        .map((e) => DictionaryEntry(term: e.key, frequency: e.value))
-        .toList()
-      ..sort((a, b) => b.frequency.compareTo(a.frequency));
+    final entries =
+        frequencies.entries
+            .map((e) => DictionaryEntry(term: e.key, frequency: e.value))
+            .toList()
+          ..sort((a, b) => b.frequency.compareTo(a.frequency));
     return entries;
   }
 

@@ -69,7 +69,10 @@ class PdfReaderPanel extends StatelessWidget {
                   Tab(icon: Icon(Icons.menu_book), iconMargin: EdgeInsets.zero),
                   Tab(icon: Icon(Icons.grid_view), iconMargin: EdgeInsets.zero),
                   Tab(icon: Icon(Icons.bookmark), iconMargin: EdgeInsets.zero),
-                  Tab(icon: Icon(Icons.sticky_note_2_outlined), iconMargin: EdgeInsets.zero),
+                  Tab(
+                    icon: Icon(Icons.sticky_note_2_outlined),
+                    iconMargin: EdgeInsets.zero,
+                  ),
                 ],
               ),
             ),
@@ -104,7 +107,11 @@ class PdfReaderPanel extends StatelessWidget {
     if (outline == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return PdfOutlinePanel(outline: outline, onSelected: onOutlineSelected, nightMode: nightMode);
+    return PdfOutlinePanel(
+      outline: outline,
+      onSelected: onOutlineSelected,
+      nightMode: nightMode,
+    );
   }
 
   Widget _buildThumbnails() {

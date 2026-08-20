@@ -71,9 +71,9 @@ class WtrTranslationSelector extends ConsumerWidget {
   }
 
   Future<void> _signIn(BuildContext context, WidgetRef ref) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const WtrLoginScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const WtrLoginScreen()));
   }
 
   Future<void> _changeAccount(BuildContext context, WidgetRef ref) async {
@@ -149,7 +149,7 @@ class _SelectorCard extends StatelessWidget {
       return Text(
         service == WtrTranslationService.web
             ? 'Source-language text (Chinese for Chinese-origin novels), '
-                'fetched without an account.'
+                  'fetched without an account.'
             : 'Source-language text, fetched without an account.',
         style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
       );
@@ -223,10 +223,9 @@ class _ActionRow extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: colors.onSurfaceVariant),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
           ),
         ),
         const SizedBox(width: AppSpacing.sm),

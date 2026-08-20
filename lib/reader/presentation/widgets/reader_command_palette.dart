@@ -39,7 +39,9 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _focusNode.requestFocus(),
+    );
   }
 
   @override
@@ -53,11 +55,14 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
     final commands = _allCommands;
     if (_query.isEmpty) return commands;
     final q = _query.toLowerCase();
-    return commands.where((c) =>
-      c.title.toLowerCase().contains(q) ||
-      c.subtitle.toLowerCase().contains(q) ||
-      '${c.index}'.contains(q),
-    ).toList();
+    return commands
+        .where(
+          (c) =>
+              c.title.toLowerCase().contains(q) ||
+              c.subtitle.toLowerCase().contains(q) ||
+              '${c.index}'.contains(q),
+        )
+        .toList();
   }
 
   List<_CommandItem> get _allCommands => [
@@ -67,17 +72,21 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
       subtitle: 'Jump to a specific chapter',
       action: (idx) {},
     ),
-    ...widget.chapters.map((ch) => _CommandItem(
-      icon: Icons.article_outlined,
-      title: ch.title,
-      subtitle: 'Chapter ${widget.chapters.indexOf(ch) + 1}',
-      index: widget.chapters.indexOf(ch),
-      isCurrent: widget.chapters.indexOf(ch) == widget.currentChapterIndex,
-      action: (idx) => widget.onChapterSelected(idx),
-    )),
+    ...widget.chapters.map(
+      (ch) => _CommandItem(
+        icon: Icons.article_outlined,
+        title: ch.title,
+        subtitle: 'Chapter ${widget.chapters.indexOf(ch) + 1}',
+        index: widget.chapters.indexOf(ch),
+        isCurrent: widget.chapters.indexOf(ch) == widget.currentChapterIndex,
+        action: (idx) => widget.onChapterSelected(idx),
+      ),
+    ),
     _CommandItem(
       icon: widget.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-      title: widget.isBookmarked ? 'Remove bookmark' : 'Bookmark current chapter',
+      title: widget.isBookmarked
+          ? 'Remove bookmark'
+          : 'Bookmark current chapter',
       subtitle: 'Toggle bookmark for this chapter',
       action: (_) => widget.onToggleBookmark(),
     ),
@@ -126,16 +135,33 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      AppSpacing.sm,
+                      AppSpacing.sm,
+                      AppSpacing.sm,
+                    ),
                     child: Focus(
                       onKeyEvent: (node, event) {
-                        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+                        if (event is! KeyDownEvent) {
+                          return KeyEventResult.ignored;
+                        }
                         if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                          setState(() => _selectedIndex = (_selectedIndex + 1).clamp(0, items.length - 1));
+                          setState(
+                            () => _selectedIndex = (_selectedIndex + 1).clamp(
+                              0,
+                              items.length - 1,
+                            ),
+                          );
                           return KeyEventResult.handled;
                         }
                         if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                          setState(() => _selectedIndex = (_selectedIndex - 1).clamp(0, items.length - 1));
+                          setState(
+                            () => _selectedIndex = (_selectedIndex - 1).clamp(
+                              0,
+                              items.length - 1,
+                            ),
+                          );
                           return KeyEventResult.handled;
                         }
                         if (event.logicalKey == LogicalKeyboardKey.escape) {
@@ -156,10 +182,16 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                         onSubmitted: (_) => _executeSelected(),
                         decoration: InputDecoration(
                           hintText: 'Search commands...',
-                          prefixIcon: Icon(Icons.search, size: 20, color: colors.onSurfaceVariant),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            size: 20,
+                            color: colors.onSurfaceVariant,
+                          ),
                           border: InputBorder.none,
                           filled: false,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                          ),
                         ),
                         style: textTheme.bodyMedium,
                       ),
@@ -169,7 +201,10 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                   if (items.isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Text('No matching commands', style: TextStyle(color: colors.onSurfaceVariant)),
+                      child: Text(
+                        'No matching commands',
+                        style: TextStyle(color: colors.onSurfaceVariant),
+                      ),
                     )
                   else
                     ConstrainedBox(
@@ -181,7 +216,9 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                           final item = items[i];
                           final isSelected = i == _selectedIndex;
                           return Material(
-                            color: isSelected ? colors.primaryContainer.withValues(alpha: 0.3) : Colors.transparent,
+                            color: isSelected
+                                ? colors.primaryContainer.withValues(alpha: 0.3)
+                                : Colors.transparent,
                             child: InkWell(
                               onTap: () {
                                 item.action(item.index);
@@ -194,11 +231,18 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(item.icon, size: 18, color: item.isCurrent ? colors.primary : colors.onSurfaceVariant),
+                                    Icon(
+                                      item.icon,
+                                      size: 18,
+                                      color: item.isCurrent
+                                          ? colors.primary
+                                          : colors.onSurfaceVariant,
+                                    ),
                                     const SizedBox(width: AppSpacing.sm),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             item.title,
@@ -206,8 +250,12 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
                                               fontSize: 13,
-                                              fontWeight: item.isCurrent ? FontWeight.w600 : null,
-                                              color: item.isCurrent ? colors.primary : colors.onSurface,
+                                              fontWeight: item.isCurrent
+                                                  ? FontWeight.w600
+                                                  : null,
+                                              color: item.isCurrent
+                                                  ? colors.primary
+                                                  : colors.onSurface,
                                             ),
                                           ),
                                           if (item.subtitle.isNotEmpty)
@@ -226,7 +274,11 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                                     if (item.isCurrent)
                                       Padding(
                                         padding: const EdgeInsets.only(left: 4),
-                                        child: Icon(Icons.check, size: 14, color: colors.primary),
+                                        child: Icon(
+                                          Icons.check,
+                                          size: 14,
+                                          color: colors.primary,
+                                        ),
                                       ),
                                   ],
                                 ),

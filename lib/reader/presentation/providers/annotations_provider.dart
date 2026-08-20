@@ -7,13 +7,14 @@ import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 /// explicit future step). Keys are chapter IDs so each chapter keeps its own
 /// highlight/note lists.
 final annotationsProvider =
-    NotifierProvider.family<ReaderAnnotationsController, ReaderAnnotationsState,
-        String>(
-      ReaderAnnotationsController.new,
-    );
+    NotifierProvider.family<
+      ReaderAnnotationsController,
+      ReaderAnnotationsState,
+      String
+    >(ReaderAnnotationsController.new);
 
-class ReaderAnnotationsController extends FamilyNotifier<
-    ReaderAnnotationsState, String> {
+class ReaderAnnotationsController
+    extends FamilyNotifier<ReaderAnnotationsState, String> {
   int _noteCounter = 0;
 
   @override
@@ -44,11 +45,7 @@ class ReaderAnnotationsController extends FamilyNotifier<
 
   /// Removes every highlight in [chapterId] whose range overlaps
   /// [otherStart, otherEnd) — used by the "Erase" context-menu action.
-  void eraseOverlapping(
-    String chapterId,
-    int otherStart,
-    int otherEnd,
-  ) {
+  void eraseOverlapping(String chapterId, int otherStart, int otherEnd) {
     final list = state.highlights[chapterId];
     if (list == null || list.isEmpty) return;
     final surviving = [
@@ -65,13 +62,12 @@ class ReaderAnnotationsController extends FamilyNotifier<
   }
 
   /// Returns the highlights in [chapterId] overlapping [start, end).
-  List<HighlightEntry> highlightsIn(
-    String chapterId,
-    int start,
-    int end,
-  ) {
+  List<HighlightEntry> highlightsIn(String chapterId, int start, int end) {
     final list = state.highlights[chapterId] ?? const [];
-    return [for (final h in list) if (h.overlaps(start, end)) h];
+    return [
+      for (final h in list)
+        if (h.overlaps(start, end)) h,
+    ];
   }
 
   void addNote({
@@ -84,8 +80,7 @@ class ReaderAnnotationsController extends FamilyNotifier<
     notes[chapterId] = [
       ...?notes[chapterId],
       NoteEntry(
-        id:
-            '${chapterId}_${DateTime.now().microsecondsSinceEpoch}_$_noteCounter',
+        id: '${chapterId}_${DateTime.now().microsecondsSinceEpoch}_$_noteCounter',
         chapterId: chapterId,
         text: text,
         sentence: sentence,
@@ -98,7 +93,10 @@ class ReaderAnnotationsController extends FamilyNotifier<
   void deleteNote(String chapterId, String noteId) {
     final list = state.notes[chapterId];
     if (list == null) return;
-    final remaining = [for (final n in list) if (n.id != noteId) n];
+    final remaining = [
+      for (final n in list)
+        if (n.id != noteId) n,
+    ];
     final notes = {...state.notes};
     if (remaining.isEmpty) {
       notes.remove(chapterId);

@@ -47,14 +47,28 @@ class PdfReaderContent extends ConsumerStatefulWidget {
   ConsumerState<PdfReaderContent> createState() => _PdfReaderContentState();
 }
 
-const _invertFilter = ColorFilter.matrix(
-  [
-    -1, 0, 0, 0, 255,
-    0, -1, 0, 0, 255,
-    0, 0, -1, 0, 255,
-    0, 0, 0, 1, 0,
-  ],
-);
+const _invertFilter = ColorFilter.matrix([
+  -1,
+  0,
+  0,
+  0,
+  255,
+  0,
+  -1,
+  0,
+  0,
+  255,
+  0,
+  0,
+  -1,
+  0,
+  255,
+  0,
+  0,
+  0,
+  1,
+  0,
+]);
 
 const _identityFilter = ColorFilter.mode(Colors.white, BlendMode.dst);
 
@@ -133,7 +147,10 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
 
   // ------------------------------------------------------------ viewer io
 
-  Future<void> _onViewerReady(PdfDocument document, PdfViewerController controller) async {
+  Future<void> _onViewerReady(
+    PdfDocument document,
+    PdfViewerController controller,
+  ) async {
     var pageCount = 0;
     try {
       pageCount = document.pages.length;
@@ -278,7 +295,10 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     AppContextMenuHighlightOption(color: Color(0xFFCE93D8), label: 'Purple'),
   ];
 
-  Widget? _buildContextMenu(BuildContext context, PdfViewerContextMenuBuilderParams params) {
+  Widget? _buildContextMenu(
+    BuildContext context,
+    PdfViewerContextMenuBuilderParams params,
+  ) {
     if (!params.isTextSelectionEnabled) return null;
     final delegate = params.textSelectionDelegate;
     if (!delegate.hasSelectedText) return null;
@@ -392,7 +412,10 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
                 snippet,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -423,7 +446,9 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     if (result == null || result.trim().isEmpty || !mounted) return;
     final page = first.pageNumber;
     setState(() {
-      _notes.putIfAbsent(page, () => []).add(
+      _notes
+          .putIfAbsent(page, () => [])
+          .add(
             PdfNoteEntry(
               pageNumber: page,
               snippet: snippet,
@@ -434,7 +459,9 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     });
   }
 
-  Future<void> _listenToSelection(PdfViewerContextMenuBuilderParams params) async {
+  Future<void> _listenToSelection(
+    PdfViewerContextMenuBuilderParams params,
+  ) async {
     final text = await _selectedText(params);
     if (text.isEmpty || !mounted) return;
     await _selectionSpeaker.speak(
@@ -449,12 +476,14 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     }
   }
 
-  Future<void> _lookupSelection(PdfViewerContextMenuBuilderParams params) async {
+  Future<void> _lookupSelection(
+    PdfViewerContextMenuBuilderParams params,
+  ) async {
     final raw = await _selectedText(params);
     if (!mounted) return;
     final word = raw.split(RegExp(r'\s+')).join(' ').trim();
     if (word.isEmpty) return;
-await DraggableBottomSheet.show(
+    await DraggableBottomSheet.show(
       context: context,
       id: 'word_lookup',
       initialHeight: 0.7,
@@ -519,13 +548,18 @@ await DraggableBottomSheet.show(
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(readingSettingsProvider).valueOrNull ?? const ReadingSettingsEntity();
+    final settings =
+        ref.watch(readingSettingsProvider).valueOrNull ??
+        const ReadingSettingsEntity();
     final colorScheme = Theme.of(context).colorScheme;
     final nightMode = colorScheme.brightness == Brightness.dark;
     final background = settings.theme.resolve(colorScheme).background;
 
     if (!_progressLoaded) {
-      return Scaffold(backgroundColor: background, body: const Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: background,
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
@@ -583,7 +617,10 @@ await DraggableBottomSheet.show(
                     child: OverflowBox(
                       alignment: Alignment.centerLeft,
                       maxWidth: 300,
-                      child: SizedBox(width: 300, child: _buildPanel(nightMode)),
+                      child: SizedBox(
+                        width: 300,
+                        child: _buildPanel(nightMode),
+                      ),
                     ),
                   )
                 : null,
@@ -628,9 +665,11 @@ await DraggableBottomSheet.show(
     );
   }
 
-  List<PdfMarker> get _allMarkers => _markers.values.expand((list) => list).toList();
+  List<PdfMarker> get _allMarkers =>
+      _markers.values.expand((list) => list).toList();
 
-  List<PdfNoteEntry> get _allNotes => _notes.values.expand((list) => list).toList();
+  List<PdfNoteEntry> get _allNotes =>
+      _notes.values.expand((list) => list).toList();
 
   Widget _buildViewer(Color background, bool nightMode) {
     final horizontal = _layoutMode == PdfReaderLayoutMode.continuous;
@@ -645,7 +684,9 @@ await DraggableBottomSheet.show(
         scrollHorizontallyByMouseWheel: horizontal,
         pageAnchor: horizontal ? PdfPageAnchor.left : PdfPageAnchor.top,
         pageAnchorEnd: horizontal ? PdfPageAnchor.right : PdfPageAnchor.bottom,
-        textSelectionParams: PdfTextSelectionParams(onTextSelectionChange: _onTextSelectionChange),
+        textSelectionParams: PdfTextSelectionParams(
+          onTextSelectionChange: _onTextSelectionChange,
+        ),
         buildContextMenu: _buildContextMenu,
         linkHandlerParams: PdfLinkHandlerParams(onLinkTap: _onLinkTap),
         viewerOverlayBuilder: (context, size, handleLinkTap) => [
@@ -663,25 +704,30 @@ await DraggableBottomSheet.show(
           ),
           PdfViewerScrollThumb(
             controller: _controller,
-            orientation: horizontal ? ScrollbarOrientation.bottom : ScrollbarOrientation.right,
+            orientation: horizontal
+                ? ScrollbarOrientation.bottom
+                : ScrollbarOrientation.right,
             thumbSize: const Size(40, 25),
-            thumbBuilder: (context, thumbSize, pageNumber, controller) => Container(
-              color: nightMode ? Colors.white : Colors.black,
-              child: Center(
-                child: Text(
-                  pageNumber?.toString() ?? '',
-                  style: TextStyle(
-                    color: nightMode ? Colors.black : Colors.white,
-                    fontSize: 11,
+            thumbBuilder: (context, thumbSize, pageNumber, controller) =>
+                Container(
+                  color: nightMode ? Colors.white : Colors.black,
+                  child: Center(
+                    child: Text(
+                      pageNumber?.toString() ?? '',
+                      style: TextStyle(
+                        color: nightMode ? Colors.black : Colors.white,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
           ),
         ],
         loadingBannerBuilder: (context, bytesDownloaded, totalBytes) => Center(
           child: CircularProgressIndicator(
-            value: totalBytes != null && totalBytes > 0 ? bytesDownloaded / totalBytes : null,
+            value: totalBytes != null && totalBytes > 0
+                ? bytesDownloaded / totalBytes
+                : null,
           ),
         ),
         errorBannerBuilder: (context, error, stackTrace, documentRef) => Center(
@@ -723,14 +769,21 @@ await DraggableBottomSheet.show(
   }
 
   PdfPageLayout _horizontalLayout(List<PdfPage> pages, PdfViewerParams params) {
-    final height = pages.fold(0.0, (prev, page) => math.max(prev, page.height)) + params.margin * 2;
+    final height =
+        pages.fold(0.0, (prev, page) => math.max(prev, page.height)) +
+        params.margin * 2;
     final pageLayouts = <Rect>[];
     var x = params.margin;
     for (final page in pages) {
-      pageLayouts.add(Rect.fromLTWH(x, (height - page.height) / 2, page.width, page.height));
+      pageLayouts.add(
+        Rect.fromLTWH(x, (height - page.height) / 2, page.width, page.height),
+      );
       x += page.width + params.margin;
     }
-    return PdfPageLayout(pageLayouts: pageLayouts, documentSize: Size(x, height));
+    return PdfPageLayout(
+      pageLayouts: pageLayouts,
+      documentSize: Size(x, height),
+    );
   }
 
   PdfPageLayout _facingLayout(List<PdfPage> pages, PdfViewerParams params) {
@@ -748,7 +801,9 @@ await DraggableBottomSheet.show(
           : page.height;
       pageLayouts.add(
         Rect.fromLTWH(
-          isLeft ? width + params.margin - page.width : params.margin * 2 + width,
+          isLeft
+              ? width + params.margin - page.width
+              : params.margin * 2 + width,
           y + (h - page.height) / 2,
           page.width,
           page.height,
@@ -788,7 +843,9 @@ await DraggableBottomSheet.show(
         children: [
           IconButton(
             icon: Icon(Icons.chevron_left, color: color),
-            onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
+            onPressed: _currentPage > 1
+                ? () => _goToPage(_currentPage - 1)
+                : null,
           ),
           Expanded(
             child: Slider(
@@ -798,14 +855,18 @@ await DraggableBottomSheet.show(
               activeColor: color,
               inactiveColor: color.withAlpha(96),
               onChanged: _totalPages > 1
-                  ? (value) => setState(() => _currentPage = value.round().clamp(1, _totalPages))
+                  ? (value) => setState(
+                      () => _currentPage = value.round().clamp(1, _totalPages),
+                    )
                   : null,
               onChangeEnd: (value) => _goToPage(value.round()),
             ),
           ),
           IconButton(
             icon: Icon(Icons.chevron_right, color: color),
-            onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
+            onPressed: _currentPage < _totalPages
+                ? () => _goToPage(_currentPage + 1)
+                : null,
           ),
         ],
       ),

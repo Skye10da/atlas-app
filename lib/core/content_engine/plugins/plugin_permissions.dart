@@ -30,11 +30,11 @@ class PluginPermissions {
   final bool respectRobotsTxt;
 
   Map<String, Object?> toJson() => {
-        'allowOfflineCache': allowOfflineCache,
-        'maxConcurrentRequests': maxConcurrentRequests,
-        'requestDelayMs': requestDelayMs,
-        'respectRobotsTxt': respectRobotsTxt,
-      };
+    'allowOfflineCache': allowOfflineCache,
+    'maxConcurrentRequests': maxConcurrentRequests,
+    'requestDelayMs': requestDelayMs,
+    'respectRobotsTxt': respectRobotsTxt,
+  };
 
   static bool _bool(Object? value, bool fallback) =>
       value is bool ? value : fallback;

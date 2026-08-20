@@ -53,7 +53,8 @@ List<int> epubBytes() {
 
   for (var i = 0; i < 2; i++) {
     final fileName = 'ch_${i + 1}.xhtml';
-    final content = '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+    final content =
+        '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
         '<head><title>Chapter ${i + 1}</title></head>'
         '<body><h2>Chapter ${i + 1}</h2><p>Body text ${i + 1}.</p></body></html>';
     html[fileName] = EpubTextContentFile(
@@ -62,11 +63,13 @@ List<int> epubBytes() {
       content: content,
     );
     manifestItems.add(
-      EpubManifestItem(id: 'ch_${i + 1}', href: fileName, mediaType: 'application/xhtml+xml'),
+      EpubManifestItem(
+        id: 'ch_${i + 1}',
+        href: fileName,
+        mediaType: 'application/xhtml+xml',
+      ),
     );
-    spineItems.add(
-      EpubSpineItemRef(idRef: 'ch_${i + 1}', isLinear: true),
-    );
+    spineItems.add(EpubSpineItemRef(idRef: 'ch_${i + 1}', isLinear: true));
     navPoints.add(
       EpubNavigationPoint(
         navigationLabels: [EpubNavigationLabel(text: 'Chapter ${i + 1}')],
@@ -74,19 +77,28 @@ List<int> epubBytes() {
       ),
     );
     chapters.add(
-      EpubChapter(title: 'Chapter ${i + 1}', contentFileName: fileName, htmlContent: content),
+      EpubChapter(
+        title: 'Chapter ${i + 1}',
+        contentFileName: fileName,
+        htmlContent: content,
+      ),
     );
   }
 
   html['nav.xhtml'] = const EpubTextContentFile(
     fileName: 'nav.xhtml',
     contentMimeType: 'application/xhtml+xml',
-    content: '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+    content:
+        '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
         '<head><title>Nav</title></head><body><nav><ol><li><a href="ch_1.xhtml">One</a></li></ol></nav></body></html>',
   );
   manifestItems.insert(
     0,
-    const EpubManifestItem(id: 'nav', href: 'nav.xhtml', mediaType: 'application/xhtml+xml'),
+    const EpubManifestItem(
+      id: 'nav',
+      href: 'nav.xhtml',
+      mediaType: 'application/xhtml+xml',
+    ),
   );
 
   final book = EpubBook(
@@ -168,26 +180,32 @@ void main() {
     expect(book.existsSync(), isTrue);
   });
 
-  test('imports a PDF opened on desktop with format pdf and a stored file', () async {
-    final opened = writeTempFile(
-      'guide.pdf',
-      [
+  test(
+    'imports a PDF opened on desktop with format pdf and a stored file',
+    () async {
+      final opened = writeTempFile('guide.pdf', [
         0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34, // %PDF-1.4
-      ],
-    );
-    final result = await importer.import(opened.path);
-    expect(result, isA<Success<ImportOutcome>>());
-    final bookId = (result as Success<ImportOutcome>).value.bookId;
-    expect(bookId, 'guide');
+      ]);
+      final result = await importer.import(opened.path);
+      expect(result, isA<Success<ImportOutcome>>());
+      final bookId = (result as Success<ImportOutcome>).value.bookId;
+      expect(bookId, 'guide');
 
-    final row = await (db.select(db.books)..where((b) => b.id.equals(bookId))).getSingleOrNull();
-    expect(row, isNotNull, reason: 'PDF book row was created');
-    expect(row!.format, 'pdf');
-    expect(row.filePath, isNotEmpty);
-    expect(row.totalChapters, 0);
+      final row = await (db.select(
+        db.books,
+      )..where((b) => b.id.equals(bookId))).getSingleOrNull();
+      expect(row, isNotNull, reason: 'PDF book row was created');
+      expect(row!.format, 'pdf');
+      expect(row.filePath, isNotEmpty);
+      expect(row.totalChapters, 0);
 
-    final stored = File(p.join(row.filePath, 'book.pdf'));
-    expect(stored.existsSync(), isTrue, reason: 'verbatim PDF kept on disk');
-    expect(opened.existsSync(), isTrue, reason: 'desktop originals are never deleted');
-  });
+      final stored = File(p.join(row.filePath, 'book.pdf'));
+      expect(stored.existsSync(), isTrue, reason: 'verbatim PDF kept on disk');
+      expect(
+        opened.existsSync(),
+        isTrue,
+        reason: 'desktop originals are never deleted',
+      );
+    },
+  );
 }

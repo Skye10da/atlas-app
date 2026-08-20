@@ -41,8 +41,9 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
   String? _error;
   bool _saved = false;
   bool _speaking = false;
-  late final TextEditingController _contextController =
-      TextEditingController(text: widget.sourceSentence ?? '');
+  late final TextEditingController _contextController = TextEditingController(
+    text: widget.sourceSentence ?? '',
+  );
 
   @override
   void initState() {
@@ -111,36 +112,42 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
       await repo.delete(id);
     } else {
       final langLabel = _source.languages
-          .firstWhere((l) => l.code == _language,
-              orElse: () => const WiktionaryLanguage('en', 'English'))
+          .firstWhere(
+            (l) => l.code == _language,
+            orElse: () => const WiktionaryLanguage('en', 'English'),
+          )
           .label;
       final context = _contextController.text.trim();
-      await repo.save(DictionaryWordEntity(
-        id: id,
-        word: widget.word,
-        language: _language,
-        languageLabel: langLabel,
-        source: _source.id,
-        sourceLabel: _source.label,
-        phonetic: result.phonetic,
-        partOfSpeech: result.senses.first.partOfSpeech,
-        definition: result.senses.map((s) => s.definition).join('\n'),
-        fullJson: jsonEncode(result.toJson()),
-        savedAt: DateTime.now(),
-        sourceSentence: context.isEmpty ? null : context,
-        sourceTitle: widget.sourceTitle,
-        reviewLevel: 0,
-        reviewCount: 0,
-        lastReviewedAt: null,
-        nextReviewAt: null,
-      ));
+      await repo.save(
+        DictionaryWordEntity(
+          id: id,
+          word: widget.word,
+          language: _language,
+          languageLabel: langLabel,
+          source: _source.id,
+          sourceLabel: _source.label,
+          phonetic: result.phonetic,
+          partOfSpeech: result.senses.first.partOfSpeech,
+          definition: result.senses.map((s) => s.definition).join('\n'),
+          fullJson: jsonEncode(result.toJson()),
+          savedAt: DateTime.now(),
+          sourceSentence: context.isEmpty ? null : context,
+          sourceTitle: widget.sourceTitle,
+          reviewLevel: 0,
+          reviewCount: 0,
+          lastReviewedAt: null,
+          nextReviewAt: null,
+        ),
+      );
     }
     ref.invalidate(savedWordsProvider);
     if (!mounted) return;
     setState(() => _saved = !_saved);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(_saved ? 'Saved "${widget.word}"' : 'Removed from saved words'),
+        content: Text(
+          _saved ? 'Saved "${widget.word}"' : 'Removed from saved words',
+        ),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -153,9 +160,9 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
         .map((s) => '${s.partOfSpeech}: ${s.definition}')
         .join('\n');
     Clipboard.setData(ClipboardData(text: '${widget.word}\n$text'));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied to clipboard')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
   }
 
   Future<void> _speak() async {
@@ -169,10 +176,9 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
     final result = _result;
     if (result == null) return;
     final firstSense = result.senses.isNotEmpty ? result.senses.first : null;
-    final firstExample =
-        firstSense != null && firstSense.examples.isNotEmpty
-            ? firstSense.examples.first
-            : null;
+    final firstExample = firstSense != null && firstSense.examples.isNotEmpty
+        ? firstSense.examples.first
+        : null;
     final text = [
       result.word,
       ?firstSense?.definition,
@@ -216,9 +222,12 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(widget.word,
-                    style: textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                child: Text(
+                  widget.word,
+                  style: textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               _SpeakButton(
                 speaking: _speaking,
@@ -238,7 +247,10 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          _ContextField(controller: _contextController, source: widget.sourceTitle),
+          _ContextField(
+            controller: _contextController,
+            source: widget.sourceTitle,
+          ),
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
@@ -279,40 +291,40 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
               child: _loading
                   ? const _LoadingState(key: ValueKey('loading'))
                   : _error != null
-                      ? _ErrorState(
-                          key: const ValueKey('error'),
-                          message: _error!,
-                          onRetry: _lookup,
-                        )
-                      : _result != null
-                          ? SingleChildScrollView(
-                              key: const ValueKey('result'),
-                              child: _DefinitionCard(
-                                result: _result!,
-                                language: _language,
-                                source: _source,
-                                onCopy: _copyWord,
-                                textTheme: textTheme,
-                                colorScheme: colorScheme,
-                                relatedWords: const [],
-                                onRelatedWordTap: (relatedWord) {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => Scaffold(
-                                        body: SafeArea(
-                                          child: WordLookupSheet(
-                                            word: relatedWord,
-                                            initialLanguage: _language,
-                                            initialSource: _source,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
+                  ? _ErrorState(
+                      key: const ValueKey('error'),
+                      message: _error!,
+                      onRetry: _lookup,
+                    )
+                  : _result != null
+                  ? SingleChildScrollView(
+                      key: const ValueKey('result'),
+                      child: _DefinitionCard(
+                        result: _result!,
+                        language: _language,
+                        source: _source,
+                        onCopy: _copyWord,
+                        textTheme: textTheme,
+                        colorScheme: colorScheme,
+                        relatedWords: const [],
+                        onRelatedWordTap: (relatedWord) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => Scaffold(
+                                body: SafeArea(
+                                  child: WordLookupSheet(
+                                    word: relatedWord,
+                                    initialLanguage: _language,
+                                    initialSource: _source,
+                                  ),
+                                ),
                               ),
-                            )
-                          : const SizedBox.shrink(),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
         ],
@@ -399,19 +411,28 @@ class _ContextField extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.format_quote_rounded,
-                  size: 16, color: colorScheme.onSurface.withValues(alpha: 0.5)),
+              Icon(
+                Icons.format_quote_rounded,
+                size: 16,
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
               const SizedBox(width: 4),
-              Text('Found in context',
-                  style: textTheme.labelSmall?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.6))),
+              Text(
+                'Found in context',
+                style: textTheme.labelSmall?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
               if (source != null) ...[
                 const Spacer(),
                 Flexible(
-                  child: Text(source!,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSurface.withValues(alpha: 0.5))),
+                  child: Text(
+                    source!,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ),
                 ),
               ],
             ],
@@ -455,8 +476,10 @@ class _LanguageSelector extends StatelessWidget {
       decoration: InputDecoration(
         labelText: 'Language',
         prefixIcon: const Icon(Icons.translate_rounded, size: 20),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         filled: true,
         fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         border: OutlineInputBorder(
@@ -492,8 +515,10 @@ class _SourceSelector extends StatelessWidget {
       decoration: InputDecoration(
         labelText: 'Source',
         prefixIcon: const Icon(Icons.book_rounded, size: 20),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         filled: true,
         fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         border: OutlineInputBorder(
@@ -503,10 +528,7 @@ class _SourceSelector extends StatelessWidget {
         isDense: true,
       ),
       items: DictionarySource.values.map((s) {
-        return DropdownMenuItem(
-          value: s,
-          child: Text(s.label),
-        );
+        return DropdownMenuItem(value: s, child: Text(s.label));
       }).toList(),
       onChanged: onChanged,
     );
@@ -526,9 +548,12 @@ class _LoadingState extends StatelessWidget {
         children: [
           const CircularProgressIndicator(),
           const SizedBox(height: AppSpacing.md),
-          Text('Looking that up…',
-              style: TextStyle(
-                  color: colorScheme.onSurface.withValues(alpha: 0.6))),
+          Text(
+            'Looking that up…',
+            style: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
         ],
       ),
     );
@@ -550,13 +575,19 @@ class _ErrorState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.search_off_rounded,
-              size: 40, color: colorScheme.onSurface.withValues(alpha: 0.3)),
+          Icon(
+            Icons.search_off_rounded,
+            size: 40,
+            color: colorScheme.onSurface.withValues(alpha: 0.3),
+          ),
           const SizedBox(height: AppSpacing.sm),
-          Text(message,
-              textAlign: TextAlign.center,
-              style: textTheme.bodyMedium
-                  ?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7))),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           FilledButton.tonalIcon(
             onPressed: onRetry,
@@ -597,7 +628,9 @@ class _DefinitionCard extends StatelessWidget {
       color: colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -606,40 +639,56 @@ class _DefinitionCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text(result.word,
-                    style: textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                Text(
+                  result.word,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 if (result.phonetic != null)
                   Expanded(
-                    child: Text(result.phonetic!,
-                        style: textTheme.bodySmall
-                            ?.copyWith(fontStyle: FontStyle.italic)),
+                    child: Text(
+                      result.phonetic!,
+                      style: textTheme.bodySmall?.copyWith(
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
                   ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(language.toUpperCase(),
-                      style: textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.w600)),
+                  child: Text(
+                    language.toUpperCase(),
+                    style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 4),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(source.label,
-                      style: textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSecondaryContainer,
-                          fontWeight: FontWeight.w600)),
+                  child: Text(
+                    source.label,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSecondaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
@@ -653,7 +702,8 @@ class _DefinitionCard extends StatelessWidget {
             for (var i = 0; i < result.senses.length; i++)
               Padding(
                 padding: EdgeInsets.only(
-                    bottom: i == result.senses.length - 1 ? 0 : AppSpacing.md),
+                  bottom: i == result.senses.length - 1 ? 0 : AppSpacing.md,
+                ),
                 child: _SenseTile(
                   index: i + 1,
                   sense: result.senses[i],
@@ -663,20 +713,25 @@ class _DefinitionCard extends StatelessWidget {
               ),
             if (relatedWords.isNotEmpty) ...[
               const Divider(height: AppSpacing.lg),
-              Text('Related words',
-                  style: textTheme.labelSmall?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.6))),
+              Text(
+                'Related words',
+                style: textTheme.labelSmall?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
               const SizedBox(height: AppSpacing.xs),
               Wrap(
                 spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xs,
                 children: relatedWords
-                    .map((w) => ActionChip(
-                          label: Text(w),
-                          onPressed: onRelatedWordTap == null
-                              ? null
-                              : () => onRelatedWordTap!(w),
-                        ))
+                    .map(
+                      (w) => ActionChip(
+                        label: Text(w),
+                        onPressed: onRelatedWordTap == null
+                            ? null
+                            : () => onRelatedWordTap!(w),
+                      ),
+                    )
                     .toList(),
               ),
             ],
@@ -714,10 +769,13 @@ class _SenseTile extends StatelessWidget {
             shape: BoxShape.circle,
             color: colorScheme.secondaryContainer,
           ),
-          child: Text('$index',
-              style: textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSecondaryContainer,
-                  fontWeight: FontWeight.w600)),
+          child: Text(
+            '$index',
+            style: textTheme.labelSmall?.copyWith(
+              color: colorScheme.onSecondaryContainer,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
@@ -730,23 +788,28 @@ class _SenseTile extends StatelessWidget {
                   color: colorScheme.secondaryContainer,
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(sense.partOfSpeech,
-                    style: textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSecondaryContainer)),
+                child: Text(
+                  sense.partOfSpeech,
+                  style: textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSecondaryContainer,
+                  ),
+                ),
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(sense.definition, style: textTheme.bodyMedium),
               if (sense.examples.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xs),
-                ...sense.examples.take(1).map(
+                ...sense.examples
+                    .take(1)
+                    .map(
                       (ex) => Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           '"$ex"',
                           style: textTheme.bodySmall?.copyWith(
-                              fontStyle: FontStyle.italic,
-                              color:
-                                  colorScheme.onSurface.withValues(alpha: 0.6)),
+                            fontStyle: FontStyle.italic,
+                            color: colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
                         ),
                       ),
                     ),

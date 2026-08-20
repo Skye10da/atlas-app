@@ -20,7 +20,8 @@ const _novelUrl = '$_base/overlord-ln.html';
 const _chapter1Url = '$_base/overlord-ln/chapter-1.html';
 const _ajaxUrl = '$_base/ajax-chapter-option?novelId=377';
 
-const _novelPage = '''
+const _novelPage =
+    '''
 <html><head>
 <meta property="og:title" content="Read Overlord (LN) novel online free - NOVGO.NET">
 <meta property="og:image" content="$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg">
@@ -78,7 +79,8 @@ const _chapterPage = '''
 </div>
 </body></html>''';
 
-const _searchPage = '''
+const _searchPage =
+    '''
 <html><body>
 <div class="row top-item">
   <div class="s-title"><h3><a href="$_novelUrl">Overlord (LN)</a></h3></div>
@@ -115,7 +117,8 @@ const _novelPageNoOgTags = '''
 </div>
   </body></html>''';
 
-const _novelPageNoTitleSelector = '''
+const _novelPageNoTitleSelector =
+    '''
 <html><head>
 <meta property="og:title" content="Read Overlord (LN) novel online free - NOVGO.NET">
 <meta property="og:image" content="$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg">
@@ -137,7 +140,8 @@ const _novelPageNoTitleSelector = '''
 </div>
 </body></html>''';
 
-const _novelPageFromSiteTitle = '''
+const _novelPageFromSiteTitle =
+    '''
 <html><head>
 <meta property="og:title" content="Read Overlord (LN) from Novgo">
 <meta property="og:image" content="$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg">
@@ -155,7 +159,8 @@ const _novelPageFromSiteTitle = '''
 </div>
 </body></html>''';
 
-const _searchPagePolluted = '''
+const _searchPagePolluted =
+    '''
 <html><body>
 <div class="row top-item">
   <div class="s-title"><a href="$_novelUrl">Read Overlord (LN) novel online free from Novgo</a></h3></div>
@@ -192,13 +197,20 @@ void main() {
   late Directory baseDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('atlas_allnovelfull_plugin');
+    tempDir = await Directory.systemTemp.createTemp(
+      'atlas_allnovelfull_plugin',
+    );
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
     final source = Directory(
-        p.join(Directory.current.path, 'atlas-plugins', 'allnovelfull'));
-    expect(source.existsSync(), isTrue,
-        reason: 'flutter test must run from the package root so that '
-            'atlas-plugins/allnovelfull resolves');
+      p.join(Directory.current.path, 'atlas-plugins', 'allnovelfull'),
+    );
+    expect(
+      source.existsSync(),
+      isTrue,
+      reason:
+          'flutter test must run from the package root so that '
+          'atlas-plugins/allnovelfull resolves',
+    );
     await _copyDir(source, Directory(p.join(baseDir.path, 'allnovelfull')));
   });
 
@@ -207,10 +219,10 @@ void main() {
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: TemplateRegistry.defaults,
-        transportRegistry: _FakeTransportRegistry(transport),
-      );
+    baseDirectory: baseDir,
+    templateRegistry: TemplateRegistry.defaults,
+    transportRegistry: _FakeTransportRegistry(transport),
+  );
 
   group('atlas-plugins/allnovelfull/plugin.json', () {
     test('loads a valid manifest for the generic html template', () async {
@@ -230,17 +242,15 @@ void main() {
         PluginCapability.chapterContent,
         PluginCapability.cover,
       });
-      expect(
-        TemplateRegistry.defaults.resolve('html'),
-        isA<HtmlTemplate>(),
-      );
+      expect(TemplateRegistry.defaults.resolve('html'), isA<HtmlTemplate>());
     });
 
     test('declared capabilities are implemented by the template', () async {
       final manifest = await repo(FakeTransport()).load('allnovelfull');
       final template = TemplateRegistry.defaults.resolve(manifest.templateId);
-      final unsupported = manifest.capabilities
-          .where((c) => !template.supportedCapabilities.contains(c));
+      final unsupported = manifest.capabilities.where(
+        (c) => !template.supportedCapabilities.contains(c),
+      );
       expect(unsupported, isEmpty);
     });
 
@@ -260,22 +270,27 @@ void main() {
   });
 
   group('allnovelfull PluginSource end-to-end', () {
-    test('canHandle matches the novgo.net host (formerly allnovelfull.net)',
-        () async {
-      final source = await repo(FakeTransport()).buildSource('allnovelfull');
+    test(
+      'canHandle matches the novgo.net host (formerly allnovelfull.net)',
+      () async {
+        final source = await repo(FakeTransport()).buildSource('allnovelfull');
 
-      expect(source.canHandle(Uri.parse('$_base/overlord-ln.html')), isTrue);
-      expect(source.canHandle(Uri.parse('https://other.com/novel/x')),
-          isFalse);
-    });
+        expect(source.canHandle(Uri.parse('$_base/overlord-ln.html')), isTrue);
+        expect(
+          source.canHandle(Uri.parse('https://other.com/novel/x')),
+          isFalse,
+        );
+      },
+    );
 
     test('search drives the /search?keyword= endpoint', () async {
       final transport = FakeTransport()
         ..addHtml('$_base/search?keyword=overlord', _searchPage);
       final source = await repo(transport).buildSource('allnovelfull');
 
-      final response =
-          await source.search(const SourceSearchQuery(term: 'overlord'));
+      final response = await source.search(
+        const SourceSearchQuery(term: 'overlord'),
+      );
 
       expect(response.results, hasLength(2));
       expect(response.results.first.title, 'Overlord (LN)');
@@ -295,8 +310,10 @@ void main() {
       expect(novel.genres, ['Action', 'Fantasy', 'Harem']);
       expect(novel.status, 'Completed');
       expect(novel.description, contains('official release of Overlord'));
-      expect(novel.coverUrl,
-          '$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg');
+      expect(
+        novel.coverUrl,
+        '$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg',
+      );
     });
 
     test('getChapters GETs the ajax-chapter-option archive', () async {
@@ -337,45 +354,62 @@ void main() {
       expect(chapter.wordCount, greaterThan(0));
     });
 
-    test('metadata selectors supply title and cover when og: tags are polluted',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
-      final source = await repo(transport).buildSource('allnovelfull');
+    test(
+      'metadata selectors supply title and cover when og: tags are polluted',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(_novelUrl, _novelPageNoOgTags);
+        final source = await repo(transport).buildSource('allnovelfull');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.title, 'Overlord (LN)',
-          reason: '.desc h3.title must be used instead of polluted og:title');
-      expect(novel.author, 'MARUYAMA Kugane');
-      expect(novel.description, contains('official release of Overlord'));
-      expect(novel.coverUrl,
+        expect(
+          novel.title,
+          'Overlord (LN)',
+          reason: '.desc h3.title must be used instead of polluted og:title',
+        );
+        expect(novel.author, 'MARUYAMA Kugane');
+        expect(novel.description, contains('official release of Overlord'));
+        expect(
+          novel.coverUrl,
           '$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg',
-          reason: '.book img@src must resolve the relative URL');
-      expect(novel.source, 'AllNovelFull');
-    });
+          reason: '.book img@src must resolve the relative URL',
+        );
+        expect(novel.source, 'AllNovelFull');
+      },
+    );
 
-    test('title cleaner strips site branding when CSS selector misses',
-        () async {
-      final transport =
-          FakeTransport()..addHtml(_novelUrl, _novelPageNoTitleSelector);
-      final source = await repo(transport).buildSource('allnovelfull');
+    test(
+      'title cleaner strips site branding when CSS selector misses',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(_novelUrl, _novelPageNoTitleSelector);
+        final source = await repo(transport).buildSource('allnovelfull');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.title, 'Overlord (LN)',
-          reason: '_cleanTitle must strip "Read ... novel online free - NOVGO.NET"');
-      expect(novel.author, 'MARUYAMA Kugane');
-    });
+        expect(
+          novel.title,
+          'Overlord (LN)',
+          reason:
+              '_cleanTitle must strip "Read ... novel online free - NOVGO.NET"',
+        );
+        expect(novel.author, 'MARUYAMA Kugane');
+      },
+    );
 
     test('title cleaner strips "from SiteName" pattern', () async {
-      final transport =
-          FakeTransport()..addHtml(_novelUrl, _novelPageFromSiteTitle);
+      final transport = FakeTransport()
+        ..addHtml(_novelUrl, _novelPageFromSiteTitle);
       final source = await repo(transport).buildSource('allnovelfull');
 
       final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.title, 'Overlord (LN)',
-          reason: '_cleanTitle must strip "Read ... from Novgo"');
+      expect(
+        novel.title,
+        'Overlord (LN)',
+        reason: '_cleanTitle must strip "Read ... from Novgo"',
+      );
     });
 
     test('search titles are cleaned of site boilerplate', () async {
@@ -383,8 +417,9 @@ void main() {
         ..addHtml('$_base/search?keyword=overlord', _searchPagePolluted);
       final source = await repo(transport).buildSource('allnovelfull');
 
-      final response =
-          await source.search(const SourceSearchQuery(term: 'overlord'));
+      final response = await source.search(
+        const SourceSearchQuery(term: 'overlord'),
+      );
 
       expect(response.results, hasLength(2));
       expect(response.results.first.title, 'Overlord (LN)');

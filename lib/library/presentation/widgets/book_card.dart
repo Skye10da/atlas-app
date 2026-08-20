@@ -5,11 +5,7 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 
 class BookCard extends StatelessWidget {
-  const BookCard({
-    super.key,
-    required this.book,
-    this.onTap,
-  });
+  const BookCard({super.key, required this.book, this.onTap});
 
   final BookEntity book;
   final VoidCallback? onTap;
@@ -109,8 +105,9 @@ class _BookGridCardState extends State<BookGridCard> {
                               value: progress / 100,
                               minHeight: 3,
                               backgroundColor: Colors.black26,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(cs.primary),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                cs.primary,
+                              ),
                             ),
                           ),
                         )
@@ -158,7 +155,11 @@ class _BookGridCardState extends State<BookGridCard> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.sm, AppSpacing.xs, AppSpacing.sm, 0),
+                    AppSpacing.sm,
+                    AppSpacing.xs,
+                    AppSpacing.sm,
+                    0,
+                  ),
                   child: _BookInfoSection(book: widget.book, compact: true),
                 ),
               ],
@@ -302,11 +303,7 @@ class _BookCoverStack extends StatelessWidget {
           ),
         ),
         if (book.progress == null)
-          const Positioned(
-            top: 6,
-            right: 6,
-            child: _NewBadge(),
-          ),
+          const Positioned(top: 6, right: 6, child: _NewBadge()),
         ?overlay,
         ?hoverOverlay,
       ],
@@ -315,10 +312,7 @@ class _BookCoverStack extends StatelessWidget {
 }
 
 class _BookInfoSection extends StatelessWidget {
-  const _BookInfoSection({
-    required this.book,
-    this.compact = false,
-  });
+  const _BookInfoSection({required this.book, this.compact = false});
 
   final BookEntity book;
   final bool compact;

@@ -34,8 +34,10 @@ void main() {
 
       expect(second, isA<Success<void>>());
       final history = (await repo.getAllHistory()).valueOrThrow;
-      expect(history.map((h) => h.url).toList(),
-          ['https://b.example', 'https://a.example']);
+      expect(history.map((h) => h.url).toList(), [
+        'https://b.example',
+        'https://a.example',
+      ]);
       expect(history.first.title, 'B');
     });
 
@@ -159,7 +161,7 @@ void main() {
 
 extension<T> on Result<T> {
   T get valueOrThrow => switch (this) {
-        Success(value: final value) => value,
-        Failure() => throw StateError('Unexpected failure'),
-      };
+    Success(value: final value) => value,
+    Failure() => throw StateError('Unexpected failure'),
+  };
 }

@@ -21,9 +21,9 @@ class DangerZoneScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             child: Text(
               'Destructive actions that cannot be undone.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -36,18 +36,32 @@ class DangerZoneScreen extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: Icon(Icons.delete_sweep_rounded, color: colors.error),
+                  leading: Icon(
+                    Icons.delete_sweep_rounded,
+                    color: colors.error,
+                  ),
                   title: const Text('Delete All Books'),
                   subtitle: const Text('Remove every book from your library'),
-                  trailing: Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: colors.onSurfaceVariant,
+                  ),
                   onTap: () => _confirmDeleteAllBooks(context, ref),
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
-                  leading: Icon(Icons.delete_forever_rounded, color: colors.error),
+                  leading: Icon(
+                    Icons.delete_forever_rounded,
+                    color: colors.error,
+                  ),
                   title: const Text('Delete All Novels'),
-                  subtitle: const Text('Remove only content from content acquisition'),
-                  trailing: Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
+                  subtitle: const Text(
+                    'Remove only content from content acquisition',
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: colors.onSurfaceVariant,
+                  ),
                   onTap: () => _confirmDeleteAllNovels(context, ref),
                 ),
               ],
@@ -62,7 +76,11 @@ class DangerZoneScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: Icon(Icons.warning_rounded, color: Theme.of(context).colorScheme.error, size: 40),
+        icon: Icon(
+          Icons.warning_rounded,
+          color: Theme.of(context).colorScheme.error,
+          size: 40,
+        ),
         title: const Text('Delete All Books?'),
         content: const Text(
           'This will permanently remove all books, chapters, '
@@ -98,9 +116,9 @@ class DangerZoneScreen extends ConsumerWidget {
 
     if (result is Success) {
       ref.invalidate(libraryBooksProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All books deleted')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('All books deleted')));
     } else if (result is Failure) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed: ${result.error.userMessage}')),
@@ -112,7 +130,11 @@ class DangerZoneScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: Icon(Icons.warning_rounded, color: Theme.of(context).colorScheme.error, size: 40),
+        icon: Icon(
+          Icons.warning_rounded,
+          color: Theme.of(context).colorScheme.error,
+          size: 40,
+        ),
         title: const Text('Delete All Novels?'),
         content: const Text(
           'This will remove all novels imported via content acquisition. '

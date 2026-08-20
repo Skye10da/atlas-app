@@ -52,7 +52,10 @@ abstract interface class Template {
 
   Future<List<ChapterRef>> chapterList(PluginContext context, String novelUrl);
 
-  Future<AtlasDocument> chapterContent(PluginContext context, String chapterUrl);
+  Future<AtlasDocument> chapterContent(
+    PluginContext context,
+    String chapterUrl,
+  );
 
   Future<NovelMetadata> metadata(PluginContext context, String novelUrl);
 }

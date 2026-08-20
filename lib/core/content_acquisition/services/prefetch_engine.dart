@@ -11,7 +11,11 @@ class PrefetchEngine {
   final Map<String, _PrefetchState> _states = {};
   Timer? _debounce;
 
-  void registerChapters(String bookId, List<ChapterModel> chapters, SourceAdapter source) {
+  void registerChapters(
+    String bookId,
+    List<ChapterModel> chapters,
+    SourceAdapter source,
+  ) {
     _states[bookId] = _PrefetchState(chapters: chapters, source: source);
   }
 
@@ -35,7 +39,10 @@ class PrefetchEngine {
   }
 
   void clearBook(String bookId) => _states.remove(bookId);
-  void clear() { _states.clear(); _debounce?.cancel(); }
+  void clear() {
+    _states.clear();
+    _debounce?.cancel();
+  }
 }
 
 class _PrefetchState {

@@ -19,9 +19,8 @@ class WtrChapterProvider {
   WtrChapterProvider({
     WtrPreferenceRepository? preferenceRepository,
     WtrAuthenticationManager? authManager,
-  })  : _preferences =
-            preferenceRepository ?? InMemoryWtrPreferenceRepository(),
-        auth = authManager ?? WtrAuthenticationManager();
+  }) : _preferences = preferenceRepository ?? InMemoryWtrPreferenceRepository(),
+       auth = authManager ?? WtrAuthenticationManager();
 
   static WtrChapterProvider? _instance;
   static bool _configured = false;

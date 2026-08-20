@@ -41,7 +41,7 @@ class DictionaryWords extends Table {
 
   @override
   List<Index> get indexes => [
-        Index('idx_dict_word', 'word'),
-        Index('idx_dict_lang', 'language'),
-      ];
+    Index('idx_dict_word', 'word'),
+    Index('idx_dict_lang', 'language'),
+  ];
 }

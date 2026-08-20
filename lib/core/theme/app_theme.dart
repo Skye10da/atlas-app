@@ -9,10 +9,7 @@ abstract final class AppTheme {
   static const _uiFont = 'Inter';
   static const _bodyFont = 'Open Sans';
 
-  static ThemeData light(
-    AppBrand brand, [
-    String? systemFontFamily,
-  ]) {
+  static ThemeData light(AppBrand brand, [String? systemFontFamily]) {
     final uiFont = systemFontFamily ?? _uiFont;
     final colorScheme = ColorScheme.fromSeed(
       seedColor: brand.seed,
@@ -21,10 +18,7 @@ abstract final class AppTheme {
     return _build(brand, colorScheme, uiFont, Brightness.light);
   }
 
-  static ThemeData dark(
-    AppBrand brand, [
-    String? systemFontFamily,
-  ]) {
+  static ThemeData dark(AppBrand brand, [String? systemFontFamily]) {
     final uiFont = systemFontFamily ?? _uiFont;
     final colorScheme = ColorScheme.fromSeed(
       seedColor: brand.seed,
@@ -55,9 +49,7 @@ abstract final class AppTheme {
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         clipBehavior: Clip.antiAlias,
       ),
       navigationBarTheme: NavigationBarThemeData(
@@ -68,32 +60,24 @@ abstract final class AppTheme {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
       chipTheme: ChipThemeData(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -133,21 +117,21 @@ abstract final class AppTheme {
           opacityDisabled: 0.38,
           opacityHover: 0.08,
           opacityPress: 0.12,
-              shadowSm: Shadow(
-                blurRadius: 4,
-                offset: const Offset(0, 1),
-                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
-              ),
-              shadowMd: Shadow(
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.15),
-              ),
-              shadowLg: Shadow(
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.2),
-              ),
+          shadowSm: Shadow(
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
+          ),
+          shadowMd: Shadow(
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.15),
+          ),
+          shadowLg: Shadow(
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.2),
+          ),
         ),
       ],
     );
@@ -155,29 +139,81 @@ abstract final class AppTheme {
 
   static TextTheme _buildTextTheme(String uiFont) {
     const base = TextTheme(
-      displayLarge: TextStyle(fontSize: 57, fontWeight: FontWeight.w300, letterSpacing: -0.25),
+      displayLarge: TextStyle(
+        fontSize: 57,
+        fontWeight: FontWeight.w300,
+        letterSpacing: -0.25,
+      ),
       displayMedium: TextStyle(fontSize: 45, fontWeight: FontWeight.w400),
       displaySmall: TextStyle(fontSize: 36, fontWeight: FontWeight.w400),
       headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.w400),
       headlineMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.w400),
       headlineSmall: TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
-      titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w500, letterSpacing: 0),
-      titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, letterSpacing: 0.15),
-      titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.1),
-      bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, letterSpacing: 0.5),
-      bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, letterSpacing: 0.25),
-      bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: 0.4),
-      labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.1),
-      labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.5),
-      labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 0.5),
+      titleLarge: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.15,
+      ),
+      titleSmall: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.1,
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0.5,
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0.25,
+      ),
+      bodySmall: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0.4,
+      ),
+      labelLarge: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.1,
+      ),
+      labelMedium: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
+      ),
+      labelSmall: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
+      ),
     );
 
     return TextTheme(
-      displayLarge: GoogleFonts.getFont(_displayFont, textStyle: base.displayLarge),
-      displayMedium: GoogleFonts.getFont(_displayFont, textStyle: base.displayMedium),
-      displaySmall: GoogleFonts.getFont(_displayFont, textStyle: base.displaySmall),
+      displayLarge: GoogleFonts.getFont(
+        _displayFont,
+        textStyle: base.displayLarge,
+      ),
+      displayMedium: GoogleFonts.getFont(
+        _displayFont,
+        textStyle: base.displayMedium,
+      ),
+      displaySmall: GoogleFonts.getFont(
+        _displayFont,
+        textStyle: base.displaySmall,
+      ),
       headlineLarge: GoogleFonts.getFont(uiFont, textStyle: base.headlineLarge),
-      headlineMedium: GoogleFonts.getFont(uiFont, textStyle: base.headlineMedium),
+      headlineMedium: GoogleFonts.getFont(
+        uiFont,
+        textStyle: base.headlineMedium,
+      ),
       headlineSmall: GoogleFonts.getFont(uiFont, textStyle: base.headlineSmall),
       titleLarge: GoogleFonts.getFont(uiFont, textStyle: base.titleLarge),
       titleMedium: GoogleFonts.getFont(uiFont, textStyle: base.titleMedium),

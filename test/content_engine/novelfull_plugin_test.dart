@@ -16,8 +16,7 @@ import 'package:atlas_app/core/content_engine/transport/transport_registry.dart'
 import 'test_fixtures.dart';
 
 const _novelUrl = 'https://novelfull.net/novel.html';
-const _chapter1Url =
-    'https://novelfull.net/novel/chapter-1-first-chapter.html';
+const _chapter1Url = 'https://novelfull.net/novel/chapter-1-first-chapter.html';
 
 const _novelPage = '''
 <html><head>
@@ -250,11 +249,16 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('atlas_novelfull_plugin');
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
-    final source =
-        Directory(p.join(Directory.current.path, 'atlas-plugins', 'novelfull'));
-    expect(source.existsSync(), isTrue,
-        reason: 'flutter test must run from the package root so that '
-            'atlas-plugins/novelfull resolves');
+    final source = Directory(
+      p.join(Directory.current.path, 'atlas-plugins', 'novelfull'),
+    );
+    expect(
+      source.existsSync(),
+      isTrue,
+      reason:
+          'flutter test must run from the package root so that '
+          'atlas-plugins/novelfull resolves',
+    );
     await _copyDir(source, Directory(p.join(baseDir.path, 'novelfull')));
   });
 
@@ -263,10 +267,10 @@ void main() {
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: TemplateRegistry.defaults,
-        transportRegistry: _FakeTransportRegistry(transport),
-      );
+    baseDirectory: baseDir,
+    templateRegistry: TemplateRegistry.defaults,
+    transportRegistry: _FakeTransportRegistry(transport),
+  );
 
   group('atlas-plugins/novelfull/plugin.json', () {
     test('loads a valid manifest for the generic html template', () async {
@@ -287,17 +291,15 @@ void main() {
         PluginCapability.chapterContent,
         PluginCapability.cover,
       });
-      expect(
-        TemplateRegistry.defaults.resolve('html'),
-        isA<HtmlTemplate>(),
-      );
+      expect(TemplateRegistry.defaults.resolve('html'), isA<HtmlTemplate>());
     });
 
     test('declared capabilities are implemented by the template', () async {
       final manifest = await repo(FakeTransport()).load('novelfull');
       final template = TemplateRegistry.defaults.resolve(manifest.templateId);
-      final unsupported = manifest.capabilities
-          .where((c) => !template.supportedCapabilities.contains(c));
+      final unsupported = manifest.capabilities.where(
+        (c) => !template.supportedCapabilities.contains(c),
+      );
       expect(unsupported, isEmpty);
     });
 
@@ -320,68 +322,86 @@ void main() {
     test('canHandle matches novelfull.net hosts', () async {
       final source = await repo(FakeTransport()).buildSource('novelfull');
 
-      expect(source.canHandle(Uri.parse('https://novelfull.net/novel/x')),
-          isTrue);
-      expect(source.canHandle(Uri.parse('https://other.com/novel/x')),
-          isFalse);
+      expect(
+        source.canHandle(Uri.parse('https://novelfull.net/novel/x')),
+        isTrue,
+      );
+      expect(source.canHandle(Uri.parse('https://other.com/novel/x')), isFalse);
     });
 
     test('search drives the /search?keyword= endpoint', () async {
       final transport = FakeTransport()
-        ..addHtml(
-            'https://novelfull.net/search?keyword=test', _searchPage);
+        ..addHtml('https://novelfull.net/search?keyword=test', _searchPage);
       final source = await repo(transport).buildSource('novelfull');
 
-      final response = await source.search(const SourceSearchQuery(term: 'test'));
+      final response = await source.search(
+        const SourceSearchQuery(term: 'test'),
+      );
 
       expect(response.results, hasLength(2));
       expect(response.results.first.title, 'Test Novel');
-      expect(response.results.first.importUrl,
-          'https://novelfull.net/novel.html');
+      expect(
+        response.results.first.importUrl,
+        'https://novelfull.net/novel.html',
+      );
     });
 
-    test('getMetadata bridges the plugin to a novel-category NovelModel',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
-      final source = await repo(transport).buildSource('novelfull');
+    test(
+      'getMetadata bridges the plugin to a novel-category NovelModel',
+      () async {
+        final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
+        final source = await repo(transport).buildSource('novelfull');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.category, ContentCategory.novel);
-      expect(novel.source, 'NovelFull');
-      expect(novel.title, 'Test Novel');
-      expect(novel.author, 'Jane Doe');
-      expect(novel.description, contains('dragons and dungeons'));
-      expect(novel.coverUrl,
-          'https://novelfull.net/uploads/thumbs/cover.jpg');
-      expect(novel.genres, ['Fantasy', 'Adventure']);
-      expect(novel.status, 'Ongoing');
-    });
+        expect(novel.category, ContentCategory.novel);
+        expect(novel.source, 'NovelFull');
+        expect(novel.title, 'Test Novel');
+        expect(novel.author, 'Jane Doe');
+        expect(novel.description, contains('dragons and dungeons'));
+        expect(
+          novel.coverUrl,
+          'https://novelfull.net/uploads/thumbs/cover.jpg',
+        );
+        expect(novel.genres, ['Fantasy', 'Adventure']);
+        expect(novel.status, 'Ongoing');
+      },
+    );
 
     test('getChapters fetches the full list from the ajax-chapter-option '
         'endpoint and returns ascending order', () async {
       final transport = FakeTransport()
         ..addHtml(_novelUrl, _novelPage)
         ..addHtml(
-            'https://novelfull.net/ajax-chapter-option?novelId=1',
-            _ajaxChapterPage);
+          'https://novelfull.net/ajax-chapter-option?novelId=1',
+          _ajaxChapterPage,
+        );
       final source = await repo(transport).buildSource('novelfull');
       final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
       final chapters = await source.getChapters(novel);
 
       expect(chapters, hasLength(5));
-      expect(chapters.map((c) => c.title).toList(),
-          ['Chapter 1', 'Chapter 2', 'Chapter 3', 'Chapter 4', 'Chapter 5']);
+      expect(chapters.map((c) => c.title).toList(), [
+        'Chapter 1',
+        'Chapter 2',
+        'Chapter 3',
+        'Chapter 4',
+        'Chapter 5',
+      ]);
       expect(chapters.first.contentUrl, _chapter1Url);
     });
 
     test('getChapters falls back to the paginated list when no novel id '
         'is present', () async {
       final transport = FakeTransport()
-        ..addHtml(_novelUrl,
-            _novelPage.replaceFirst('<div id="rating" data-novel-id="1"></div>',
-                '<div id="rating"></div>'))
+        ..addHtml(
+          _novelUrl,
+          _novelPage.replaceFirst(
+            '<div id="rating" data-novel-id="1"></div>',
+            '<div id="rating"></div>',
+          ),
+        )
         ..addHtml('$_novelUrl?page=2', _novelPage2);
       final source = await repo(transport).buildSource('novelfull');
       final novel = await source.getMetadata(Uri.parse(_novelUrl));
@@ -389,8 +409,13 @@ void main() {
       final chapters = await source.getChapters(novel);
 
       expect(chapters, hasLength(5));
-      expect(chapters.map((c) => c.title).toList(),
-          ['Chapter 1', 'Chapter 2', 'Chapter 3', 'Chapter 4', 'Chapter 5']);
+      expect(chapters.map((c) => c.title).toList(), [
+        'Chapter 1',
+        'Chapter 2',
+        'Chapter 3',
+        'Chapter 4',
+        'Chapter 5',
+      ]);
       expect(chapters.first.contentUrl, _chapter1Url);
     });
 
@@ -399,8 +424,9 @@ void main() {
       final transport = FakeTransport()
         ..addHtml(_novelUrl, _novelPageNewMarkup)
         ..addHtml(
-            'https://novelfull.net/ajax-chapter-option?novelId=1',
-            _ajaxChapterPageMixedUrls);
+          'https://novelfull.net/ajax-chapter-option?novelId=1',
+          _ajaxChapterPageMixedUrls,
+        );
       final source = await repo(transport).buildSource('novelfull');
       final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
@@ -411,8 +437,10 @@ void main() {
         'Chapter 2',
         'Chapter 6492_End - Chapter 6492: Finale',
       ]);
-      expect(chapters.last.contentUrl,
-          'https://novelfull.net/novel/chapter-6492end-chapter-6492-finale.html');
+      expect(
+        chapters.last.contentUrl,
+        'https://novelfull.net/novel/chapter-6492end-chapter-6492-finale.html',
+      );
     });
 
     test('getChapters walks the new select-bar pagination when no novel id '
@@ -425,10 +453,15 @@ void main() {
 
       final chapters = await source.getChapters(novel);
 
-      expect(chapters.map((c) => c.title).toList(),
-          ['Chapter 1', 'Chapter 2', 'Chapter 3']);
-      expect(chapters.first.contentUrl,
-          'https://novelfull.net/novel/chapter-1.html');
+      expect(chapters.map((c) => c.title).toList(), [
+        'Chapter 1',
+        'Chapter 2',
+        'Chapter 3',
+      ]);
+      expect(
+        chapters.first.contentUrl,
+        'https://novelfull.net/novel/chapter-1.html',
+      );
     });
 
     test('getChapter fetches content through the clean pipeline', () async {
@@ -448,22 +481,30 @@ void main() {
       expect(chapter.wordCount, greaterThan(0));
     });
 
-    test('metadata selectors supply title and cover when og: tags are missing',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
-      final source = await repo(transport).buildSource('novelfull');
+    test(
+      'metadata selectors supply title and cover when og: tags are missing',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(_novelUrl, _novelPageNoOgTags);
+        final source = await repo(transport).buildSource('novelfull');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.title, 'Invincible',
-          reason: '.m-desc h1.tit must be used instead of <title> tag');
-      expect(novel.author, 'Qi Peasant');
-      expect(novel.description, contains('Weakness is a sin'));
-      expect(novel.coverUrl,
+        expect(
+          novel.title,
+          'Invincible',
+          reason: '.m-desc h1.tit must be used instead of <title> tag',
+        );
+        expect(novel.author, 'Qi Peasant');
+        expect(novel.description, contains('Weakness is a sin'));
+        expect(
+          novel.coverUrl,
           'https://novelfull.net/uploads/thumbs/invincible-cover.jpg',
-          reason: '.pic img@src must resolve the relative URL');
-      expect(novel.genres, ['Action', 'Fantasy']);
-      expect(novel.source, 'NovelFull');
-    });
+          reason: '.pic img@src must resolve the relative URL',
+        );
+        expect(novel.genres, ['Action', 'Fantasy']);
+        expect(novel.source, 'NovelFull');
+      },
+    );
   });
 }

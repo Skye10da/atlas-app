@@ -66,9 +66,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
           child: Column(
             children: [
               _buildTopBar(context, colors),
-              Expanded(
-                child: _buildPreviewContent(colors),
-              ),
+              Expanded(child: _buildPreviewContent(colors)),
               _buildBottomBar(context, colors, isDark),
             ],
           ),
@@ -189,11 +187,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
             'carts, the aroma of freshly baked bread mixing with the cool morning air. '
             'A tram rattled past, its bells chiming a familiar melody that seemed to '
             'say: hurry along, there\'s much to see today.',
-            style: TextStyle(
-              fontSize: 18,
-              height: 1.8,
-              color: colors.text,
-            ),
+            style: TextStyle(fontSize: 18, height: 1.8, color: colors.text),
           ),
           const SizedBox(height: 24),
           // Third paragraph
@@ -202,11 +196,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
             'faded ink with her fingertips, trying to decipher meanings that had eluded '
             'scholars for centuries. Now, in the harsh light of day, the words still '
             'whispered their secrets just beyond the edge of understanding.',
-            style: TextStyle(
-              fontSize: 18,
-              height: 1.8,
-              color: colors.text,
-            ),
+            style: TextStyle(fontSize: 18, height: 1.8, color: colors.text),
           ),
           const SizedBox(height: 24),
           // Highlight sample
@@ -218,11 +208,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
             ),
             child: Text(
               'This is a highlighted passage — a note to remember.',
-              style: TextStyle(
-                fontSize: 18,
-                height: 1.8,
-                color: colors.text,
-              ),
+              style: TextStyle(fontSize: 18, height: 1.8, color: colors.text),
             ),
           ),
           const SizedBox(height: 24),
@@ -242,7 +228,10 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
   }
 
   Widget _buildBottomBar(
-      BuildContext context, ReadingColors colors, bool isDark) {
+    BuildContext context,
+    ReadingColors colors,
+    bool isDark,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
@@ -258,9 +247,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
                 itemBuilder: (context, index) {
                   final t = ReadingViewTheme.values[index];
                   final isSelected = t == _currentTheme;
-                  final tc = t.resolve(
-                    Theme.of(context).colorScheme,
-                  );
+                  final tc = t.resolve(Theme.of(context).colorScheme);
                   return GestureDetector(
                     onTap: () => setState(() => _currentTheme = t),
                     child: Container(

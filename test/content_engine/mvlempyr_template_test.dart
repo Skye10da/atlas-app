@@ -20,14 +20,15 @@ const _novelPage = '''
 <img src="https://example.com/cover.jpg" class="novel-image">
 </body></html>''';
 
-
 void main() {
   group('MvlempyrTemplate.metadata', () {
-    test('extracts page fields and enriches via the mvl-novels REST endpoint',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
-        ..addJson('https://chap.heliosarchive.online/wp-json/wp/v2/mvl-novels',
+    test(
+      'extracts page fields and enriches via the mvl-novels REST endpoint',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
+          ..addJson(
+            'https://chap.heliosarchive.online/wp-json/wp/v2/mvl-novels',
             <Object?>[
               {
                 'name': 'REST Title',
@@ -36,42 +37,48 @@ void main() {
                 'createdOn': '2024-01-15T00:00:00',
                 'genre': ['Fantasy', 'Adventure'],
               },
-            ]);
-      final context = buildContext(
-        transport: transport,
-        manifest: buildManifest(
-          templateId: 'mvlempyr',
-          baseUrl: 'https://www.mvlempyr.io',
-          capabilities: const [
-            PluginCapability.chapterList,
-            PluginCapability.chapterContent,
-            PluginCapability.cover,
-          ],
-        ),
-      );
+            ],
+          );
+        final context = buildContext(
+          transport: transport,
+          manifest: buildManifest(
+            templateId: 'mvlempyr',
+            baseUrl: 'https://www.mvlempyr.io',
+            capabilities: const [
+              PluginCapability.chapterList,
+              PluginCapability.chapterContent,
+              PluginCapability.cover,
+            ],
+          ),
+        );
 
-      final meta = await const MvlempyrTemplate()
-          .metadata(context, 'https://www.mvlempyr.io/novel/some-slug');
+        final meta = await const MvlempyrTemplate().metadata(
+          context,
+          'https://www.mvlempyr.io/novel/some-slug',
+        );
 
-      expect(meta.title, 'The Novel');
-      expect(meta.author, 'Jane Doe');
-      expect(meta.description, contains('great'));
-      expect(meta.status, 'Ongoing');
-      expect(meta.coverUrl, 'https://example.com/cover.jpg');
-      expect(meta.sourceId, '12345');
-      expect(meta.rating, 4.5);
-      expect(meta.chapterCount, 120);
-      expect(meta.lastUpdated, DateTime(2024, 1, 15));
-      expect(meta.genres, ['Fantasy', 'Adventure']);
-    });
+        expect(meta.title, 'The Novel');
+        expect(meta.author, 'Jane Doe');
+        expect(meta.description, contains('great'));
+        expect(meta.status, 'Ongoing');
+        expect(meta.coverUrl, 'https://example.com/cover.jpg');
+        expect(meta.sourceId, '12345');
+        expect(meta.rating, 4.5);
+        expect(meta.chapterCount, 120);
+        expect(meta.lastUpdated, DateTime(2024, 1, 15));
+        expect(meta.genres, ['Fantasy', 'Adventure']);
+      },
+    );
   });
 
   group('MvlempyrTemplate.chapterList', () {
-    test('builds refs from the posts REST feed and sorts by chapter number',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
-        ..addJson('https://chap.heliosarchive.online/wp-json/wp/v2/posts',
+    test(
+      'builds refs from the posts REST feed and sorts by chapter number',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
+          ..addJson(
+            'https://chap.heliosarchive.online/wp-json/wp/v2/posts',
             <Object?>[
               {
                 'acf': {
@@ -89,29 +96,33 @@ void main() {
                 },
                 'date': '2024-01-01T00:00:00',
               },
-            ]);
-      final context = buildContext(
-        transport: transport,
-        manifest: buildManifest(
-          templateId: 'mvlempyr',
-          baseUrl: 'https://www.mvlempyr.io',
-          capabilities: const [
-            PluginCapability.chapterList,
-            PluginCapability.chapterContent,
-            PluginCapability.cover,
-          ],
-        ),
-      );
+            ],
+          );
+        final context = buildContext(
+          transport: transport,
+          manifest: buildManifest(
+            templateId: 'mvlempyr',
+            baseUrl: 'https://www.mvlempyr.io',
+            capabilities: const [
+              PluginCapability.chapterList,
+              PluginCapability.chapterContent,
+              PluginCapability.cover,
+            ],
+          ),
+        );
 
-      final refs = await const MvlempyrTemplate()
-          .chapterList(context, 'https://www.mvlempyr.io/novel/some-slug');
+        final refs = await const MvlempyrTemplate().chapterList(
+          context,
+          'https://www.mvlempyr.io/novel/some-slug',
+        );
 
-      expect(refs, hasLength(2));
-      expect(refs[0].title, 'First');
-      expect(refs[0].url, 'https://www.mvlempyr.io/chapter/12345-1');
-      expect(refs[0].publishedAt, DateTime(2024, 1, 1));
-      expect(refs[1].title, 'Second');
-    });
+        expect(refs, hasLength(2));
+        expect(refs[0].title, 'First');
+        expect(refs[0].url, 'https://www.mvlempyr.io/chapter/12345-1');
+        expect(refs[0].publishedAt, DateTime(2024, 1, 1));
+        expect(refs[1].title, 'Second');
+      },
+    );
 
     test('paginates past the first full page', () async {
       final transport = _PagedPostsTransport();
@@ -128,82 +139,96 @@ void main() {
         ),
       );
 
-      final refs = await const MvlempyrTemplate()
-          .chapterList(context, 'https://www.mvlempyr.io/novel/some-slug');
+      final refs = await const MvlempyrTemplate().chapterList(
+        context,
+        'https://www.mvlempyr.io/novel/some-slug',
+      );
 
       expect(refs, hasLength(501));
       expect(refs.first.url, 'https://www.mvlempyr.io/chapter/12345-1');
       expect(refs.last.url, 'https://www.mvlempyr.io/chapter/12345-501');
     });
 
-    test('falls back to generated refs when the REST feed is unavailable',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
-        ..addJson('https://chap.heliosarchive.online/wp-json/wp/v2/mvl-novels',
+    test(
+      'falls back to generated refs when the REST feed is unavailable',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://www.mvlempyr.io/novel/some-slug', _novelPage)
+          ..addJson(
+            'https://chap.heliosarchive.online/wp-json/wp/v2/mvl-novels',
             <Object?>[
               {'total-chapters': 3},
-            ]);
-      final context = buildContext(
-        transport: transport,
-        manifest: buildManifest(
-          templateId: 'mvlempyr',
-          baseUrl: 'https://www.mvlempyr.io',
-          capabilities: const [
-            PluginCapability.chapterList,
-            PluginCapability.chapterContent,
-            PluginCapability.cover,
-          ],
-        ),
-      );
+            ],
+          );
+        final context = buildContext(
+          transport: transport,
+          manifest: buildManifest(
+            templateId: 'mvlempyr',
+            baseUrl: 'https://www.mvlempyr.io',
+            capabilities: const [
+              PluginCapability.chapterList,
+              PluginCapability.chapterContent,
+              PluginCapability.cover,
+            ],
+          ),
+        );
 
-      final refs = await const MvlempyrTemplate()
-          .chapterList(context, 'https://www.mvlempyr.io/novel/some-slug');
+        final refs = await const MvlempyrTemplate().chapterList(
+          context,
+          'https://www.mvlempyr.io/novel/some-slug',
+        );
 
-      expect(refs, hasLength(3));
-      expect(refs[0].title, 'Chapter 1');
-      expect(refs[0].url, 'https://www.mvlempyr.io/chapter/12345-1');
-      expect(refs[2].url, 'https://www.mvlempyr.io/chapter/12345-3');
-    });
+        expect(refs, hasLength(3));
+        expect(refs[0].title, 'Chapter 1');
+        expect(refs[0].url, 'https://www.mvlempyr.io/chapter/12345-1');
+        expect(refs[2].url, 'https://www.mvlempyr.io/chapter/12345-3');
+      },
+    );
   });
 
   group('MvlempyrTemplate.chapterContent', () {
-    test('extracts oxy-stock content and runs it through the pipeline',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://www.mvlempyr.io/chapter/12345-1', '''
+    test(
+      'extracts oxy-stock content and runs it through the pipeline',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://www.mvlempyr.io/chapter/12345-1', '''
         <html><body>
           <h2 id="chapter-name"><span>Chapter One</span></h2>
           <span class="oxy-stock-content-styles">
             <p>First paragraph.</p><p>Second paragraph.</p>
           </span>
         </body></html>''');
-      final context = buildContext(
-        transport: transport,
-        manifest: buildManifest(
-          templateId: 'mvlempyr',
-          baseUrl: 'https://www.mvlempyr.io',
-          capabilities: const [
-            PluginCapability.chapterList,
-            PluginCapability.chapterContent,
-            PluginCapability.cover,
-          ],
-        ),
-      );
+        final context = buildContext(
+          transport: transport,
+          manifest: buildManifest(
+            templateId: 'mvlempyr',
+            baseUrl: 'https://www.mvlempyr.io',
+            capabilities: const [
+              PluginCapability.chapterList,
+              PluginCapability.chapterContent,
+              PluginCapability.cover,
+            ],
+          ),
+        );
 
-      final doc = await const MvlempyrTemplate()
-          .chapterContent(context, 'https://www.mvlempyr.io/chapter/12345-1');
+        final doc = await const MvlempyrTemplate().chapterContent(
+          context,
+          'https://www.mvlempyr.io/chapter/12345-1',
+        );
 
-      expect(doc.title, 'Chapter One');
-      final text = doc.renderToText();
-      expect(text, contains('First paragraph.'));
-      expect(text, contains('Second paragraph.'));
-    });
+        expect(doc.title, 'Chapter One');
+        final text = doc.renderToText();
+        expect(text, contains('First paragraph.'));
+        expect(text, contains('Second paragraph.'));
+      },
+    );
 
     test('throws TransportException on a Cloudflare challenge', () async {
       final transport = FakeTransport()
-        ..addHtml('https://www.mvlempyr.io/chapter/12345-1',
-            '<html><head><title>Attention Required! | Cloudflare</title></head><body></body></html>');
+        ..addHtml(
+          'https://www.mvlempyr.io/chapter/12345-1',
+          '<html><head><title>Attention Required! | Cloudflare</title></head><body></body></html>',
+        );
       final context = buildContext(
         transport: transport,
         manifest: buildManifest(
@@ -218,8 +243,10 @@ void main() {
       );
 
       await expectLater(
-        const MvlempyrTemplate()
-            .chapterContent(context, 'https://www.mvlempyr.io/chapter/12345-1'),
+        const MvlempyrTemplate().chapterContent(
+          context,
+          'https://www.mvlempyr.io/chapter/12345-1',
+        ),
         throwsA(isA<TransportException>()),
       );
     });
@@ -247,8 +274,10 @@ void main() {
     });
 
     test('is registered in the default template registry', () {
-      expect(TemplateRegistry.defaults.resolve('mvlempyr'),
-          isA<MvlempyrTemplate>());
+      expect(
+        TemplateRegistry.defaults.resolve('mvlempyr'),
+        isA<MvlempyrTemplate>(),
+      );
     });
   });
 }

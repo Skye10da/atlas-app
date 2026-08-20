@@ -20,8 +20,13 @@ class DirectUrlSource implements SourceAdapter {
   @override
   Future<NovelModel> getMetadata(Uri uri) async {
     final segments = uri.pathSegments;
-    final filename = segments.isNotEmpty ? segments.last.replaceAll(RegExp(r'\.(txt|md)$'), '') : 'Untitled';
-    final title = filename.replaceAll(RegExp(r'[-_]'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    final filename = segments.isNotEmpty
+        ? segments.last.replaceAll(RegExp(r'\.(txt|md)$'), '')
+        : 'Untitled';
+    final title = filename
+        .replaceAll(RegExp(r'[-_]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
 
     return NovelModel(
       sourceId: uri.toString(),
@@ -68,9 +73,12 @@ class DirectUrlSource implements SourceAdapter {
 
   String _titleCase(String s) {
     if (s.isEmpty) return s;
-    return s.split(' ').map((w) {
-      if (w.isEmpty) return w;
-      return w[0].toUpperCase() + w.substring(1);
-    }).join(' ');
+    return s
+        .split(' ')
+        .map((w) {
+          if (w.isEmpty) return w;
+          return w[0].toUpperCase() + w.substring(1);
+        })
+        .join(' ');
   }
 }

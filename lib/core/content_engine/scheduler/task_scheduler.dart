@@ -42,12 +42,22 @@ class TaskScheduler {
   void start() {
     if (_started) return;
     _started = true;
-    if (_pluginRefresh != null) _schedule('pluginRefresh', pluginRefreshInterval, _pluginRefresh!);
-    if (_resumeDownloads != null) _schedule('resumeDownloads', resumeDownloadsInterval, _resumeDownloads!);
-    if (_cacheCleanup != null) _schedule('cacheCleanup', cacheCleanupInterval, _cacheCleanup!);
+    if (_pluginRefresh != null) {
+      _schedule('pluginRefresh', pluginRefreshInterval, _pluginRefresh!);
+    }
+    if (_resumeDownloads != null) {
+      _schedule('resumeDownloads', resumeDownloadsInterval, _resumeDownloads!);
+    }
+    if (_cacheCleanup != null) {
+      _schedule('cacheCleanup', cacheCleanupInterval, _cacheCleanup!);
+    }
   }
 
-  Future<void> _schedule(String name, Duration interval, ScheduledTask task) async {
+  Future<void> _schedule(
+    String name,
+    Duration interval,
+    ScheduledTask task,
+  ) async {
     while (_started) {
       await _timer(interval);
       if (!_started) return;

@@ -21,7 +21,8 @@ class UnknownTemplateException implements Exception {
 /// manifest references an unregistered template (a real failure mode once
 /// plugins ship independently of app releases).
 class TemplateRegistry {
-  TemplateRegistry(Iterable<Template> templates) : _templates = {
+  TemplateRegistry(Iterable<Template> templates)
+    : _templates = {
         for (final template in templates) template.templateId: template,
       };
 

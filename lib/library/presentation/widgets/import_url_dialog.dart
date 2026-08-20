@@ -41,7 +41,8 @@ enum ImportSheetMode { url, file, combined }
 /// When [onImport] is provided it is called instead of the engine's
 /// default import (used by the browser for WebView routing, or for
 /// local file imports). For file modes the callback receives the picked
-/// [List<int> bytes] and [String fileName]; for URL mode they are null.
+/// [List<int> bytes] and [String fileName]; for URL mode they are null
+/// and the callback receives the URL instead.
 Future<ImportOutcome?> showImportUrlSheet(
   BuildContext context, {
   ImportSheetMode mode = ImportSheetMode.url,
@@ -55,8 +56,10 @@ Future<ImportOutcome?> showImportUrlSheet(
   Future<ImportOutcome> Function(
     List<int>? bytes,
     String? fileName,
+    String? url,
     void Function(double) onProgress,
-  )? onImport,
+  )?
+  onImport,
 }) {
   final isWide = MediaQuery.of(context).size.width >= 900;
 
@@ -80,12 +83,10 @@ Future<ImportOutcome?> showImportUrlSheet(
         );
       }
       return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 1),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-        ),
+        position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+            .animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
         child: child,
       );
     },
@@ -129,8 +130,10 @@ class _ImportUrlSheet extends ConsumerStatefulWidget {
   final Future<ImportOutcome> Function(
     List<int>? bytes,
     String? fileName,
+    String? url,
     void Function(double) onProgress,
-  )? onImport;
+  )?
+  onImport;
   final bool isDesktop;
 
   @override
@@ -304,7 +307,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
       'www.publicdomainlibrary.org': 'Public Domain Library',
     };
     for (final entry in knownSources.entries) {
-      if (host == entry.key || host.endsWith('.${entry.key}')) return entry.value;
+      if (host == entry.key || host.endsWith('.${entry.key}')) {
+        return entry.value;
+      }
     }
     return null;
   }
@@ -382,7 +387,12 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
     final engine = ref.read(contentAcquisitionEngineProvider);
     final url = widget.initialUrl ?? _urlController.text.trim();
     final future = widget.onImport != null
-        ? widget.onImport!(_fileBytes, _fileName, (p) => _progress.value = p)
+        ? widget.onImport!(
+            _fileBytes,
+            _fileName,
+            url,
+            (p) => _progress.value = p,
+          )
         : engine.importAndSave(url, onProgress: (p) => _progress.value = p);
 
     try {
@@ -416,7 +426,8 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
     } on ImportRedirect catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'This page requires a browser to import. Try opening it in the browser tab.';
+        _error =
+            'This page requires a browser to import. Try opening it in the browser tab.';
         _stage = _SheetStage.input;
         _retryable = false;
       });
@@ -444,7 +455,8 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final dismissible = _stage == _SheetStage.input || _stage == _SheetStage.preview;
+    final dismissible =
+        _stage == _SheetStage.input || _stage == _SheetStage.preview;
 
     return PopScope(
       canPop: dismissible,
@@ -470,7 +482,10 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
                 curve: AppAnimation.defaultCurve,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg,
+                    AppSpacing.lg,
+                    0,
+                    AppSpacing.lg,
+                    AppSpacing.lg,
                   ),
                   child: switch (_stage) {
                     _SheetStage.input => _buildInputStage(cs),
@@ -510,16 +525,16 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
         const SizedBox(height: AppSpacing.md),
         Text(
           widget.title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Bring a new story into your library — from the web, your files, or a curated source.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: cs.onSurfaceVariant,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: AppSpacing.lg),
         // ── URL text field ─────────────────────────────────────────────
@@ -575,9 +590,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
                   Flexible(
                     child: Text(
                       'Paste from clipboard',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: cs.primary,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelMedium?.copyWith(color: cs.primary),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -597,7 +612,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
               ),
               decoration: BoxDecoration(
                 color: cs.secondaryContainer,
-                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                borderRadius: BorderRadius.circular(
+                  AppSpacing.borderRadiusFull,
+                ),
               ),
               child: Text(
                 source,
@@ -618,13 +635,15 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
               ),
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                borderRadius: BorderRadius.circular(
+                  AppSpacing.borderRadiusFull,
+                ),
               ),
               child: Text(
                 'Custom URL',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
               ),
             ),
           ),
@@ -644,9 +663,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
                 Expanded(
                   child: Text(
                     _error!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: cs.onErrorContainer,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: cs.onErrorContainer),
                   ),
                 ),
                 if (_retryable)
@@ -766,16 +785,16 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
         const SizedBox(height: AppSpacing.md),
         Text(
           _fileModeTitle,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Pick an ebook, PDF, or Atlas package from your device',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: cs.onSurfaceVariant,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: AppSpacing.xl),
         Center(
@@ -800,9 +819,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
                 Expanded(
                   child: Text(
                     _error!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: cs.onErrorContainer,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: cs.onErrorContainer),
                   ),
                 ),
               ],
@@ -852,16 +871,16 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
         const SizedBox(height: AppSpacing.md),
         Text(
           widget.title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Paste a URL to import a book or novel',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: cs.onSurfaceVariant,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: AppSpacing.lg),
         TextField(
@@ -916,9 +935,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
                   Flexible(
                     child: Text(
                       'Paste from clipboard',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: cs.primary,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelMedium?.copyWith(color: cs.primary),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -938,7 +957,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
               ),
               decoration: BoxDecoration(
                 color: cs.secondaryContainer,
-                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                borderRadius: BorderRadius.circular(
+                  AppSpacing.borderRadiusFull,
+                ),
               ),
               child: Text(
                 source,
@@ -959,13 +980,15 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
               ),
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                borderRadius: BorderRadius.circular(
+                  AppSpacing.borderRadiusFull,
+                ),
               ),
               child: Text(
                 'Custom URL',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
               ),
             ),
           ),
@@ -985,9 +1008,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
                 Expanded(
                   child: Text(
                     _error!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: cs.onErrorContainer,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: cs.onErrorContainer),
                   ),
                 ),
                 if (_retryable)
@@ -1042,9 +1065,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
         const SizedBox(height: AppSpacing.md),
         Text(
           'Import this ${novel.category == ContentCategory.novel ? 'novel' : 'book'}?',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: AppSpacing.lg),
         Center(
@@ -1060,18 +1083,18 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
         const SizedBox(height: AppSpacing.md),
         Text(
           novel.title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           textAlign: TextAlign.center,
         ),
         if (novel.author != null) ...[
           const SizedBox(height: AppSpacing.xs),
           Text(
             'by ${novel.author}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: cs.onSurfaceVariant,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1129,14 +1152,15 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
                   ),
                   if (novel.description!.length > 120)
                     GestureDetector(
-                      onTap: () => setLocalState(() => _expanding = !_expanding),
+                      onTap: () =>
+                          setLocalState(() => _expanding = !_expanding),
                       child: Padding(
                         padding: const EdgeInsets.only(top: AppSpacing.xs),
                         child: Text(
                           _expanding ? 'Show less' : 'Show more',
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: cs.primary,
-                          ),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelMedium?.copyWith(color: cs.primary),
                         ),
                       ),
                     ),
@@ -1159,9 +1183,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
             ),
             child: Text(
               novel.source,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: cs.onSecondaryContainer,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: cs.onSecondaryContainer),
             ),
           ),
         ),
@@ -1201,11 +1225,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
       items.add(_metadataItem(Icons.star_rounded, '${novel.rating}', cs));
     }
     if (novel.chapterCount > 0) {
-      items.add(_metadataItem(
-        Icons.book_outlined,
-        '${novel.chapterCount} ch',
-        cs,
-      ));
+      items.add(
+        _metadataItem(Icons.book_outlined, '${novel.chapterCount} ch', cs),
+      );
     }
     if (novel.language != null) {
       items.add(_metadataItem(Icons.language, novel.language!, cs));
@@ -1244,9 +1266,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
         const SizedBox(width: 2),
         Text(
           text,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: cs.onSurfaceVariant,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
         ),
       ],
     );
@@ -1327,9 +1349,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
                 const SizedBox(height: AppSpacing.lg),
                 Text(
                   _progressDone ? 'Done' : _progressStageLabel(_progress.value),
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: AppSpacing.xxl),
               ],
@@ -1361,29 +1383,25 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
                 color: Color(0xFF34C759),
                 size: 72,
               ),
-              Icon(
-                Icons.check,
-                size: 36,
-                color: Color(0xFF34C759),
-              ),
+              Icon(Icons.check, size: 36, color: Color(0xFF34C759)),
             ],
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
           isNovel ? 'Novel added!' : 'Book added!',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: AppSpacing.xs),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           child: Text(
             '"${_preview?.title ?? 'Your item'}" is now in your library.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: cs.onSurfaceVariant,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
             textAlign: TextAlign.center,
           ),
         ),
@@ -1425,10 +1443,9 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
           width: 36,
           height: 4,
           decoration: BoxDecoration(
-            color: Theme.of(context)
-                .colorScheme
-                .onSurface
-                .withValues(alpha: 0.25),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.25),
             borderRadius: BorderRadius.circular(2),
           ),
         ),

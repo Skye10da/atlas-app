@@ -19,7 +19,8 @@ import 'package:atlas_app/wtr/domain/services/wtr_session_auxiliary.dart';
 import 'test_fixtures.dart';
 
 const _base = 'https://wtr-lab.com';
-const _novelUrl = '$_base/en/novel/29058/'
+const _novelUrl =
+    '$_base/en/novel/29058/'
     'charm-is-full-i-have-become-a-male-god-since-high-school';
 const _chapterUrl = '$_novelUrl/chapter-639';
 const _searchUrl = '$_base/api/search';
@@ -51,7 +52,8 @@ const _searchResponse = {
     {
       'id': 86727,
       'raw_id': 90475,
-      'slug': 'ten-years-behind-bars-for-him-reborn-to-bury-my-ex-husbands-family',
+      'slug':
+          'ten-years-behind-bars-for-him-reborn-to-bury-my-ex-husbands-family',
       'status': 1,
       'chapter_count': 290,
       'data': {
@@ -140,21 +142,22 @@ String _encryptBody(List<String> paragraphs, {bool tamperTag = false}) {
   return 'arr:${base64Encode(iv)}:${base64Encode(tag)}:${base64Encode(ct)}';
 }
 
-Map<String, Object?> _readerResponse(
-        {String? body, bool requireTurnstile = false}) =>
-    requireTurnstile
-        ? {'requireTurnstile': true}
-        : {
-            'success': true,
-            'chapter': {
-              'id': 33607609,
-              'title': 'Chapter 638: He wrote both of them!?',
-            },
-            'data': {
-              'raw_id': 29058,
-              'data': {'body': body},
-            },
-          };
+Map<String, Object?> _readerResponse({
+  String? body,
+  bool requireTurnstile = false,
+}) => requireTurnstile
+    ? {'requireTurnstile': true}
+    : {
+        'success': true,
+        'chapter': {
+          'id': 33607609,
+          'title': 'Chapter 638: He wrote both of them!?',
+        },
+        'data': {
+          'raw_id': 29058,
+          'data': {'body': body},
+        },
+      };
 
 void main() {
   const template = WtrLabTemplate();
@@ -179,9 +182,9 @@ void main() {
   });
 
   PluginContext contextWith(Transport transport) => buildContext(
-        manifest: buildManifest(baseUrl: _base),
-        transport: transport,
-      );
+    manifest: buildManifest(baseUrl: _base),
+    transport: transport,
+  );
 
   group('WtrLabTemplate.search', () {
     test('POSTs the query and maps results to novel URLs', () async {
@@ -197,11 +200,13 @@ void main() {
       expect(
         results.first.url,
         '$_base/en/novel/90475/'
-            'ten-years-behind-bars-for-him-reborn-to-bury-my-ex-husbands-family',
+        'ten-years-behind-bars-for-him-reborn-to-bury-my-ex-husbands-family',
       );
       expect(results.first.author, 'Someone');
-      expect(results.first.coverUrl,
-          'https://img.wtr-lab.com/cdn/series/thumb.jpg');
+      expect(
+        results.first.coverUrl,
+        'https://img.wtr-lab.com/cdn/series/thumb.jpg',
+      );
       expect(results.first.description, 'A tale of revenge.');
     });
 
@@ -220,7 +225,10 @@ void main() {
 
       final meta = await template.metadata(context, _novelUrl);
 
-      expect(meta.title, 'Charm is Full: I Have Become a Male God Since High School');
+      expect(
+        meta.title,
+        'Charm is Full: I Have Become a Male God Since High School',
+      );
       expect(meta.author, 'Dong Bei Da Ju Mao');
       expect(meta.description, contains('Reborn in high school, Lu Yan'));
       expect(meta.coverUrl, 'https://img.wtr-lab.com/cdn/series/cover.jpg');
@@ -244,7 +252,8 @@ void main() {
 
   group('WtrLabTemplate.chapterList', () {
     test('maps the full chapters API response to chapter URLs', () async {
-      final transport = FakeTransport()..addJson(_chaptersUrl, _chaptersResponse);
+      final transport = FakeTransport()
+        ..addJson(_chaptersUrl, _chaptersResponse);
       final context = contextWith(transport);
 
       final refs = await template.chapterList(context, _novelUrl);
@@ -260,28 +269,36 @@ void main() {
     test('throws when the URL does not carry a novel id', () async {
       expect(
         template.chapterList(
-            contextWith(FakeTransport()), '$_base/some/other/path'),
+          contextWith(FakeTransport()),
+          '$_base/some/other/path',
+        ),
         throwsA(isA<TransportException>()),
       );
     });
   });
 
   group('WtrLabTemplate.chapterContent', () {
-    test('POSTs reader/get, decrypts the body and renders paragraphs', () async {
-      final transport = FakeTransport()
-        ..addPostJson(_readerUrl, _readerResponse(body: _encryptBody(_paragraphs)));
-      final context = contextWith(transport);
+    test(
+      'POSTs reader/get, decrypts the body and renders paragraphs',
+      () async {
+        final transport = FakeTransport()
+          ..addPostJson(
+            _readerUrl,
+            _readerResponse(body: _encryptBody(_paragraphs)),
+          );
+        final context = contextWith(transport);
 
-      final doc = await template.chapterContent(context, _chapterUrl);
+        final doc = await template.chapterContent(context, _chapterUrl);
 
-      // One reader POST plus the per-novel glossary GET the AI cleanup pass
-      // attempts for source-language text (missing fixture -> fail-soft).
-      expect(transport.jsonCalls, 2);
-      expect(doc.title, 'Chapter 638: He wrote both of them!?');
-      final text = doc.renderToText();
-      expect(text, contains('陆言没说话，拿起话筒，轻轻拍了拍。'));
-      expect(text, contains('大家安静一下，我有件事情要说。'));
-    });
+        // One reader POST plus the per-novel glossary GET the AI cleanup pass
+        // attempts for source-language text (missing fixture -> fail-soft).
+        expect(transport.jsonCalls, 2);
+        expect(doc.title, 'Chapter 638: He wrote both of them!?');
+        final text = doc.renderToText();
+        expect(text, contains('陆言没说话，拿起话筒，轻轻拍了拍。'));
+        expect(text, contains('大家安静一下，我有件事情要说。'));
+      },
+    );
 
     test('treats requireTurnstile as a session wall for the origin', () async {
       final transport = FakeTransport()
@@ -289,8 +306,13 @@ void main() {
 
       await expectLater(
         template.chapterContent(contextWith(transport), _chapterUrl),
-        throwsA(isA<TransportException>()
-            .having((e) => e.sessionExpired, 'sessionExpired', isTrue)),
+        throwsA(
+          isA<TransportException>().having(
+            (e) => e.sessionExpired,
+            'sessionExpired',
+            isTrue,
+          ),
+        ),
       );
       expect(
         session.lastInvalidOrigin.value,
@@ -315,9 +337,13 @@ void main() {
         throwsA(isA<TransportException>()),
       );
       final probe = session.lastInvalidVerificationProbe;
-      expect(probe, isNotNull,
-          reason: 'the refresh webview must wait for the real challenge to '
-              'clear, not just for cookies to appear');
+      expect(
+        probe,
+        isNotNull,
+        reason:
+            'the refresh webview must wait for the real challenge to '
+            'clear, not just for cookies to appear',
+      );
 
       // Still challenging -> not verified yet.
       expect(await probe!(), isFalse);
@@ -330,35 +356,42 @@ void main() {
       expect(await probe(), isTrue);
     });
 
-    test('requireTurnstile seeds the chapter page with the active service param',
-        () async {
-      final provider = WtrChapterProvider(
-        preferenceRepository: InMemoryWtrPreferenceRepository(),
-        authManager: WtrAuthenticationManager(),
-      );
-      await provider.setService(29058, WtrTranslationService.webPlus);
-      final localTemplate = WtrLabTemplate(chapterProvider: provider);
-      final transport = FakeTransport()
-        ..addPostJson(_readerUrl, _readerResponse(requireTurnstile: true));
+    test(
+      'requireTurnstile seeds the chapter page with the active service param',
+      () async {
+        final provider = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: WtrAuthenticationManager(),
+        );
+        await provider.setService(29058, WtrTranslationService.webPlus);
+        final localTemplate = WtrLabTemplate(chapterProvider: provider);
+        final transport = FakeTransport()
+          ..addPostJson(_readerUrl, _readerResponse(requireTurnstile: true));
 
-      await expectLater(
-        localTemplate.chapterContent(contextWith(transport), _chapterUrl),
-        throwsA(isA<TransportException>()
-            .having((e) => e.sessionExpired, 'sessionExpired', isTrue)),
-      );
-      expect(
-        session.lastInvalidSeedUrl.value,
-        Uri.parse('$_chapterUrl?service=webplus'),
-        reason: 'webplus carries its ?service= param onto the chapter page',
-      );
-    });
+        await expectLater(
+          localTemplate.chapterContent(contextWith(transport), _chapterUrl),
+          throwsA(
+            isA<TransportException>().having(
+              (e) => e.sessionExpired,
+              'sessionExpired',
+              isTrue,
+            ),
+          ),
+        );
+        expect(
+          session.lastInvalidSeedUrl.value,
+          Uri.parse('$_chapterUrl?service=webplus'),
+          reason: 'webplus carries its ?service= param onto the chapter page',
+        );
+      },
+    );
 
     test('throws TransportException on a tampered tag', () async {
       final transport = FakeTransport()
         ..addPostJson(
-            _readerUrl,
-            _readerResponse(
-                body: _encryptBody(_paragraphs, tamperTag: true)));
+          _readerUrl,
+          _readerResponse(body: _encryptBody(_paragraphs, tamperTag: true)),
+        );
       expect(
         template.chapterContent(contextWith(transport), _chapterUrl),
         throwsA(isA<TransportException>()),
@@ -377,7 +410,9 @@ void main() {
     test('throws when the chapter URL lacks the order', () async {
       expect(
         template.chapterContent(
-            contextWith(FakeTransport()), '$_novelUrl/not-a-chapter'),
+          contextWith(FakeTransport()),
+          '$_novelUrl/not-a-chapter',
+        ),
         throwsA(isA<TransportException>()),
       );
     });

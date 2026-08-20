@@ -13,8 +13,8 @@ class WtrGlossaryService {
   WtrGlossaryService({
     Map<int, List<WtrGlossaryTerm>>? cache,
     Map<int, List<WtrGlossaryTerm>>? allCache,
-  })  : _cache = cache ?? <int, List<WtrGlossaryTerm>>{},
-        _allCache = allCache ?? <int, List<WtrGlossaryTerm>>{};
+  }) : _cache = cache ?? <int, List<WtrGlossaryTerm>>{},
+       _allCache = allCache ?? <int, List<WtrGlossaryTerm>>{};
 
   final Map<int, List<WtrGlossaryTerm>> _cache;
   final Map<int, List<WtrGlossaryTerm>> _allCache;
@@ -86,8 +86,12 @@ class WtrGlossaryService {
   }) async {
     final cached = _allCache[rawId];
     if (cached != null) return cached;
-    final terms =
-        await _fetchAll(transport, base, rawId: rawId, headers: headers);
+    final terms = await _fetchAll(
+      transport,
+      base,
+      rawId: rawId,
+      headers: headers,
+    );
     _allCache[rawId] = terms;
     return terms;
   }

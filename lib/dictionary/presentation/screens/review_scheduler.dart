@@ -27,7 +27,14 @@ class ReviewScheduler {
   static bool isMastered(int level) => level >= maxLevel;
 
   static String levelLabel(int level) {
-    const labels = ['New', 'Learning', 'Familiar', 'Good', 'Strong', 'Mastered'];
+    const labels = [
+      'New',
+      'Learning',
+      'Familiar',
+      'Good',
+      'Strong',
+      'Mastered',
+    ];
     return labels[level.clamp(0, labels.length - 1)];
   }
 

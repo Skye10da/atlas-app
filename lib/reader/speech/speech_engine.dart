@@ -235,7 +235,8 @@ class SpeechEngine {
     _checkpointBufferCount++;
     final now = DateTime.now();
     final dueByCount = _checkpointBufferCount >= _checkpointFlushEvery;
-    final dueByTime = now.difference(_lastCheckpointFlush) >= _checkpointFlushInterval;
+    final dueByTime =
+        now.difference(_lastCheckpointFlush) >= _checkpointFlushInterval;
     if (!dueByCount && !dueByTime) return;
 
     _checkpointBufferCount = 0;

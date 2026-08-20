@@ -10,12 +10,17 @@ final settingsRepositoryProvider = Provider((ref) {
   return const SharedPrefsSettingsRepository();
 });
 
-final readingSettingsProvider = StateNotifierProvider<ReadingSettingsNotifier, AsyncValue<ReadingSettingsEntity>>((ref) {
-  final repo = ref.watch(settingsRepositoryProvider);
-  return ReadingSettingsNotifier(repo);
-});
+final readingSettingsProvider =
+    StateNotifierProvider<
+      ReadingSettingsNotifier,
+      AsyncValue<ReadingSettingsEntity>
+    >((ref) {
+      final repo = ref.watch(settingsRepositoryProvider);
+      return ReadingSettingsNotifier(repo);
+    });
 
-class ReadingSettingsNotifier extends StateNotifier<AsyncValue<ReadingSettingsEntity>> {
+class ReadingSettingsNotifier
+    extends StateNotifier<AsyncValue<ReadingSettingsEntity>> {
   ReadingSettingsNotifier(this._repo) : super(const AsyncLoading()) {
     _init();
   }

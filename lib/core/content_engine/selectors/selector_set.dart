@@ -13,7 +13,8 @@ class SearchSelectors {
     this.extraQueryParams = const {},
   });
 
-  factory SearchSelectors.fromJson(Map<String, Object?> json) => SearchSelectors(
+  factory SearchSelectors.fromJson(Map<String, Object?> json) =>
+      SearchSelectors(
         resultItem: (json['resultItem'] as String?) ?? '',
         title: (json['title'] as String?) ?? '@text',
         coverUrl: json['coverUrl'] as String?,
@@ -21,8 +22,9 @@ class SearchSelectors {
         path: json['path'] as String?,
         queryParam: (json['queryParam'] as String?) ?? 's',
         extraQueryParams: json['extraQueryParams'] is Map
-            ? (json['extraQueryParams'] as Map)
-                .map((k, v) => MapEntry('$k', '$v'))
+            ? (json['extraQueryParams'] as Map).map(
+                (k, v) => MapEntry('$k', '$v'),
+              )
             : const {},
       );
 
@@ -73,7 +75,8 @@ class AjaxArchiveSelectors {
         item: json['item'] as String?,
         title: json['title'] as String?,
         url: json['url'] as String?,
-        novelIdSelector: (json['novelIdSelector'] as String?) ??
+        novelIdSelector:
+            (json['novelIdSelector'] as String?) ??
             '[data-novel-id]@data-novel-id',
         method: (json['method'] as String?)?.toUpperCase() ?? 'GET',
         form: json['form'] is Map
@@ -138,18 +141,20 @@ class ChapterListSelectors {
         url: (json['url'] as String?) ?? '@href',
         reverse: json['reverse'] is bool ? json['reverse'] as bool : false,
         pageParam: (json['pageParam'] as String?) ?? 'page',
-        maxPages: json['maxPages'] is num ? (json['maxPages'] as num).toInt() : 1,
+        maxPages: json['maxPages'] is num
+            ? (json['maxPages'] as num).toInt()
+            : 1,
         ajaxPath: json['ajaxPath'] as String?,
         ajaxArchive: json['ajaxArchive'] is Map
             ? AjaxArchiveSelectors.fromJson(
-                Map<String, Object?>.from(json['ajaxArchive'] as Map))
+                Map<String, Object?>.from(json['ajaxArchive'] as Map),
+              )
             : null,
         paginationSelector: json['paginationSelector'] as String?,
         totalPagesSelector: json['totalPagesSelector'] as String?,
-        sortByChapterNumber:
-            json['sortByChapterNumber'] is bool
-                ? json['sortByChapterNumber'] as bool
-                : false,
+        sortByChapterNumber: json['sortByChapterNumber'] is bool
+            ? json['sortByChapterNumber'] as bool
+            : false,
       );
 
   final String item;
@@ -193,10 +198,7 @@ class ChapterListSelectors {
 }
 
 class ChapterContentSelectors {
-  const ChapterContentSelectors({
-    required this.container,
-    this.title,
-  });
+  const ChapterContentSelectors({required this.container, this.title});
 
   factory ChapterContentSelectors.fromJson(Map<String, Object?> json) =>
       ChapterContentSelectors(
@@ -226,7 +228,8 @@ sealed class MetadataField {
           ...?rawLabels is List ? rawLabels.whereType<String>() : null,
         ];
         return InfoRowMetadataField(
-          container: (map['container'] as String?) ??
+          container:
+              (map['container'] as String?) ??
               '.col-info-desc .info div, .col-info-desc .info li',
           labels: labels,
           links: map['links'] is bool ? map['links'] as bool : false,
@@ -323,7 +326,9 @@ class SelectorSet {
           ? SearchSelectors.fromJson(Map<String, Object?>.from(search))
           : null,
       chapterList: chapterList is Map
-          ? ChapterListSelectors.fromJson(Map<String, Object?>.from(chapterList))
+          ? ChapterListSelectors.fromJson(
+              Map<String, Object?>.from(chapterList),
+            )
           : null,
       chapterContent: chapterContent is Map
           ? ChapterContentSelectors.fromJson(
@@ -347,7 +352,8 @@ class SelectorSet {
     final results = <SearchResult>[];
     for (final item in doc.querySelectorAll(selectors.resultItem)) {
       final title = extract(item, selectors.title);
-      final detail = extract(item, selectors.detailUrl ?? '@href') ??
+      final detail =
+          extract(item, selectors.detailUrl ?? '@href') ??
           extract(item, 'a@href');
       if (title == null || title.isEmpty || detail == null) continue;
       String? coverUrl;
@@ -357,11 +363,13 @@ class SelectorSet {
           coverUrl = _resolveUrl(raw, baseUrl);
         }
       }
-      results.add(SearchResult(
-        title: title,
-        url: _resolveUrl(detail, baseUrl),
-        coverUrl: coverUrl,
-      ));
+      results.add(
+        SearchResult(
+          title: title,
+          url: _resolveUrl(detail, baseUrl),
+          coverUrl: coverUrl,
+        ),
+      );
     }
     return results;
   }

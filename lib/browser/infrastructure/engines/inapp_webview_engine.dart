@@ -142,9 +142,7 @@ class InappWebviewEngine implements BrowserWebEngine {
       _pendingUrl = normalized;
       return;
     }
-    await controller.loadUrl(
-      urlRequest: URLRequest(url: uri),
-    );
+    await controller.loadUrl(urlRequest: URLRequest(url: uri));
   }
 
   @override
@@ -196,7 +194,8 @@ class InappWebviewEngine implements BrowserWebEngine {
   Future<int> search(String query) async {
     _findQuery = query;
     final escaped = jsonEncode(query);
-    final script = '''
+    final script =
+        '''
 (() => {
   const q = $escaped;
   if (!q) return 0;
@@ -225,7 +224,8 @@ class InappWebviewEngine implements BrowserWebEngine {
     final query = _findQuery;
     if (query == null || query.isEmpty) return false;
     final escaped = jsonEncode(query);
-    final script = '''
+    final script =
+        '''
 (() => { return window.find($escaped, false, ${backward ? 'true' : 'false'}, false, false); })()
 ''';
     final result = await _controller?.evaluateJavascript(source: script);
@@ -236,7 +236,8 @@ class InappWebviewEngine implements BrowserWebEngine {
   Future<void> clearFind() async {
     _findQuery = null;
     await _controller?.evaluateJavascript(
-      source: '(() => { window.getSelection().removeAllRanges(); return true; })()',
+      source:
+          '(() => { window.getSelection().removeAllRanges(); return true; })()',
     );
   }
 
@@ -244,7 +245,9 @@ class InappWebviewEngine implements BrowserWebEngine {
   void Function(WebSelection)? _selectionListener;
 
   @override
-  Future<void> setSelectionListener(void Function(WebSelection)? listener) async {
+  Future<void> setSelectionListener(
+    void Function(WebSelection)? listener,
+  ) async {
     _selectionListener = listener;
     if (listener == null) {
       _controller?.removeJavaScriptHandler(handlerName: _kSelectionHandlerName);
@@ -287,7 +290,8 @@ class InappWebviewEngine implements BrowserWebEngine {
   @override
   Future<void> clearSelection() async {
     await _controller?.evaluateJavascript(
-      source: '(() => { window.getSelection().removeAllRanges(); return true; })()',
+      source:
+          '(() => { window.getSelection().removeAllRanges(); return true; })()',
     );
   }
 
@@ -311,7 +315,8 @@ class InappWebviewEngine implements BrowserWebEngine {
 
   @override
   Future<void> setDownloadListener(
-      void Function(String url, String? mimeType)? listener) async {
+    void Function(String url, String? mimeType)? listener,
+  ) async {
     _downloadListener = listener;
   }
 
@@ -451,7 +456,8 @@ class InappWebviewEngine implements BrowserWebEngine {
         useShouldOverrideUrlLoading: true,
         useOnDownloadStart: true,
         disableContextMenu: true,
-        disabledActionModeMenuItems: ActionModeMenuItem.MENU_ITEM_SHARE, // suppresses the Action Mode bar itself
+        disabledActionModeMenuItems: ActionModeMenuItem
+            .MENU_ITEM_SHARE, // suppresses the Action Mode bar itself
       ),
       onReceivedError: (controller, request, error) {
         if (_disposed) return;
@@ -471,7 +477,8 @@ class InappWebviewEngine implements BrowserWebEngine {
         // looking at is fine. Restore the committed URL and stay silent rather
         // than banner a fully-loaded page.
         final committed = _lastLoadedUrl;
-        final isBackgroundFailure = committed != null &&
+        final isBackgroundFailure =
+            committed != null &&
             committed != kBrowserStartPageUrl &&
             failedUrl != committed;
         if (isBackgroundFailure) {
@@ -479,7 +486,8 @@ class InappWebviewEngine implements BrowserWebEngine {
           return;
         }
         final detail = error.description.trim();
-        _lastError.value = 'Could not load this page'
+        _lastError.value =
+            'Could not load this page'
             '${detail.isEmpty ? '' : ': $detail'}';
       },
       onWebViewCreated: _onWebViewCreated,

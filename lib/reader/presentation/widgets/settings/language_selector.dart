@@ -26,13 +26,13 @@ class LanguageSelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selected =
-        ref.watch(targetLanguageProvider(bookId)).valueOrNull;
+    final selected = ref.watch(targetLanguageProvider(bookId)).valueOrNull;
     final languagesAsync = ref.watch(supportedLanguagesProvider);
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    final effectiveSelected = selected ??
+    final effectiveSelected =
+        selected ??
         SupportedLanguage.defaults.firstWhere((l) => l.code == 'en');
 
     return Container(

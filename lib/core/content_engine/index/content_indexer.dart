@@ -11,8 +11,8 @@ class ContentIndexer {
     SearchIndexer? search,
     DictionaryIndexer? dictionary,
     this.extractor = const CharacterExtractor(),
-  })  : search = search ?? SearchIndexer(),
-        dictionary = dictionary ?? DictionaryIndexer();
+  }) : search = search ?? SearchIndexer(),
+       dictionary = dictionary ?? DictionaryIndexer();
 
   final SearchIndexer search;
   final DictionaryIndexer dictionary;

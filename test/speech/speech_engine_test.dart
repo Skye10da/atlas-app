@@ -48,7 +48,8 @@ class FakeDriver implements SpeechDriver {
   Future<void> pause() async => _driverState = DriverState.paused;
 
   @override
-  Future<void> resume(SpeechItem item) async => _driverState = DriverState.speaking;
+  Future<void> resume(SpeechItem item) async =>
+      _driverState = DriverState.speaking;
 
   @override
   Future<void> stop() async => _driverState = DriverState.stopped;
@@ -79,20 +80,20 @@ class FakeDriver implements SpeechDriver {
 }
 
 SpeechItem _item(int p, int s) => SpeechItem(
-      bookId: 'b1',
-      chapterId: 'c1',
-      paragraphIndex: p,
-      sentenceIndex: s,
-      text: 'sentence $p/$s',
-      language: 'en-US',
-    );
+  bookId: 'b1',
+  chapterId: 'c1',
+  paragraphIndex: p,
+  sentenceIndex: s,
+  text: 'sentence $p/$s',
+  language: 'en-US',
+);
 
 SpeechSession _session() => SpeechSession(
-      bookId: 'b1',
-      chapterId: 'c1',
-      queue: SpeechQueue([_item(0, 0), _item(0, 1), _item(1, 0)]),
-      settings: const NarrationSettings(),
-    );
+  bookId: 'b1',
+  chapterId: 'c1',
+  queue: SpeechQueue([_item(0, 0), _item(0, 1), _item(1, 0)]),
+  settings: const NarrationSettings(),
+);
 
 Future<void> _flush() => Future<void>.delayed(Duration.zero);
 
@@ -123,28 +124,34 @@ void main() {
     expect(seen.whereType<SentenceStarted>().length, 1);
   });
 
-  test('completing items advances through the queue and ends with ChapterFinished', () async {
-    await engine.loadSession(_session());
-    await engine.start();
-    await _flush();
+  test(
+    'completing items advances through the queue and ends with ChapterFinished',
+    () async {
+      await engine.loadSession(_session());
+      await engine.start();
+      await _flush();
 
-    driver.complete();
-    await _flush();
-    expect(driver.spoken.map((i) => i.text).toList(), ['sentence 0/0', 'sentence 0/1']);
-    expect(seen.whereType<SentenceFinished>().length, 1);
-    expect(seen.whereType<ParagraphFinished>().length, 0); // mid-paragraph
+      driver.complete();
+      await _flush();
+      expect(driver.spoken.map((i) => i.text).toList(), [
+        'sentence 0/0',
+        'sentence 0/1',
+      ]);
+      expect(seen.whereType<SentenceFinished>().length, 1);
+      expect(seen.whereType<ParagraphFinished>().length, 0); // mid-paragraph
 
-    driver.complete();
-    await _flush();
-    expect(driver.spoken.length, 3); // paragraph 1 starts
-    expect(seen.whereType<ParagraphFinished>().length, 1);
+      driver.complete();
+      await _flush();
+      expect(driver.spoken.length, 3); // paragraph 1 starts
+      expect(seen.whereType<ParagraphFinished>().length, 1);
 
-    driver.complete();
-    await _flush();
-    expect(seen.whereType<ChapterFinished>().length, 1);
-    expect(seen.whereType<ChapterFinished>().first.chapterId, 'c1');
-    expect(driver.spoken.length, 3); // does not speak beyond the chapter
-  });
+      driver.complete();
+      await _flush();
+      expect(seen.whereType<ChapterFinished>().length, 1);
+      expect(seen.whereType<ChapterFinished>().first.chapterId, 'c1');
+      expect(driver.spoken.length, 3); // does not speak beyond the chapter
+    },
+  );
 
   test('checkpoint is flushed after every 5 sentences', () async {
     await engine.loadSession(_session());
@@ -159,45 +166,51 @@ void main() {
     expect(checkpoint.sentenceIndex, greaterThanOrEqualTo(2));
   });
 
-  test('sleep timer stops at end of sentence once its duration elapses', () async {
-    await engine.loadSession(_session());
-    await engine.start();
-    engine.setSleepTimer(
-      const SleepTimerConfig(
-        duration: Duration(milliseconds: 50),
-        boundary: SleepTimerBoundary.endOfSentence,
-      ),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    driver.complete();
-    await _flush();
+  test(
+    'sleep timer stops at end of sentence once its duration elapses',
+    () async {
+      await engine.loadSession(_session());
+      await engine.start();
+      engine.setSleepTimer(
+        const SleepTimerConfig(
+          duration: Duration(milliseconds: 50),
+          boundary: SleepTimerBoundary.endOfSentence,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      driver.complete();
+      await _flush();
 
-    expect(seen.whereType<SpeechStopped>().length, 1);
-  });
+      expect(seen.whereType<SpeechStopped>().length, 1);
+    },
+  );
 
-  test('error recovery retries the item, then restarts, then gives up', () async {
-    await engine.loadSession(_session());
-    await engine.start();
-    await _flush();
+  test(
+    'error recovery retries the item, then restarts, then gives up',
+    () async {
+      await engine.loadSession(_session());
+      await engine.start();
+      await _flush();
 
-    final beforeRetry = driver.spoken.length;
-    driver.fail('hiccup');
-    await _flush();
-    // Retried the same item once.
-    expect(driver.spoken.length, beforeRetry + 1);
-    expect(driver.restartCount, 0);
+      final beforeRetry = driver.spoken.length;
+      driver.fail('hiccup');
+      await _flush();
+      // Retried the same item once.
+      expect(driver.spoken.length, beforeRetry + 1);
+      expect(driver.restartCount, 0);
 
-    driver.fail('hiccup again');
-    await _flush();
-    // Restart + one more speak.
-    expect(driver.restartCount, 1);
-    expect(driver.spoken.length, beforeRetry + 2);
+      driver.fail('hiccup again');
+      await _flush();
+      // Restart + one more speak.
+      expect(driver.restartCount, 1);
+      expect(driver.spoken.length, beforeRetry + 2);
 
-    driver.fail('still failing');
-    await _flush();
-    // Restart already happened for this item - give up now.
-    expect(driver.restartCount, 1);
-    expect(driver.spoken.length, beforeRetry + 2);
-    expect(seen.whereType<SpeechError>().length, 1);
-  });
+      driver.fail('still failing');
+      await _flush();
+      // Restart already happened for this item - give up now.
+      expect(driver.restartCount, 1);
+      expect(driver.spoken.length, beforeRetry + 2);
+      expect(seen.whereType<SpeechError>().length, 1);
+    },
+  );
 }

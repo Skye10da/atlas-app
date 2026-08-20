@@ -77,7 +77,8 @@ class AppContextMenu extends StatelessWidget {
       BuildContext context,
       EditableTextState editable,
       Offset anchor,
-    ) build,
+    )
+    build,
   }) {
     return (context, editable) =>
         build(context, editable, editable.contextMenuAnchors.primaryAnchor);
@@ -108,9 +109,7 @@ class AppContextMenu extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerHigh.withValues(alpha: 0.86),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.4),
-        ),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.4)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.16),
@@ -211,10 +210,14 @@ class _MenuPositionDelegate extends SingleChildLayoutDelegate {
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
-    final maxDx = (size.width - childSize.width - safePadding.right)
-        .clamp(safePadding.left, size.width);
-    final maxDy = (size.height - childSize.height - safePadding.bottom)
-        .clamp(safePadding.top, size.height);
+    final maxDx = (size.width - childSize.width - safePadding.right).clamp(
+      safePadding.left,
+      size.width,
+    );
+    final maxDy = (size.height - childSize.height - safePadding.bottom).clamp(
+      safePadding.top,
+      size.height,
+    );
 
     final dx = (anchor.dx - childSize.width / 2).clamp(safePadding.left, maxDx);
     final dy = (anchor.dy + 12).clamp(safePadding.top, maxDy);
@@ -408,10 +411,12 @@ class _AppContextMenuListItemState extends State<_AppContextMenuListItem> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final iconColor =
-        widget.action.destructive ? colors.error : colors.onSurfaceVariant;
-    final textColor =
-        widget.action.destructive ? colors.error : colors.onSurface;
+    final iconColor = widget.action.destructive
+        ? colors.error
+        : colors.onSurfaceVariant;
+    final textColor = widget.action.destructive
+        ? colors.error
+        : colors.onSurface;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -430,8 +435,8 @@ class _AppContextMenuListItemState extends State<_AppContextMenuListItem> {
           color: _isPressed
               ? colors.onSurface.withValues(alpha: 0.1)
               : _isHovered
-                  ? colors.onSurface.withValues(alpha: 0.06)
-                  : Colors.transparent,
+              ? colors.onSurface.withValues(alpha: 0.06)
+              : Colors.transparent,
           child: Row(
             children: [
               Container(

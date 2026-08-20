@@ -29,9 +29,14 @@ void main() {
         transport: FakeTransport(),
       );
 
-      expect(source.canHandle(Uri.parse('https://example.com/novel/x')), isTrue);
-      expect(source.canHandle(Uri.parse('https://www.example.com/novel/x')),
-          isTrue);
+      expect(
+        source.canHandle(Uri.parse('https://example.com/novel/x')),
+        isTrue,
+      );
+      expect(
+        source.canHandle(Uri.parse('https://www.example.com/novel/x')),
+        isTrue,
+      );
       expect(source.canHandle(Uri.parse('https://other.com/novel/x')), isFalse);
     });
   });
@@ -50,7 +55,9 @@ void main() {
         transport: transport,
       );
 
-      final result = await source.getMetadata(Uri.parse('https://example.com/novel/x'));
+      final result = await source.getMetadata(
+        Uri.parse('https://example.com/novel/x'),
+      );
 
       expect(result.title, 'Great Novel');
       expect(result.description, 'A description.');
@@ -70,11 +77,13 @@ void main() {
             <li><a href="/chapter/2">Ch 2</a></li>
           </ul>
         </body></html>''');
-      const selectors = SelectorSet(chapterList: ChapterListSelectors(
-        item: '.chapter-list li a',
-        title: '@text',
-        url: '@href',
-      ));
+      const selectors = SelectorSet(
+        chapterList: ChapterListSelectors(
+          item: '.chapter-list li a',
+          title: '@text',
+          url: '@href',
+        ),
+      );
       final source = PluginSource(
         manifest: buildManifest(),
         template: const HtmlTemplate(),
@@ -102,8 +111,12 @@ void main() {
             <p>Hello world.</p>
           </div>
         </body></html>''');
-      const selectors = SelectorSet(chapterContent:
-          ChapterContentSelectors(container: '#content', title: '.chapter-title'));
+      const selectors = SelectorSet(
+        chapterContent: ChapterContentSelectors(
+          container: '#content',
+          title: '.chapter-title',
+        ),
+      );
       final source = PluginSource(
         manifest: buildManifest(),
         template: const HtmlTemplate(),
@@ -126,50 +139,62 @@ void main() {
   });
 
   group('PluginSource.search', () {
-    test('bridges template search results to the SearchableSource contract',
-        () async {
-      final transport = FakeTransport()
-        ..addHtml('https://example.com?s=novel', '''
+    test(
+      'bridges template search results to the SearchableSource contract',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml('https://example.com?s=novel', '''
         <html><body>
           <div class="search-result">
             <a href="/novel/x"><span class="title">Novel X</span></a>
           </div>
         </body></html>''');
-      const selectors = SelectorSet(search: SearchSelectors(
-        resultItem: '.search-result',
-        title: '.title',
-        detailUrl: 'a@href',
-      ));
-      final source = PluginSource(
-        manifest: buildManifest(),
-        template: const HtmlTemplate(),
-        transport: transport,
-        selectors: selectors,
-      );
+        const selectors = SelectorSet(
+          search: SearchSelectors(
+            resultItem: '.search-result',
+            title: '.title',
+            detailUrl: 'a@href',
+          ),
+        );
+        final source = PluginSource(
+          manifest: buildManifest(),
+          template: const HtmlTemplate(),
+          transport: transport,
+          selectors: selectors,
+        );
 
-      final response =
-          await source.search(const SourceSearchQuery(term: 'novel'));
+        final response = await source.search(
+          const SourceSearchQuery(term: 'novel'),
+        );
 
-      expect(response.results, hasLength(1));
-      expect(response.results.single.title, 'Novel X');
-      expect(response.results.single.importUrl, 'https://example.com/novel/x');
-    });
+        expect(response.results, hasLength(1));
+        expect(response.results.single.title, 'Novel X');
+        expect(
+          response.results.single.importUrl,
+          'https://example.com/novel/x',
+        );
+      },
+    );
   });
 
   group('PluginSource capability guards', () {
-    test('throws PluginCapabilityException when search is not declared',
-        () async {
-      final source = PluginSource(
-        manifest: buildManifest(capabilities: [PluginCapability.chapterContent]),
-        template: const HtmlTemplate(),
-        transport: FakeTransport(),
-      );
+    test(
+      'throws PluginCapabilityException when search is not declared',
+      () async {
+        final source = PluginSource(
+          manifest: buildManifest(
+            capabilities: [PluginCapability.chapterContent],
+          ),
+          template: const HtmlTemplate(),
+          transport: FakeTransport(),
+        );
 
-      await expectLater(
-        source.search(const SourceSearchQuery(term: 'x')),
-        throwsA(isA<PluginCapabilityException>()),
-      );
-    });
+        await expectLater(
+          source.search(const SourceSearchQuery(term: 'x')),
+          throwsA(isA<PluginCapabilityException>()),
+        );
+      },
+    );
 
     test('fails construction when requiresJsRendering is set', () {
       const manifest = PluginManifest(

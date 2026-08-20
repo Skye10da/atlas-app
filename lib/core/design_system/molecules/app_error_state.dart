@@ -31,11 +31,7 @@ class _AppErrorStateState extends State<AppErrorState> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: theme.colorScheme.error,
-            ),
+            Icon(Icons.error_outline, size: 64, color: theme.colorScheme.error),
             const SizedBox(height: AppSpacing.md),
             Text(
               widget.message,
@@ -59,7 +55,9 @@ class _AppErrorStateState extends State<AppErrorState> {
                   padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.borderRadiusSm,
+                    ),
                   ),
                   child: SelectableText(
                     widget.technicalDetails!,

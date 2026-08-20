@@ -30,6 +30,7 @@ class ReadingSettingsEntity {
   final AppBrand brand;
   final double fontSize;
   final String? fontFamily;
+
   /// Numeric weight for the reader body text (e.g. 400, 500, 700). `null`
   /// keeps the family's default Regular weight.
   final int? fontWeight;
@@ -79,8 +80,10 @@ class ReadingSettingsEntity {
       letterSpacing: letterSpacing ?? this.letterSpacing,
       keepScreenAwake: keepScreenAwake ?? this.keepScreenAwake,
       brightness: brightness ?? this.brightness,
-      autoOptimizeBrightness: autoOptimizeBrightness ?? this.autoOptimizeBrightness,
-      followSystemBrightness: followSystemBrightness ?? this.followSystemBrightness,
+      autoOptimizeBrightness:
+          autoOptimizeBrightness ?? this.autoOptimizeBrightness,
+      followSystemBrightness:
+          followSystemBrightness ?? this.followSystemBrightness,
       theme: theme ?? this.theme,
       readingMode: readingMode ?? this.readingMode,
       textAlignment: textAlignment ?? this.textAlignment,

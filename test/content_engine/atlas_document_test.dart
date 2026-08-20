@@ -78,9 +78,13 @@ void main() {
       );
 
       expect(decoded.annotations.single.text, 'note');
-      expect(decoded.wordCount, decoded.blocks
-          .whereType<TextBlock>()
-          .fold(0, (n, b) => n + b.text.split(RegExp(r'\s+')).length));
+      expect(
+        decoded.wordCount,
+        decoded.blocks.whereType<TextBlock>().fold(
+          0,
+          (n, b) => n + b.text.split(RegExp(r'\s+')).length,
+        ),
+      );
     });
 
     test('unknown block type throws', () {

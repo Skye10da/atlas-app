@@ -25,11 +25,11 @@ class SpeechSession {
   SpeechItem? get currentItem => queue.current;
 
   SpeechCheckpoint toCheckpoint() => SpeechCheckpoint(
-        bookId: bookId,
-        chapterId: chapterId,
-        sentenceIndex: queue.cursor,
-        elapsed: elapsed,
-      );
+    bookId: bookId,
+    chapterId: chapterId,
+    sentenceIndex: queue.cursor,
+    elapsed: elapsed,
+  );
 }
 
 /// The minimal serializable shape persisted by the Recovery Store. The
@@ -44,7 +44,8 @@ class SpeechCheckpoint {
     required this.elapsed,
   });
 
-  factory SpeechCheckpoint.fromJson(Map<String, dynamic> json) => SpeechCheckpoint(
+  factory SpeechCheckpoint.fromJson(Map<String, dynamic> json) =>
+      SpeechCheckpoint(
         bookId: json['bookId'] as String,
         chapterId: json['chapterId'] as String,
         sentenceIndex: json['sentenceIndex'] as int,
@@ -57,9 +58,9 @@ class SpeechCheckpoint {
   final Duration elapsed;
 
   Map<String, dynamic> toJson() => {
-        'bookId': bookId,
-        'chapterId': chapterId,
-        'sentenceIndex': sentenceIndex,
-        'elapsedMs': elapsed.inMilliseconds,
-      };
+    'bookId': bookId,
+    'chapterId': chapterId,
+    'sentenceIndex': sentenceIndex,
+    'elapsedMs': elapsed.inMilliseconds,
+  };
 }

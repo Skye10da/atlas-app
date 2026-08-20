@@ -45,8 +45,9 @@ class PluginRepository {
         'plugin.json for "$pluginId" must be a JSON object',
       );
     }
-    final manifest =
-        PluginManifest.fromJson(Map<String, Object?>.from(decoded));
+    final manifest = PluginManifest.fromJson(
+      Map<String, Object?>.from(decoded),
+    );
     if (manifest.id != pluginId) {
       throw PluginManifestException(
         'plugin.json "id" (${manifest.id}) does not match directory '
@@ -78,9 +79,7 @@ class PluginRepository {
       );
 
   Future<SelectorSet> loadSelectors(PluginManifest plugin) async =>
-      SelectorSet.fromJson(
-        await _loadJsonMap(plugin, plugin.selectorsFile),
-      );
+      SelectorSet.fromJson(await _loadJsonMap(plugin, plugin.selectorsFile));
 
   Future<PluginSource> buildSource(String pluginId) async {
     final manifest = await load(pluginId);
@@ -88,8 +87,10 @@ class PluginRepository {
     final permissions = await loadPermissions(manifest);
     final selectors = await loadSelectors(manifest);
     final template = templateRegistry.resolve(manifest.templateId);
-    final transport =
-        transportRegistry.create(manifest, permissions: permissions);
+    final transport = transportRegistry.create(
+      manifest,
+      permissions: permissions,
+    );
     return PluginSource(
       manifest: manifest,
       template: template,

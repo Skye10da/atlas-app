@@ -25,9 +25,7 @@ class _PdfSettingsSheetState extends ConsumerState<PdfSettingsSheet> {
   void _openFullSettings() {
     Navigator.of(context).pop();
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const ReadingSettingsScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const ReadingSettingsScreen()),
     );
   }
 
@@ -159,7 +157,11 @@ class _PdfThemeTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.format_quote, size: 16, color: vt.resolve(colorScheme).text),
+            Icon(
+              Icons.format_quote,
+              size: 16,
+              color: vt.resolve(colorScheme).text,
+            ),
             const SizedBox(height: 2),
             Text(
               theme.label,

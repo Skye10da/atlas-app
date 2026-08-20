@@ -8,16 +8,15 @@
 /// the app-facing *fact* that such a session exists, so the UI can restore the
 /// "connected" state across restarts.
 class WtrSessionRecord {
-  const WtrSessionRecord({
-    required this.authenticated,
-    this.connectedAt,
-  });
+  const WtrSessionRecord({required this.authenticated, this.connectedAt});
 
   factory WtrSessionRecord.fromJson(Map<String, Object?> json) =>
       WtrSessionRecord(
         authenticated: json['authenticated'] == true,
         connectedAt: json['connectedAt'] is num
-            ? DateTime.fromMillisecondsSinceEpoch((json['connectedAt'] as num).toInt())
+            ? DateTime.fromMillisecondsSinceEpoch(
+                (json['connectedAt'] as num).toInt(),
+              )
             : null,
       );
 
@@ -28,7 +27,7 @@ class WtrSessionRecord {
   final DateTime? connectedAt;
 
   Map<String, Object?> toJson() => {
-        'authenticated': authenticated,
-        if (connectedAt != null) 'connectedAt': connectedAt!.millisecondsSinceEpoch,
-      };
+    'authenticated': authenticated,
+    if (connectedAt != null) 'connectedAt': connectedAt!.millisecondsSinceEpoch,
+  };
 }

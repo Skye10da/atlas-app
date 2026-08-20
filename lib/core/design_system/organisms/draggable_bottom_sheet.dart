@@ -25,12 +25,10 @@ class DraggableBottomSheet {
       transitionDuration: const Duration(milliseconds: 220),
       transitionBuilder: (context, animation, _, child) {
         return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 1),
-            end: Offset.zero,
-          ).animate(
-            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-          ),
+          position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+              .animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
           child: child,
         );
       },
@@ -99,7 +97,10 @@ class _DraggableSheetState extends State<_DraggableSheet> {
     // drag-start height (which is what discarded almost all movement and
     // made the sheet feel undraggable).
     setState(() {
-      _height = (_height - details.delta.dy).clamp(widget.minHeight, _maxHeight);
+      _height = (_height - details.delta.dy).clamp(
+        widget.minHeight,
+        _maxHeight,
+      );
     });
   }
 
@@ -129,9 +130,7 @@ class _DraggableSheetState extends State<_DraggableSheet> {
                 onVerticalDragUpdate: _onDragUpdate,
                 onVerticalDragEnd: _onDragEnd,
               ),
-              Flexible(
-                child: widget.child,
-              ),
+              Flexible(child: widget.child),
             ],
           ),
         ),

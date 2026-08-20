@@ -4,10 +4,10 @@ import 'package:atlas_app/core/content_engine/index/character_extractor.dart';
 import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
 
 AtlasDocument _doc(String text) => AtlasDocument(
-      title: 'doc',
-      blocks: [ParagraphBlock(text: text)],
-      metadata: const DocumentMetadata(),
-    );
+  title: 'doc',
+  blocks: [ParagraphBlock(text: text)],
+  metadata: const DocumentMetadata(),
+);
 
 void main() {
   group('CharacterExtractor', () {
@@ -30,9 +30,7 @@ void main() {
 
     test('ignores sentence-initial-only capitalization', () {
       const extractor = CharacterExtractor();
-      final doc = _doc(
-        'The cat sat. The dog barked. The cat slept.',
-      );
+      final doc = _doc('The cat sat. The dog barked. The cat slept.');
 
       final annotations = extractor.extract(doc);
 
@@ -55,9 +53,7 @@ void main() {
 
     test('respects minMentions threshold', () {
       const extractor = CharacterExtractor(minMentions: 3);
-      final doc = _doc(
-        'Solo appeared once. Solo waved. Solo left.',
-      );
+      final doc = _doc('Solo appeared once. Solo waved. Solo left.');
 
       expect(extractor.extract(doc), isEmpty);
     });

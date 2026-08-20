@@ -20,7 +20,7 @@ class _DocEntry {
 /// contract later.
 class SearchIndexer {
   SearchIndexer({Tokenizer tokenizer = const Tokenizer()})
-      : _tokenizer = tokenizer;
+    : _tokenizer = tokenizer;
 
   final Tokenizer _tokenizer;
   final Map<String, Map<String, _DocEntry>> _terms = {};
@@ -84,8 +84,7 @@ class SearchIndexer {
           docId: entry.docId,
           positions: {},
           tokenCount: entry.tokenCount,
-        ))
-            .positions[term] = entry.postings[term]!;
+        )).positions[term] = entry.postings[term]!;
       }
     }
 
@@ -118,6 +117,5 @@ class SearchHit {
   final int tokenCount;
 
   /// True when every query term matched (AND semantics across terms).
-  bool matchesAll(List<String> terms) =>
-      terms.every(positions.containsKey);
+  bool matchesAll(List<String> terms) => terms.every(positions.containsKey);
 }

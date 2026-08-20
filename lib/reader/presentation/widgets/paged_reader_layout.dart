@@ -90,7 +90,8 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
 
   /// Called with the selected text and chosen color when the reader taps a
   /// highlight swatch in the context menu. Omit to hide highlighting.
-  final void Function(String text, Color color, int start, int end)? onHighlight;
+  final void Function(String text, Color color, int start, int end)?
+  onHighlight;
 
   /// Called with the selected text (and surrounding sentence, if available)
   /// when the reader taps "Note". Omit to hide the note action.
@@ -107,7 +108,7 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
   /// Called to speak the selected sentence once ("Listen"). Omit to hide the
   /// listen action.
   final void Function(String text, String? sentence, int start, int end)?
-      onListen;
+  onListen;
 
   /// Called to remove any stored highlight overlapping the selection. Omit to
   /// hide the erase action.
@@ -157,7 +158,10 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     super.didChangeDependencies();
     if (!_chromeInitialized) {
       _chromeInitialized = true;
-      initReaderChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      initReaderChrome(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
     }
   }
 
@@ -176,21 +180,28 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     if (x < width / 3) {
       if (spreadBefore > 0) {
         final target = (spreadBefore - 1) * 2;
-        _pageController.animateToPage(target ~/ 2,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut);
+        _pageController.animateToPage(
+          target ~/ 2,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+        );
       }
     } else if (x > width * 2 / 3) {
       if (_currentGlobalPage < _totalPages - 1) {
         final target = (spreadBefore + 1) * 2;
         if (_canAdvanceTo(target)) {
-          _pageController.animateToPage(target ~/ 2,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut);
+          _pageController.animateToPage(
+            target ~/ 2,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+          );
         }
       }
     } else {
-      toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      toggleChrome(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
     }
   }
 
@@ -213,7 +224,10 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         );
       }
     } else {
-      toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      toggleChrome(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
     }
   }
 
@@ -229,7 +243,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   double _pageWidthForCurrentMode() {
     final rawWidth = _layoutWidth > 0 ? _layoutWidth : 800.0;
     if (isWideDesktop) {
-      final maxSpreadWidth = rawWidth -
+      final maxSpreadWidth =
+          rawWidth -
           ((rightPanelVisible || narrationPanelVisible)
               ? ReaderChromeController.rightPanelWidth
               : 0);
@@ -248,43 +263,57 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       event,
       commandPaletteVisible: commandPaletteVisible,
       onClosePalette: () => setState(() => commandPaletteVisible = false),
-      onToggleChrome: () =>
-          toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark),
+      onToggleChrome: () => toggleChrome(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      ),
       onOpenPalette: () => setState(() => commandPaletteVisible = true),
     );
     if (common != KeyEventResult.ignored) return common;
 
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      resetChromeTimer(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
       if (_currentGlobalPage > 0) {
         final step = isWideDesktop ? 2 : 1;
         final target = _currentGlobalPage - step;
         if (isWideDesktop) {
-          _pageController.animateToPage(target ~/ 2,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut);
+          _pageController.animateToPage(
+            target ~/ 2,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+          );
         } else {
           _pageController.previousPage(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut);
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+          );
         }
       }
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+      resetChromeTimer(
+        isDarkTheme:
+            Theme.of(context).colorScheme.brightness == Brightness.dark,
+      );
       if (_currentGlobalPage < _totalPages - 1) {
         if (isWideDesktop) {
           final target = _currentGlobalPage + 2;
           if (_canAdvanceTo(target)) {
-            _pageController.animateToPage(target ~/ 2,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut);
+            _pageController.animateToPage(
+              target ~/ 2,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+            );
           }
         } else if (_canAdvanceTo(_currentGlobalPage + 1)) {
           _pageController.nextPage(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut);
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+          );
         }
       }
       return KeyEventResult.handled;
@@ -512,8 +541,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       maxPage = lastReady == -1
           ? 0
           : lastReady == widget.chapters.length - 1
-              ? _localToGlobal(lastReady, math.max(0, _pagesFor(lastReady) - 1))
-              : _localToGlobal(lastReady + 1, 0);
+          ? _localToGlobal(lastReady, math.max(0, _pagesFor(lastReady) - 1))
+          : _localToGlobal(lastReady + 1, 0);
     }
     for (var i = 0; i < widget.chapters.length; i++) {
       final cache = _pageCache[i];
@@ -557,8 +586,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       // downloaded chapters get the same on-device translation + glossary pass
       // the continuous reader applies. The provider also owns download +
       // session-refresh handling.
-      final content =
-          await ref.read(readerChapterContentProvider(chapter).future);
+      final content = await ref.read(
+        readerChapterContentProvider(chapter).future,
+      );
       if (!mounted) return;
       if (_failedChapters.remove(index) && mounted) setState(() {});
       _onContentLoaded(index, content);
@@ -599,7 +629,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       return Container(
         color: vt.resolve(colorScheme).background,
         child: AppErrorState(
-          message: 'Could not load this chapter. Check your connection and try again.',
+          message:
+              'Could not load this chapter. Check your connection and try again.',
           onRetry: () => _retryChapter(chIdx),
         ),
       );
@@ -701,7 +732,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       _pageCache[index] = _chunkedAccumulator.remove(index) ?? [''];
       _chunkedOffset.remove(index);
       _recomputeTotalPages();
-      ref.read(chapterLoadPhaseProvider(widget.chapters[index]).notifier).state =
+      ref
+              .read(chapterLoadPhaseProvider(widget.chapters[index]).notifier)
+              .state =
           ChapterLoadPhase.done;
       setState(() {});
     } else {
@@ -719,7 +752,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       _schedulePagination(index, content);
     } else {
       _recomputeTotalPages();
-      ref.read(chapterLoadPhaseProvider(widget.chapters[index]).notifier).state =
+      ref
+              .read(chapterLoadPhaseProvider(widget.chapters[index]).notifier)
+              .state =
           ChapterLoadPhase.done;
     }
     if (mounted) setState(() {});
@@ -736,7 +771,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (currentIndex > 0) _ensureChapterLoaded(currentIndex - 1);
-      if (currentIndex < chapterCount - 1) _ensureChapterLoaded(currentIndex + 1);
+      if (currentIndex < chapterCount - 1) {
+        _ensureChapterLoaded(currentIndex + 1);
+      }
     });
   }
 
@@ -818,16 +855,18 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       _totalPages += _pagesFor(i);
     }
 
-
     if (anchorChapter != null && _totalPages != oldTotalPages) {
-      final newGlobalPage =
-          _localToGlobal(anchorChapter, anchorLocalPage!).clamp(0, _totalPages - 1);
+      final newGlobalPage = _localToGlobal(
+        anchorChapter,
+        anchorLocalPage!,
+      ).clamp(0, _totalPages - 1);
       if (newGlobalPage != _currentGlobalPage) {
         _currentGlobalPage = newGlobalPage;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_pageController.hasClients) {
             _pageController.jumpToPage(
-                isWideDesktop ? newGlobalPage ~/ 2 : newGlobalPage);
+              isWideDesktop ? newGlobalPage ~/ 2 : newGlobalPage,
+            );
           }
         });
       }
@@ -846,10 +885,12 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         _pendingChapterJump = false;
         final target = _localToGlobal(_resumeChapterIndex, resumePage);
         _currentGlobalPage = target;
-        _progress.value =
-            _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0;
+        _progress.value = _totalPages > 0
+            ? _currentGlobalPage / _totalPages
+            : 0.0;
         widget.onProgressChanged(
-            _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
+          _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0,
+        );
         _jumpControllerTo(target);
       } else if (!_hasPendingRestore && _totalPages > 0) {
         // No exact resume (legacy row or no saved position): land on the top
@@ -858,16 +899,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         _pendingChapterJump = false;
         final target = _localToGlobal(widget.currentChapterIndex, 0);
         _currentGlobalPage = target;
-        _progress.value =
-            _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0;
+        _progress.value = _totalPages > 0
+            ? _currentGlobalPage / _totalPages
+            : 0.0;
         widget.onProgressChanged(
-            _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
+          _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0,
+        );
         _jumpControllerTo(target);
       }
     }
 
-    _progress.value =
-        _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0;
+    _progress.value = _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0;
 
     if (!_contentCache.containsKey(currentIndex) || _totalPages == 0) {
       return Scaffold(
@@ -880,11 +922,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             foregroundColor: colorScheme.onSurface,
-            title: Text(chapters[widget.currentChapterIndex].title,
-                maxLines: 1, overflow: TextOverflow.ellipsis),
+            title: Text(
+              chapters[widget.currentChapterIndex].title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             actions: [
               IconButton(
-                icon: Icon(Icons.text_fields, color: vt.resolve(colorScheme).text),
+                icon: Icon(
+                  Icons.text_fields,
+                  color: vt.resolve(colorScheme).text,
+                ),
                 onPressed: widget.onSettingsTap,
               ),
             ],
@@ -899,10 +947,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
               fontSize: widget.settings.fontSize,
               lineHeight: widget.settings.lineHeight,
             ),
-            ReaderLoadingOverlay(
-              chapter: chapters[currentIndex],
-              vt: vt,
-            ),
+            ReaderLoadingOverlay(chapter: chapters[currentIndex], vt: vt),
           ],
         ),
       );
@@ -942,7 +987,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                 bookTitle: widget.bookTitle,
                 coverPath: widget.coverPath,
                 progress: _progress,
-                progressColor: widget.settings.theme.resolve(colorScheme).accent,
+                progressColor: widget.settings.theme
+                    .resolve(colorScheme)
+                    .accent,
                 onListenTap: isDesktop ? toggleNarrationPanel : null,
               ),
             )
@@ -981,7 +1028,11 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                     } else if (isWideDesktop) {
                       _onDesktopSpreadTapUp(details, constraints);
                     } else {
-                      toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+                      toggleChrome(
+                        isDarkTheme:
+                            Theme.of(context).colorScheme.brightness ==
+                            Brightness.dark,
+                      );
                     }
                   },
                   child: PageView.builder(
@@ -996,13 +1047,15 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                           if (mounted && _pageController.hasClients) {
                             _pageController.jumpToPage(
-                                isWideDesktop ? maxAllowed ~/ 2 : maxAllowed);
+                              isWideDesktop ? maxAllowed ~/ 2 : maxAllowed,
+                            );
                           }
                         });
                       }
                       _currentGlobalPage = global;
-                      _progress.value =
-                          _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0;
+                      _progress.value = _totalPages > 0
+                          ? _currentGlobalPage / _totalPages
+                          : 0.0;
                       final (chIdx, _) = _globalToLocal(_currentGlobalPage);
                       _ensureChapterLoaded(chIdx);
                       if (chIdx + 1 < chapters.length) {
@@ -1021,15 +1074,32 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                       _reportPositionFromCurrentPage();
                       widget.onPageChanged(chIdx);
                       widget.onProgressChanged(
-                          _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
-                      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+                        _totalPages > 0
+                            ? _currentGlobalPage / _totalPages
+                            : 0.0,
+                      );
+                      resetChromeTimer(
+                        isDarkTheme:
+                            Theme.of(context).colorScheme.brightness ==
+                            Brightness.dark,
+                      );
                     },
                     itemCount: isWideDesktop ? _totalSpreads : _totalPages,
                     itemBuilder: (context, index) {
                       if (isWideDesktop) {
-                        return _buildSpread(index, vt, chapters, colorScheme: colorScheme);
+                        return _buildSpread(
+                          index,
+                          vt,
+                          chapters,
+                          colorScheme: colorScheme,
+                        );
                       }
-                      return _buildSinglePage(index, vt, chapters, colorScheme: colorScheme);
+                      return _buildSinglePage(
+                        index,
+                        vt,
+                        chapters,
+                        colorScheme: colorScheme,
+                      );
                     },
                   ),
                 ),
@@ -1038,7 +1108,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                 BrightnessEdgeGestureRegion(
                   onVerticalDragStart: (details) => onEdgeBrightnessStart(
                     details,
-                    followSystemBrightness: widget.settings.followSystemBrightness,
+                    followSystemBrightness:
+                        widget.settings.followSystemBrightness,
                     currentBrightness: widget.settings.brightness,
                   ),
                   onVerticalDragUpdate: (details) => onEdgeBrightnessUpdate(
@@ -1058,7 +1129,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                           bookTitle: widget.bookTitle,
                           coverPath: widget.coverPath,
                           chapterTitle: chapters[currentIndex].title,
-                          accent: widget.settings.theme.resolve(colorScheme).accent,
+                          accent: widget.settings.theme
+                              .resolve(colorScheme)
+                              .accent,
                           onClose: closeNarrationPanel,
                         )
                       : ReaderRightPanel(
@@ -1088,17 +1161,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                   onClose: () => setState(() => commandPaletteVisible = false),
                 ),
               if (!narrationPanelVisible)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: NarrationMiniPlayer(
-                  bookTitle: widget.bookTitle,
-                  coverPath: widget.coverPath,
-                  chapterTitle: chapters[currentIndex].title,
-                  accent: widget.settings.theme.resolve(colorScheme).accent,
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: NarrationMiniPlayer(
+                    bookTitle: widget.bookTitle,
+                    coverPath: widget.coverPath,
+                    chapterTitle: chapters[currentIndex].title,
+                    accent: widget.settings.theme.resolve(colorScheme).accent,
+                  ),
                 ),
-              ),
             ],
           );
         },
@@ -1210,12 +1283,22 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     );
   }
 
-  Widget _buildSinglePage(int globalPage, ReadingViewTheme vt, List<ChapterEntity> chapters, {required ColorScheme colorScheme}) {
+  Widget _buildSinglePage(
+    int globalPage,
+    ReadingViewTheme vt,
+    List<ChapterEntity> chapters, {
+    required ColorScheme colorScheme,
+  }) {
     final (chIdx, pageInChapter) = _globalToLocal(globalPage);
     final pages = _pageCache[chIdx];
     if (pages == null) {
       _ensureChapterLoaded(chIdx);
-      return _buildChapterLoadingState(chIdx, vt, showHeaders: pageInChapter == 0, colorScheme: colorScheme);
+      return _buildChapterLoadingState(
+        chIdx,
+        vt,
+        showHeaders: pageInChapter == 0,
+        colorScheme: colorScheme,
+      );
     }
     final clampedPage = pageInChapter.clamp(0, pages.length - 1);
     final content = pages[clampedPage];
@@ -1260,7 +1343,12 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     return _wrapWithPageAnimation(pageWidget, globalPage);
   }
 
-  Widget _buildSpread(int spreadIndex, ReadingViewTheme vt, List<ChapterEntity> chapters, {required ColorScheme colorScheme}) {
+  Widget _buildSpread(
+    int spreadIndex,
+    ReadingViewTheme vt,
+    List<ChapterEntity> chapters, {
+    required ColorScheme colorScheme,
+  }) {
     final leftGlobalPage = spreadIndex * 2;
     final rightGlobalPage = spreadIndex * 2 + 1;
     final (leftChIdx, _) = _globalToLocal(leftGlobalPage);
@@ -1315,9 +1403,20 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
 
     return Row(
       children: [
-        Expanded(child: rightGlobalPage <= _totalPages ? side(leftGlobalPage, leftChIdx) : Container(color: vt.resolve(colorScheme).background)),
-        Container(width: 1, color: vt.resolve(colorScheme).text.withValues(alpha: 0.1)),
-        Expanded(child: rightGlobalPage < _totalPages ? side(rightGlobalPage, rightChIdx) : Container(color: vt.resolve(colorScheme).background)),
+        Expanded(
+          child: rightGlobalPage <= _totalPages
+              ? side(leftGlobalPage, leftChIdx)
+              : Container(color: vt.resolve(colorScheme).background),
+        ),
+        Container(
+          width: 1,
+          color: vt.resolve(colorScheme).text.withValues(alpha: 0.1),
+        ),
+        Expanded(
+          child: rightGlobalPage < _totalPages
+              ? side(rightGlobalPage, rightChIdx)
+              : Container(color: vt.resolve(colorScheme).background),
+        ),
       ],
     );
   }
@@ -1346,7 +1445,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   bool _isLastPageOfChapter(int globalPage) {
     final (chIdx, pageInChapter) = _globalToLocal(globalPage);
     final pages = _pageCache[chIdx];
-    return pages != null && pageInChapter.clamp(0, pages.length - 1) == pages.length - 1;
+    return pages != null &&
+        pageInChapter.clamp(0, pages.length - 1) == pages.length - 1;
   }
 }
 
@@ -1403,11 +1503,13 @@ class _PagedPageView extends StatelessWidget {
   final ReadingViewTheme vt;
   final bool showHeaders;
   final ChapterStyle? chapterStyle;
-  final void Function(String text, Color color, int start, int end)? onHighlight;
+  final void Function(String text, Color color, int start, int end)?
+  onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
-  final void Function(String text, String? sentence, int start, int end)? onListen;
+  final void Function(String text, String? sentence, int start, int end)?
+  onListen;
   final void Function(int start, int end)? onErase;
 
   /// Called with the selected text so the host can define a glossary term for
@@ -1416,14 +1518,17 @@ class _PagedPageView extends StatelessWidget {
 
   EdgeInsets get _padding => switch (marginPreset) {
     MarginPreset.narrow => const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md, vertical: AppSpacing.sm,
-      ),
+      horizontal: AppSpacing.md,
+      vertical: AppSpacing.sm,
+    ),
     MarginPreset.normal => const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg, vertical: AppSpacing.md,
-      ),
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
     MarginPreset.wide => const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xxl, vertical: AppSpacing.lg,
-      ),
+      horizontal: AppSpacing.xxl,
+      vertical: AppSpacing.lg,
+    ),
   };
 
   @override
@@ -1506,13 +1611,15 @@ class _PagedPageView extends StatelessWidget {
       final localStart = h.start - pageStartOffset;
       final localEnd = h.end - pageStartOffset;
       if (localEnd <= 0 || localStart >= pageContent.length) continue;
-      out.add(HighlightEntry(
-        chapterId: h.chapterId,
-        start: localStart.clamp(0, pageContent.length),
-        end: localEnd.clamp(0, pageContent.length),
-        text: h.text,
-        colorValue: h.colorValue,
-      ));
+      out.add(
+        HighlightEntry(
+          chapterId: h.chapterId,
+          start: localStart.clamp(0, pageContent.length),
+          end: localEnd.clamp(0, pageContent.length),
+          text: h.text,
+          colorValue: h.colorValue,
+        ),
+      );
     }
     return out;
   }
@@ -1530,14 +1637,18 @@ class _PagedPageView extends StatelessWidget {
       final start = h.start < 1 ? 1 : h.start;
       final end = h.end;
       if (start > cursor) {
-        spans.add(TextSpan(text: c.substring(cursor, start), style: resolvedStyle));
+        spans.add(
+          TextSpan(text: c.substring(cursor, start), style: resolvedStyle),
+        );
       }
-      spans.add(TextSpan(
-        text: c.substring(start, end > c.length ? c.length : end),
-        style: resolvedStyle.copyWith(
-          backgroundColor: h.color.withValues(alpha: 0.30),
+      spans.add(
+        TextSpan(
+          text: c.substring(start, end > c.length ? c.length : end),
+          style: resolvedStyle.copyWith(
+            backgroundColor: h.color.withValues(alpha: 0.30),
+          ),
         ),
-      ));
+      );
       cursor = end > c.length ? c.length : end;
     }
     if (cursor < c.length) {
@@ -1552,19 +1663,25 @@ class _PagedPageView extends StatelessWidget {
     TextStyle resolvedStyle,
     List<HighlightEntry> pageHighlights,
   ) {
-    if (pageHighlights.isEmpty) return [TextSpan(text: c, style: resolvedStyle)];
+    if (pageHighlights.isEmpty) {
+      return [TextSpan(text: c, style: resolvedStyle)];
+    }
     final spans = <TextSpan>[];
     var cursor = 0;
     for (final h in pageHighlights) {
       if (h.start > cursor) {
-        spans.add(TextSpan(text: c.substring(cursor, h.start), style: resolvedStyle));
+        spans.add(
+          TextSpan(text: c.substring(cursor, h.start), style: resolvedStyle),
+        );
       }
-      spans.add(TextSpan(
-        text: c.substring(h.start, h.end > c.length ? c.length : h.end),
-        style: resolvedStyle.copyWith(
-          backgroundColor: h.color.withValues(alpha: 0.30),
+      spans.add(
+        TextSpan(
+          text: c.substring(h.start, h.end > c.length ? c.length : h.end),
+          style: resolvedStyle.copyWith(
+            backgroundColor: h.color.withValues(alpha: 0.30),
+          ),
         ),
-      ));
+      );
       cursor = h.end > c.length ? c.length : h.end;
     }
     if (cursor < c.length) {
@@ -1589,8 +1706,9 @@ class _PagedPageView extends StatelessWidget {
         final word = hasSelection
             ? fullText.substring(sel.start, sel.end).trim()
             : '';
-        final sentence =
-            hasSelection && word.isNotEmpty ? _sentenceAround(fullText, sel) : null;
+        final sentence = hasSelection && word.isNotEmpty
+            ? _sentenceAround(fullText, sel)
+            : null;
         final showSelectionActions = hasSelection && word.isNotEmpty;
         final srcTitle = chapterTitle;
         final chapterOffset = pageStartOffset;
@@ -1644,7 +1762,12 @@ class _PagedPageView extends StatelessWidget {
               AppContextMenuAction(
                 label: 'Look up "$word"',
                 icon: Icons.translate_rounded,
-                onPressed: () => _showDefine(ctx, word, sentence: sentence, sourceTitle: srcTitle),
+                onPressed: () => _showDefine(
+                  ctx,
+                  word,
+                  sentence: sentence,
+                  sourceTitle: srcTitle,
+                ),
               ),
             if (showSelectionActions && onSetGlossaryTerm != null)
               AppContextMenuAction(
@@ -1668,7 +1791,8 @@ class _PagedPageView extends StatelessWidget {
             AppContextMenuAction(
               label: 'Select all',
               icon: Icons.select_all_rounded,
-              onPressed: () => editable.selectAll(SelectionChangedCause.toolbar),
+              onPressed: () =>
+                  editable.selectAll(SelectionChangedCause.toolbar),
             ),
           ],
         );
@@ -1693,7 +1817,12 @@ class _PagedPageView extends StatelessWidget {
     return fullText.substring(start, end).trim();
   }
 
-  void _showDefine(BuildContext ctx, String word, {String? sentence, String? sourceTitle}) {
+  void _showDefine(
+    BuildContext ctx,
+    String word, {
+    String? sentence,
+    String? sourceTitle,
+  }) {
     DraggableBottomSheet.show(
       context: ctx,
       id: 'word_lookup',

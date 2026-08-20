@@ -31,17 +31,18 @@ class BookDetailPanel extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text(err.toString())),
         data: (result) => switch (result) {
-          Success(value: final book) => book.isNovel
-              ? NovelDetailsScreen(
-                  bookId: bookId,
-                  isEmbedded: true,
-                  onClose: onClose,
-                )
-              : BookDetailsScreen(
-                  bookId: bookId,
-                  isEmbedded: true,
-                  onClose: onClose,
-                ),
+          Success(value: final book) =>
+            book.isNovel
+                ? NovelDetailsScreen(
+                    bookId: bookId,
+                    isEmbedded: true,
+                    onClose: onClose,
+                  )
+                : BookDetailsScreen(
+                    bookId: bookId,
+                    isEmbedded: true,
+                    onClose: onClose,
+                  ),
           Failure(error: final err) => Center(child: Text(err.userMessage)),
         },
       ),
@@ -51,8 +52,8 @@ class BookDetailPanel extends ConsumerWidget {
 
 /// Lightweight provider that fetches just the book entity so we can
 /// determine whether it's a novel or a regular book.
-final _panelBookProvider =
-    FutureProvider.autoDispose.family<Result<BookEntity>, String>((ref, bookId) async {
-  final db = ref.read(databaseProvider);
-  return DriftLibraryRepository(db).getBookById(bookId);
-});
+final _panelBookProvider = FutureProvider.autoDispose
+    .family<Result<BookEntity>, String>((ref, bookId) async {
+      final db = ref.read(databaseProvider);
+      return DriftLibraryRepository(db).getBookById(bookId);
+    });

@@ -86,7 +86,9 @@ class ReadingSettingsScreen extends ConsumerWidget {
                   ChoiceTile<TextAlignment>(
                     title: 'Text Alignment',
                     value: settings.textAlignment,
-                    options: TextAlignment.values.map((a) => (a, a.label)).toList(),
+                    options: TextAlignment.values
+                        .map((a) => (a, a.label))
+                        .toList(),
                     onChanged: notifier.setTextAlignment,
                   ),
                 ],
@@ -98,7 +100,9 @@ class ReadingSettingsScreen extends ConsumerWidget {
                   ChoiceTile<ReadingViewTheme>(
                     title: 'Reader Theme',
                     value: settings.theme,
-                    options: ReadingViewTheme.values.map((t) => (t, t.label)).toList(),
+                    options: ReadingViewTheme.values
+                        .map((t) => (t, t.label))
+                        .toList(),
                     onChanged: notifier.setTheme,
                     isSelected: (t) => t == settings.theme,
                     builder: (t) {
@@ -112,7 +116,12 @@ class ReadingSettingsScreen extends ConsumerWidget {
                             decoration: BoxDecoration(
                               color: t.resolve(colorScheme).background,
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: t.resolve(colorScheme).text.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: t
+                                    .resolve(colorScheme)
+                                    .text
+                                    .withValues(alpha: 0.3),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -124,14 +133,23 @@ class ReadingSettingsScreen extends ConsumerWidget {
                 ],
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                  AppSpacing.md,
+                  0,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Reader Brightness', style: textTheme.titleSmall),
                     Row(
                       children: [
-                        Icon(Icons.brightness_low, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        Icon(
+                          Icons.brightness_low,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                         Expanded(
                           child: Slider(
                             value: settings.brightness,
@@ -144,7 +162,11 @@ class ReadingSettingsScreen extends ConsumerWidget {
                                 : notifier.setBrightness,
                           ),
                         ),
-                        Icon(Icons.brightness_high, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        Icon(
+                          Icons.brightness_high,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ],
                     ),
                   ],
@@ -174,20 +196,26 @@ class ReadingSettingsScreen extends ConsumerWidget {
                   ChoiceTile<ReadingMode>(
                     title: 'Reading Mode',
                     value: settings.readingMode,
-                    options: ReadingMode.values.map((m) => (m, m.label)).toList(),
+                    options: ReadingMode.values
+                        .map((m) => (m, m.label))
+                        .toList(),
                     onChanged: notifier.setReadingMode,
                   ),
                   ChoiceTile<MarginPreset>(
                     title: 'Margins',
                     value: settings.marginPreset,
-                    options: MarginPreset.values.map((m) => (m, m.label)).toList(),
+                    options: MarginPreset.values
+                        .map((m) => (m, m.label))
+                        .toList(),
                     onChanged: notifier.setMarginPreset,
                   ),
                   if (settings.readingMode == ReadingMode.page)
                     ChoiceTile<PageTurnAnimation>(
                       title: 'Page Turn',
                       value: settings.pageTurnAnimation,
-                      options: PageTurnAnimation.values.map((a) => (a, a.label)).toList(),
+                      options: PageTurnAnimation.values
+                          .map((a) => (a, a.label))
+                          .toList(),
                       onChanged: (a) {
                         notifier.setPageTurnAnimation(a);
                         if (settings.readingMode != ReadingMode.page) {
@@ -199,7 +227,9 @@ class ReadingSettingsScreen extends ConsumerWidget {
                     ChoiceTile<ScrollAnimation>(
                       title: 'Scroll Animation',
                       value: settings.scrollAnimation,
-                      options: ScrollAnimation.values.map((a) => (a, a.label)).toList(),
+                      options: ScrollAnimation.values
+                          .map((a) => (a, a.label))
+                          .toList(),
                       onChanged: notifier.setScrollAnimation,
                     ),
                   SwitchTile(

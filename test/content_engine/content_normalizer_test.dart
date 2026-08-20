@@ -7,9 +7,10 @@ void main() {
   const normalizer = ContentNormalizer();
 
   group('ContentNormalizer', () {
-    test('emits typed blocks for paragraph/heading/quote/list/pre in order',
-        () {
-      final doc = normalizer.normalizeFromHtml('''
+    test(
+      'emits typed blocks for paragraph/heading/quote/list/pre in order',
+      () {
+        final doc = normalizer.normalizeFromHtml('''
         <html><body>
           <h2>Chapter One</h2>
           <p>First paragraph.</p>
@@ -19,33 +20,38 @@ void main() {
         </body></html>
       ''');
 
-      expect(doc.blocks, hasLength(5));
-      expect(
-        doc.blocks[0],
-        isA<HeadingBlock>()
-            .having((b) => b.text, 'text', 'Chapter One')
-            .having((b) => b.level, 'level', 2),
-      );
-      expect(
-        doc.blocks[1],
-        isA<ParagraphBlock>().having((b) => b.text, 'text', 'First paragraph.'),
-      );
-      expect(
-        doc.blocks[2],
-        isA<QuoteBlock>().having((b) => b.text, 'text', 'A quote.'),
-      );
-      expect(
-        doc.blocks[3],
-        isA<ListBlock>().having((b) => b.text, 'text', 'Item one'),
-      );
-      expect(
-        doc.blocks[4],
-        isA<PreBlock>().having((b) => b.text, 'text', 'Code block'),
-      );
+        expect(doc.blocks, hasLength(5));
+        expect(
+          doc.blocks[0],
+          isA<HeadingBlock>()
+              .having((b) => b.text, 'text', 'Chapter One')
+              .having((b) => b.level, 'level', 2),
+        );
+        expect(
+          doc.blocks[1],
+          isA<ParagraphBlock>().having(
+            (b) => b.text,
+            'text',
+            'First paragraph.',
+          ),
+        );
+        expect(
+          doc.blocks[2],
+          isA<QuoteBlock>().having((b) => b.text, 'text', 'A quote.'),
+        );
+        expect(
+          doc.blocks[3],
+          isA<ListBlock>().having((b) => b.text, 'text', 'Item one'),
+        );
+        expect(
+          doc.blocks[4],
+          isA<PreBlock>().having((b) => b.text, 'text', 'Code block'),
+        );
 
-      expect(doc.textBlocks, hasLength(5));
-      expect(doc.wordCount, 10);
-    });
+        expect(doc.textBlocks, hasLength(5));
+        expect(doc.wordCount, 10);
+      },
+    );
 
     test('nested block is owned by the outer block, not double-counted', () {
       final doc = normalizer.normalizeFromHtml('''
@@ -132,10 +138,7 @@ void main() {
         </body></html>
       ''');
 
-      expect(
-        doc.footnotes.map((f) => f.id),
-        ['fn1', '/notes/2', 'http://x/3'],
-      );
+      expect(doc.footnotes.map((f) => f.id), ['fn1', '/notes/2', 'http://x/3']);
       expect(doc.footnotes.map((f) => f.text), ['1', '2', '3']);
     });
 

@@ -51,7 +51,8 @@ void main() {
 
     for (var i = 0; i < 2; i++) {
       final fileName = 'ch_${i + 1}.xhtml';
-      final content = '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+      final content =
+          '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
           '<head><title>Chapter ${i + 1}</title></head>'
           '<body><h2>Chapter ${i + 1}</h2><p>Body text ${i + 1}.</p></body></html>';
       html[fileName] = EpubTextContentFile(
@@ -60,11 +61,13 @@ void main() {
         content: content,
       );
       manifestItems.add(
-        EpubManifestItem(id: 'ch_${i + 1}', href: fileName, mediaType: 'application/xhtml+xml'),
+        EpubManifestItem(
+          id: 'ch_${i + 1}',
+          href: fileName,
+          mediaType: 'application/xhtml+xml',
+        ),
       );
-      spineItems.add(
-        EpubSpineItemRef(idRef: 'ch_${i + 1}', isLinear: true),
-      );
+      spineItems.add(EpubSpineItemRef(idRef: 'ch_${i + 1}', isLinear: true));
       navPoints.add(
         EpubNavigationPoint(
           navigationLabels: [EpubNavigationLabel(text: 'Chapter ${i + 1}')],
@@ -72,19 +75,28 @@ void main() {
         ),
       );
       chapters.add(
-        EpubChapter(title: 'Chapter ${i + 1}', contentFileName: fileName, htmlContent: content),
+        EpubChapter(
+          title: 'Chapter ${i + 1}',
+          contentFileName: fileName,
+          htmlContent: content,
+        ),
       );
     }
 
     html['nav.xhtml'] = const EpubTextContentFile(
       fileName: 'nav.xhtml',
       contentMimeType: 'application/xhtml+xml',
-      content: '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+      content:
+          '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
           '<head><title>Nav</title></head><body><nav><ol><li><a href="ch_1.xhtml">One</a></li></ol></nav></body></html>',
     );
     manifestItems.insert(
       0,
-      const EpubManifestItem(id: 'nav', href: 'nav.xhtml', mediaType: 'application/xhtml+xml'),
+      const EpubManifestItem(
+        id: 'nav',
+        href: 'nav.xhtml',
+        mediaType: 'application/xhtml+xml',
+      ),
     );
 
     final book = EpubBook(
@@ -100,7 +112,11 @@ void main() {
             creators: [EpubMetadataCreator(creator: 'Author', role: 'aut')],
           ),
           manifest: EpubManifest(items: manifestItems),
-          spine: EpubSpine(tableOfContents: 'nav', items: spineItems, ltr: true),
+          spine: EpubSpine(
+            tableOfContents: 'nav',
+            items: spineItems,
+            ltr: true,
+          ),
           guide: const EpubGuide(),
         ),
         navigation: EpubNavigation(
@@ -121,7 +137,7 @@ void main() {
     // Sanity: the strict reader cannot handle this file, so the fallback is real.
     expect(() => EpubReader.readBook(bytes), throwsException);
 
-final result = await service.importBytes(bytes, 'broken.epub');
+    final result = await service.importBytes(bytes, 'broken.epub');
     expect(result, isA<Success<String>>());
 
     final rows = await db.select(db.chapters).get();
@@ -144,15 +160,23 @@ final result = await service.importBytes(bytes, 'broken.epub');
           version: EpubVersion.epub3,
           metadata: EpubMetadata(
             titles: ['Meta Book'],
-            creators: [EpubMetadataCreator(creator: 'Meta Author', role: 'aut')],
+            creators: [
+              EpubMetadataCreator(creator: 'Meta Author', role: 'aut'),
+            ],
             description: 'Meta description.',
             subjects: ['Sci-fi', 'Drama'],
             sources: ['https://example.com/source'],
             languages: ['en'],
           ),
-          manifest: EpubManifest(items: [
-            EpubManifestItem(id: 'ch_1', href: 'ch_1.xhtml', mediaType: 'application/xhtml+xml'),
-          ]),
+          manifest: EpubManifest(
+            items: [
+              EpubManifestItem(
+                id: 'ch_1',
+                href: 'ch_1.xhtml',
+                mediaType: 'application/xhtml+xml',
+              ),
+            ],
+          ),
           spine: EpubSpine(
             tableOfContents: 'nav',
             items: [EpubSpineItemRef(idRef: 'ch_1', isLinear: true)],
@@ -162,12 +186,14 @@ final result = await service.importBytes(bytes, 'broken.epub');
         ),
         navigation: EpubNavigation(
           docTitle: EpubNavigationDocTitle(titles: ['Meta Book']),
-          navMap: EpubNavigationMap(points: [
-            EpubNavigationPoint(
-              navigationLabels: [EpubNavigationLabel(text: 'One')],
-              content: EpubNavigationContent(source: 'ch_1.xhtml'),
-            ),
-          ]),
+          navMap: EpubNavigationMap(
+            points: [
+              EpubNavigationPoint(
+                navigationLabels: [EpubNavigationLabel(text: 'One')],
+                content: EpubNavigationContent(source: 'ch_1.xhtml'),
+              ),
+            ],
+          ),
         ),
       ),
       content: EpubContent(
@@ -175,7 +201,8 @@ final result = await service.importBytes(bytes, 'broken.epub');
           'ch_1.xhtml': EpubTextContentFile(
             fileName: 'ch_1.xhtml',
             contentMimeType: 'application/xhtml+xml',
-            content: '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+            content:
+                '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
                 '<head><title>One</title></head><body><p>Hello world.</p></body></html>',
           ),
         },
@@ -183,7 +210,8 @@ final result = await service.importBytes(bytes, 'broken.epub');
           'ch_1.xhtml': EpubTextContentFile(
             fileName: 'ch_1.xhtml',
             contentMimeType: 'application/xhtml+xml',
-            content: '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+            content:
+                '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
                 '<head><title>One</title></head><body><p>Hello world.</p></body></html>',
           ),
         },
@@ -203,4 +231,3 @@ final result = await service.importBytes(bytes, 'broken.epub');
     expect(bookRow.sourceUrl, 'https://example.com/source');
   });
 }
-

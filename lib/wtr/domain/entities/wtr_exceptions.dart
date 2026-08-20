@@ -10,11 +10,11 @@ sealed class WtrAuthException extends AppException {
 /// AI translation was selected but no WTR-Lab session exists.
 class WtrAuthRequiredException extends WtrAuthException {
   const WtrAuthRequiredException()
-      : super(
-          'AI translation requires you to sign in to your WTR-Lab account. '
-          'Your login and account data are handled by WTR-Lab; Atlas only uses '
-          'the authenticated session to retrieve chapter content.',
-        );
+    : super(
+        'AI translation requires you to sign in to your WTR-Lab account. '
+        'Your login and account data are handled by WTR-Lab; Atlas only uses '
+        'the authenticated session to retrieve chapter content.',
+      );
 
   @override
   String get code => 'WTR_AUTH_REQUIRED';
@@ -29,10 +29,10 @@ class WtrAuthRequiredException extends WtrAuthException {
 /// login attempt failed.
 class WtrSessionExpiredException extends WtrAuthException {
   const WtrSessionExpiredException()
-      : super(
-          'Your WTR-Lab session is no longer valid. Please sign in again to '
-          'use AI translation.',
-        );
+    : super(
+        'Your WTR-Lab session is no longer valid. Please sign in again to '
+        'use AI translation.',
+      );
 
   @override
   String get code => 'WTR_SESSION_EXPIRED';
@@ -46,9 +46,7 @@ class WtrSessionExpiredException extends WtrAuthException {
 /// captured, or WTR-Lab rejected the login).
 class WtrAuthenticationFailedException extends WtrAuthException {
   const WtrAuthenticationFailedException()
-      : super(
-          'Signing in to WTR-Lab failed. Please try again.',
-        );
+    : super('Signing in to WTR-Lab failed. Please try again.');
 
   @override
   String get code => 'WTR_AUTH_FAILED';

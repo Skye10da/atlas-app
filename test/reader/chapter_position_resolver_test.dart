@@ -5,7 +5,8 @@ import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.da
 void main() {
   const resolver = ChapterPositionResolver();
 
-  const sample = 'Hello world. This is good.\n\n'
+  const sample =
+      'Hello world. This is good.\n\n'
       'A second paragraph.\n'
       'With two sentences. And more here?';
 
@@ -109,8 +110,11 @@ void main() {
       final total = resolver.totalSentences(sample);
       for (var i = 0; i < total; i++) {
         final offset = resolver.charOffsetForSentenceIndex(sample, i)!;
-        expect(resolver.sentenceIndexForOffset(sample, offset), i,
-            reason: 'round-trip failed at index $i');
+        expect(
+          resolver.sentenceIndexForOffset(sample, offset),
+          i,
+          reason: 'round-trip failed at index $i',
+        );
       }
     });
   });

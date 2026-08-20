@@ -141,13 +141,20 @@ void main() {
   late Directory baseDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('atlas_readnovelfull_plugin');
+    tempDir = await Directory.systemTemp.createTemp(
+      'atlas_readnovelfull_plugin',
+    );
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
-    final source =
-        Directory(p.join(Directory.current.path, 'atlas-plugins', 'readnovelfull'));
-    expect(source.existsSync(), isTrue,
-        reason: 'flutter test must run from the package root so that '
-            'atlas-plugins/readnovelfull resolves');
+    final source = Directory(
+      p.join(Directory.current.path, 'atlas-plugins', 'readnovelfull'),
+    );
+    expect(
+      source.existsSync(),
+      isTrue,
+      reason:
+          'flutter test must run from the package root so that '
+          'atlas-plugins/readnovelfull resolves',
+    );
     await _copyDir(source, Directory(p.join(baseDir.path, 'readnovelfull')));
   });
 
@@ -156,10 +163,10 @@ void main() {
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(
-        baseDirectory: baseDir,
-        templateRegistry: TemplateRegistry.defaults,
-        transportRegistry: _FakeTransportRegistry(transport),
-      );
+    baseDirectory: baseDir,
+    templateRegistry: TemplateRegistry.defaults,
+    transportRegistry: _FakeTransportRegistry(transport),
+  );
 
   group('atlas-plugins/readnovelfull/plugin.json', () {
     test('loads a valid manifest for the generic html template', () async {
@@ -180,17 +187,15 @@ void main() {
         PluginCapability.chapterContent,
         PluginCapability.cover,
       });
-      expect(
-        TemplateRegistry.defaults.resolve('html'),
-        isA<HtmlTemplate>(),
-      );
+      expect(TemplateRegistry.defaults.resolve('html'), isA<HtmlTemplate>());
     });
 
     test('declared capabilities are implemented by the template', () async {
       final manifest = await repo(FakeTransport()).load('readnovelfull');
       final template = TemplateRegistry.defaults.resolve(manifest.templateId);
-      final unsupported = manifest.capabilities
-          .where((c) => !template.supportedCapabilities.contains(c));
+      final unsupported = manifest.capabilities.where(
+        (c) => !template.supportedCapabilities.contains(c),
+      );
       expect(unsupported, isEmpty);
     });
 
@@ -214,44 +219,50 @@ void main() {
       final source = await repo(FakeTransport()).buildSource('readnovelfull');
 
       expect(
-          source.canHandle(Uri.parse('https://readnovelfull.com/novel/x')),
-          isTrue);
-      expect(source.canHandle(Uri.parse('https://other.com/novel/x')),
-          isFalse);
+        source.canHandle(Uri.parse('https://readnovelfull.com/novel/x')),
+        isTrue,
+      );
+      expect(source.canHandle(Uri.parse('https://other.com/novel/x')), isFalse);
     });
 
     test('search drives the /novel-list/search?keyword= endpoint', () async {
       final transport = FakeTransport()
         ..addHtml(
-            'https://readnovelfull.com/novel-list/search?keyword=lord',
-            _searchPage);
+          'https://readnovelfull.com/novel-list/search?keyword=lord',
+          _searchPage,
+        );
       final source = await repo(transport).buildSource('readnovelfull');
 
-      final response =
-          await source.search(const SourceSearchQuery(term: 'lord'));
+      final response = await source.search(
+        const SourceSearchQuery(term: 'lord'),
+      );
 
       expect(response.results, hasLength(2));
       expect(response.results.first.title, 'Lord of the Realm');
       expect(response.results.first.importUrl, _novelUrl);
     });
 
-    test('getMetadata bridges the plugin to a novel-category NovelModel',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
-      final source = await repo(transport).buildSource('readnovelfull');
+    test(
+      'getMetadata bridges the plugin to a novel-category NovelModel',
+      () async {
+        final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
+        final source = await repo(transport).buildSource('readnovelfull');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.category, ContentCategory.novel);
-      expect(novel.source, 'ReadNovelFull');
-      expect(novel.title, 'Lord of the Realm');
-      expect(novel.author, 'Guijingzhuzai');
-      expect(novel.description, contains('Steampunk, magic and secret arts'));
-      expect(novel.coverUrl,
-          'https://img.readnovelfull.com/thumb/t-300x439/lord-of-the-realm.jpg');
-      expect(novel.genres, ['Action', 'Fantasy']);
-      expect(novel.status, 'Completed');
-    });
+        expect(novel.category, ContentCategory.novel);
+        expect(novel.source, 'ReadNovelFull');
+        expect(novel.title, 'Lord of the Realm');
+        expect(novel.author, 'Guijingzhuzai');
+        expect(novel.description, contains('Steampunk, magic and secret arts'));
+        expect(
+          novel.coverUrl,
+          'https://img.readnovelfull.com/thumb/t-300x439/lord-of-the-realm.jpg',
+        );
+        expect(novel.genres, ['Action', 'Fantasy']);
+        expect(novel.status, 'Completed');
+      },
+    );
 
     test('getChapters fetches the full archive from ajaxPath and returns '
         'ascending order', () async {
@@ -305,22 +316,30 @@ void main() {
       expect(chapter.wordCount, greaterThan(0));
     });
 
-    test('metadata selectors supply title and cover when og: tags are missing',
-        () async {
-      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
-      final source = await repo(transport).buildSource('readnovelfull');
+    test(
+      'metadata selectors supply title and cover when og: tags are missing',
+      () async {
+        final transport = FakeTransport()
+          ..addHtml(_novelUrl, _novelPageNoOgTags);
+        final source = await repo(transport).buildSource('readnovelfull');
 
-      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+        final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
-      expect(novel.title, 'Lord of the Realm',
-          reason: '.desc h3.title must be used instead of <title> tag');
-      expect(novel.author, 'Guijingzhuzai');
-      expect(novel.description, contains('Steampunk, magic and secret arts'));
-      expect(novel.coverUrl,
+        expect(
+          novel.title,
+          'Lord of the Realm',
+          reason: '.desc h3.title must be used instead of <title> tag',
+        );
+        expect(novel.author, 'Guijingzhuzai');
+        expect(novel.description, contains('Steampunk, magic and secret arts'));
+        expect(
+          novel.coverUrl,
           'https://img.readnovelfull.com/thumb/t-300x439/lord-of-the-realm.jpg',
-          reason: '.book img@src must resolve the cover URL');
-      expect(novel.genres, ['Action', 'Fantasy']);
-      expect(novel.source, 'ReadNovelFull');
-    });
+          reason: '.book img@src must resolve the cover URL',
+        );
+        expect(novel.genres, ['Action', 'Fantasy']);
+        expect(novel.source, 'ReadNovelFull');
+      },
+    );
   });
 }
