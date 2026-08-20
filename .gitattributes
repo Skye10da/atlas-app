@@ -1,0 +1,5 @@
+# Normalize atlas-plugins text files to LF so catalog checksums are
+# consistent across Windows (CRLF) and Linux/macOS (LF) checkouts.
+atlas-plugins/**/*.json eol=lf
+atlas-plugins/**/*.md eol=lf
+atlas-plugins/**/*.html eol=lf
