@@ -9,97 +9,174 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
+import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
+import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
+import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
 import 'package:atlas_app/reader/speech/parser/sentence_splitter.dart';
 import 'package:atlas_app/reader/speech/speech_models.dart';
 
 enum ReadingViewTheme {
-  light,
-  dark,
+  paper,
+  parchment,
+  ivory,
   sepia,
+  blueLight,
+  warmGray,
+  mint,
   forest,
   ocean,
+  midnight,
+  charcoal,
+  nord,
   dracula,
   amoled,
-  cream,
-  gray,
 }
 
 extension ReadingViewThemeX on ReadingViewTheme {
-  Color get background => switch (this) {
-    ReadingViewTheme.light => const Color(0xFFFFFBFE),
-    ReadingViewTheme.dark => const Color(0xFF1A1A1A),
-    ReadingViewTheme.sepia => const Color(0xFFF5F0E8),
-    ReadingViewTheme.forest => const Color(0xFFE8F0E8),
-    ReadingViewTheme.ocean => const Color(0xFFE8F0F5),
-    ReadingViewTheme.dracula => const Color(0xFF282A36),
-    ReadingViewTheme.amoled => const Color(0xFF000000),
-    ReadingViewTheme.cream => const Color(0xFFFFF9E3),
-    ReadingViewTheme.gray => const Color(0xFF2C2C2C),
-  };
+  ReadingColors resolve(ColorScheme scheme) {
+    final isDark = scheme.brightness == Brightness.dark;
+    final bg = isDark ? scheme.surface : scheme.surface;
+    final txt = isDark ? scheme.onSurface : scheme.onSurface;
+    final sf = isDark ? scheme.surfaceContainerLow : scheme.surfaceContainerLow;
 
-  Color get text => switch (this) {
-    ReadingViewTheme.light => const Color(0xFF1C1B1F),
-    ReadingViewTheme.dark => const Color(0xFFE3E3E3),
-    ReadingViewTheme.sepia => const Color(0xFF3B2F2F),
-    ReadingViewTheme.forest => const Color(0xFF2D3D2D),
-    ReadingViewTheme.ocean => const Color(0xFF1C3D5E),
-    ReadingViewTheme.dracula => const Color(0xFFF8F8F2),
-    ReadingViewTheme.amoled => const Color(0xFFFFFFFF),
-    ReadingViewTheme.cream => const Color(0xFF3E2723),
-    ReadingViewTheme.gray => const Color(0xFFBDBDBD),
-  };
+    return switch (this) {
+      ReadingViewTheme.paper => ReadingColors(
+        background: bg,
+        text: txt,
+        surface: sf,
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.parchment => ReadingColors(
+        background: _tint(bg, hueShift: 30, satBoost: 0.08),
+        text: _tint(txt, hueShift: 20, satBoost: 0.05),
+        surface: _tint(sf, hueShift: 30, satBoost: 0.1),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.ivory => ReadingColors(
+        background: _tint(bg, hueShift: 40, satBoost: 0.06),
+        text: _tint(txt, hueShift: 30, satBoost: 0.04),
+        surface: _tint(sf, hueShift: 40, satBoost: 0.08),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.sepia => ReadingColors(
+        background: _tint(bg, hueShift: 35, satBoost: 0.15),
+        text: _tint(txt, hueShift: 25, satBoost: 0.1),
+        surface: _tint(sf, hueShift: 35, satBoost: 0.18),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.blueLight => ReadingColors(
+        background: _tint(bg, hueShift: -30, satBoost: 0.1),
+        text: _tint(txt, hueShift: -20, satBoost: 0.06),
+        surface: _tint(sf, hueShift: -30, satBoost: 0.12),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.warmGray => ReadingColors(
+        background: _desaturate(bg, amount: 0.15),
+        text: _desaturate(txt, amount: 0.1),
+        surface: _desaturate(sf, amount: 0.18),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.mint => ReadingColors(
+        background: _tint(bg, hueShift: -60, satBoost: 0.12),
+        text: _tint(txt, hueShift: -50, satBoost: 0.08),
+        surface: _tint(sf, hueShift: -60, satBoost: 0.15),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.forest => ReadingColors(
+        background: _tint(bg, hueShift: -70, satBoost: 0.1),
+        text: _tint(txt, hueShift: -60, satBoost: 0.07),
+        surface: _tint(sf, hueShift: -70, satBoost: 0.12),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.ocean => ReadingColors(
+        background: _tint(bg, hueShift: -40, satBoost: 0.15),
+        text: _tint(txt, hueShift: -30, satBoost: 0.1),
+        surface: _tint(sf, hueShift: -40, satBoost: 0.18),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.midnight => ReadingColors(
+        background: _tint(bg, hueShift: -50, satBoost: 0.12, lightShift: isDark ? -0.05 : 0),
+        text: _tint(txt, hueShift: -40, satBoost: 0.08),
+        surface: _tint(sf, hueShift: -50, satBoost: 0.15, lightShift: isDark ? -0.05 : 0),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.charcoal => ReadingColors(
+        background: _desaturate(bg, amount: 0.25, lightShift: isDark ? 0.02 : -0.04),
+        text: _desaturate(txt, amount: 0.2),
+        surface: _desaturate(sf, amount: 0.28, lightShift: isDark ? 0.02 : -0.04),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.nord => ReadingColors(
+        background: _tint(bg, hueShift: -45, satBoost: 0.08, lightShift: isDark ? 0.02 : -0.01),
+        text: _tint(txt, hueShift: -35, satBoost: 0.05),
+        surface: _tint(sf, hueShift: -45, satBoost: 0.1, lightShift: isDark ? 0.02 : -0.01),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.dracula => ReadingColors(
+        background: _tint(bg, hueShift: 60, satBoost: 0.12, lightShift: isDark ? -0.02 : 0),
+        text: _tint(txt, hueShift: 50, satBoost: 0.08),
+        surface: _tint(sf, hueShift: 60, satBoost: 0.15, lightShift: isDark ? -0.02 : 0),
+        accent: scheme.primary,
+      ),
+      ReadingViewTheme.amoled => ReadingColors(
+        background: isDark ? const Color(0xFF000000) : bg,
+        text: isDark ? const Color(0xFFFFFFFF) : txt,
+        surface: isDark ? const Color(0xFF0A0A0A) : sf,
+        accent: scheme.primary,
+      ),
+    };
+  }
 
-  Color get surface => switch (this) {
-    ReadingViewTheme.light => const Color(0xFFF0F0F0),
-    ReadingViewTheme.dark => const Color(0xFF2A2A2A),
-    ReadingViewTheme.sepia => const Color(0xFFE8E0D0),
-    ReadingViewTheme.forest => const Color(0xFFD8E8D8),
-    ReadingViewTheme.ocean => const Color(0xFFD0E0F0),
-    ReadingViewTheme.dracula => const Color(0xFF44475A),
-    ReadingViewTheme.amoled => const Color(0xFF1A1A1A),
-    ReadingViewTheme.cream => const Color(0xFFF5EDD0),
-    ReadingViewTheme.gray => const Color(0xFF3A3A3A),
-  };
+  static Color _tint(Color c, {double hueShift = 0, double satBoost = 0, double lightShift = 0}) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl.withHue((hsl.hue + hueShift) % 360)
+        .withSaturation((hsl.saturation + satBoost).clamp(0.0, 1.0))
+        .withLightness((hsl.lightness + lightShift).clamp(0.0, 1.0))
+        .toColor();
+  }
 
-  Color get accent => switch (this) {
-    ReadingViewTheme.light => const Color(0xFF1A73E8),
-    ReadingViewTheme.dark => const Color(0xFF8AB4F8),
-    ReadingViewTheme.sepia => const Color(0xFF8B6B4A),
-    ReadingViewTheme.forest => const Color(0xFF4A7C4A),
-    ReadingViewTheme.ocean => const Color(0xFF2D7DBF),
-    ReadingViewTheme.dracula => const Color(0xFFBD93F9),
-    ReadingViewTheme.amoled => const Color(0xFFBB86FC),
-    ReadingViewTheme.cream => const Color(0xFF795548),
-    ReadingViewTheme.gray => const Color(0xFF90A4AE),
-  };
+  static Color _desaturate(Color c, {double amount = 0.1, double lightShift = 0}) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl.withSaturation((hsl.saturation - amount).clamp(0.0, 1.0))
+        .withLightness((hsl.lightness + lightShift).clamp(0.0, 1.0))
+        .toColor();
+  }
 
   String get label => switch (this) {
-    ReadingViewTheme.light => 'Light',
-    ReadingViewTheme.dark => 'Dark',
+    ReadingViewTheme.paper => 'Paper',
+    ReadingViewTheme.parchment => 'Parchment',
+    ReadingViewTheme.ivory => 'Ivory',
     ReadingViewTheme.sepia => 'Sepia',
+    ReadingViewTheme.blueLight => 'Blue Light',
+    ReadingViewTheme.warmGray => 'Warm Gray',
+    ReadingViewTheme.mint => 'Mint',
     ReadingViewTheme.forest => 'Forest',
     ReadingViewTheme.ocean => 'Ocean',
+    ReadingViewTheme.midnight => 'Midnight',
+    ReadingViewTheme.charcoal => 'Charcoal',
+    ReadingViewTheme.nord => 'Nord',
     ReadingViewTheme.dracula => 'Dracula',
     ReadingViewTheme.amoled => 'AMOLED',
-    ReadingViewTheme.cream => 'Cream',
-    ReadingViewTheme.gray => 'Gray',
   };
 
-  bool get isDark =>
-      this == ReadingViewTheme.dark || this == ReadingViewTheme.dracula || this == ReadingViewTheme.amoled || this == ReadingViewTheme.gray;
-
   IconData get icon => switch (this) {
-    ReadingViewTheme.light => Icons.light_mode,
-    ReadingViewTheme.dark => Icons.dark_mode,
+    ReadingViewTheme.paper => Icons.description,
+    ReadingViewTheme.parchment => Icons.wb_sunny,
+    ReadingViewTheme.ivory => Icons.wb_sunny,
     ReadingViewTheme.sepia => Icons.wb_sunny,
+    ReadingViewTheme.blueLight => Icons.water_drop,
+    ReadingViewTheme.warmGray => Icons.blur_on,
+    ReadingViewTheme.mint => Icons.nature,
     ReadingViewTheme.forest => Icons.nature,
     ReadingViewTheme.ocean => Icons.water_drop,
+    ReadingViewTheme.midnight => Icons.dark_mode,
+    ReadingViewTheme.charcoal => Icons.dark_mode,
+    ReadingViewTheme.nord => Icons.ac_unit,
     ReadingViewTheme.dracula => Icons.nightlight_round,
     ReadingViewTheme.amoled => Icons.nightlight_round,
-    ReadingViewTheme.cream => Icons.wb_sunny,
-    ReadingViewTheme.gray => Icons.blur_on,
   };
 }
 
@@ -114,7 +191,7 @@ class ChapterView extends ConsumerStatefulWidget {
     this.fontWeight,
     this.lineHeight = 1.8,
     this.letterSpacing = 0.0,
-    this.theme = ReadingViewTheme.light,
+    this.theme = ReadingViewTheme.paper,
     this.textAlignment = TextAlignment.left,
     this.marginPreset = MarginPreset.normal,
     this.scrollable = true,
@@ -234,6 +311,24 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     if (bookId == null || chapterId == null) return const [];
     return ref.watch(annotationsProvider(bookId)).highlights[chapterId] ??
         const [];
+  }
+
+  /// Glossary-replacement highlights for [content], tinted with the system
+  /// theme's secondary container so they stay readable in light and dark mode.
+  List<HighlightEntry> _glossaryHighlights(String content) {
+    final bookId = widget.bookId;
+    final chapterId = widget.chapterId;
+    if (bookId == null || chapterId == null || content.isEmpty) {
+      return const [];
+    }
+    final entries =
+        ref.watch(atlasGlossaryProvider(bookId)).valueOrNull ?? const [];
+    return glossaryHighlightRanges(
+      chapterId: chapterId,
+      content: content,
+      entries: entries,
+      color: Theme.of(context).colorScheme.secondaryContainer,
+    );
   }
 
   List<(int, int)>? _cachedQuoteRanges;
@@ -542,11 +637,12 @@ class _ChapterViewState extends ConsumerState<ChapterView>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final baseStyle = TextStyle(
       fontSize: widget.fontSize,
       height: widget.lineHeight,
       letterSpacing: widget.letterSpacing,
-      color: widget.theme.text,
+      color: widget.theme.resolve(colorScheme).text,
       fontWeight: widget.fontWeight != null ? FontWeight(widget.fontWeight!) : null,
     );
 
@@ -575,7 +671,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
 
     final ds = widget.dropCapStyle;
     final c = widget.content;
-    final highlights = _highlights;
+    final highlights = [..._highlights, ..._glossaryHighlights(c)];
 
     final active = widget.activeSpeechItem;
     if (active != null) {
@@ -626,8 +722,9 @@ class _ChapterViewState extends ConsumerState<ChapterView>
 
     // Collect every cut point from quote and highlight boundaries so each
     // emitted segment gets a single, unambiguous style.
+    final quoteRanges = _quoteRanges(content);
     final cuts = <int>{start, end};
-    for (final range in _quoteRanges(content)) {
+    for (final range in quoteRanges) {
       if (range.$2 <= start || range.$1 >= end) continue;
       cuts.add(range.$1.clamp(start, end));
       cuts.add(range.$2.clamp(start, end));
@@ -645,7 +742,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       if (segEnd <= segStart) continue;
 
       var segStyle = style;
-      final inQuote = _quoteRanges(content).any(
+      final inQuote = quoteRanges.any(
         (r) => r.$1 <= segStart && r.$2 >= segEnd,
       );
       if (inQuote) segStyle = quoteStyle;
@@ -706,7 +803,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       animation: _highlightController,
       builder: (context, _) {
         final highlightStyle = TextStyle(
-          backgroundColor: widget.theme.accent.withValues(
+          backgroundColor: widget.theme.resolve(Theme.of(context).colorScheme).accent.withValues(
             alpha: 0.25 * _highlightController.value,
           ),
         );
@@ -815,6 +912,12 @@ class _ChapterViewState extends ConsumerState<ChapterView>
                 icon: Icons.translate_rounded,
                 onPressed: () => _showDefine(word, sentence: sentence),
               ),
+            if (showSelectionActions && bookId != null)
+              AppContextMenuAction(
+                label: 'Set as term…',
+                icon: Icons.settings_suggest_outlined,
+                onPressed: () => _openGlossaryTerm(word),
+              ),
             if (eraseEnabled)
               AppContextMenuAction(
                 label: 'Erase highlight',
@@ -866,6 +969,17 @@ class _ChapterViewState extends ConsumerState<ChapterView>
         sourceSentence: sentence,
         sourceTitle: widget.chapterTitle,
       ),
+    );
+  }
+
+  void _openGlossaryTerm(String word) {
+    final bookId = widget.bookId;
+    if (bookId == null) return;
+    DraggableBottomSheet.show(
+      context: context,
+      id: 'glossary_term',
+      initialHeight: 0.6,
+      child: GlossaryTermSheet(bookId: bookId, term: word),
     );
   }
 }

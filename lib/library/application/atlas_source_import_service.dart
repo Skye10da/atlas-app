@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
+import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 
 /// Picks and validates a lightweight `.atlas` source-link package produced by
@@ -64,5 +67,44 @@ class AtlasSourceImportService {
     } on FormatException catch (e) {
       return Failure(ValidationException('Could not read package file: $e'));
     }
+  }
+
+  /// Parses an `.atlas` source-link package and returns a [NovelModel] for
+  /// the preview stage without performing the actual import.
+  Future<NovelModel> extractMetadata(
+    List<int> bytes,
+    String fileName,
+  ) async {
+    final decoded = jsonDecode(utf8.decode(bytes)) as Map;
+    final book = decoded['book'] as Map? ?? {};
+    final source = decoded['source'] as Map? ?? {};
+
+    Uint8List? coverBytes;
+    final coverBase64 = decoded['coverBase64'];
+    if (coverBase64 is String && coverBase64.isNotEmpty) {
+      // ignore: avoid_redundant_argument_values
+      coverBytes = base64Decode(coverBase64);
+    }
+
+    return NovelModel(
+      sourceId: source['id']?.toString() ?? fileName,
+      title:
+          book['title']?.toString() ?? fileName.replaceAll('.atlas', ''),
+      author: book['author']?.toString(),
+      description: book['description']?.toString(),
+      coverBytes: coverBytes,
+      language: book['language']?.toString(),
+      genres: (book['genres'] as List?)?.cast<String>() ?? [],
+      status: book['status']?.toString(),
+      rating:
+          book['rating'] is num ? (book['rating'] as num).toDouble() : null,
+      source: source['name']?.toString() ?? 'Atlas',
+      sourceUrl: source['url']?.toString() ?? '',
+      category: decoded['category'] == 'novel'
+          ? ContentCategory.novel
+          : ContentCategory.book,
+      chapterCount:
+          book['totalChapters'] is int ? book['totalChapters'] as int : 0,
+    );
   }
 }

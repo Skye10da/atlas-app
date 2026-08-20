@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.dart';
-import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
-import 'package:atlas_app/core/content_acquisition/providers.dart';
-import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
+import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/presentation/providers/source_browser_provider.dart';
-import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
+import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 
 class SourceSearchScreen extends ConsumerStatefulWidget {
   const SourceSearchScreen({super.key, required this.sourceName});
@@ -73,111 +70,33 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen> with Si
   }
 
   Future<void> _import(SourceSearchResult result) async {
-    // Re-entrancy guard: set this *before* the confirm dialog (not after),
-    // so a fast double-tap or double-click on the card is ignored no matter
-    // which `await` gap the second call lands in. Without this, two
-    // concurrent imports of the same URL can both resolve to the same
-    // bookId (if the acquisition engine dedupes/upserts by source URL) and
-    // both end up calling `context.push('/book/$bookId')` — pushing the
-    // same route twice before the first settles, which crashes the
-    // Navigator with a duplicate page-key assertion.
     if (_isImporting) return;
     setState(() => _isImporting = true);
 
     try {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(result.title),
-          content: SizedBox(
-            width: 320,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (result.coverUrl != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(result.coverUrl!, height: 200, width: 320, fit: BoxFit.contain),
-                  ),
-                if (result.author != null) ...[
-                  const SizedBox(height: 12),
-                  Text('by ${result.author}', style: Theme.of(ctx).textTheme.bodyMedium),
-                ],
-                if (result.description != null) ...[
-                  const SizedBox(height: 8),
-                  Text(result.description!, style: Theme.of(ctx).textTheme.bodySmall),
-                ],
-                const SizedBox(height: 16),
-                Text('Import from ${_source.sourceName}?',
-                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Import')),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-
-      final engine = ref.read(contentAcquisitionEngineProvider);
-      final progress = ValueNotifier<double>(0);
-      final importFuture = engine.importAndSave(
-        result.importUrl,
-        onProgress: (p) => progress.value = p,
+      final previewModel = NovelModel(
+        sourceId: result.id,
+        title: result.title,
+        author: result.author,
+        description: result.description,
+        coverUrl: result.coverUrl,
+        language: result.language,
+        source: _source.sourceName,
+        sourceUrl: result.importUrl,
+        category: _source.contentCategory,
       );
 
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => ImportProgressDialog(
-          future: importFuture.then((_) {}, onError: (_) {}),
-          progress: progress,
-        ),
-      );
-
-      if (!mounted) return;
-      ImportOutcome? outcome;
-      try {
-        outcome = await importFuture;
-      } on ImportRedirect catch (e) {
-        if (!mounted) return;
-        final shouldOpen = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(result.title),
-            content: const Text('No full text available on Open Library. Open the book page in your browser?'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Open in Browser')),
-            ],
-          ),
-        );
-        if (shouldOpen == true && mounted) {
-          // fallback: copy URL to clipboard so user can open manually
-          await Clipboard.setData(ClipboardData(text: e.redirectUrl));
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('URL copied: ${e.redirectUrl}')),
-            );
-          }
-        }
-        return;
-      }
-
-      if (!mounted) return;
-      final shouldOpen = await showImportCompleteDialog(
+      final outcome = await showImportUrlSheet(
         context,
-        category: outcome.category,
+        title: result.title,
+        skipInputStage: true,
+        previewModel: previewModel,
       );
-      if (shouldOpen && mounted) {
-        final route = outcome.category == ContentCategory.novel
-            ? '/novel/${outcome.bookId}'
-            : '/book/${outcome.bookId}';
-        context.go(route);
-      }
+      if (outcome == null || !mounted) return;
+      final route = outcome.category == ContentCategory.novel
+          ? '/novel/${outcome.bookId}'
+          : '/book/${outcome.bookId}';
+      context.go(route);
     } finally {
       if (mounted) setState(() => _isImporting = false);
     }

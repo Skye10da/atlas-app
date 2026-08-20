@@ -520,8 +520,9 @@ await DraggableBottomSheet.show(
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(readingSettingsProvider).valueOrNull ?? const ReadingSettingsEntity();
-    final nightMode = settings.theme.isDark;
-    final background = settings.theme.background;
+    final colorScheme = Theme.of(context).colorScheme;
+    final nightMode = colorScheme.brightness == Brightness.dark;
+    final background = settings.theme.resolve(colorScheme).background;
 
     if (!_progressLoaded) {
       return Scaffold(backgroundColor: background, body: const Center(child: CircularProgressIndicator()));

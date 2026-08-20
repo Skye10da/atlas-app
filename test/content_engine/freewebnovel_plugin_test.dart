@@ -83,6 +83,18 @@ const _searchPage = '''
 </div>
 </body></html>''';
 
+const _novelPageNoOgTags = '''
+<html><head>
+<title>Defying the Lycan King Novel | Free Web Novel</title>
+<meta name="description" content="She has spent her life believing she's cursed.">
+</head><body>
+<div class="m-desc"><h1 class="tit">Defying the Lycan King</h1></div>
+<div class="pic"><img src="/files/article/image/13/13246/13246s.jpg" alt="Defying the Lycan King"></div>
+<ul class="ul-list5" id="idData">
+  <li><a href="/novel/defying-the-lycan-king/chapter-1" title="Chapter 1: The Hated One" class="con">Chapter 1: The Hated One</a></li>
+</ul>
+</body></html>''';
+
 class _FakeTransportRegistry extends TransportRegistry {
   const _FakeTransportRegistry(this.transport);
 
@@ -256,6 +268,22 @@ void main() {
       expect(chapter.content, isNot(contains('Next Chapter')));
       expect(chapter.content, isNot(contains('Defying the Lycan King')));
       expect(chapter.wordCount, greaterThan(0));
+    });
+
+    test('metadata selectors supply title and cover when og: tags are missing',
+        () async {
+      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
+      final source = await repo(transport).buildSource('freewebnovel');
+
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      expect(novel.title, 'Defying the Lycan King',
+          reason: '.m-desc h1.tit must be used instead of <title> tag');
+      expect(novel.description, contains("she's cursed"));
+      expect(novel.coverUrl,
+          'https://freewebnovel.com/files/article/image/13/13246/13246s.jpg',
+          reason: '.pic img@src must resolve the relative URL');
+      expect(novel.source, 'FreeWebNovel');
     });
   });
 }

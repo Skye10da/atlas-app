@@ -16,6 +16,16 @@ namespace {
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
 
+// Windows 11 Build 22000+ caption/text color attributes.
+// Defined here so we can target Win11 features without requiring a newer SDK.
+#ifndef DWMWA_CAPTION_COLOR
+#define DWMWA_CAPTION_COLOR 35
+#endif
+
+#ifndef DWMWA_TEXT_COLOR
+#define DWMWA_TEXT_COLOR 36
+#endif
+
 // App-specific class so a second launch can locate the running window and
 // forward "Open with Atlas" documents to it. Keep in sync with
 // kMainWindowClassName in main.cpp.
@@ -288,4 +298,24 @@ void Win32Window::UpdateTheme(HWND const window) {
     DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
                           &enable_dark_mode, sizeof(enable_dark_mode));
   }
+}
+
+// static
+void Win32Window::SetCaptionColor(HWND const window,
+                                  COLORREF bgColor,
+                                  COLORREF textColor) {
+  // DWMWA_CAPTION_COLOR (35) and DWMWA_TEXT_COLOR (36) are Win11 only.
+  // DwmSetWindowAttribute returns E_INVALIDARG on unsupported attributes,
+  // so we just try the call and ignore failures gracefully.
+  DwmSetWindowAttribute(window, DWMWA_CAPTION_COLOR,
+                        &bgColor, sizeof(bgColor));
+  DwmSetWindowAttribute(window, DWMWA_TEXT_COLOR,
+                        &textColor, sizeof(textColor));
+}
+
+// static
+void Win32Window::SetDarkMode(HWND const window, bool enableDark) {
+  BOOL value = enableDark ? TRUE : FALSE;
+  DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                        &value, sizeof(value));
 }

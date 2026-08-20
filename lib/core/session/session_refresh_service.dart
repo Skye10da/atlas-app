@@ -5,10 +5,21 @@ import 'package:flutter/foundation.dart';
 /// so the page runs the real bot challenge and lands on content).
 @immutable
 class SessionRefreshRequest {
-  const SessionRefreshRequest({required this.origin, this.seedUrl});
+  const SessionRefreshRequest({
+    required this.origin,
+    this.seedUrl,
+    this.verificationProbe,
+  });
 
   final Uri origin;
   final Uri? seedUrl;
+
+  /// Optional check the refresh webview polls to decide that verification has
+  /// *actually* passed — stricter than "the origin has cookies", which can be
+  /// true before a bot challenge is solved (WTR-LAB sets cookies immediately).
+  /// When the WTR reader API answers without `requireTurnstile`, verification
+  /// has really landed. Falls back to the generic cookie probe when null.
+  final Future<bool> Function()? verificationProbe;
 }
 
 /// Process-wide latch + driver seam for the "session expired" flow.
@@ -29,6 +40,17 @@ class SessionRefreshService {
   /// cleared or refreshed. Cleared when a refresh completes (success or not)
   /// so the auto flow never loops on the same failure.
   final ValueNotifier<Uri?> lastInvalidOrigin = ValueNotifier<Uri?>(null);
+
+  /// The URL that triggered the session wall (usually the chapter URL), kept in
+  /// sync with [lastInvalidOrigin] so the refresh webview can open the *page
+  /// that needs re-verification* rather than the site root. Null when the
+  /// failure carried no useful seed URL.
+  final ValueNotifier<Uri?> lastInvalidSeedUrl = ValueNotifier<Uri?>(null);
+
+  /// Domain-specific "verification passed" probe latched with the last wall —
+  /// see [SessionRefreshRequest.verificationProbe]. Null falls back to the
+  /// generic cookie-presence probe in the refresh webview.
+  Future<bool> Function()? lastInvalidVerificationProbe;
 
   /// Origins already auto-refreshed this run, so the auto flow fires once per
   /// origin per cycle. Cleared when a refresh completes.
@@ -52,8 +74,21 @@ class SessionRefreshService {
       a.port == b.port;
 
   /// Records that a fetch for [origin] failed on an auth/session wall.
-  void markInvalid(Uri origin) {
+  ///
+  /// [seedUrl] — when known — is the page that needs the bot check passed
+  /// (normally the chapter URL, with the active `?service=` param), used as the
+  /// refresh webview's initial page. [verificationProbe] — when supplied — is
+  /// how the refresh webview knows verification has truly passed (stronger than
+  /// "cookies exist"), e.g. a site-specific API call that stops returning a bot
+  /// challenge.
+  void markInvalid(
+    Uri origin, {
+    Uri? seedUrl,
+    Future<bool> Function()? verificationProbe,
+  }) {
     lastInvalidOrigin.value = origin;
+    lastInvalidSeedUrl.value = seedUrl;
+    lastInvalidVerificationProbe = verificationProbe;
   }
 
   /// Whether [origin] was already auto-refreshed this run and not yet cleared.
@@ -64,14 +99,23 @@ class SessionRefreshService {
   /// Re-establishes the session for [origin] by running the installed driver
   /// (the quick webview). Returns true on success. Clears the latch regardless,
   /// so the auto flow never loops on the same failure.
-  Future<bool> ensureFresh(Uri origin, {Uri? seedUrl}) async {
+  Future<bool> ensureFresh(
+    Uri origin, {
+    Uri? seedUrl,
+    Future<bool> Function()? verificationProbe,
+  }) async {
     final run = driver;
     if (run == null) {
       clearInvalid();
       return false;
     }
     final result = await run(
-      SessionRefreshRequest(origin: origin, seedUrl: seedUrl),
+      SessionRefreshRequest(
+        origin: origin,
+        seedUrl: seedUrl,
+        verificationProbe:
+            verificationProbe ?? lastInvalidVerificationProbe,
+      ),
     );
     clearInvalid();
     return result;
@@ -79,6 +123,8 @@ class SessionRefreshService {
 
   void clearInvalid() {
     lastInvalidOrigin.value = null;
+    lastInvalidSeedUrl.value = null;
+    lastInvalidVerificationProbe = null;
     _autoRefreshed.clear();
   }
 

@@ -5,15 +5,18 @@
 /// `POST /api/reader/get` endpoint accepts (and mirrors the `?service=` URL
 /// param on the chapter page: `web`, `webplus`, and no param for `ai`).
 enum WtrTranslationService {
-  /// The standard site translation (Cloudflare-protected, no account needed).
-  web('web', 'Web', 'Default web translation'),
+  /// The site's web translation. Serves the *source-language* text — Chinese
+  /// for Chinese-origin novels — so it is not an English option. No account
+  /// needed.
+  web('web', 'Web', 'Google translation, no account needed'),
 
-  /// The "WebPlus" service (Cloudflare-protected, no account needed).
-  webPlus('webplus', 'WebPlus', 'Enhanced web translation'),
+  /// The "WebPlus" service. Enhanced web translation; no account needed.
+  webPlus('webplus', 'WebPlus', 'Enhanced web translation, no account needed'),
 
-  /// The AI translation service. Requires signing in to a WTR-Lab account so
-  /// Atlas can reuse the authenticated browser session.
-  ai('ai', 'AI', 'AI translation — requires a WTR-Lab account');
+  /// The AI translation service. Returns English (machine-translated), which is
+  /// the site's default output language. Requires signing in to a WTR-Lab
+  /// account so Atlas can reuse the authenticated browser session.
+  ai('ai', 'AI', 'AI translation into English — requires a WTR-Lab account');
 
   const WtrTranslationService(this.apiValue, this.label, this.description);
 
@@ -31,5 +34,14 @@ enum WtrTranslationService {
       if (service.apiValue == value) return service;
     }
     return null;
+  }
+
+  /// The service a WTR chapter URL explicitly requests via its `?service=`
+  /// query param (`web`, `webplus`, `ai`). Returns null when the param is
+  /// absent or unknown — meaning the caller should keep the default behavior
+  /// (the site's account-dependent default, which is not pinned by the URL).
+  static WtrTranslationService? fromQueryParam(String? value) {
+    if (value == null || value.isEmpty) return null;
+    return fromApiValue(value);
   }
 }

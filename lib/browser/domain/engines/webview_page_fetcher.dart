@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_fetch_result.dart';
@@ -11,7 +12,11 @@ import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 /// carries the browser's cookies, User-Agent and TLS fingerprint — the things
 /// that let the page itself load — and thereby passes Cloudflare-style bot
 /// challenges. The result (body, HTTP status, final URL) is delivered back
-/// through a transient JS handler.
+/// through a transient JS handler. GETs and JSON POSTs (via [method] and
+/// [jsonBody]) are both supported.
+///
+/// When [binary] is true the fetcher uses `arrayBuffer()` + base64 encoding
+/// to transfer raw bytes without the UTF-8 corruption that `text()` causes.
 ///
 /// Only same-origin requests are served (a cross-origin `fetch` would be
 /// blocked by CORS and is pointless); anything else returns `null` so
@@ -29,6 +34,9 @@ class WebViewPageFetcher {
   Future<WebViewFetchResult?> fetchHtml(
     Uri url, {
     Map<String, String>? headers,
+    String? method,
+    Object? jsonBody,
+    bool binary = false,
   }) async {
     final currentUri = Uri.tryParse(engine.currentUrl.value ?? '');
     if (currentUri == null || !_sameOrigin(currentUri, url)) return null;
@@ -48,20 +56,53 @@ class WebViewPageFetcher {
     });
 
     try {
-      // `void (...)` keeps the evaluated expression from returning a Promise,
-      // which some engines cannot serialize; the result arrives via the
-      // handler above. Errors (CORS, network) call back with a zero-status
-      // envelope so the caller falls through to plain HTTP.
-      await engine.evaluate('''
-void ((url, headers, handler) => {
-  fetch(url, { method: 'GET', credentials: 'include', headers: headers })
+      final httpMethod =
+          (method == null || method.isEmpty) ? 'GET' : method.toUpperCase();
+      final body = jsonBody == null ? null : jsonEncode(jsonBody);
+      final requestHeaders = <String, String>{...?headers};
+      if (body != null &&
+          !requestHeaders.keys
+              .any((k) => k.toLowerCase() == 'content-type')) {
+        requestHeaders['Content-Type'] = 'application/json';
+      }
+
+      if (binary) {
+        // arrayBuffer() preserves raw bytes; btoa() encodes to base64 so the
+        // data can travel through a JSON envelope without corruption.
+        await engine.evaluate('''
+void ((url, headers, method, body, handler) => {
+  const opts = { method: method, credentials: 'include', headers: headers };
+  if (body !== null) opts.body = body;
+  fetch(url, opts)
+    .then(async r => {
+      const buf = await r.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      const chunk = 8192;
+      for (let i = 0; i < bytes.byteLength; i += chunk) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.byteLength)));
+      }
+      const b64 = btoa(bin);
+      window.flutter_inappwebview.callHandler(handler, JSON.stringify({ b: b64, s: r.status, u: r.url, bin: true }));
+    })
+    .catch(() => window.flutter_inappwebview.callHandler(handler, JSON.stringify({ s: 0 })));
+})(${jsonEncode(url.toString())}, ${jsonEncode(requestHeaders)}, ${jsonEncode(httpMethod)}, ${jsonEncode(body)}, ${jsonEncode(handlerName)});
+''');
+      } else {
+        await engine.evaluate('''
+void ((url, headers, method, body, handler) => {
+  const opts = { method: method, credentials: 'include', headers: headers };
+  if (body !== null) opts.body = body;
+  fetch(url, opts)
     .then(async r => {
       const t = await r.text();
       window.flutter_inappwebview.callHandler(handler, JSON.stringify({ b: t, s: r.status, u: r.url }));
     })
     .catch(() => window.flutter_inappwebview.callHandler(handler, JSON.stringify({ s: 0 })));
-})(${jsonEncode(url.toString())}, ${jsonEncode(headers ?? const {})}, ${jsonEncode(handlerName)});
+})(${jsonEncode(url.toString())}, ${jsonEncode(requestHeaders)}, ${jsonEncode(httpMethod)}, ${jsonEncode(body)}, ${jsonEncode(handlerName)});
 ''');
+      }
+
       return await completer.future.timeout(timeout);
     } on Object {
       return null;
@@ -76,8 +117,18 @@ void ((url, headers, handler) => {
       final status = map['s'] as num? ?? 0;
       final body = map['b'] as String?;
       final url = map['u'] as String?;
+      final isBinary = map['bin'] as bool? ?? false;
+      Uint8List? bytes;
+      if (isBinary && body != null) {
+        try {
+          bytes = base64.decode(body);
+        } on Object {
+          return null;
+        }
+      }
       return WebViewFetchResult(
-        body: body,
+        body: isBinary ? null : body,
+        bytes: bytes,
         status: status.toInt(),
         finalUrl: url == null ? null : Uri.tryParse(url),
       );

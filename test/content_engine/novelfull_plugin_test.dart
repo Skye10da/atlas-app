@@ -165,6 +165,46 @@ const _ajaxChapterPageMixedUrls = '''
 <option value="/novel/chapter-6492end-chapter-6492-finale.html">Chapter 6492_End - Chapter 6492: Finale</option>
 </select></body></html>''';
 
+/// Novel page where og:title and og:image are missing, so the CSS selectors
+/// `.m-desc h1.tit` and `.pic img@src` must supply the title and cover.
+const _novelPageNoOgTags = '''
+<html><head><title>Read Invincible novel online free - NovelFull</title></head><body>
+<div class="container" id="truyen" data-page-size="40" data-current-page="1" data-total-page="1" data-total-chapters="1">
+  <div class="col-content">
+    <div class="m-info">
+      <div class="g-tit"><h3 class="tit">Invincible</h3></div>
+      <div class="m-book1">
+        <div class="m-imgtxt">
+          <div class="pic"><img src="/uploads/thumbs/invincible-cover.jpg" alt="Invincible"></div>
+        </div>
+      </div>
+    </div>
+    <div class="m-desc hasmore">
+      <h1 class="tit">Invincible</h1>
+      <div class="score" id="novel-score" data-novel-id="456"></div>
+      <div class="m-desc-content" id="novel-summary-inner">
+        <p>Weakness is a sin. A story of the strong.</p>
+      </div>
+    </div>
+    <div class="col-info-desc">
+      <div class="info">
+        <div><h3>Author:</h3><a href="/author/Qi-peasant">Qi Peasant</a></div>
+        <div><h3>Genres:</h3><a href="/genre/Action">Action</a>, <a href="/genre/Fantasy">Fantasy</a></div>
+        <div><h3>Status:</h3><a href="/status/Ongoing">Ongoing</a></div>
+      </div>
+    </div>
+    <div class="m-newest2" id="list-chapter" data-novel-id="456" data-current-page="1" data-page-size="40" data-total-page="1" data-total-chapters="1">
+      <ul class="ul-list5" id="idData">
+        <li><a href="/invincible/chapter-1.html" class="con" title="Chapter 1"><span class="chapter-text">Chapter 1</span></a></li>
+      </ul>
+      <div class="page" id="barcon">
+        <select id="indexselect"><option value="1" data-url="/invincible.html" selected>C.1</option></select>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>''';
+
 const _searchPage = '''
 <html><body>
 <div class="row top-item">
@@ -406,6 +446,24 @@ void main() {
       expect(chapter.content, contains('Second paragraph.'));
       expect(chapter.content, isNot(contains('Advertisement')));
       expect(chapter.wordCount, greaterThan(0));
+    });
+
+    test('metadata selectors supply title and cover when og: tags are missing',
+        () async {
+      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
+      final source = await repo(transport).buildSource('novelfull');
+
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      expect(novel.title, 'Invincible',
+          reason: '.m-desc h1.tit must be used instead of <title> tag');
+      expect(novel.author, 'Qi Peasant');
+      expect(novel.description, contains('Weakness is a sin'));
+      expect(novel.coverUrl,
+          'https://novelfull.net/uploads/thumbs/invincible-cover.jpg',
+          reason: '.pic img@src must resolve the relative URL');
+      expect(novel.genres, ['Action', 'Fantasy']);
+      expect(novel.source, 'NovelFull');
     });
   });
 }

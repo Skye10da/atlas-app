@@ -8,9 +8,10 @@ import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/novel_metadata_bar.dart';
 
 class NovelHeroHeader extends StatelessWidget {
-  const NovelHeroHeader({super.key, required this.book});
+  const NovelHeroHeader({super.key, required this.book, this.isEmbedded = false});
 
   final BookEntity book;
+  final bool isEmbedded;
 
   @override
   Widget build(BuildContext context) {
@@ -52,10 +53,12 @@ class NovelHeroHeader extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Hero(
-                  tag: 'book-cover-${book.id}',
-                  child: BookCover(coverPath: book.coverPath, width: 110, height: 165),
-                ),
+                isEmbedded
+                    ? BookCover(coverPath: book.coverPath, width: 110, height: 165)
+                    : Hero(
+                        tag: 'book-cover-${book.id}',
+                        child: BookCover(coverPath: book.coverPath, width: 110, height: 165),
+                      ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(

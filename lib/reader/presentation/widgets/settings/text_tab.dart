@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import 'package:atlas_app/core/design_system/atoms/app_chip.dart';
+import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 
@@ -62,12 +63,11 @@ class TextTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Font Size', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Font Size'),
           Slider(
             value: fontSize,
             min: 12,
@@ -77,7 +77,7 @@ class TextTab extends StatelessWidget {
             onChanged: onFontSizeChanged,
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text('Font Family', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Font Family'),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: 6,
@@ -85,44 +85,36 @@ class TextTab extends StatelessWidget {
             children: List.generate(_fontOptions.length, (i) {
               final f = _fontOptions[i];
               final isSelected = fontFamily == f;
-              return ChoiceChip(
-                label: Text(_fontLabels[i]),
+              return AppChip(
+                label: _fontLabels[i],
                 selected: isSelected,
-                onSelected: (_) {
-                  HapticFeedback.selectionClick();
-                  onFontFamilyChanged(f);
-                },
+                onPressed: () => onFontFamilyChanged(f),
               );
             }),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text('Font Weight', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Font Weight'),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: 6,
             runSpacing: 4,
             children: [
               for (final w in const <int?>[null, 400, 500, 600, 700])
-                ChoiceChip(
-                  label: Text(
-                    switch (w) {
-                      null => 'Regular',
-                      500 => 'Medium',
-                      600 => 'SemiBold',
-                      700 => 'Bold',
-                      _ => '$w',
-                    },
-                  ),
-                  selected: fontWeight == w,
-                  onSelected: (_) {
-                    HapticFeedback.selectionClick();
-                    onFontWeightChanged(w);
+                AppChip(
+                  label: switch (w) {
+                    null => 'Regular',
+                    500 => 'Medium',
+                    600 => 'SemiBold',
+                    700 => 'Bold',
+                    _ => '$w',
                   },
+                  selected: fontWeight == w,
+                  onPressed: () => onFontWeightChanged(w),
                 ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text('Line Height', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Line Height'),
           Slider(
             value: lineHeight,
             min: 1.0,
@@ -132,7 +124,7 @@ class TextTab extends StatelessWidget {
             onChanged: onLineHeightChanged,
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text('Letter Spacing', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Letter Spacing'),
           Slider(
             value: letterSpacing,
             min: 0.0,
@@ -142,19 +134,16 @@ class TextTab extends StatelessWidget {
             onChanged: onLetterSpacingChanged,
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text('Text Alignment', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Text Alignment'),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: 8,
             children: TextAlignment.values.map((a) {
               final isSelected = textAlignment == a;
-              return ChoiceChip(
-                label: Text(a.label),
+              return AppChip(
+                label: a.label,
                 selected: isSelected,
-                onSelected: (_) {
-                  HapticFeedback.selectionClick();
-                  onTextAlignmentChanged(a);
-                },
+                onPressed: () => onTextAlignmentChanged(a),
               );
             }).toList(),
           ),

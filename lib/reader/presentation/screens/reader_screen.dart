@@ -63,12 +63,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         // Wait for the book lookup so we never build the chapter reader for a
         // PDF (which would dispose it mid-load the moment the format resolves).
         if ((book == null) && snapshot.connectionState != ConnectionState.done) {
-          return _readerShimmer;
+          return _readerShimmer(context);
         }
 
         return settingsAsync.when(
-          loading: () => _readerShimmer,
-          error: (_, _) => _readerShimmer,
+          loading: () => _readerShimmer(context),
+          error: (_, _) => _readerShimmer(context),
           data: (settings) => ReaderContent(
             repo: repo,
             bookId: widget.bookId,
@@ -79,8 +79,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     );
   }
 
-Widget get _readerShimmer => Scaffold(
-    backgroundColor: ReadingViewTheme.light.background,
-    body: const ChapterShimmer(vt: ReadingViewTheme.light),
-  );
+Widget _readerShimmer(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: ReadingViewTheme.paper.resolve(colorScheme).background,
+      body: const ChapterShimmer(vt: ReadingViewTheme.paper),
+    );
+  }
 }

@@ -15,20 +15,21 @@ import 'package:atlas_app/core/content_engine/transport/transport_registry.dart'
 
 import 'test_fixtures.dart';
 
-const _base = 'https://allnovelfull.net';
+const _base = 'https://novgo.net';
 const _novelUrl = '$_base/overlord-ln.html';
 const _chapter1Url = '$_base/overlord-ln/chapter-1.html';
 const _ajaxUrl = '$_base/ajax-chapter-option?novelId=377';
 
 const _novelPage = '''
 <html><head>
-<meta property="og:title" content="Overlord (LN)">
+<meta property="og:title" content="Read Overlord (LN) novel online free - NOVGO.NET">
 <meta property="og:image" content="$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg">
 <meta property="og:description" content="Experience the official release of Overlord (LN) online.">
 </head><body>
 <div class="col-xs-12 col-info-desc">
   <div class="col-xs-12 col-sm-4 col-md-4 info-holder">
     <div class="books">
+      <div class="desc"><h3 class="title">Overlord (LN)</h3></div>
       <div class="book"><img src="/uploads/thumbs/overlord-ln-b4ea0524cf.jpg" alt="Read Overlord (LN) Online"></div>
     </div>
     <div class="info">
@@ -84,6 +85,33 @@ const _searchPage = '''
 </div>
 <div class="row top-item">
   <div class="s-title"><h3><a href="$_base/another-ln.html">Another (LN)</a></h3></div>
+</div>
+</body></html>''';
+
+const _novelPageNoOgTags = '''
+<html><head><title>Read Overlord (LN) novel online free - NOVGO.NET</title></head><body>
+<div class="col-xs-12 col-info-desc">
+  <div class="col-xs-12 col-sm-4 col-md-4 info-holder">
+    <div class="books">
+      <div class="desc"><h3 class="title">Overlord (LN)</h3></div>
+      <div class="book"><img src="/uploads/thumbs/overlord-ln-b4ea0524cf.jpg" alt="Overlord (LN)"></div>
+    </div>
+    <div class="info">
+      <div><h3>Author:</h3><a href="/author/MARUYAMA+Kugane">MARUYAMA Kugane</a></div>
+      <div><h3>Genre:</h3><a href="/genre/Action">Action</a>, <a href="/genre/Fantasy">Fantasy</a></div>
+      <div><h3>Status:</h3><a href="/status/Completed">Completed</a></div>
+    </div>
+  </div>
+  <div class="col-xs-12 col-sm-8 col-md-8 desc">
+    <div class="desc-text">
+      <p>Experience the official release of Overlord (LN) online.</p>
+    </div>
+    <div id="list-chapter">
+      <ul class="list-chapter">
+        <li><a href="/overlord-ln/chapter-1.html" title="Chapter 1"><span class="chapter-text">Chapter 1</span></a></li>
+      </ul>
+    </div>
+  </div>
 </div>
 </body></html>''';
 
@@ -182,7 +210,8 @@ void main() {
   });
 
   group('allnovelfull PluginSource end-to-end', () {
-    test('canHandle matches the allnovelfull.net host', () async {
+    test('canHandle matches the novgo.net host (formerly allnovelfull.net)',
+        () async {
       final source = await repo(FakeTransport()).buildSource('allnovelfull');
 
       expect(source.canHandle(Uri.parse('$_base/overlord-ln.html')), isTrue);
@@ -256,6 +285,23 @@ void main() {
       expect(chapter.content, isNot(contains('Advertisement')));
       expect(chapter.content, isNot(contains('Back to novel')));
       expect(chapter.wordCount, greaterThan(0));
+    });
+
+    test('metadata selectors supply title and cover when og: tags are polluted',
+        () async {
+      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
+      final source = await repo(transport).buildSource('allnovelfull');
+
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      expect(novel.title, 'Overlord (LN)',
+          reason: '.desc h3.title must be used instead of polluted og:title');
+      expect(novel.author, 'MARUYAMA Kugane');
+      expect(novel.description, contains('official release of Overlord'));
+      expect(novel.coverUrl,
+          '$_base/uploads/thumbs/overlord-ln-b4ea0524cf.jpg',
+          reason: '.book img@src must resolve the relative URL');
+      expect(novel.source, 'AllNovelFull');
     });
   });
 }

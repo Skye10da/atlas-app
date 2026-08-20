@@ -10,12 +10,15 @@ import 'package:atlas_app/core/content_acquisition/adapters/source_registry.dart
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
+import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/content_acquisition/services/cache_manager.dart';
 import 'package:atlas_app/core/content_acquisition/services/download_manager.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 import 'package:atlas_app/core/content_acquisition/services/prefetch_engine.dart';
 import 'package:atlas_app/core/content_engine/image/image_pipeline.dart';
+import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/database/database.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_import_service.dart';
 
 class ImportOutcome {
   const ImportOutcome({required this.bookId, required this.category});
@@ -45,6 +48,11 @@ class ContentAcquisitionEngine {
   late final PrefetchEngine prefetchEngine;
   final Map<String, _BookSourceState> _activeBooks = {};
 
+  /// Fetches only metadata for a URL (for previewing). Does not import.
+  Future<NovelModel> fetchMetadata(String url) {
+    return importService.fetchMetadata(url);
+  }
+
   Future<ImportOutcome> importAndSave(
     String url, {
     ImportProgressCallback? onProgress,
@@ -61,6 +69,15 @@ class ContentAcquisitionEngine {
       throw const ImportException('This book is already in your library.');
     }
 
+    // An explicit `?service=` on a WTR import URL pins that novel's translation
+    // service; a missing param leaves the account-dependent default in place.
+    await applyWtrServiceFromImportedUrl(
+      url,
+      sourceId: novel.sourceId,
+      sourceUrl: novel.sourceUrl,
+      sourceName: novel.source,
+    );
+
     var bookId = _normalizeId(novel.title);
     final idConflict = await (db.select(db.books)..where((b) => b.id.equals(bookId))).getSingleOrNull();
     if (idConflict != null) {
@@ -74,13 +91,21 @@ class ContentAcquisitionEngine {
     String? coverPath;
     final Uint8List? coverBytes = novel.coverBytes;
     if (coverBytes == null && novel.coverUrl != null) {
-      coverPath = await _downloadCover(novel.coverUrl!, bookDir.path);
+      final coverHeaders = result.source is PluginSource
+          ? (result.source as PluginSource).coverHeaders
+          : null;
+      coverPath = await _downloadCover(
+        novel.coverUrl!,
+        bookDir.path,
+        headers: coverHeaders,
+      );
     }
     if (coverPath == null && coverBytes != null) {
       coverPath = p.join(bookDir.path, 'cover.jpg');
       await File(coverPath).writeAsBytes(coverBytes);
     }
 
+    final chapterCompanions = <ChaptersCompanion>[];
     for (var i = 0; i < chapters.length; i++) {
       final ch = chapters[i];
       final chapterId = '${bookId}_ch${ch.index}';
@@ -92,7 +117,7 @@ class ContentAcquisitionEngine {
 
       final wordCount = ch.wordCount ?? (ch.content?.split(RegExp(r'\s+')).length ?? 0);
 
-      await db.into(db.chapters).insert(ChaptersCompanion(
+      chapterCompanions.add(ChaptersCompanion(
         id: Value(chapterId),
         bookId: Value(bookId),
         index: Value(ch.index),
@@ -106,6 +131,12 @@ class ContentAcquisitionEngine {
 
       onProgress?.call(0.8 + 0.2 * ((i + 1) / chapters.length));
     }
+
+    await db.batch((batch) {
+      for (final companion in chapterCompanions) {
+        batch.insert(db.chapters, companion);
+      }
+    });
 
     final chapterIndex = chapters.map((ch) => {
       'id': ch.id,
@@ -194,11 +225,15 @@ class ContentAcquisitionEngine {
   /// Downloads a cover through the [ImagePipeline] when one is wired in
   /// (content-addressed, deduped), copying the result into the book dir.
   /// Falls back to null on any failure so a missing cover never blocks import.
-  Future<String?> _downloadCover(String url, String bookDirPath) async {
+  Future<String?> _downloadCover(
+    String url,
+    String bookDirPath, {
+    Map<String, String>? headers,
+  }) async {
     final pipeline = imagePipeline;
     if (pipeline == null) return null;
     try {
-      final stored = await pipeline.download(Uri.parse(url));
+      final stored = await pipeline.download(Uri.parse(url), headers: headers);
       if (stored == null) return null;
       final coverPath = p.join(bookDirPath, 'cover.jpg');
       await File(stored).copy(coverPath);

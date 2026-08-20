@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:epub_plus/epub_plus.dart';
@@ -51,7 +52,7 @@ class GutenbergSource implements SearchableSource {
       try {
         final epubResponse = await _client.get(Uri.parse(novel.sourceUrl));
         if (epubResponse.statusCode == 200) {
-          final book = await EpubReader.readBook(epubResponse.bodyBytes);
+          final book = await _readEpubInIsolate(epubResponse.bodyBytes);
           final coverBytes = _extractCoverBytes(book);
           if (coverBytes != null) {
             return novel.copyWith(coverBytes: coverBytes);
@@ -159,7 +160,7 @@ class GutenbergSource implements SearchableSource {
     if (response.statusCode != 200) {
       throw Exception('Failed to download EPUB: ${response.statusCode}');
     }
-    final book = await EpubReader.readBook(response.bodyBytes);
+    final book = await _readEpubInIsolate(response.bodyBytes);
     final flat = _flattenChapters(book.chapters);
 
     if (flat.isEmpty) throw Exception('No chapters in EPUB');
@@ -397,3 +398,6 @@ class _ChapterSection {
   final String title;
   final String content;
 }
+
+Future<EpubBook> _readEpubInIsolate(List<int> bytes) =>
+    Isolate.run(() => EpubReader.readBook(bytes));

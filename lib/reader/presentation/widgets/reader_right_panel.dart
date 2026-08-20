@@ -302,6 +302,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(readingSettingsProvider);
     final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return settingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -358,12 +359,12 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
                       child: Container(
                         width: 48,
                         decoration: BoxDecoration(
-                          color: t.background,
+                          color: t.resolve(colorScheme).background,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: isSelected
                                 ? Theme.of(context).colorScheme.primary
-                                : t.text.withValues(alpha: 0.15),
+                                : t.resolve(colorScheme).text.withValues(alpha: 0.15),
                             width: isSelected ? 2 : 1,
                           ),
                         ),
@@ -371,7 +372,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
                           child: Text(
                             'Ab',
                             style: TextStyle(
-                              color: t.text,
+                              color: t.resolve(colorScheme).text,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),

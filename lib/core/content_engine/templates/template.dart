@@ -16,6 +16,7 @@ class PluginContext {
     this.selectors,
     this.filters,
     this.permissions,
+    this.language,
   });
 
   final PluginManifest plugin;
@@ -23,6 +24,14 @@ class PluginContext {
   final SelectorSet? selectors;
   final PluginFilters? filters;
   final PluginPermissions? permissions;
+
+  /// User-selected target language for a request, overriding the plugin
+  /// manifest's default. Null means "use the plugin default".
+  final String? language;
+
+  /// The language this request should be served in: the user's override when
+  /// set, otherwise the plugin manifest's declared language.
+  String get effectiveLanguage => language ?? plugin.language;
 }
 
 /// A compiled template that interprets plugin manifests for a given site

@@ -29,6 +29,17 @@ class ImportService {
     return registry.resolve(uri);
   }
 
+  /// Resolves the source for [url] and fetches only its metadata.
+  /// Does NOT fetch chapters — use [import] for the full pipeline.
+  Future<NovelModel> fetchMetadata(String url) async {
+    final uri = Uri.parse(url);
+    final source = registry.resolve(uri);
+    if (source == null) {
+      throw ImportException('No source plugin available for: $url');
+    }
+    return source.getMetadata(uri);
+  }
+
   Future<ImportResult> import(
     String url, {
     ImportProgressCallback? onProgress,

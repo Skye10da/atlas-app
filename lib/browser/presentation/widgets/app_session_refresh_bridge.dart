@@ -42,6 +42,7 @@ class _AppSessionRefreshBridgeState
         builder: (_) => SessionRefreshScreen(
           origin: request.origin,
           seedUrl: request.seedUrl,
+          verificationProbe: request.verificationProbe,
           engineFactory: ref.read(browserEngineFactoryProvider),
           sessionStore: ref.read(browserSessionRepositoryProvider),
         ),

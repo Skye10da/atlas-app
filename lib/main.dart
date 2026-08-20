@@ -13,6 +13,7 @@ import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/file_open_providers.dart';
 import 'package:atlas_app/core/import/opened_file_import_service.dart';
 import 'package:atlas_app/core/router/app_router.dart';
+import 'package:atlas_app/core/services/window_theme_channel.dart';
 import 'package:atlas_app/core/theme/app_theme.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
@@ -20,6 +21,8 @@ import 'package:atlas_app/settings/presentation/providers/settings_provider.dart
 import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
 
 final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
+final _windowThemeChannel = WindowThemeChannel();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +40,7 @@ class AtlasApp extends ConsumerWidget {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_bootstrap(ref));
+      _syncNativeTheme(context, settings);
     });
 
     return MaterialApp.router(
@@ -134,6 +138,18 @@ class AtlasApp extends ConsumerWidget {
   void _showToast(String message) {
     rootScaffoldMessengerKey.currentState?.showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  void _syncNativeTheme(BuildContext context, ReadingSettingsEntity settings) {
+    final brightness = switch (settings.themeMode) {
+      ThemeMode.light => Brightness.light,
+      ThemeMode.dark => Brightness.dark,
+      ThemeMode.system => MediaQuery.platformBrightnessOf(context),
+    };
+    _windowThemeChannel.syncTheme(
+      brightness: brightness,
+      brandSeed: settings.brand.seed,
     );
   }
 }

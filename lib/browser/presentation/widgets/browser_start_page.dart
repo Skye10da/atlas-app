@@ -42,33 +42,36 @@ class BrowserStartPage extends ConsumerWidget {
     final sources = ref.watch(searchableSourcesProvider);
     final theme = Theme.of(context);
 
-    return SafeArea(
-      bottom: false,
-      child: ListView(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.lg,
-        ),
-        children: [
-          Text(
-            'Browse the web',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+    return ColoredBox(
+      color: theme.colorScheme.surface,
+      child: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.lg,
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Open a site below, or type an address in the bar up top.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          children: [
+            Text(
+              'Browse the web',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          for (final source in sources) ...[
-            _buildSourceTile(context, source),
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: 4),
+            Text(
+              'Open a site below, or type an address in the bar up top.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            for (final source in sources) ...[
+              _buildSourceTile(context, source),
+              const SizedBox(height: AppSpacing.sm),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

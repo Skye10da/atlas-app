@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import 'package:atlas_app/core/design_system/atoms/app_chip.dart';
+import 'package:atlas_app/core/design_system/atoms/app_divider.dart';
+import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/settings/theme_preview_screen.dart';
 
 class ThemeTab extends StatelessWidget {
   const ThemeTab({
@@ -18,14 +21,25 @@ class ThemeTab extends StatelessWidget {
   final ValueChanged<ReadingViewTheme> onThemeChanged;
   final ValueChanged<MarginPreset> onMarginPresetChanged;
 
+  void _openPreview(BuildContext context, ReadingViewTheme initial) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => ThemePreviewScreen(
+          initialTheme: initial,
+          onApply: onThemeChanged,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Color Theme', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Color Theme'),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: 8,
@@ -34,26 +48,23 @@ class ThemeTab extends StatelessWidget {
               return _ThemeTile(
                 theme: t,
                 isSelected: theme == t,
-                onTap: () => onThemeChanged(t),
+                onTap: () => _openPreview(context, t),
               );
             }).toList(),
           ),
           const SizedBox(height: AppSpacing.lg),
-          const Divider(),
+          const AppDivider(),
           const SizedBox(height: AppSpacing.sm),
-          Text('Margins', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Margins'),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: 8,
             children: MarginPreset.values.map((m) {
               final isSelected = marginPreset == m;
-              return ChoiceChip(
-                label: Text(m.label),
+              return AppChip(
+                label: m.label,
                 selected: isSelected,
-                onSelected: (_) {
-                  HapticFeedback.selectionClick();
-                  onMarginPresetChanged(m);
-                },
+                onPressed: () => onMarginPresetChanged(m),
               );
             }).toList(),
           ),
@@ -77,33 +88,37 @@ class _ThemeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vt = theme;
+    final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 48,
         height: 56,
         decoration: BoxDecoration(
-          color: vt.background,
+          color: vt.resolve(colorScheme).background,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
                 ? Theme.of(context).colorScheme.primary
-                : vt.text.withValues(alpha: 0.15),
+                : vt.resolve(colorScheme).text.withValues(alpha: 0.15),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.format_quote, size: 16, color: vt.text),
+            Icon(Icons.format_quote, size: 16, color: vt.resolve(colorScheme).text),
             const SizedBox(height: 2),
             Text(
-              theme.name,
+              theme.label,
               style: TextStyle(
-                fontSize: 9,
-                color: vt.text,
+                fontSize: 8,
+                color: vt.resolve(colorScheme).text,
               ),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

@@ -8,15 +8,26 @@ import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
 import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_models.dart';
+import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
+import 'package:atlas_app/core/session/session_refresh_service.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_auth_state.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_exceptions.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_glossary_term.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_translation_service.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_chapter_provider.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_glossary_service.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_term_preference_service.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_web_translate_service.dart';
 
 /// Template for WTR-LAB (wtr-lab.com), an MTL novel aggregator whose whole
 /// data layer is a JSON API; the HTML pages only carry metadata in a
-/// `__NEXT_DATA__` script. Anonymous access returns the *raw* (Chinese) text,
-/// matching lightnovel-crawler's `sources/multi/wtrlab.py`; the site's
-/// translated ("ai") service requires an account.
+/// `__NEXT_DATA__` script. Anonymous plain-HTTP access returns the *raw*
+/// (Chinese) text, and the API asks for a Cloudflare Turnstile challenge when
+/// it can't see a browser session — so the app routes the reader POSTs through
+/// the WebView transport, which serves them from a real browser context
+/// (passing the challenge) whenever one is available. The "ai" service
+/// additionally requires a WTR-Lab account.
 ///
 /// * Search: `POST /api/search` `{"text": query}`.
 /// * Metadata: novel page HTML → `#__NEXT_DATA__`.
@@ -25,18 +36,68 @@ import 'package:atlas_app/wtr/domain/services/wtr_chapter_provider.dart';
 ///   decrypted with the site's hardcoded key. The `translate` field is driven
 ///   by the user's selected translation service for that novel (Web / WebPlus /
 ///   AI); the AI service additionally enforces the WTR-Lab account gate.
+///
+/// The Web and WebPlus services return the source-language (Chinese) text, so
+/// Atlas mirrors the site's reader: it applies the per-novel glossary (WebPlus
+/// only, like the site) and then translates the paragraphs to the plugin's
+/// language through the same on-device Google endpoint the site uses. The AI
+/// service returns English from the API, but its body embeds `※n⛬` name
+/// placeholders that must be resolved from the response's `glossary_data`, and
+/// any source-language terms the AI body leaves untranslated are then
+/// substituted from the fullest glossary Atlas can build: the response's
+/// `glossary_data`, the per-novel glossary (all glossaries plus community
+/// replacements) and — when a WTR-Lab account is connected — the account's top
+/// term preferences.
 class WtrLabTemplate implements Template {
-  const WtrLabTemplate({this.chapterProvider});
+  const WtrLabTemplate({
+    this.chapterProvider,
+    this.glossaryService,
+    this.webTranslateService,
+    this.translateTransport,
+    this.termPreferenceService,
+  });
 
   /// Optional injection point for tests. Defaults to the process-wide
   /// [WtrChapterProvider.instance] so the app never rebuilds the template.
   final WtrChapterProvider? chapterProvider;
+
+  /// Optional injection point for tests. Defaults to a per-template service
+  /// with its own in-memory cache.
+  final WtrGlossaryService? glossaryService;
+
+  /// Optional injection point for tests. Defaults to the real Google endpoint.
+  final WtrWebTranslateService? webTranslateService;
+
+  /// Optional injection point for tests. Defaults to a direct HTTP transport.
+  ///
+  /// The on-device Google translate endpoint (`translate-pa.googleapis.com`)
+  /// is a public API that only needs the API key — it must NOT ride the
+  /// plugin's WebView transport, because that would navigate the background
+  /// web view to a third-party host (and its same-origin fetch would fail
+  /// anyway). Plain HTTP always serves it.
+  final Transport? translateTransport;
+
+  /// Optional injection point for tests. Defaults to a per-template service
+  /// with its own in-memory cache.
+  final WtrTermPreferenceService? termPreferenceService;
 
   static const _aesKey = 'IJAFUUxjM25hyzL2AZrn0wl7cESED6Ru';
   static const _readerPath = '/api/reader/get';
 
   WtrChapterProvider get _provider =>
       chapterProvider ?? WtrChapterProvider.instance;
+
+  WtrGlossaryService get _glossary =>
+      glossaryService ?? WtrGlossaryService();
+
+  WtrTermPreferenceService get _termPreferences =>
+      termPreferenceService ?? WtrTermPreferenceService();
+
+  WtrWebTranslateService get _webTranslate =>
+      webTranslateService ?? const WtrWebTranslateService();
+
+  Transport get _translateTransport =>
+      translateTransport ?? HttpTransport();
 
   @override
   String get templateId => 'wtrlab';
@@ -234,6 +295,38 @@ class WtrLabTemplate implements Template {
       },
     );
 
+    // WTR-Lab answers `requireTurnstile` when it can't see a browser session
+    // for this address (Cloudflare Turnstile, not a plain rate limit). The
+    // app's re-verify flow re-establishes that session in a real browser, so
+    // surface it as an expired-session wall the reader auto-recovers from.
+    if (_isTurnstileChallenge(value)) {
+      final origin = SessionRefreshService.originOf(context.plugin.baseUrl);
+      // Open the refresh webview on the *chapter* page carrying the active
+      // `?service=` param — the turnstile may only fire there. AI is the site's
+      // default, so it uses no param.
+      final seedUrl = translate == WtrTranslationService.ai.apiValue
+          ? Uri.tryParse(chapterUrl)
+          : Uri.tryParse(chapterUrl)
+              ?.replace(queryParameters: {'service': translate});
+      if (origin != null) {
+        SessionRefreshService.instance.markInvalid(
+          origin,
+          seedUrl: seedUrl,
+          verificationProbe: () => _readerVerificationPassed(
+            context,
+            rawId: rawId,
+            order: order,
+            translate: translate,
+          ),
+        );
+      }
+      throw const TransportException(
+        'WTR-LAB requires a browser check before serving translated content; '
+        're-verifying the session.',
+        sessionExpired: true,
+      );
+    }
+
     // WTR-Lab rejects an expired/revoked AI session with `code: 1401` —
     // surface it as a WTR session failure so the UI asks for a re-login.
     if (_isNotLoggedIn(value)) {
@@ -250,8 +343,23 @@ class WtrLabTemplate implements Template {
     }
     final paragraphs = _decryptBody(body);
 
+    // Post-process the raw chapter text to mirror the site's reader:
+    // * Web / WebPlus serve source-language text, so apply the glossary
+    //   (WebPlus only, exactly like the site) and translate to the plugin's
+    //   language on-device.
+    // * AI already returns English, but its body embeds `※n⛬` name
+    //   placeholders that must be resolved from the response's glossary_data.
+    // Every enhancement is fail-soft: an outage keeps the decrypted text.
+    final enhanced = await _enhance(
+      context,
+      rawId: rawId,
+      translate: translate,
+      paragraphs: paragraphs,
+      readerValue: value,
+    );
+
     final doc = HtmlTemplate.parser.parse(
-      paragraphs.map((p) => '<p>${_escapeHtml(p)}</p>').join(),
+      enhanced.map((p) => '<p>${_escapeHtml(p)}</p>').join(),
     );
     String? title;
     final chapter = value is Map ? value['chapter'] : null;
@@ -327,6 +435,214 @@ class WtrLabTemplate implements Template {
     return decoded.map((e) => '$e').toList();
   }
 
+  /// Post-processes the decrypted chapter paragraphs to match the site's
+  /// reader output for the active translation service. Always fail-soft: any
+  /// enhancement error leaves the already-decrypted text unchanged.
+  Future<List<String>> _enhance(
+    PluginContext context, {
+    required int rawId,
+    required String translate,
+    required List<String> paragraphs,
+    required Object? readerValue,
+  }) async {
+    final service = WtrTranslationService.fromApiValue(translate);
+    if (service == WtrTranslationService.ai) {
+      final resolved = _resolveAiMarkers(paragraphs, readerValue);
+      try {
+        final terms = await _aiGlossaryTerms(
+          context,
+          rawId: rawId,
+          readerValue: readerValue,
+          paragraphs: resolved,
+        );
+        return terms.isEmpty ? resolved : _applyGlossary(resolved, terms);
+      } on Object {
+        return resolved;
+      }
+    }
+    if (service == WtrTranslationService.webPlus) {
+      try {
+        final terms = await _glossary.load(
+          context.transport,
+          Uri.parse(context.plugin.baseUrl),
+          rawId: rawId,
+          headers: context.plugin.requestHeaders,
+        );
+        final withNames = _applyGlossary(paragraphs, terms);
+        return await _translateToPluginLanguage(context, withNames);
+      } on Object {
+        return paragraphs;
+      }
+    }
+    // `web`: source-language text, translated like the site does. No glossary
+    // (the site applies it only for webplus).
+    try {
+      return await _translateToPluginLanguage(context, paragraphs);
+    } on Object {
+      return paragraphs;
+    }
+  }
+
+  Future<List<String>> _translateToPluginLanguage(
+    PluginContext context,
+    List<String> paragraphs,
+  ) {
+    if (context.effectiveLanguage == 'zh') return Future.value(paragraphs);
+    return _webTranslate.translateParagraphs(
+      _translateTransport,
+      paragraphs: paragraphs,
+      from: 'zh-CN',
+      to: context.effectiveLanguage,
+      headers: context.plugin.requestHeaders,
+    );
+  }
+
+  /// Substitutes glossary Chinese terms for their primary English alias.
+  ///
+  /// Builds one regex from all terms so overlapping Chinese terms resolve
+  /// longest-first (the site sorts its alternatives by length the same way),
+  /// and only terms present in a paragraph are actually replaced.
+  List<String> _applyGlossary(
+    List<String> paragraphs,
+    List<WtrGlossaryTerm> terms,
+  ) {
+    if (terms.isEmpty) return paragraphs;
+    final sorted = [...terms]
+      ..sort((a, b) => b.zh.length.compareTo(a.zh.length));
+    final joined = StringBuffer();
+    for (final term in sorted) {
+      joined.writeAll([RegExp.escape(term.zh), '|']);
+    }
+    final pattern = RegExp(
+      joined.toString().replaceAll(RegExp(r'\|$'), ''),
+      caseSensitive: false,
+    );
+    return paragraphs.map((p) {
+      if (p.isEmpty) return p;
+      return p.replaceAllMapped(pattern, (m) {
+        final match = m.group(0)!;
+        for (final term in sorted) {
+          if (match.contains(term.zh)) return term.en;
+        }
+        return match;
+      });
+    }).toList();
+  }
+
+  /// Resolves the AI body's `※n⛬` name placeholders against the response's
+  /// `glossary_data.terms` (`[en, zh]` pairs). Out-of-range or missing
+  /// references are left untouched.
+  List<String> _resolveAiMarkers(List<String> paragraphs, Object? value) {
+    final terms = _glossaryData(value);
+    if (terms.isEmpty) return paragraphs;
+    final marker = RegExp('[\\u203B](\\d+)[\\u26EC\\u3013]');
+    return paragraphs.map((p) {
+      if (!marker.hasMatch(p)) return p;
+      return p.replaceAllMapped(marker, (m) {
+        final index = int.tryParse(m.group(1) ?? '');
+        if (index == null || index < 0 || index >= terms.length) {
+          return m.group(0)!;
+        }
+        return terms[index].en;
+      });
+    }).toList();
+  }
+
+  /// `glossary_data.terms` from the AI reader response, as glossary terms.
+  List<WtrGlossaryTerm> _glossaryData(Object? value) {
+    if (value is! Map) return const [];
+    final data = value['data'];
+    if (data is! Map) return const [];
+    final inner = data['data'];
+    if (inner is! Map) return const [];
+    final glossaryData = inner['glossary_data'];
+    if (glossaryData is! Map) return const [];
+    final terms = glossaryData['terms'];
+    if (terms is! List) return const [];
+    return terms
+        .map(WtrGlossaryTerm.fromAiTerm)
+        .whereType<WtrGlossaryTerm>()
+        .toList();
+  }
+
+  /// The full zh→en map for the AI cleanup pass: the response's own
+  /// `glossary_data` terms, overlaid with the per-novel glossary (every
+  /// glossary plus community replacements) and — for connected accounts — the
+  /// account's top term preference per term. Mirrors the account-aware
+  /// glossary the site renders in AI mode. Fail-soft at each layer: an
+  /// unavailable glossary or preference just leaves the term unchanged.
+  ///
+  /// Cheap by construction: fully-English chapters skip the network entirely
+  /// (no CJK → nothing to clean up), and only terms actually present in the
+  /// text are looked up — the per-novel glossary holds hundreds of entries but
+  /// a chapter touches a handful, so preference fetches stay parallel and few.
+  Future<List<WtrGlossaryTerm>> _aiGlossaryTerms(
+    PluginContext context, {
+    required int rawId,
+    required Object? readerValue,
+    required List<String> paragraphs,
+  }) async {
+    if (!_containsCjk(paragraphs)) return const [];
+
+    final perNovel = await _glossary.loadAll(
+      context.transport,
+      Uri.parse(context.plugin.baseUrl),
+      rawId: rawId,
+      headers: context.plugin.requestHeaders,
+    );
+    final merged = _mergeTerms(_glossaryData(readerValue), perNovel);
+    final present =
+        merged.where((t) => _containsTerm(paragraphs, t.zh)).toList();
+    if (present.isEmpty) return present;
+
+    final preferences = _termPreferences;
+    return Future.wait(
+      present.map((term) async {
+        if (_provider.auth.state.value != WtrAuthState.authenticated) {
+          return term;
+        }
+        final preferred = await preferences.topPreference(
+          context.transport,
+          Uri.parse(context.plugin.baseUrl),
+          rawId: rawId,
+          zh: term.zh,
+          lang: context.plugin.language,
+          headers: context.plugin.requestHeaders,
+        );
+        if (preferred == null || preferred.isEmpty || preferred == term.en) {
+          return term;
+        }
+        return WtrGlossaryTerm(zh: term.zh, enAliases: [preferred]);
+      }),
+    );
+  }
+
+  /// Whether any paragraph still carries CJK ideographs that could be a
+  /// leftover source-language term worth cleaning up.
+  bool _containsCjk(List<String> paragraphs) {
+    final cjk = RegExp(r'[\u4E00-\u9FFF\u3400-\u4DBF]');
+    return paragraphs.any((p) => cjk.hasMatch(p));
+  }
+
+  bool _containsTerm(List<String> paragraphs, String zh) =>
+      paragraphs.any((p) => p.contains(zh));
+
+  /// Merges the chapter's `glossary_data` terms with the per-novel glossary,
+  /// later sources overriding earlier ones for the same Chinese term.
+  List<WtrGlossaryTerm> _mergeTerms(
+    List<WtrGlossaryTerm> chapter,
+    List<WtrGlossaryTerm> perNovel,
+  ) {
+    if (perNovel.isEmpty) return chapter;
+    final byZh = <String, WtrGlossaryTerm>{
+      for (final term in chapter) term.zh: term,
+    };
+    for (final term in perNovel) {
+      byZh[term.zh] = term;
+    }
+    return byZh.values.toList();
+  }
+
   Uint8List _aesGcmDecrypt(
     List<int> key,
     List<int> iv,
@@ -366,6 +682,43 @@ class WtrLabTemplate implements Template {
   bool _isNotLoggedIn(Object? value) =>
       value is Map && value['code'] == 1401;
 
+  /// The WTR reader API answers `{"success":false,"requireTurnstile":true, ...}`
+  /// when it demands a Cloudflare Turnstile solve before serving content.
+  bool _isTurnstileChallenge(Object? value) =>
+      value is Map && value['requireTurnstile'] == true;
+
+  /// Probe for the re-verify webview: the WTR reader API stops answering
+  /// `requireTurnstile` only after the challenge has really been solved, which
+  /// is a much stronger "verification passed" signal than "the origin now has
+  /// cookies" (WTR-LAB sets cookies immediately). Re-runs the same reader POST
+  /// and reports whether the challenge has cleared.
+  Future<bool> _readerVerificationPassed(
+    PluginContext context, {
+    required int rawId,
+    required int order,
+    required String translate,
+  }) async {
+    try {
+      final value = await context.transport.fetchJsonPost(
+        _api(context, _readerPath),
+        headers: context.plugin.requestHeaders,
+        jsonBody: {
+          'translate': translate,
+          'language': context.plugin.language,
+          'raw_id': rawId,
+          'chapter_no': order,
+          'retry': false,
+          'force_retry': false,
+        },
+      );
+      return !_isTurnstileChallenge(value);
+    } on Object {
+      // Any failure (transport, network, still challenging) means "not yet" —
+      // keep the refresh webview up until the challenge actually clears.
+      return false;
+    }
+  }
+
   /// `{data: {data: {body: ...}}}` in the reader response, plus the top-level
   /// `success` flag.
   Object? _extractBody(Object? value) {
@@ -377,14 +730,11 @@ class WtrLabTemplate implements Template {
     return inner['body'];
   }
 
-  /// A user-facing reason when the reader call fails: the rate-limit
-  /// `requireTurnstile` signal (mirrors lightnovel-crawler's rotation trigger)
-  /// or the API's own `message`.
+  /// A user-facing reason when the reader call fails: the API's own `message`
+  /// (e.g. an account-required notice for the AI service). The Turnstile
+  /// challenge is handled earlier as a session wall.
   String? _readerFailureMessage(Object? value) {
     if (value is! Map) return null;
-    if (value['requireTurnstile'] == true) {
-      return 'WTR-LAB is rate-limiting this address; wait a while and retry.';
-    }
     final message = value['message'];
     if (message is String && message.isNotEmpty) return message;
     return null;

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/settings/theme_preview_screen.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/settings/presentation/screens/reading_settings_screen.dart';
@@ -77,7 +78,15 @@ class _PdfSettingsSheetState extends ConsumerState<PdfSettingsSheet> {
                   isSelected: settings.theme == t,
                   onTap: () {
                     HapticFeedback.selectionClick();
-                    notifier.setTheme(t);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (_) => ThemePreviewScreen(
+                          initialTheme: t,
+                          onApply: (theme) => notifier.setTheme(theme),
+                        ),
+                      ),
+                    );
                   },
                 );
               }).toList(),
@@ -130,33 +139,37 @@ class _PdfThemeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vt = theme;
+    final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 48,
         height: 56,
         decoration: BoxDecoration(
-          color: vt.background,
+          color: vt.resolve(colorScheme).background,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
                 ? Theme.of(context).colorScheme.primary
-                : vt.text.withValues(alpha: 0.15),
+                : vt.resolve(colorScheme).text.withValues(alpha: 0.15),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.format_quote, size: 16, color: vt.text),
+            Icon(Icons.format_quote, size: 16, color: vt.resolve(colorScheme).text),
             const SizedBox(height: 2),
             Text(
-              theme.name,
+              theme.label,
               style: TextStyle(
-                fontSize: 9,
-                color: vt.text,
+                fontSize: 8,
+                color: vt.resolve(colorScheme).text,
               ),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

@@ -19,14 +19,23 @@ import 'package:atlas_app/library/presentation/widgets/novel/source_attribution.
 import 'package:atlas_app/library/presentation/widgets/novel/synopsis_card.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/core/database/providers.dart';
+import 'package:atlas_app/core/router/navigation.dart';
+import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
 import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
 
 class NovelDetailsScreen extends ConsumerStatefulWidget {
-  const NovelDetailsScreen({super.key, required this.bookId});
+  const NovelDetailsScreen({
+    super.key,
+    required this.bookId,
+    this.isEmbedded = false,
+    this.onClose,
+  });
 
   final String bookId;
+  final bool isEmbedded;
+  final VoidCallback? onClose;
 
   @override
   ConsumerState<NovelDetailsScreen> createState() => _NovelDetailsScreenState();
@@ -74,15 +83,19 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
       future: _bookFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: AppLoading());
+          return widget.isEmbedded
+              ? const Center(child: CircularProgressIndicator())
+              : const Scaffold(body: AppLoading());
         }
 
         final bookData = snapshot.data;
         if (bookData is! Success<BookEntity>) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: Text('Failed to load novel')),
-          );
+          return widget.isEmbedded
+              ? const Center(child: Text('Failed to load novel'))
+              : Scaffold(
+                  appBar: AppBar(),
+                  body: const Center(child: Text('Failed to load novel')),
+                );
         }
 
         final book = bookData.value;
@@ -91,22 +104,33 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
           sourceName: book.sourceName,
         );
         final wtrRawId = isWtrLab ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl) : null;
+        final isDesktop = MediaQuery.of(context).size.width >= 900;
 
-        return Scaffold(
-          body: CustomScrollView(
+        final scrollView = CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 360,
+                expandedHeight: widget.isEmbedded ? 240 : 360,
                 pinned: true,
                 flexibleSpace: FlexibleSpaceBar(
-                  background: NovelHeroHeader(book: book),
+                  background: NovelHeroHeader(book: book, isEmbedded: widget.isEmbedded),
                 ),
                 backgroundColor: Theme.of(context).colorScheme.surface,
+                leading: widget.isEmbedded
+                    ? IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: widget.onClose,
+                      )
+                    : null,
                 actions: [
                   IconButton(
                     icon: const Icon(Icons.file_upload_outlined),
                     tooltip: 'Export',
                     onPressed: () => _exportNovel(book),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Delete novel',
+                    onPressed: () => _confirmDelete(context),
                   ),
                   const SizedBox(width: 4),
                 ],
@@ -143,10 +167,61 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                 ),
               ),
             ],
-          ),
+          );
+
+        if (widget.isEmbedded) return scrollView;
+
+        return Scaffold(
+          body: isDesktop
+              ? Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 800),
+                    child: scrollView,
+                  ),
+                )
+              : scrollView,
         );
       },
     );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete novel?'),
+        content: const Text('This will permanently remove the novel and all reading progress.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _deleteNovel();
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteNovel() async {
+    final db = ref.read(databaseProvider);
+    final repo = DriftLibraryRepository(db);
+    final r = await repo.deleteBook(widget.bookId);
+    if (mounted) {
+      if (r is Success) {
+        ref.invalidate(libraryBooksProvider);
+        popOrGoToLibrary(context);
+      } else if (r is Failure) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(r.error.userMessage)),
+        );
+      }
+    }
   }
 
   Future<void> _exportNovel(BookEntity book) async {
@@ -401,6 +476,7 @@ class _ChapterPanelState extends ConsumerState<_ChapterPanel> {
               onTap: (chapterId) async {
                 await context.push(
                     '/reader/${widget.bookId}?chapterId=$chapterId');
+                ref.invalidate(lastReadChapterProvider(widget.bookId));
                 widget.onReturn?.call();
               },
               onDownload: (chapterId) => _downloadChapter(chapterId),

@@ -61,6 +61,9 @@ class SilentWebViewService {
   Future<WebViewFetchResult?> fetchHtml(
     Uri url, {
     Map<String, String>? headers,
+    String? method,
+    Object? jsonBody,
+    bool binary = false,
   }) async {
     if (!_servable(url)) return null;
     final origin = _originKey(url.toString());
@@ -70,7 +73,13 @@ class SilentWebViewService {
         final loaded = await _navigateTo(Uri.parse(origin));
         if (!loaded) return null;
       }
-      return _fetchThroughPage(url, headers: headers);
+      return _fetchThroughPage(
+        url,
+        headers: headers,
+        method: method,
+        jsonBody: jsonBody,
+        binary: binary,
+      );
     });
     _queue = run.then((_) {}, onError: (_) {});
     return run;
@@ -136,10 +145,25 @@ class SilentWebViewService {
   Future<WebViewFetchResult?> _fetchThroughPage(
     Uri url, {
     Map<String, String>? headers,
+    String? method,
+    Object? jsonBody,
+    bool binary = false,
   }) async {
     for (var attempt = 0; attempt <= maxChallengeRetries; attempt++) {
-      final result = await _pageFetcher.fetchHtml(url, headers: headers);
+      final result = await _pageFetcher.fetchHtml(
+        url,
+        headers: headers,
+        method: method,
+        jsonBody: jsonBody,
+        binary: binary,
+      );
       if (result == null) return null;
+      // Binary responses have no text body to inspect; accept status 200.
+      if (result.bytes != null) {
+        if (result.isSessionWall) return null;
+        await _refreshSavedSession(Uri.parse(_originKey(url.toString())));
+        return result;
+      }
       final body = result.body;
       if (body == null) return null;
       // A Cloudflare interstitial is retried; an auth wall (401/403 that is

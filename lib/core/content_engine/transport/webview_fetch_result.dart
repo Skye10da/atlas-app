@@ -1,12 +1,24 @@
+import 'dart:typed_data';
+
 /// Result of a same-origin in-page `fetch`, carrying the pieces a plain body
 /// string hides: the HTTP status and the final URL after redirects. Those let
 /// the transport tell an expired session (401/403, login redirect) apart from
 /// a successful page — a body-only result cannot.
 class WebViewFetchResult {
-  const WebViewFetchResult({this.body, this.status = 0, this.finalUrl});
+  const WebViewFetchResult({
+    this.body,
+    this.bytes,
+    this.status = 0,
+    this.finalUrl,
+  });
 
-  /// Response body text; null when the fetch errored (CORS, network, aborted).
+  /// Response body text; null when the fetch errored (CORS, network, aborted)
+  /// or when the response is binary (see [bytes]).
   final String? body;
+
+  /// Binary response body, populated when the fetcher used `arrayBuffer()`
+  /// mode. Null for text responses (see [body]).
+  final Uint8List? bytes;
 
   /// HTTP status of the final response; 0 when unavailable/errored.
   final int status;

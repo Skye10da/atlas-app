@@ -28,6 +28,7 @@ import 'package:atlas_app/reader/speech/speech_session_builder.dart';
 import 'package:atlas_app/reader/speech/speech_session.dart';
 import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
 
 class ReaderContent extends ConsumerStatefulWidget {
   const ReaderContent({
@@ -77,6 +78,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   String? _bookLanguage;
   String? _bookTitle;
   String? _bookCoverPath;
+  int? _wtrRawId;
   SpeechCheckpoint? _restoredCheckpoint;
   StreamSubscription<SpeechEvent>? _speechSub;
   final _sessionBuilder = const SpeechSessionBuilder();
@@ -205,9 +207,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       }
       _initialChapterId = null;
     });
-    await _loadBookmarks();
-    await _loadNarrationContext();
-    await _loadReadingProgress();
+    await Future.wait([
+      _loadBookmarks(),
+      _loadNarrationContext(),
+      _loadReadingProgress(),
+    ]);
   }
 
   Future<void> _loadNarrationContext() async {
@@ -215,9 +219,14 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     final bookResult = await widget.repo.getBookById(widget.bookId);
     if (!mounted) return;
     if (bookResult is Success<BookEntity>) {
-      _bookLanguage = bookResult.value.language;
-      _bookTitle = bookResult.value.title;
-      _bookCoverPath = bookResult.value.coverPath;
+      final book = bookResult.value;
+      _bookLanguage = book.language;
+      _bookTitle = book.title;
+      _bookCoverPath = book.coverPath;
+      _wtrRawId =
+          isWtrLabSource(sourceUrl: book.sourceUrl, sourceName: book.sourceName)
+          ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl)
+          : null;
     }
     final checkpoint =
         await ref.read(speechRecoveryStoreProvider).load(widget.bookId);
@@ -350,9 +359,10 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
 
   Widget _buildContent(BuildContext context) {
     if (_loading) {
+      final colorScheme = Theme.of(context).colorScheme;
       return Scaffold(
-        backgroundColor: ReadingViewTheme.light.background,
-        body: const ChapterShimmer(vt: ReadingViewTheme.light),
+        backgroundColor: ReadingViewTheme.paper.resolve(colorScheme).background,
+        body: const ChapterShimmer(vt: ReadingViewTheme.paper),
       );
     }
     if (_errorMessage != null) {
@@ -369,6 +379,18 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
 
     final currentChapter = _currentChapter;
     if (currentChapter != null) {
+      // Tells `readerChapterContentProvider` which chapter is actually on
+      // screen, so a background prefetch of a neighboring chapter never
+      // qualifies for the automatic full-screen session re-verify — only a
+      // fetch for the chapter the reader is looking at right now may trigger
+      // that. Scheduled post-frame since this can run during build.
+      if (ref.read(activeChapterIdProvider) != currentChapter.id) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            ref.read(activeChapterIdProvider.notifier).state = currentChapter.id;
+          }
+        });
+      }
       final content = ref.watch(readerChapterContentProvider(currentChapter)).valueOrNull;
       if (content != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -522,6 +544,8 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       initialHeight: 0.8,
       child: ReaderSettingsSheet(
         initialSettings: widget.settings,
+        bookId: widget.bookId,
+        rawId: _wtrRawId,
       ),
     );
   }

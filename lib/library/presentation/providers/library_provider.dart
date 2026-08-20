@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
-import 'package:atlas_app/core/content_acquisition/providers.dart';
+import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/epub_import_service.dart';
+import 'package:atlas_app/core/import/file_open_providers.dart';
 import 'package:atlas_app/core/import/pdf_import_service.dart';
 import 'package:atlas_app/core/seed/seed_data.dart';
 import 'package:atlas_app/library/application/atlas_source_import_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/domain/entities/bookshelf_layout.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
-import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 
 enum LibrarySortOrder {
@@ -37,6 +37,23 @@ final libraryCategoryProvider =
     StateProvider<LibraryCategory>((ref) => LibraryCategory.novels);
 
 final libraryGenreFilterProvider = StateProvider<String?>((ref) => null);
+
+/// The book currently shown in the detail panel on desktop. Null when no
+/// panel is open. Setting this on desktop opens the panel; tapping the same
+/// book again clears it (closes the panel).
+final selectedBookIdProvider = StateProvider<String?>((ref) => null);
+
+/// Derives the set of all unique genres across every book in the library,
+/// sorted alphabetically. Used by the filter sidebar to populate genre chips.
+final availableGenresProvider = Provider<List<String>>((ref) {
+  final booksResult = ref.watch(libraryBooksProvider);
+  final books = booksResult.whenOrNull(
+    data: (result) => result is Success<List<BookEntity>> ? result.value : null,
+  ) ?? <BookEntity>[];
+  final allTags = books.expand((b) => b.tags).toSet().toList();
+  allTags.sort();
+  return allTags;
+});
 
 final libraryRepositoryProvider = Provider((ref) {
   final db = ref.watch(databaseProvider);
@@ -143,132 +160,33 @@ class _LibraryImportActions {
 
   ImportProgress get progress => _ref.read(_libraryImportingProvider);
 
-  void _setStage(ImportStage stage, [String? message]) {
-    _ref.read(_libraryImportingProvider.notifier).state = ImportProgress(stage: stage, message: message);
-  }
+  /// Opens the unified "Add to library" sheet in combined mode — URL field,
+  /// file picker, and browse sources all on one screen.  The sheet's
+  /// [onImport] callback delegates to [OpenedFileImportService.importBytes]
+  /// so the extension-routing logic lives in exactly one place.
+  Future<Result<ImportOutcome>> importLocal(BuildContext context) async {
+    final importer = _ref.read(openedFileImportServiceProvider);
 
-  Future<Result<String?>> import() async {
-    _setStage(ImportStage.processing, 'Importing EPUB...');
-    try {
-      final service = _ref.read(libraryImportServiceProvider);
-      final result = await service.pickAndImport();
-      if (result is Success) _setStage(ImportStage.done, 'Done');
-      return result;
-    } finally {
-      if (_ref.read(_libraryImportingProvider).stage != ImportStage.done) {
-        _setStage(ImportStage.idle);
-      }
-    }
-  }
-
-  Future<Result<String?>> importPdf() async {
-    _setStage(ImportStage.processing, 'Importing PDF...');
-    try {
-      final service = _ref.read(pdfImportServiceProvider);
-      final result = await service.pickAndImport();
-      if (result is Success) _setStage(ImportStage.done, 'Done');
-      return result;
-    } finally {
-      if (_ref.read(_libraryImportingProvider).stage != ImportStage.done) {
-        _setStage(ImportStage.idle);
-      }
-    }
-  }
-
-  /// Picks a `.atlas` source-link package and re-imports the linked novel
-  /// through its original source, mirroring the URL-import progress dialog.
-  Future<Result<ImportOutcome>> importAtlas(BuildContext context) async {
-    _setStage(ImportStage.processing, 'Importing Atlas package...');
-    try {
-      final service = _ref.read(atlasSourceImportServiceProvider);
-      final pickResult = await service.pickSourceUrl();
-      if (pickResult is Failure<String?>) {
-        return Failure<ImportOutcome>(pickResult.error);
-      }
-      final sourceUrl = (pickResult as Success<String?>).value;
-      if (sourceUrl == null) return const Failure(CancelledException());
-
-      final engine = _ref.read(contentAcquisitionEngineProvider);
-      final progress = ValueNotifier<double>(0);
-      final importFuture = engine.importAndSave(
-        sourceUrl,
-        onProgress: (p) => progress.value = p,
-      );
-
-      if (!context.mounted) {
-        try { await importFuture; } catch (_) {}
-        return const Failure(CancelledException());
-      }
-
-      final succeeded = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => ImportProgressDialog(
-          future: importFuture,
-          progress: progress,
-        ),
-      );
-
-      if (succeeded != true) {
-        try { await importFuture; } catch (_) {}
-        return const Failure(CancelledException());
-      }
-
-      final outcome = await importFuture;
-      _setStage(ImportStage.done, 'Done');
-      return Success(outcome);
-    } finally {
-      if (_ref.read(_libraryImportingProvider).stage != ImportStage.done) {
-        _setStage(ImportStage.idle);
-      }
-    }
-  }
-
-  Future<Result<ImportOutcome>> importUrl(
-    BuildContext context, {
-    String title = 'Import from URL',
-    String labelText = 'Book URL',
-    String hintText = 'https://example.com/book.epub',
-    String buttonLabel = 'Import',
-  }) async {
-    final url = await showDialog<String>(
-      context: context,
-      builder: (_) => ImportUrlDialog(
-        title: title,
-        labelText: labelText,
-        hintText: hintText,
-        buttonLabel: buttonLabel,
-      ),
-    );
-    if (url == null) return const Failure(CancelledException());
-
-    final engine = _ref.read(contentAcquisitionEngineProvider);
-    final progress = ValueNotifier<double>(0);
-    final importFuture = engine.importAndSave(
-      url,
-      onProgress: (p) => progress.value = p,
+    final outcome = await showImportUrlSheet(
+      context,
+      mode: ImportSheetMode.combined,
+      title: 'Add to library',
+      onImport: (bytes, fileName, onProgress) async {
+        if (bytes == null || fileName == null) {
+          throw const CancelledException();
+        }
+        onProgress(0.1);
+        final result = await importer.importBytes(bytes, fileName);
+        onProgress(1.0);
+        if (result is Success<ImportOutcome>) return result.value;
+        if (result is Failure<ImportOutcome>) {
+          throw ImportException(result.error.userMessage);
+        }
+        throw const CancelledException();
+      },
     );
 
-    if (!context.mounted) {
-      try { await importFuture; } catch (_) {}
-      return const Failure(CancelledException());
-    }
-
-    final succeeded = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => ImportProgressDialog(
-        future: importFuture,
-        progress: progress,
-      ),
-    );
-
-    if (succeeded != true) {
-      try { await importFuture; } catch (_) {}
-      return const Failure(CancelledException());
-    }
-
-    final outcome = await importFuture;
+    if (outcome == null) return const Failure(CancelledException());
     return Success(outcome);
   }
 }
@@ -279,14 +197,6 @@ class CancelledException extends AppException {
   String get code => 'CANCELLED';
   @override
   String get userMessage => 'Import cancelled.';
-}
-
-class ImportException extends AppException {
-  const ImportException(super.message);
-  @override
-  String get code => 'IMPORT_ERROR';
-  @override
-  String get userMessage => message;
 }
 
 final libraryDeleteProvider = Provider((ref) {

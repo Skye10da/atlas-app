@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:epub_plus/epub_plus.dart';
@@ -26,7 +27,7 @@ class EpubUrlSource implements SourceAdapter {
   @override
   Future<NovelModel> getMetadata(Uri uri) async {
     final bytes = await _readBytes(uri);
-    final book = await EpubReader.readBook(bytes);
+    final book = await _readEpubInIsolate(bytes);
     _cachedFlatChapters = _flattenChapters(book.chapters);
 
     if (_cachedFlatChapters!.isEmpty) {
@@ -192,3 +193,9 @@ class EpubUrlSource implements SourceAdapter {
     return flat;
   }
 }
+
+Future<EpubBook> _readEpubBook(List<int> bytes) => EpubReader.readBook(bytes);
+
+/// Static isolate entry — avoids capturing `this` in the closure.
+Future<EpubBook> _readEpubInIsolate(List<int> bytes) =>
+    Isolate.run(() => _readEpubBook(bytes));

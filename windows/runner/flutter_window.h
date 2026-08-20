@@ -24,6 +24,9 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  void HandleThemeMethodCall(
+      const flutter::MethodCall<flutter::EncodableValue>& call,
+      std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
   // The project to run.
   flutter::DartProject project_;
 
@@ -33,6 +36,10 @@ class FlutterWindow : public Win32Window {
   // Forwards documents handed to a running instance by WM_COPYDATA into Dart.
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       file_open_channel_;
+
+  // Receives theme updates (dark mode, brand color) from Dart.
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      window_theme_channel_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

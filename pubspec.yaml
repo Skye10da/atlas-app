@@ -37,6 +37,9 @@ dependencies:
   # File picking
   file_picker: ^8.0.0
 
+  # Drag-and-drop file import (desktop)
+  desktop_drop: ^0.7.1
+
   # Google Fonts
   google_fonts: ^6.2.1
 

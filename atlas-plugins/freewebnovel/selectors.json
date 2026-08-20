@@ -17,5 +17,9 @@
   "chapterContent": {
     "container": ".m-read",
     "title": ".m-read .top .chapter"
+  },
+  "metadata": {
+    "title": ".m-desc h1.tit",
+    "coverUrl": ".pic img@src"
   }
 }

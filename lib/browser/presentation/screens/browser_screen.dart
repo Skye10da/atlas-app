@@ -18,10 +18,8 @@ import 'package:atlas_app/browser/domain/utils/browser_url.dart';
 import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_library_sheets.dart';
 import 'package:atlas_app/browser/presentation/widgets/browser_start_page.dart';
-import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
-import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
@@ -30,7 +28,7 @@ import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
-import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
+import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
 import 'package:go_router/go_router.dart';
@@ -139,13 +137,22 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   void _syncWebViewFetcher() {
     final service = WebViewFetchService.instance;
     if (_tabs.hasTabs) {
-      service.fetcher = (url, {headers}) async {
+      service.fetcher = (
+        url, {
+        headers,
+        method,
+        jsonBody,
+        bool binary = false,
+      }) async {
         for (final tab in _tabs.tabs) {
           final result = await WebViewPageFetcher(engine: tab.engine).fetchHtml(
             url,
             headers: headers,
+            method: method,
+            jsonBody: jsonBody,
+            binary: binary,
           );
-          if (result?.body != null) return result;
+          if (result?.body != null || result?.bytes != null) return result;
         }
         return null;
       };
@@ -364,8 +371,6 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
 
   Future<void> _importFromWeb(String url) async {
     if (!mounted) return;
-    final engine = ref.read(contentAcquisitionEngineProvider);
-    final progress = ValueNotifier<double>(0);
 
     // The page is open in the live web view, so route the import's fetches
     // through it: a same-origin `fetch` carries the browser's cookies and TLS
@@ -378,69 +383,23 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
           WebViewPageFetcher(engine: activeEngine).fetchHtml;
     }
 
-    final importFuture = engine.importAndSave(
-      url,
-      onProgress: (p) => progress.value = p,
-    );
-
     try {
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => ImportProgressDialog(
-          future: importFuture.then((_) {}, onError: (_) {}),
-          progress: progress,
-        ),
+      final engine = ref.read(contentAcquisitionEngineProvider);
+      final outcome = await showImportUrlSheet(
+        context,
+        title: 'Add to Library',
+        initialUrl: url,
+        skipInputStage: true,
+        onImport: (bytes, fileName, onProgress) =>
+            engine.importAndSave(url, onProgress: onProgress),
       );
-    } finally {
-      webViewService.fetcher = previousFetcher;
-    }
-
-    if (!mounted) return;
-    ImportOutcome? outcome;
-    try {
-      outcome = await importFuture;
-    } on ImportRedirect catch (e) {
-      if (!mounted) return;
-      final shouldCopy = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Redirected'),
-          content: Text('Atlas could not read that page directly. Copy the link to open it manually: ${e.redirectUrl}'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Copy link'),
-            ),
-          ],
-        ),
-      );
-      if (shouldCopy == true && mounted) {
-        await Clipboard.setData(ClipboardData(text: e.redirectUrl));
-      }
-      return;
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Import failed: $e')),
-      );
-      return;
-    }
-
-    if (!mounted) return;
-    final shouldOpen = await showImportCompleteDialog(
-      context,
-      category: outcome.category,
-    );
-    if (shouldOpen && mounted) {
+      if (outcome == null || !mounted) return;
       final route = outcome.category == ContentCategory.novel
           ? '/novel/${outcome.bookId}'
           : '/book/${outcome.bookId}';
       context.go(route);
+    } finally {
+      webViewService.fetcher = previousFetcher;
     }
   }
 

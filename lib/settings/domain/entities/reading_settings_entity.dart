@@ -16,7 +16,7 @@ class ReadingSettingsEntity {
     this.brightness = 1.0,
     this.autoOptimizeBrightness = false,
     this.followSystemBrightness = true,
-    this.theme = ReadingViewTheme.light,
+    this.theme = ReadingViewTheme.paper,
     this.readingMode = ReadingMode.page,
     this.textAlignment = TextAlignment.left,
     this.marginPreset = MarginPreset.normal,

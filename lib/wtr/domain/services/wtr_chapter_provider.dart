@@ -1,3 +1,4 @@
+import 'package:atlas_app/wtr/domain/entities/wtr_auth_state.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_translation_service.dart';
 import 'package:atlas_app/wtr/domain/repository_interfaces/wtr_preference_repository.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_authentication_manager.dart';
@@ -67,10 +68,16 @@ class WtrChapterProvider {
   final WtrPreferenceRepository _preferences;
   final WtrAuthenticationManager auth;
 
-  /// The user-selected translation service for [rawId], falling back to
-  /// [WtrTranslationService.web] when never chosen.
+  /// The user-selected translation service for [rawId], defaulting to the
+  /// site's account-dependent default when never chosen: AI (English) for a
+  /// signed-in account, WebPlus (source-language) otherwise. Web is only used
+  /// when explicitly selected or pinned from a `?service=web` URL.
   Future<WtrTranslationService> serviceFor(int rawId) async {
-    return await _preferences.loadService(rawId) ?? WtrTranslationService.web;
+    final saved = await _preferences.loadService(rawId);
+    if (saved != null) return saved;
+    return auth.state.value.allowsAi
+        ? WtrTranslationService.ai
+        : WtrTranslationService.webPlus;
   }
 
   /// Persists the user's chosen translation service for [rawId].

@@ -22,7 +22,9 @@ import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/content_engine/scheduler/task_scheduler.dart';
 import 'package:atlas_app/core/content_engine/storage/document_cache.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
+import 'package:atlas_app/core/content_engine/transport/cookie_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
+import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
@@ -47,31 +49,42 @@ final sourceRegistryProvider = Provider<SourceRegistry>((ref) {
 /// distribution GitHub repo and installs/upgrades whatever is newer. Sync is
 /// best-effort: any distribution failure is logged and discovery proceeds with
 /// whatever is already installed on disk.
+///
+/// When the `ATLAS_PLUGINS_DIR` environment variable is set, plugins are read
+/// directly from that local directory and the GitHub sync is skipped entirely.
 final pluginSourcesProvider = FutureProvider<List<PluginSource>>((ref) async {
-  final supportDir = await getApplicationSupportDirectory();
   final templateRegistry = TemplateRegistry.defaults;
-  final pluginsDir = Directory(p.join(supportDir.path, 'plugins'));
 
-  final updater = PluginUpdater(
-    source: GithubPluginSource(
-      config: const GithubPluginDistributionConfig(),
-      transport: HttpTransport(client: ref.watch(httpClientProvider)),
-    ),
-    targetDirectory: pluginsDir,
-    templateRegistry: templateRegistry,
-  );
-  try {
-    final updates = await updater.sync();
-    for (final update in updates) {
-      AppLogger.info(
-        'Plugin ${update.pluginId}: ${update.status.name} '
-        '(-> ${update.toVersion})',
+  final localOverride = GithubPluginDistributionConfig.localPluginsDir;
+  final Directory pluginsDir;
+  if (localOverride != null && localOverride.isNotEmpty) {
+    pluginsDir = Directory(localOverride);
+    AppLogger.info('Using local plugin directory: $localOverride');
+  } else {
+    final supportDir = await getApplicationSupportDirectory();
+    pluginsDir = Directory(p.join(supportDir.path, 'plugins'));
+
+    final updater = PluginUpdater(
+      source: GithubPluginSource(
+        config: const GithubPluginDistributionConfig(),
+        transport: HttpTransport(client: ref.watch(httpClientProvider)),
+      ),
+      targetDirectory: pluginsDir,
+      templateRegistry: templateRegistry,
+    );
+    try {
+      final updates = await updater.sync();
+      for (final update in updates) {
+        AppLogger.info(
+          'Plugin ${update.pluginId}: ${update.status.name} '
+          '(-> ${update.toVersion})',
+        );
+      }
+    } catch (e) {
+      AppLogger.warning(
+        'Plugin catalog sync failed; using installed plugins only: $e',
       );
     }
-  } catch (e) {
-    AppLogger.warning(
-      'Plugin catalog sync failed; using installed plugins only: $e',
-    );
   }
 
   final repository = PluginRepository(
@@ -106,11 +119,14 @@ final contentAcquisitionEngineProvider = Provider<ContentAcquisitionEngine>((ref
 /// Rich-content cache: AtlasDocument JSON stored beside each chapter's txt.
 final documentCacheProvider = Provider<DocumentCache>((ref) => DocumentCache());
 
-/// Image downloader with content-addressed storage, wired to the app's HTTP
-/// client so headers/UA composition stays consistent with the pipeline.
+/// Image downloader with content-addressed storage, wired to the same layered
+/// transport stack as plugin sources (cookie replay + webview fallback) so
+/// cover-image downloads can pass Cloudflare bot challenges that block a bare
+/// HTTP client.
 final imagePipelineProvider = Provider<ImagePipeline>((ref) {
+  final http = HttpTransport(client: ref.watch(httpClientProvider));
   return ImagePipeline(
-    transport: HttpTransport(client: ref.watch(httpClientProvider)),
+    transport: WebViewTransport(inner: CookieTransport(inner: http)),
   );
 });
 
@@ -145,6 +161,7 @@ final taskSchedulerProvider = Provider<TaskScheduler>((ref) {
       return resumed > 0 ? 'resumed $resumed downloads' : null;
     },
     pluginRefresh: () async {
+      if (GithubPluginDistributionConfig.localPluginsDir != null) return null;
       final supportDir = await getApplicationSupportDirectory();
       final templateRegistry = TemplateRegistry.defaults;
       final pluginsDir = Directory(p.join(supportDir.path, 'plugins'));

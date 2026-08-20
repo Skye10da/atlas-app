@@ -1,0 +1,105 @@
+import 'package:atlas_app/core/content_engine/transport/transport.dart';
+import 'package:atlas_app/wtr/domain/entities/language_flag_map.dart';
+import 'package:atlas_app/wtr/domain/entities/supported_language.dart';
+
+/// Fetches the list of languages supported by Google Translate at runtime.
+///
+/// Uses the public `translate.googleapis.com/translate_a/l` endpoint which
+/// returns `[[code, englishName], ...]` without requiring an API key.
+/// Native names and flags are merged from static maps in code.
+class GoogleTranslateLanguagesService {
+  const GoogleTranslateLanguagesService();
+
+  static const _endpoint =
+      'https://translate.googleapis.com/translate_a/l?client=gtx&tl=en';
+
+  /// Known native names for the most common languages.
+  ///
+  /// Languages not listed here fall back to their English name.
+  static const _nativeNames = <String, String>{
+    'ar': 'العربية',
+    'bg': 'Български',
+    'bn': 'বাংলা',
+    'cs': 'Čeština',
+    'da': 'Dansk',
+    'de': 'Deutsch',
+    'el': 'Ελληνικά',
+    'en': 'English',
+    'es': 'Español',
+    'et': 'Eesti',
+    'fi': 'Suomi',
+    'fr': 'Français',
+    'gu': 'ગુજરાતી',
+    'he': 'עברית',
+    'hi': 'हिन्दी',
+    'hr': 'Hrvatski',
+    'hu': 'Magyar',
+    'id': 'Bahasa Indonesia',
+    'it': 'Italiano',
+    'ja': '日本語',
+    'kn': 'ಕನ್ನಡ',
+    'ko': '한국어',
+    'lt': 'Lietuvių',
+    'lv': 'Latviešu',
+    'mk': 'Македонски',
+    'ml': 'മലയാളം',
+    'mr': 'मराठी',
+    'ms': 'Bahasa Melayu',
+    'nl': 'Nederlands',
+    'no': 'Norsk',
+    'pa': 'ਪੰਜਾਬੀ',
+    'pl': 'Polski',
+    'pt': 'Português',
+    'ro': 'Română',
+    'ru': 'Русский',
+    'sk': 'Slovenčina',
+    'sl': 'Slovenščina',
+    'so': 'Soomaali',
+    'sq': 'Shqip',
+    'sr': 'Српски',
+    'sv': 'Svenska',
+    'sw': 'Kiswahili',
+    'ta': 'தமிழ்',
+    'te': 'తెలుగు',
+    'th': 'ไทย',
+    'tl': 'Filipino',
+    'tr': 'Türkçe',
+    'uk': 'Українська',
+    'ur': 'اردو',
+    'vi': 'Tiếng Việt',
+    'zh': '中文',
+    'zu': 'isiZulu',
+  };
+
+  /// Fetches all languages supported by Google Translate, sorted alphabetically
+  /// by English name. Falls back to [SupportedLanguage.defaults] on failure.
+  Future<List<SupportedLanguage>> fetchSupportedLanguages(
+    Transport transport,
+  ) async {
+    try {
+      final value = await transport.fetchJson(Uri.parse(_endpoint));
+      if (value is! List) return SupportedLanguage.defaults;
+
+      final languages = <SupportedLanguage>[];
+      for (final entry in value) {
+        if (entry is! List || entry.length < 2) continue;
+        final code = entry[0].toString();
+        final englishName = entry[1].toString();
+        final nativeName = _nativeNames[code] ?? englishName;
+        final flag = kLanguageFlags[code];
+        if (flag == null) continue;
+        languages.add(SupportedLanguage(
+          code: code,
+          name: englishName,
+          nativeName: nativeName,
+          flag: flag,
+        ));
+      }
+
+      languages.sort((a, b) => a.name.compareTo(b.name));
+      return languages.isEmpty ? SupportedLanguage.defaults : languages;
+    } on Object {
+      return SupportedLanguage.defaults;
+    }
+  }
+}

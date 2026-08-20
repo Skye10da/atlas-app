@@ -101,22 +101,25 @@ class ReadingSettingsScreen extends ConsumerWidget {
                     options: ReadingViewTheme.values.map((t) => (t, t.label)).toList(),
                     onChanged: notifier.setTheme,
                     isSelected: (t) => t == settings.theme,
-                    builder: (t) => Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 16,
-                          height: 16,
-                          decoration: BoxDecoration(
-                            color: t.background,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: t.text.withValues(alpha: 0.3)),
+                    builder: (t) {
+                      final colorScheme = Theme.of(context).colorScheme;
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: t.resolve(colorScheme).background,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: t.resolve(colorScheme).text.withValues(alpha: 0.3)),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(t.label, style: const TextStyle(fontSize: 12)),
-                      ],
-                    ),
+                          const SizedBox(width: 8),
+                          Text(t.label, style: const TextStyle(fontSize: 12)),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

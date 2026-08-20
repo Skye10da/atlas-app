@@ -6,7 +6,7 @@ import 'package:atlas_app/wtr/domain/entities/wtr_translation_service.dart';
 /// preference follows the novel wherever it is imported from.
 abstract interface class WtrPreferenceRepository {
   /// Returns the saved service for [rawId], or null when none was chosen yet
-  /// (the caller then falls back to [WtrTranslationService.web]).
+  /// (the caller then applies the site's account-dependent default).
   Future<WtrTranslationService?> loadService(int rawId);
 
   Future<void> saveService(int rawId, WtrTranslationService service);

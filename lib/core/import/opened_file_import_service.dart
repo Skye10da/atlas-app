@@ -71,6 +71,23 @@ class OpenedFileImportService {
     return Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
   }
 
+  /// Routes in-memory [bytes] + [fileName] to the correct importer by
+  /// extension.  Public entry point for callers who already have the file
+  /// content in memory (e.g. the file-picker import sheet) so they don't
+  /// need to write a temporary copy to disk first.
+  Future<Result<ImportOutcome>> importBytes(
+    List<int> bytes,
+    String fileName,
+  ) async {
+    final ext = p.extension(fileName).toLowerCase();
+    return switch (ext) {
+      '.epub' => await _importEpub(bytes, fileName),
+      '.pdf' => await _importPdf(bytes, fileName),
+      '.atlas' => await _importAtlas(bytes),
+      _ => const Failure(ValidationException('Unsupported file type')),
+    };
+  }
+
   Future<Result<ImportOutcome>> _importEpub(List<int> bytes, String fileName) async {
     final result = await epubService.importBytes(bytes, fileName);
     return switch (result) {

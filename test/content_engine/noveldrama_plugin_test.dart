@@ -99,6 +99,26 @@ const _searchPage = '''
 </div>
 </body></html>''';
 
+const _novelPageNoOgTags = '''
+<html><head>
+<title>Rebirth: Super Banking System Novel - Read Rebirth: Super Banking System Online For Free - Novel Drama</title>
+<meta property="og:novel:novel_name" content="Rebirth: Super Banking System">
+<meta property="og:novel:author" content="Mouse No. 6">
+</head><body>
+<div class="col-xs-12 col-info-desc">
+<div class="info-holder">
+  <div class="desc"><h3 class="title">Rebirth: Super Banking System</h3></div>
+  <div class="book"><img class="lazy" data-src="https://images.noveldrama.org/novel/rebirth-super-banking-system.jpg" alt="Rebirth: Super Banking System"></div>
+</div>
+<ul class="info info-meta">
+  <li><h3>Author:</h3><a href="/noveldrama-author/Mouse No. 6">Mouse No. 6</a></li>
+  <li><h3>Genre:</h3><a href="/noveldrama-genres/drama">Drama</a>, <a href="/noveldrama-genres/romance">Romance</a></li>
+  <li><h3>Status:</h3><a href="/sort/noveldrama-ongoing" class="text-primary">Ongoing</a></li>
+</ul>
+</div>
+<div class="desc-text"><p>Tang Qing is reborn in 2004, equipped with a banking system.</p></div>
+</body></html>''';
+
 class _FakeTransportRegistry extends TransportRegistry {
   const _FakeTransportRegistry(this.transport);
 
@@ -281,6 +301,24 @@ void main() {
       expect(chapter.content, contains('Tang Qing'));
       expect(chapter.content, isNot(contains('Prev Chapter')));
       expect(chapter.wordCount, greaterThan(0));
+    });
+
+    test('metadata selectors supply title and cover when og: tags are polluted',
+        () async {
+      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
+      final source = await repo(transport).buildSource('noveldrama');
+
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      expect(novel.title, 'Rebirth: Super Banking System',
+          reason: '.desc h3.title must be used instead of polluted og:title');
+      expect(novel.author, 'Mouse No. 6');
+      expect(novel.description, contains('Tang Qing is reborn in 2004'));
+      expect(novel.coverUrl,
+          'https://images.noveldrama.org/novel/rebirth-super-banking-system.jpg',
+          reason: '.book img@data-src must resolve the lazy-loaded cover');
+      expect(novel.genres, ['Drama', 'Romance']);
+      expect(novel.source, 'NovelDrama');
     });
   });
 }

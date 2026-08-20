@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:atlas_app/core/design_system/atoms/app_chip.dart';
+import 'package:atlas_app/core/design_system/atoms/app_divider.dart';
+import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 
@@ -50,85 +53,73 @@ class LayoutTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Reading Mode', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Reading Mode'),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: 8,
             children: ReadingMode.values.map((m) {
               final isSelected = readingMode == m;
-              return ChoiceChip(
-                label: Text(m.label),
+              return AppChip(
+                label: m.label,
                 selected: isSelected,
-                onSelected: (_) {
-                  HapticFeedback.selectionClick();
-                  onReadingModeChanged(m);
-                },
+                onPressed: () => onReadingModeChanged(m),
               );
             }).toList(),
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('Chrome Style', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Chrome Style'),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: 8,
             children: ReaderChromeStyle.values.map((s) {
               final isSelected = chromeStyle == s;
-              return ChoiceChip(
-                avatar: Icon(s.icon, size: 16),
-                label: Text(s.label),
+              return AppChip(
+                label: s.label,
                 selected: isSelected,
-                onSelected: (_) {
-                  HapticFeedback.selectionClick();
-                  onChromeStyleChanged?.call(s);
-                },
+                leading: Icon(s.icon, size: 16),
+                onPressed: () => onChromeStyleChanged?.call(s),
               );
             }).toList(),
           ),
           const SizedBox(height: AppSpacing.lg),
           if (readingMode == ReadingMode.page) ...[
-            Text('Page Turn Animation', style: textTheme.labelLarge),
+            const AppSectionHeader(title: 'Page Turn Animation'),
             const SizedBox(height: AppSpacing.xs),
             Wrap(
               spacing: 8,
               runSpacing: 4,
               children: PageTurnAnimation.values.map((a) {
                 final isSelected = pageTurnAnimation == a;
-                return ChoiceChip(
-                  avatar: Icon(a.icon, size: 16),
-                  label: Text(a.label),
+                return AppChip(
+                  label: a.label,
                   selected: isSelected,
-                  onSelected: (_) {
-                    HapticFeedback.selectionClick();
-                    onPageTurnAnimationChanged?.call(a);
-                  },
+                  leading: Icon(a.icon, size: 16),
+                  onPressed: () => onPageTurnAnimationChanged?.call(a),
                 );
               }).toList(),
             ),
           ],
           if (readingMode == ReadingMode.continuous) ...[
-            Text('Scroll Animation', style: textTheme.labelLarge),
+            const AppSectionHeader(title: 'Scroll Animation'),
             const SizedBox(height: AppSpacing.xs),
             Wrap(
               spacing: 8,
               runSpacing: 4,
               children: ScrollAnimation.values.map((a) {
                 final isSelected = scrollAnimation == a;
-                return ChoiceChip(
-                  avatar: Icon(a.icon, size: 16),
-                  label: Text(a.label),
+                return AppChip(
+                  label: a.label,
                   selected: isSelected,
-                  onSelected: (_) {
-                    HapticFeedback.selectionClick();
-                    onScrollAnimationChanged?.call(a);
-                  },
+                  leading: Icon(a.icon, size: 16),
+                  onPressed: () => onScrollAnimationChanged?.call(a),
                 );
               }).toList(),
             ),
           ],
           const SizedBox(height: AppSpacing.lg),
-          const Divider(),
+          const AppDivider(),
           const SizedBox(height: AppSpacing.sm),
-          Text('Screen Brightness', style: textTheme.labelLarge),
+          const AppSectionHeader(title: 'Screen Brightness'),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text('Follow System Brightness',

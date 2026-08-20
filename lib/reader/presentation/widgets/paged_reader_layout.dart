@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,8 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
-import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
@@ -16,7 +15,9 @@ import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
+import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
@@ -24,6 +25,7 @@ import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/pager.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
@@ -121,6 +123,13 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   final Map<int, List<String>> _pageCache = {};
   final Map<int, String> _contentCache = {};
   final Set<int> _loadedChapters = {};
+
+  /// Chapters whose fetch failed (network / source error) — rendered as an
+  /// error state with a Retry action instead of an endless shimmer. A chapter
+  /// in this set is, deliberately, also absent from [_pageCache], which is
+  /// what already keeps [_maxNavigableGlobalPage] from letting the reader
+  /// page past it until a retry succeeds.
+  final Set<int> _failedChapters = {};
   final ValueNotifier<double> _progress = ValueNotifier<double>(0.0);
   int _totalPages = 0;
   int _currentGlobalPage = 0;
@@ -139,7 +148,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   void initState() {
     super.initState();
     _cacheKey = _computeCacheKey();
-    initReaderChrome(isDarkTheme: widget.settings.theme.isDark);
+  }
+
+  bool _chromeInitialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_chromeInitialized) {
+      _chromeInitialized = true;
+      initReaderChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
+    }
   }
 
   @override
@@ -171,7 +190,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         }
       }
     } else {
-      toggleChrome(isDarkTheme: widget.settings.theme.isDark);
+      toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
     }
   }
 
@@ -194,7 +213,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         );
       }
     } else {
-      toggleChrome(isDarkTheme: widget.settings.theme.isDark);
+      toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
     }
   }
 
@@ -230,13 +249,13 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       commandPaletteVisible: commandPaletteVisible,
       onClosePalette: () => setState(() => commandPaletteVisible = false),
       onToggleChrome: () =>
-          toggleChrome(isDarkTheme: widget.settings.theme.isDark),
+          toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark),
       onOpenPalette: () => setState(() => commandPaletteVisible = true),
     );
     if (common != KeyEventResult.ignored) return common;
 
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
       if (_currentGlobalPage > 0) {
         final step = isWideDesktop ? 2 : 1;
         final target = _currentGlobalPage - step;
@@ -253,7 +272,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
       if (_currentGlobalPage < _totalPages - 1) {
         if (isWideDesktop) {
           final target = _currentGlobalPage + 2;
@@ -313,44 +332,6 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     return offset + pageInChapter;
   }
 
-  void _paginateChapter(int index, String content) {
-    final s = widget.settings;
-    final horizontalMargin = switch (s.marginPreset) {
-      MarginPreset.narrow => AppSpacing.md,
-      MarginPreset.normal => AppSpacing.lg,
-      MarginPreset.wide => AppSpacing.xxl,
-    };
-    final verticalMargin = switch (s.marginPreset) {
-      MarginPreset.narrow => AppSpacing.sm,
-      MarginPreset.normal => AppSpacing.md,
-      MarginPreset.wide => AppSpacing.lg,
-    };
-    final rawHeight = _layoutHeight > 0
-        ? _layoutHeight
-        : MediaQuery.of(context).size.height;
-    final width = _pageWidthForCurrentMode();
-    final pageWidth = width - horizontalMargin * 2;
-    final pageHeight = rawHeight - verticalMargin * 2;
-
-    final baseStyle = TextStyle(
-      fontSize: s.fontSize,
-      height: s.lineHeight,
-      letterSpacing: s.letterSpacing,
-      color: s.theme.text,
-      fontWeight: s.fontWeight != null ? FontWeight(s.fontWeight!) : null,
-    );
-    final textStyle = s.fontFamily != null
-        ? GoogleFonts.getFont(s.fontFamily!, textStyle: baseStyle)
-        : baseStyle;
-
-    _pageCache[index] = Pager.paginate(
-      text: content,
-      textStyle: textStyle,
-      pageWidth: pageWidth,
-      pageHeight: pageHeight,
-    );
-  }
-
   int _pagesFor(int index) {
     final cached = _pageCache[index];
     if (cached != null) return cached.length;
@@ -396,11 +377,23 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     return offset;
   }
 
-  List<HighlightEntry> _highlightsFor(ChapterEntity chapter) {
-    return ref
-        .watch(annotationsProvider(chapter.bookId))
-        .highlights[chapter.id] ??
+  List<HighlightEntry> _highlightsFor(ChapterEntity chapter, String content) {
+    final userHighlights =
+        ref.watch(annotationsProvider(chapter.bookId)).highlights[chapter.id] ??
         const [];
+    if (content.isEmpty) return userHighlights;
+    final entries =
+        ref.watch(atlasGlossaryProvider(chapter.bookId)).valueOrNull ??
+        const [];
+    return [
+      ...userHighlights,
+      ...glossaryHighlightRanges(
+        chapterId: chapter.id,
+        content: content,
+        entries: entries,
+        color: Theme.of(context).colorScheme.secondaryContainer,
+      ),
+    ];
   }
 
   /// The local page of [chapterIndex] that contains [charOffset], or the last
@@ -539,7 +532,12 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   }
 
   void _ensureChapterLoaded(int index) {
-    if (_loadedChapters.contains(index)) return;
+    // A chapter that already failed only retries when the reader taps
+    // "Retry" (`_retryChapter`) — never silently on every page turn or
+    // prefetch pass, which would just hammer a source that's already down.
+    if (_loadedChapters.contains(index) || _failedChapters.contains(index)) {
+      return;
+    }
     _loadedChapters.add(index);
     final chapter = widget.chapters[index];
     final cached = ref.read(readerChapterContentProvider(chapter));
@@ -554,17 +552,70 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   }
 
   Future<void> _loadContent(int index, ChapterEntity chapter) async {
-    if (!File(chapter.contentPath).existsSync()) {
-      final downloadService = ref.read(chapterDownloadServiceProvider);
-      await downloadService.downloadChapter(chapter.bookId, chapter.index);
+    try {
+      // Route through `readerChapterContentProvider` (not a raw file read) so
+      // downloaded chapters get the same on-device translation + glossary pass
+      // the continuous reader applies. The provider also owns download +
+      // session-refresh handling.
+      final content =
+          await ref.read(readerChapterContentProvider(chapter).future);
       if (!mounted) return;
-    }
-    final repo = ref.read(readerRepositoryProvider);
-    final result = await repo.getChapterContent(chapter.contentPath);
-    if (!mounted) return;
-    if (result case Success(value: final content)) {
+      if (_failedChapters.remove(index) && mounted) setState(() {});
       _onContentLoaded(index, content);
+    } on Object {
+      _markChapterFailed(index);
     }
+  }
+
+  /// Marks [index] as failed so its page shows a Retry action instead of an
+  /// endless shimmer, and lets a future retry re-trigger the fetch (dropping
+  /// it from [_loadedChapters], which is what gates re-entry into
+  /// [_ensureChapterLoaded]).
+  void _markChapterFailed(int index) {
+    _loadedChapters.remove(index);
+    if (!mounted) return;
+    setState(() => _failedChapters.add(index));
+  }
+
+  /// Retries a failed chapter fetch: clears the failed/loaded markers and
+  /// re-kicks the same load path a fresh page-in would use.
+  void _retryChapter(int index) {
+    setState(() => _failedChapters.remove(index));
+    ref.invalidate(readerChapterContentProvider(widget.chapters[index]));
+    _ensureChapterLoaded(index);
+  }
+
+  /// The shimmer-or-error placeholder shown for a chapter whose pages aren't
+  /// cached yet — a plain loading shimmer while it's in flight, or a Retry
+  /// prompt once [_markChapterFailed] has recorded a failure. Building this
+  /// does not itself trigger a (re)fetch; callers decide that.
+  Widget _buildChapterLoadingState(
+    int chIdx,
+    ReadingViewTheme vt, {
+    required bool showHeaders,
+    required ColorScheme colorScheme,
+  }) {
+    if (_failedChapters.contains(chIdx)) {
+      return Container(
+        color: vt.resolve(colorScheme).background,
+        child: AppErrorState(
+          message: 'Could not load this chapter. Check your connection and try again.',
+          onRetry: () => _retryChapter(chIdx),
+        ),
+      );
+    }
+    return Stack(
+      children: [
+        const Positioned.fill(child: SizedBox.expand()),
+        ChapterShimmer(
+          vt: vt,
+          showHeaders: showHeaders,
+          fontSize: widget.settings.fontSize,
+          lineHeight: widget.settings.lineHeight,
+        ),
+        ReaderLoadingOverlay(chapter: widget.chapters[chIdx], vt: vt),
+      ],
+    );
   }
 
   void _recomputeTotalPages() {
@@ -576,6 +627,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
 
   final Set<int> _paginationInFlight = {};
 
+  /// Character offset within each chapter's text where the next chunk of
+  /// pagination should resume. Entries are removed once pagination completes.
+  final Map<int, int> _chunkedOffset = {};
+
+  /// Pages accumulated across multiple frames for a chapter that is still
+  /// being paginated. Written to [_pageCache] only once all text is covered.
+  final Map<int, List<String>> _chunkedAccumulator = {};
+
+  /// Maximum number of pages to lay out per frame before yielding.
+  static const int _chunkedMaxPagesPerFrame = 5;
+
   /// Runs pagination for [index] after the current frame has been painted,
   /// so any in-progress build can show a loading spinner first instead of
   /// the UI thread blocking silently on the previous frame.
@@ -585,12 +647,70 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _paginationInFlight.remove(index);
       if (!mounted) return;
-      _paginateChapter(index, content);
+      _paginateChapterIncremental(index, content);
+    });
+  }
+
+  /// Paginates [content] for chapter [index] in chunks of
+  /// [_chunkedMaxPagesPerFrame] pages, yielding back to the event loop
+  /// between chunks so the UI stays responsive for long chapters.
+  void _paginateChapterIncremental(int index, String content) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final s = widget.settings;
+    final horizontalMargin = switch (s.marginPreset) {
+      MarginPreset.narrow => AppSpacing.md,
+      MarginPreset.normal => AppSpacing.lg,
+      MarginPreset.wide => AppSpacing.xxl,
+    };
+    final verticalMargin = switch (s.marginPreset) {
+      MarginPreset.narrow => AppSpacing.sm,
+      MarginPreset.normal => AppSpacing.md,
+      MarginPreset.wide => AppSpacing.lg,
+    };
+    final rawHeight = _layoutHeight > 0
+        ? _layoutHeight
+        : MediaQuery.of(context).size.height;
+    final width = _pageWidthForCurrentMode();
+    final pageWidth = width - horizontalMargin * 2;
+    final pageHeight = rawHeight - verticalMargin * 2;
+
+    final baseStyle = TextStyle(
+      fontSize: s.fontSize,
+      height: s.lineHeight,
+      letterSpacing: s.letterSpacing,
+      color: s.theme.resolve(colorScheme).text,
+      fontWeight: s.fontWeight != null ? FontWeight(s.fontWeight!) : null,
+    );
+    final textStyle = s.fontFamily != null
+        ? GoogleFonts.getFont(s.fontFamily!, textStyle: baseStyle)
+        : baseStyle;
+
+    final startOffset = _chunkedOffset[index] ?? 0;
+    final result = Pager.paginateChunked(
+      text: content,
+      textStyle: textStyle,
+      pageWidth: pageWidth,
+      pageHeight: pageHeight,
+      startIndex: startOffset,
+      maxPages: _chunkedMaxPagesPerFrame,
+    );
+
+    _chunkedAccumulator.putIfAbsent(index, () => []).addAll(result.pages);
+
+    if (result.complete) {
+      _pageCache[index] = _chunkedAccumulator.remove(index) ?? [''];
+      _chunkedOffset.remove(index);
       _recomputeTotalPages();
       ref.read(chapterLoadPhaseProvider(widget.chapters[index]).notifier).state =
           ChapterLoadPhase.done;
       setState(() {});
-    });
+    } else {
+      _chunkedOffset[index] = result.endIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _paginateChapterIncremental(index, content);
+      });
+    }
   }
 
   void _onContentLoaded(int index, String content) {
@@ -623,6 +743,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   @override
   Widget build(BuildContext context) {
     final vt = widget.settings.theme;
+    final colorScheme = Theme.of(context).colorScheme;
     final chapters = widget.chapters;
     final currentIndex = widget.currentChapterIndex;
 
@@ -630,12 +751,40 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     _scheduleNeighborPrefetch(currentIndex, chapters.length);
 
     final needsRepaginate = _needsRepagination();
+    if (needsRepaginate) {
+      // A settings change (font size, margins, etc.) invalidates all cached
+      // pages. Cancel any in-flight chunked pagination so each chapter can
+      // be re-scheduled fresh on the next frame.
+      _paginationInFlight.clear();
+      _chunkedOffset.clear();
+      _chunkedAccumulator.clear();
+    }
     for (final index in List<int>.from(_loadedChapters)) {
       if (_pageCache[index] == null || needsRepaginate) {
         final content = _contentCache[index];
         if (content != null) {
           _schedulePagination(index, content);
         }
+      }
+    }
+
+    // Re-paginate any loaded chapter whose rendered text changed — the
+    // translation toggle, a language switch or a glossary edit invalidates
+    // `readerChapterContentProvider`, which re-resolves here with new content.
+    // Without this, pages would keep showing the stale text until the chapter
+    // was revisited.
+    for (final index in List<int>.from(_loadedChapters)) {
+      final content = ref
+          .watch(readerChapterContentProvider(widget.chapters[index]))
+          .valueOrNull;
+      if (content != null && _contentCache[index] != content) {
+        _contentCache[index] = content;
+        // Cancel any in-flight pagination for this chapter so the new
+        // content can be paginated fresh.
+        _paginationInFlight.remove(index);
+        _chunkedOffset.remove(index);
+        _chunkedAccumulator.remove(index);
+        _schedulePagination(index, content);
       }
     }
 
@@ -722,20 +871,20 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
 
     if (!_contentCache.containsKey(currentIndex) || _totalPages == 0) {
       return Scaffold(
-        backgroundColor: vt.background,
+        backgroundColor: vt.resolve(colorScheme).background,
         extendBodyBehindAppBar: true,
         appBar: ReaderBarSurface(
           style: widget.settings.chromeStyle,
-          color: vt.surface,
+          color: colorScheme.surfaceContainerHigh,
           child: AppBar(
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
-            foregroundColor: vt.text,
+            foregroundColor: colorScheme.onSurface,
             title: Text(chapters[widget.currentChapterIndex].title,
                 maxLines: 1, overflow: TextOverflow.ellipsis),
             actions: [
               IconButton(
-                icon: Icon(Icons.text_fields, color: vt.text),
+                icon: Icon(Icons.text_fields, color: vt.resolve(colorScheme).text),
                 onPressed: widget.onSettingsTap,
               ),
             ],
@@ -760,16 +909,16 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     }
 
     return Scaffold(
-      backgroundColor: vt.background,
+      backgroundColor: vt.resolve(colorScheme).background,
       extendBodyBehindAppBar: true,
       extendBody: true,
       appBar: chromeVisible
           ? ReaderBarSurface(
               style: widget.settings.chromeStyle,
-              color: vt.surface,
+              color: colorScheme.surfaceContainerHigh,
               child: ReaderChromeBar(
                 title: chapters[currentIndex].title,
-                textColor: vt.text,
+                textColor: colorScheme.onSurface,
                 showPanelToggle: isDesktop,
                 rightPanelVisible: rightPanelVisible,
                 onTogglePanel: toggleRightPanel,
@@ -780,9 +929,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       bottomNavigationBar: chromeVisible
           ? ReaderBarSurface(
               style: widget.settings.chromeStyle,
-              color: vt.surface,
+              color: colorScheme.surfaceContainerHigh,
               child: ReaderBottomNav(
-                textColor: vt.text,
+                textColor: colorScheme.onSurface,
                 onSettingsTap: widget.onSettingsTap,
                 onChapterIndexTap: () => _showChapterIndex(context),
                 onBookmarkTap: widget.onBookmarkToggle,
@@ -793,7 +942,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                 bookTitle: widget.bookTitle,
                 coverPath: widget.coverPath,
                 progress: _progress,
-                progressColor: widget.settings.theme.accent,
+                progressColor: widget.settings.theme.resolve(colorScheme).accent,
                 onListenTap: isDesktop ? toggleNarrationPanel : null,
               ),
             )
@@ -832,7 +981,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                     } else if (isWideDesktop) {
                       _onDesktopSpreadTapUp(details, constraints);
                     } else {
-                      toggleChrome(isDarkTheme: widget.settings.theme.isDark);
+                      toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
                     }
                   },
                   child: PageView.builder(
@@ -873,14 +1022,14 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                       widget.onPageChanged(chIdx);
                       widget.onProgressChanged(
                           _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0);
-                      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+                      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
                     },
                     itemCount: isWideDesktop ? _totalSpreads : _totalPages,
                     itemBuilder: (context, index) {
                       if (isWideDesktop) {
-                        return _buildSpread(index, vt, chapters);
+                        return _buildSpread(index, vt, chapters, colorScheme: colorScheme);
                       }
-                      return _buildSinglePage(index, vt, chapters);
+                      return _buildSinglePage(index, vt, chapters, colorScheme: colorScheme);
                     },
                   ),
                 ),
@@ -909,7 +1058,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                           bookTitle: widget.bookTitle,
                           coverPath: widget.coverPath,
                           chapterTitle: chapters[currentIndex].title,
-                          accent: widget.settings.theme.accent,
+                          accent: widget.settings.theme.resolve(colorScheme).accent,
                           onClose: closeNarrationPanel,
                         )
                       : ReaderRightPanel(
@@ -947,7 +1096,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                   bookTitle: widget.bookTitle,
                   coverPath: widget.coverPath,
                   chapterTitle: chapters[currentIndex].title,
-                  accent: widget.settings.theme.accent,
+                  accent: widget.settings.theme.resolve(colorScheme).accent,
                 ),
               ),
             ],
@@ -1061,25 +1210,12 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     );
   }
 
-  Widget _buildSinglePage(int globalPage, ReadingViewTheme vt, List<ChapterEntity> chapters) {
+  Widget _buildSinglePage(int globalPage, ReadingViewTheme vt, List<ChapterEntity> chapters, {required ColorScheme colorScheme}) {
     final (chIdx, pageInChapter) = _globalToLocal(globalPage);
     final pages = _pageCache[chIdx];
     if (pages == null) {
-      if (_loadedChapters.add(chIdx)) {
-        _ensureChapterLoaded(chIdx);
-      }
-      return Stack(
-        children: [
-          const Positioned.fill(child: SizedBox.expand()),
-          ChapterShimmer(
-            vt: vt,
-            showHeaders: pageInChapter == 0,
-            fontSize: widget.settings.fontSize,
-            lineHeight: widget.settings.lineHeight,
-          ),
-          ReaderLoadingOverlay(chapter: chapters[chIdx], vt: vt),
-        ],
-      );
+      _ensureChapterLoaded(chIdx);
+      return _buildChapterLoadingState(chIdx, vt, showHeaders: pageInChapter == 0, colorScheme: colorScheme);
     }
     final clampedPage = pageInChapter.clamp(0, pages.length - 1);
     final content = pages[clampedPage];
@@ -1095,14 +1231,14 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       bookId: chapter.bookId,
       chapterId: chapter.id,
       pageStartOffset: pageStartOffset,
-      highlights: _highlightsFor(chapter),
+      highlights: _highlightsFor(chapter, _contentCache[chIdx] ?? ''),
       isFirstPageOfChapter: isFirstOfChapter,
       isLastPageOfChapter: isLastOfChapter,
       textStyle: TextStyle(
         fontSize: widget.settings.fontSize,
         height: widget.settings.lineHeight,
         letterSpacing: widget.settings.letterSpacing,
-        color: vt.text,
+        color: vt.resolve(colorScheme).text,
         fontWeight: widget.settings.fontWeight != null
             ? FontWeight(widget.settings.fontWeight!)
             : null,
@@ -1112,18 +1248,19 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       marginPreset: widget.settings.marginPreset,
       vt: vt,
       showHeaders: true,
-      chapterStyle: ChapterStyle.forChapter(chIdx),
+      chapterStyle: ChapterStyle.forChapter(chIdx, colorScheme),
       onHighlight: widget.onHighlight,
       onAddNote: widget.onAddNote,
       onShare: widget.onShare,
       onSearchWeb: widget.onSearchWeb,
       onListen: widget.onListen,
       onErase: widget.onErase,
+      onSetGlossaryTerm: (term) => _openGlossaryTerm(chapter.bookId, term),
     );
     return _wrapWithPageAnimation(pageWidget, globalPage);
   }
 
-  Widget _buildSpread(int spreadIndex, ReadingViewTheme vt, List<ChapterEntity> chapters) {
+  Widget _buildSpread(int spreadIndex, ReadingViewTheme vt, List<ChapterEntity> chapters, {required ColorScheme colorScheme}) {
     final leftGlobalPage = spreadIndex * 2;
     final rightGlobalPage = spreadIndex * 2 + 1;
     final (leftChIdx, _) = _globalToLocal(leftGlobalPage);
@@ -1132,17 +1269,11 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     Widget side(int globalPage, int chIdx) {
       if (_pageCache[chIdx] == null) {
         _ensureChapterLoaded(chIdx);
-        return Stack(
-          children: [
-            const Positioned.fill(child: SizedBox.expand()),
-            ChapterShimmer(
-              vt: vt,
-              showHeaders: _isFirstPageOfChapter(globalPage),
-              fontSize: widget.settings.fontSize,
-              lineHeight: widget.settings.lineHeight,
-            ),
-            ReaderLoadingOverlay(chapter: chapters[chIdx], vt: vt),
-          ],
+        return _buildChapterLoadingState(
+          chIdx,
+          vt,
+          showHeaders: _isFirstPageOfChapter(globalPage),
+          colorScheme: colorScheme,
         );
       }
       final (_, pageInChapter) = _globalToLocal(globalPage);
@@ -1154,14 +1285,14 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         bookId: chapter.bookId,
         chapterId: chapter.id,
         pageStartOffset: _pageStartOffset(chIdx, pageInChapter),
-        highlights: _highlightsFor(chapter),
+        highlights: _highlightsFor(chapter, _contentCache[chIdx] ?? ''),
         isFirstPageOfChapter: _isFirstPageOfChapter(globalPage),
         isLastPageOfChapter: _isLastPageOfChapter(globalPage),
         textStyle: TextStyle(
           fontSize: widget.settings.fontSize,
           height: widget.settings.lineHeight,
           letterSpacing: widget.settings.letterSpacing,
-          color: vt.text,
+          color: vt.resolve(colorScheme).text,
           fontWeight: widget.settings.fontWeight != null
               ? FontWeight(widget.settings.fontWeight!)
               : null,
@@ -1171,22 +1302,32 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         marginPreset: widget.settings.marginPreset,
         vt: vt,
         showHeaders: false,
-        chapterStyle: ChapterStyle.forChapter(chIdx),
+        chapterStyle: ChapterStyle.forChapter(chIdx, colorScheme),
         onHighlight: widget.onHighlight,
         onAddNote: widget.onAddNote,
         onShare: widget.onShare,
         onSearchWeb: widget.onSearchWeb,
         onListen: widget.onListen,
         onErase: widget.onErase,
+        onSetGlossaryTerm: (term) => _openGlossaryTerm(chapter.bookId, term),
       );
     }
 
     return Row(
       children: [
-        Expanded(child: rightGlobalPage <= _totalPages ? side(leftGlobalPage, leftChIdx) : Container(color: vt.background)),
-        Container(width: 1, color: vt.text.withValues(alpha: 0.1)),
-        Expanded(child: rightGlobalPage < _totalPages ? side(rightGlobalPage, rightChIdx) : Container(color: vt.background)),
+        Expanded(child: rightGlobalPage <= _totalPages ? side(leftGlobalPage, leftChIdx) : Container(color: vt.resolve(colorScheme).background)),
+        Container(width: 1, color: vt.resolve(colorScheme).text.withValues(alpha: 0.1)),
+        Expanded(child: rightGlobalPage < _totalPages ? side(rightGlobalPage, rightChIdx) : Container(color: vt.resolve(colorScheme).background)),
       ],
+    );
+  }
+
+  void _openGlossaryTerm(String bookId, String term) {
+    DraggableBottomSheet.show(
+      context: context,
+      id: 'glossary_term',
+      initialHeight: 0.6,
+      child: GlossaryTermSheet(bookId: bookId, term: term),
     );
   }
 
@@ -1233,6 +1374,7 @@ class _PagedPageView extends StatelessWidget {
     this.onSearchWeb,
     this.onListen,
     this.onErase,
+    this.onSetGlossaryTerm,
   });
 
   final String content;
@@ -1268,6 +1410,10 @@ class _PagedPageView extends StatelessWidget {
   final void Function(String text, String? sentence, int start, int end)? onListen;
   final void Function(int start, int end)? onErase;
 
+  /// Called with the selected text so the host can define a glossary term for
+  /// it. Omit to hide the "Set as term…" action.
+  final ValueChanged<String>? onSetGlossaryTerm;
+
   EdgeInsets get _padding => switch (marginPreset) {
     MarginPreset.narrow => const EdgeInsets.symmetric(
         horizontal: AppSpacing.md, vertical: AppSpacing.sm,
@@ -1282,13 +1428,14 @@ class _PagedPageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final resolvedStyle = fontFamily != null
         ? GoogleFonts.getFont(fontFamily!, textStyle: textStyle)
         : textStyle;
     final cs = chapterStyle;
 
     return Container(
-      color: vt.background,
+      color: vt.resolve(colorScheme).background,
       child: Column(
         children: [
           if (isFirstPageOfChapter && showHeaders && cs != null)
@@ -1313,7 +1460,7 @@ class _PagedPageView extends StatelessWidget {
               ChapterOrnamentalDivider(accentColor: cs.accentColor),
             ChapterEndFooter(
               chapterNumber: chapterIndex + 1,
-              textColor: vt.text,
+              textColor: vt.resolve(colorScheme).text,
               baseFontSize: textStyle.fontSize!,
             ),
           ],
@@ -1498,6 +1645,12 @@ class _PagedPageView extends StatelessWidget {
                 label: 'Look up "$word"',
                 icon: Icons.translate_rounded,
                 onPressed: () => _showDefine(ctx, word, sentence: sentence, sourceTitle: srcTitle),
+              ),
+            if (showSelectionActions && onSetGlossaryTerm != null)
+              AppContextMenuAction(
+                label: 'Set as term…',
+                icon: Icons.settings_suggest_outlined,
+                onPressed: () => onSetGlossaryTerm!(word),
               ),
             if (eraseEnabled)
               AppContextMenuAction(

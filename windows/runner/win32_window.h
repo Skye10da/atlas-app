@@ -55,6 +55,18 @@ class Win32Window {
   // Return a RECT representing the bounds of the current client area.
   RECT GetClientArea();
 
+  // Update the window frame's theme to match the system theme.
+  static void UpdateTheme(HWND const window);
+
+  // Set the title bar (caption) background and text color.
+  // Uses DWMWA_CAPTION_COLOR / DWMWA_TEXT_COLOR on Win11+; no-op on Win10.
+  static void SetCaptionColor(HWND const window,
+                              COLORREF bgColor,
+                              COLORREF textColor);
+
+  // Force dark or light mode for the title bar via DWMWA_USE_IMMERSIVE_DARK_MODE.
+  static void SetDarkMode(HWND const window, bool enableDark);
+
  protected:
   // Processes and route salient window messages for mouse handling,
   // size change and DPI. Delegates handling of these to member overloads that
@@ -86,9 +98,6 @@ class Win32Window {
 
   // Retrieves a class instance pointer for |window|
   static Win32Window* GetThisFromHandle(HWND const window) noexcept;
-
-  // Update the window frame's theme to match the system theme.
-  static void UpdateTheme(HWND const window);
 
   bool quit_on_close_ = false;
 

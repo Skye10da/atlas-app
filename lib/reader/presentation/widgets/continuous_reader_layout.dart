@@ -133,8 +133,8 @@ class _ContinuousReaderLayoutState
     _itemPositionsListener.itemPositions.addListener(_onPositionsChanged);
     _scrollOffsetSubscription =
         _scrollOffsetListener.changes.listen(_onScrollOffsetChange);
-    initReaderChrome(isDarkTheme: widget.settings.theme.isDark);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      initReaderChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
       // widget.currentChapterIndex is always the reliable resume chapter
       // (reader_content.dart tracks it directly, never derived). Using
       // initialScrollProgress to pick a DIFFERENT chapter here — via
@@ -195,14 +195,14 @@ class _ContinuousReaderLayoutState
       commandPaletteVisible: commandPaletteVisible,
       onClosePalette: () => setState(() => commandPaletteVisible = false),
       onToggleChrome: () =>
-          toggleChrome(isDarkTheme: widget.settings.theme.isDark),
+          toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark),
       onOpenPalette: () => setState(() => commandPaletteVisible = true),
     );
     if (common != KeyEventResult.ignored) return common;
 
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       if (!_itemScrollController.isAttached) return KeyEventResult.handled;
-      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
       unawaited(
         _scrollOffsetController.animateScroll(
           offset: -MediaQuery.of(context).size.height * 0.4,
@@ -214,7 +214,7 @@ class _ContinuousReaderLayoutState
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       if (!_itemScrollController.isAttached) return KeyEventResult.handled;
-      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
       unawaited(
         _scrollOffsetController.animateScroll(
           offset: MediaQuery.of(context).size.height * 0.4,
@@ -226,7 +226,7 @@ class _ContinuousReaderLayoutState
     }
     if (event.logicalKey == LogicalKeyboardKey.pageUp) {
       if (!_itemScrollController.isAttached) return KeyEventResult.handled;
-      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
       unawaited(
         _scrollOffsetController.animateScroll(
           offset: -MediaQuery.of(context).size.height * 0.85,
@@ -238,7 +238,7 @@ class _ContinuousReaderLayoutState
     }
     if (event.logicalKey == LogicalKeyboardKey.pageDown) {
       if (!_itemScrollController.isAttached) return KeyEventResult.handled;
-      resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+      resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
       unawaited(
         _scrollOffsetController.animateScroll(
           offset: MediaQuery.of(context).size.height * 0.85,
@@ -305,7 +305,7 @@ class _ContinuousReaderLayoutState
       _autoScrollActive = true;
       chromeVisible = false;
     });
-    setFullscreen(true, isDarkTheme: widget.settings.theme.isDark);
+    setFullscreen(true, isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
     _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (!mounted || !_itemScrollController.isAttached) return;
       if (_progress.value >= 0.99) {
@@ -355,11 +355,15 @@ class _ContinuousReaderLayoutState
     _scrollToChapter(index, animate: false);
   }
 
+  /// True while [index] is still loading *or* has failed to load — either
+  /// way its content isn't ready to read yet, so [_applyScrollGateIfNeeded]
+  /// must hold the reader at its boundary rather than let it scroll into a
+  /// blank/error chapter. A failed chapter only clears this once its error
+  /// UI's Retry action succeeds (which re-resolves the same provider).
   bool _isChapterLoading(int index) {
     if (index < 0 || index >= widget.chapters.length) return false;
-    return ref.read(
-          readerChapterContentProvider(widget.chapters[index]),
-        ) is AsyncLoading;
+    final state = ref.read(readerChapterContentProvider(widget.chapters[index]));
+    return state is AsyncLoading || state is AsyncError;
   }
 
   /// The index of the chapter whose block is currently considered "on top",
@@ -391,10 +395,10 @@ class _ContinuousReaderLayoutState
     return ((top.index + withinItem) / total).clamp(0.0, 1.0);
   }
 
-  /// Holds the reader at the boundary of the first not-yet-loaded (shimmering)
-  /// chapter so the unloaded region can't be scrolled into while the shimmer
-  /// is in effect. Only built (tracked) chapters are considered — far-away,
-  /// unbuilt chapters aren't reachable yet.
+  /// Holds the reader at the boundary of the first not-ready (loading or
+  /// failed) chapter so the reader can't scroll past a chapter whose content
+  /// isn't actually there yet. Only built (tracked) chapters are considered —
+  /// far-away, unbuilt chapters aren't reachable yet.
   void _applyScrollGateIfNeeded(Iterable<ItemPosition> positions) {
     if (_applyingGate) return;
     for (final p in positions) {
@@ -485,7 +489,7 @@ class _ContinuousReaderLayoutState
     if (!mounted) return;
     _accumulatedOffset += delta;
     _scrollOffset = _accumulatedOffset;
-    resetChromeTimer(isDarkTheme: widget.settings.theme.isDark);
+    resetChromeTimer(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
     if (_jumpInFlight) return;
     if (delta.abs() > 4) {
       final direction = delta > 0 ? ScrollDirection.down : ScrollDirection.up;
@@ -493,7 +497,7 @@ class _ContinuousReaderLayoutState
       setState(() {
         if (direction == ScrollDirection.up) {
           chromeVisible = true;
-          setFullscreen(false, isDarkTheme: widget.settings.theme.isDark);
+          setFullscreen(false, isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
         }
       });
     }
@@ -537,6 +541,7 @@ class _ContinuousReaderLayoutState
   }
 
   Widget _wrapWithAnimation(Widget listView) {
+    final colorScheme = Theme.of(context).colorScheme;
     return switch (_animation) {
       ScrollAnimation.smooth => listView,
       ScrollAnimation.snap => NotificationListener<ScrollEndNotification>(
@@ -574,7 +579,7 @@ class _ContinuousReaderLayoutState
                   child: CustomPaint(
                     painter: _GlowScrollbarPainter(
                       progress: progress,
-                      color: widget.settings.theme.accent,
+                      color: widget.settings.theme.resolve(colorScheme).accent,
                     ),
                   ),
                 ),
@@ -643,7 +648,8 @@ class _ContinuousReaderLayoutState
     void Function()? onRestoreRevealed,
   }) {
     final vt = widget.settings.theme;
-    final cs = ChapterStyle.forChapter(index);
+    final colorScheme = Theme.of(context).colorScheme;
+    final cs = ChapterStyle.forChapter(index, colorScheme);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -696,7 +702,7 @@ class _ContinuousReaderLayoutState
         if (showHeaders)
           ChapterEndFooter(
             chapterNumber: index + 1,
-            textColor: vt.text,
+            textColor: vt.resolve(colorScheme).text,
             baseFontSize: widget.settings.fontSize,
           ),
       ],
@@ -706,6 +712,7 @@ class _ContinuousReaderLayoutState
   @override
   Widget build(BuildContext context) {
     final vt = widget.settings.theme;
+    final colorScheme = Theme.of(context).colorScheme;
     final chapters = widget.chapters;
     final index = widget.currentChapterIndex;
 
@@ -717,16 +724,16 @@ class _ContinuousReaderLayoutState
     }
 
     return Scaffold(
-      backgroundColor: vt.background,
+      backgroundColor: vt.resolve(colorScheme).background,
       extendBodyBehindAppBar: true,
       extendBody: true,
       appBar: chromeVisible
           ? ReaderBarSurface(
               style: widget.settings.chromeStyle,
-              color: vt.surface,
+              color: colorScheme.surfaceContainerHigh,
               child: ReaderChromeBar(
                 title: chapters[index].title,
-                textColor: vt.text,
+                textColor: colorScheme.onSurface,
                 showPanelToggle: isDesktop,
                 rightPanelVisible: rightPanelVisible,
                 onTogglePanel: toggleRightPanel,
@@ -754,7 +761,7 @@ class _ContinuousReaderLayoutState
                   hideRightPanel();
                   return;
                 }
-                toggleChrome(isDarkTheme: widget.settings.theme.isDark);
+                toggleChrome(isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark);
               },
               child: _wrapWithAnimation(
                 ScrollablePositionedList.builder(
@@ -806,7 +813,7 @@ class _ContinuousReaderLayoutState
                   speed: _autoScrollSpeed,
                   onSpeedChanged: _setAutoScrollSpeed,
                   onStop: _stopAutoScroll,
-                  accent: widget.settings.theme.accent,
+                  accent: widget.settings.theme.resolve(colorScheme).accent,
                 ),
               ),
             ),
@@ -815,7 +822,7 @@ class _ContinuousReaderLayoutState
               right: 16,
               bottom: isDesktop ? 24 : 88,
               child: _NarrationSyncButton(
-                accent: widget.settings.theme.accent,
+                accent: widget.settings.theme.resolve(colorScheme).accent,
                 onPressed: _revealNarration,
               ),
             ),
@@ -830,7 +837,7 @@ class _ContinuousReaderLayoutState
                       bookTitle: widget.bookTitle,
                       coverPath: widget.coverPath,
                       chapterTitle: chapters[index].title,
-                      accent: widget.settings.theme.accent,
+                      accent: widget.settings.theme.resolve(colorScheme).accent,
                       onClose: closeNarrationPanel,
                     )
                   : ReaderRightPanel(
@@ -874,7 +881,7 @@ class _ContinuousReaderLayoutState
                 bookTitle: widget.bookTitle,
                 coverPath: widget.coverPath,
                 chapterTitle: chapters[index].title,
-                accent: widget.settings.theme.accent,
+                accent: widget.settings.theme.resolve(colorScheme).accent,
               ),
             ),
         ],
@@ -882,9 +889,9 @@ class _ContinuousReaderLayoutState
       bottomNavigationBar: chromeVisible
           ? ReaderBarSurface(
               style: widget.settings.chromeStyle,
-              color: vt.surface,
+              color: colorScheme.surfaceContainerHigh,
               child: ReaderBottomNav(
-                textColor: vt.text,
+                textColor: colorScheme.onSurface,
                 onSettingsTap: widget.onSettingsTap,
                 onChapterIndexTap: () => _showChapterIndex(context),
                 onBookmarkTap: widget.onBookmarkToggle,
@@ -897,7 +904,7 @@ class _ContinuousReaderLayoutState
                 bookTitle: widget.bookTitle,
                 coverPath: widget.coverPath,
                 progress: _progress,
-                progressColor: widget.settings.theme.accent,
+                progressColor: widget.settings.theme.resolve(colorScheme).accent,
                 onListenTap: isDesktop ? toggleNarrationPanel : null,
               ),
             )

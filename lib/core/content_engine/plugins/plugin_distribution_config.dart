@@ -1,3 +1,5 @@
+import 'dart:io';
+
 /// Locates plugin artifacts in the distribution GitHub repo.
 ///
 /// Expected layout in that repo:
@@ -21,6 +23,17 @@ class GithubPluginDistributionConfig {
   final String branch;
   final String pluginsDir;
   final String catalogFilename;
+
+  /// When non-null, points to a local directory of plugin files to use instead
+  /// of downloading from GitHub. Set via the `ATLAS_PLUGINS_DIR` environment
+  /// variable (e.g. `set ATLAS_PLUGINS_DIR=C:\...\atlas-plugins` on Windows,
+  /// or `export ATLAS_PLUGINS_DIR=...` on macOS/Linux).
+  ///
+  /// When active the GitHub sync is skipped entirely and plugins are read
+  /// directly from this path, so edits take effect on next app launch without
+  /// needing a commit or push.
+  static String? get localPluginsDir =>
+      Platform.environment['ATLAS_PLUGINS_DIR'];
 
   String get _base => 'https://raw.githubusercontent.com/$owner/$repo/$branch';
 

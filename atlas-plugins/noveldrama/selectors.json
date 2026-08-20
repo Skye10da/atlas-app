@@ -17,6 +17,8 @@
     "title": ".chr-title"
   },
   "metadata": {
+    "title": ".desc h3.title",
+    "coverUrl": ".book img@data-src|.book img@src",
     "author": {
       "label": "Author:"
     },

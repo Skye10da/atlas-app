@@ -11,9 +11,15 @@ import 'package:atlas_app/core/content_acquisition/models/content_category.dart'
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/content_acquisition/services/cache_manager.dart';
 import 'package:atlas_app/core/content_acquisition/services/download_manager.dart';
+import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 import 'package:atlas_app/core/content_engine/image/image_pipeline.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:atlas_app/core/database/database.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_translation_service.dart';
+import 'package:atlas_app/wtr/domain/repository_interfaces/wtr_session_repository.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_authentication_manager.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_chapter_provider.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_session_auxiliary.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
   _FakePathProvider(this.dir);
@@ -29,13 +35,18 @@ class _FakePathProvider extends PathProviderPlatform {
 }
 
 class _FakeSource implements SourceAdapter {
-  _FakeSource({required this.novel, required this.chapters});
+  _FakeSource({
+    required this.novel,
+    required this.chapters,
+    this.host = 'example.com',
+  });
 
   final NovelModel novel;
   final List<ChapterModel> chapters;
+  final String host;
 
   @override
-  bool canHandle(Uri uri) => uri.host == 'example.com';
+  bool canHandle(Uri uri) => uri.host == host;
 
   @override
   ContentCategory get contentCategory => ContentCategory.novel;
@@ -229,6 +240,112 @@ void main() {
       expect(book.coverPath, isNull);
     });
   });
+
+  group('ContentAcquisitionEngine.importAndSave WTR service pinning', () {
+    setUp(() async {
+      final auth = WtrAuthenticationManager(
+        sessionRepository: InMemoryWtrSessionRepository(),
+        auxiliary: _AuthAuxiliary(),
+      );
+      await auth.completeLogin();
+      WtrChapterProvider.overrideForTest(WtrChapterProvider(authManager: auth));
+    });
+
+    tearDown(WtrChapterProvider.reset);
+
+    _FakeSource wtrSource({int rawId = 29058}) => _FakeSource(
+          novel: NovelModel(
+            title: 'WTR Novel',
+            sourceId: '$rawId',
+            source: 'WTR-LAB',
+            sourceUrl: 'https://wtr-lab.com/en/novel/$rawId/charm-slug',
+            category: ContentCategory.novel,
+          ),
+          chapters: [chapter(0)],
+          host: 'wtr-lab.com',
+        );
+
+    ContentAcquisitionEngine buildEngine(SourceRegistry registry) =>
+        ContentAcquisitionEngine(
+          registry: registry,
+          db: db,
+          cacheManager: CacheManager(basePath: '${tempDir.path}/cache'),
+        );
+
+    test('?service=webplus pins WebPlus for the novel', () async {
+      final registry = SourceRegistry()..register(wtrSource());
+      await buildEngine(registry).importAndSave(
+        'https://wtr-lab.com/en/novel/29058/charm-slug/chapter-1?service=webplus',
+      );
+
+      expect(
+        await WtrChapterProvider.instance.serviceFor(29058),
+        WtrTranslationService.webPlus,
+      );
+    });
+
+    test('?service=web pins Web', () async {
+      final registry = SourceRegistry()..register(wtrSource());
+      await buildEngine(registry).importAndSave(
+        'https://wtr-lab.com/en/novel/29058/charm-slug/chapter-1?service=web',
+      );
+
+      expect(
+        await WtrChapterProvider.instance.serviceFor(29058),
+        WtrTranslationService.web,
+      );
+    });
+
+    test('no service param leaves the default (AI signed-in) in place', () async {
+      final registry = SourceRegistry()..register(wtrSource());
+      await buildEngine(registry).importAndSave(
+        'https://wtr-lab.com/en/novel/29058/charm-slug/chapter-1',
+      );
+
+      expect(
+        await WtrChapterProvider.instance.serviceFor(29058),
+        WtrTranslationService.ai,
+      );
+    });
+
+    test('a duplicate import does not re-pin the service', () async {
+      final registry = SourceRegistry()..register(wtrSource());
+      final engine = buildEngine(registry);
+      await engine.importAndSave(
+        'https://wtr-lab.com/en/novel/29058/charm-slug/chapter-1?service=webplus',
+      );
+      await WtrChapterProvider.instance.setService(
+        29058,
+        WtrTranslationService.web,
+      );
+
+      await expectLater(
+        engine.importAndSave(
+          'https://wtr-lab.com/en/novel/29058/charm-slug/chapter-1?service=webplus',
+        ),
+        throwsA(isA<ImportException>()),
+      );
+      expect(
+        await WtrChapterProvider.instance.serviceFor(29058),
+        WtrTranslationService.web,
+        reason: 'a duplicate import must not clobber the user’s choice',
+      );
+    });
+  });
+}
+
+class _AuthAuxiliary implements WtrSessionAuxiliary {
+  @override
+  String get origin => 'https://wtr-lab.com';
+
+  @override
+  Future<void> captureCookies() async {}
+
+  @override
+  Future<bool> hasSessionCookies() async => true;
+
+  @override
+  Future<void> clearCookies() async {}
 }
 
 class _CoverTransport implements Transport {

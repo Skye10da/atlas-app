@@ -148,8 +148,9 @@ class _SelectorCard extends StatelessWidget {
     if (service != WtrTranslationService.ai) {
       return Text(
         service == WtrTranslationService.web
-            ? 'Free basic machine translation.'
-            : 'Higher-quality translation, fetched without an account.',
+            ? 'Source-language text (Chinese for Chinese-origin novels), '
+                'fetched without an account.'
+            : 'Source-language text, fetched without an account.',
         style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
       );
     }

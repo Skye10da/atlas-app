@@ -35,6 +35,7 @@ class SessionRefreshScreen extends StatefulWidget {
     this.engineFactory,
     this.sessionStore,
     this.cookieProbe,
+    this.verificationProbe,
     this.timeout = const Duration(seconds: 90),
     this.pollInterval = const Duration(seconds: 1),
   });
@@ -49,6 +50,12 @@ class SessionRefreshScreen extends StatefulWidget {
   final BrowserEngineFactory? engineFactory;
   final BrowserSessionRepositoryInterface? sessionStore;
   final SessionCookieProbe? cookieProbe;
+
+  /// Domain-specific check for "verification really passed" (see
+  /// [SessionRefreshRequest.verificationProbe]). When provided it replaces the
+  /// generic cookie-presence probe — cookies can exist before a bot challenge
+  /// is solved, which would close the window too early.
+  final Future<bool> Function()? verificationProbe;
   final Duration timeout;
   final Duration pollInterval;
 
@@ -82,8 +89,10 @@ class _SessionRefreshScreenState extends State<SessionRefreshScreen> {
 
   Future<void> _checkVerified() async {
     if (_done || !mounted) return;
-    final probe = widget.cookieProbe ?? _defaultCookieProbe;
-    if (await probe(widget.origin)) {
+    final verified = widget.verificationProbe != null
+        ? await widget.verificationProbe!()
+        : await (widget.cookieProbe ?? _defaultCookieProbe)(widget.origin);
+    if (verified) {
       await _complete();
     }
   }

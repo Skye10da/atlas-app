@@ -5,6 +5,7 @@ import 'package:atlas_app/core/content_acquisition/adapters/source_adapter.dart'
 import 'package:atlas_app/core/content_acquisition/adapters/source_registry.dart';
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
+import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -23,7 +24,11 @@ class ChapterDownloadService {
   final DriftReaderRepository readerRepo;
   final AppDatabase db;
 
-  Future<Result<void>> downloadChapter(String bookId, int chapterIndex) async {
+  Future<Result<void>> downloadChapter(
+    String bookId,
+    int chapterIndex, {
+    String? targetLanguage,
+  }) async {
     try {
       final bookResult = await readerRepo.getBookById(bookId);
       if (bookResult is! Success<BookEntity>) return bookResult;
@@ -34,7 +39,7 @@ class ChapterDownloadService {
         return const Failure(DatabaseException('No source available for this book'));
       }
 
-      final chapterModels = await _loadChapterModels(book);
+      final chapterModels = await _loadChapterModels(book, targetLanguage);
       if (chapterIndex >= chapterModels.length) {
         return const Failure(DatabaseException('Chapter index out of range'));
       }
@@ -50,12 +55,29 @@ class ChapterDownloadService {
       // WTR-Lab sign-in / expired-session problems are expected user flows, not
       // generic failures — surface the actionable message directly.
       return Failure(e);
+    } on SocketException catch (e, st) {
+      // No connectivity at all — give the reader a message it can act on
+      // ("check your connection") instead of a generic data-layer failure.
+      return Failure(
+        NetworkException('Failed to download chapter: no connection', e),
+        st,
+      );
+    } on TransportException catch (e, st) {
+      // Any other source-fetch failure (timeout, bad response, blocked
+      // request, unsolved bot challenge, etc.) — still network-flavored from
+      // the reader's point of view, so it gets the "check your connection
+      // and retry" treatment rather than a generic database error.
+      return Failure(NetworkException('Failed to download chapter: ${e.message}', e), st);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to download chapter', e), st);
     }
   }
 
-  Future<List<Result<void>>> downloadAllChapters(String bookId, {void Function(int, int)? onProgress}) async {
+  Future<List<Result<void>>> downloadAllChapters(
+    String bookId, {
+    void Function(int, int)? onProgress,
+    String? targetLanguage,
+  }) async {
     final chaptersResult = await readerRepo.getChapters(bookId);
     if (chaptersResult is! Success<List<ChapterEntity>>) return [chaptersResult];
     final chapters = chaptersResult.value;
@@ -69,7 +91,8 @@ class ChapterDownloadService {
         completed++;
         continue;
       }
-      final result = await downloadChapter(bookId, ch.index);
+      final result = await downloadChapter(bookId, ch.index,
+          targetLanguage: targetLanguage);
       results.add(result);
       completed++;
       onProgress?.call(completed, total);
@@ -92,7 +115,10 @@ class ChapterDownloadService {
     return sourceRegistry.resolve(uri);
   }
 
-  Future<List<ChapterModel>> _loadChapterModels(BookEntity book) async {
+  Future<List<ChapterModel>> _loadChapterModels(
+    BookEntity book,
+    String? targetLanguage,
+  ) async {
     if (book.filePath == null) return [];
     final indexFile = File('${book.filePath}/.chapter_index.json');
     if (!await indexFile.exists()) return [];
@@ -109,6 +135,7 @@ class ChapterDownloadService {
         title: title is String ? title : 'Untitled',
         index: index is num ? index.toInt() : 0,
         contentUrl: contentUrl is String ? contentUrl : null,
+        language: targetLanguage,
       );
     }).toList();
   }

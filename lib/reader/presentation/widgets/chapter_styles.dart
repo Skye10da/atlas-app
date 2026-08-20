@@ -20,19 +20,19 @@ class ChapterStyle {
 
   static const _displayFont = 'Playfair Display';
 
-  static ChapterStyle forChapter(int index) {
+  static ChapterStyle forChapter(int index, ColorScheme colorScheme) {
     const themes = ReadingViewTheme.values;
     final theme = themes[(index + 1) % themes.length];
 
     return ChapterStyle._(
-      accentColor: theme.accent,
-      bannerBackground: theme.surface,
+      accentColor: theme.resolve(colorScheme).accent,
+      bannerBackground: theme.resolve(colorScheme).surface,
       titleStyle: GoogleFonts.getFont(
         _displayFont,
         textStyle: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.bold,
-          color: theme.text,
+          color: theme.resolve(colorScheme).text,
         ),
       ),
       dropCapStyle: GoogleFonts.getFont(
@@ -40,7 +40,7 @@ class ChapterStyle {
         textStyle: TextStyle(
           fontSize: 44,
           fontWeight: FontWeight.bold,
-          color: theme.accent,
+          color: theme.resolve(colorScheme).accent,
           height: 1.1,
         ),
       ),

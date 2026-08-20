@@ -145,6 +145,52 @@ void main() {
       expect(result?.isSessionWall, isTrue);
     });
 
+    test('POSTs a JSON body to a same-origin URL with the right method and '
+        'content type', () async {
+      final engine = _ScriptEngine(
+        currentUrl: 'https://wtr-lab.com/en/novel/29058/charm-is-full',
+      )..cannedArgs = const [
+          '{"b":"{\\"success\\":true,\\"chapter\\":{\\"title\\":\\"Chapter 1\\"}}",'
+              '"s":200,"u":"https://wtr-lab.com/api/reader/get"}'
+        ];
+      final fetcher = WebViewPageFetcher(engine: engine);
+
+      final result = await fetcher.fetchHtml(
+        Uri.parse('https://wtr-lab.com/api/reader/get'),
+        method: 'POST',
+        jsonBody: {'translate': 'web', 'raw_id': 29058, 'chapter_no': 639},
+      );
+
+      expect(
+        result?.body,
+        '{"success":true,"chapter":{"title":"Chapter 1"}}',
+      );
+      expect(engine.evaluated, hasLength(1));
+      final script = engine.evaluated.single;
+      expect(script, contains('"POST"'));
+      expect(script, contains('translate'));
+      expect(script, contains('29058'));
+      expect(script, contains('chapter_no'));
+      expect(script, contains('Content-Type'));
+      expect(script, contains('application/json'));
+      expect(script, contains('opts.body = body'));
+      expect(script, contains('credentials: \'include\''));
+    });
+
+    test('keeps GET fetches body-free with no content-type header', () async {
+      final engine = _ScriptEngine(
+        currentUrl: 'https://wtr-lab.com/en/novel/29058/charm-is-full',
+      );
+      final fetcher = WebViewPageFetcher(engine: engine);
+
+      await fetcher.fetchHtml(Uri.parse('https://wtr-lab.com/api/chapters/29058'));
+
+      final script = engine.evaluated.single;
+      expect(script, contains('"GET"'));
+      expect(script, isNot(contains('"Content-Type"')));
+      expect(script, isNot(contains('"translate"')));
+    });
+
     test('returns null (fall back to HTTP) for a cross-origin request', () async {
       final engine = _ScriptEngine(
         currentUrl: 'https://novelfull.net/the-99th-divorce.html',

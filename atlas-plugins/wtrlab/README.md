@@ -33,12 +33,16 @@ four endpoints:
   `{"translate":"web","language":"en","raw_id":...,"chapter_no":...,"retry":false,"force_retry":false}`).
   The response body is `arr:<iv>:<tag>:<ciphertext>`, AES-GCM encrypted with the
   site's hardcoded 32-byte key; decrypting yields a JSON array of paragraphs.
-  Anonymous access returns the **raw (Chinese)** text — the "ai" service that
-  returns English requires login (`{"code":1401,"error":"You are not logged in!"}`).
-  This matches lightnovel-crawler's `sources/multi/wtrlab.py` behaviour.
+  Plain HTTP returns the **raw (Chinese)** text, and the site demands a
+  Cloudflare Turnstile challenge when it can't see a browser session — so the
+  reader POST is routed through the app's WebView transport, which serves it
+  from a real browser context (passing the challenge) whenever one is
+  available. The "ai" service that returns English additionally requires login
+  (`{"code":1401,"error":"You are not logged in!"}`).
 
-When the reader endpoint answers `requireTurnstile: true` the site is
-rate-limiting the current address; the template surfaces a retry-later error.
+When the reader endpoint answers `requireTurnstile: true` the site needs a
+fresh browser check before serving content; the template latches the origin as
+session-invalid so the app's re-verify flow runs and then retries.
 
 ## Validation
 

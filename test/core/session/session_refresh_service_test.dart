@@ -42,9 +42,44 @@ void main() {
 
       session.markInvalid(origin);
       expect(session.lastInvalidOrigin.value, origin);
+      expect(session.lastInvalidSeedUrl.value, isNull);
 
       session.clearInvalid();
       expect(session.lastInvalidOrigin.value, isNull);
+      expect(session.lastInvalidSeedUrl.value, isNull);
+    });
+
+    test('markInvalid latches an optional seed URL and keeps it in sync', () {
+      final origin = Uri.parse('https://novelfull.net/');
+      final seed = Uri.parse('https://novelfull.net/the-99th.html');
+
+      session.markInvalid(origin, seedUrl: seed);
+      expect(session.lastInvalidOrigin.value, origin);
+      expect(session.lastInvalidSeedUrl.value, seed);
+
+      session.markInvalid(origin);
+      expect(session.lastInvalidSeedUrl.value, isNull,
+          reason: 'a wall without a seed URL must not leak a stale one');
+
+      session.clearInvalid();
+      expect(session.lastInvalidSeedUrl.value, isNull);
+    });
+
+    test('markInvalid latches a verification probe and clears it with the latch',
+        () {
+      final origin = Uri.parse('https://wtr-lab.com/');
+      Future<bool> probe() async => true;
+
+      session.markInvalid(origin, verificationProbe: probe);
+      expect(session.lastInvalidVerificationProbe, probe);
+
+      session.markInvalid(origin);
+      expect(session.lastInvalidVerificationProbe, isNull,
+          reason: 'a wall without a probe must not leak a stale one');
+
+      session.markInvalid(origin, verificationProbe: probe);
+      session.clearInvalid();
+      expect(session.lastInvalidVerificationProbe, isNull);
     });
 
     test('hasAutoRefreshed / markAutoRefreshed gate one-shot auto refresh',
@@ -74,6 +109,22 @@ void main() {
       expect(seen?.origin, origin);
       expect(seen?.seedUrl, seedUrl);
       expect(session.lastInvalidOrigin.value, isNull);
+    });
+
+    test('ensureFresh forwards a latched verification probe to the driver',
+        () async {
+      final origin = Uri.parse('https://wtr-lab.com/');
+      Future<bool> probe() async => true;
+      session.markInvalid(origin, verificationProbe: probe);
+      SessionRefreshRequest? seen;
+      session.driver = (request) async {
+        seen = request;
+        return true;
+      };
+
+      await session.ensureFresh(origin);
+
+      expect(seen?.verificationProbe, probe);
     });
 
     test('ensureFresh returns false and clears the latch when no driver is '

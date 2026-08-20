@@ -46,6 +46,15 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
         permissions: permissions,
       );
 
+  PluginContext _contextFor(String? language) => PluginContext(
+        plugin: manifest,
+        transport: transport,
+        selectors: selectors,
+        filters: filters,
+        permissions: permissions,
+        language: language,
+      );
+
   void _validateCapabilities() {
     if (manifest.requiresJsRendering) {
       throw PluginManifestException(
@@ -80,6 +89,15 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
 
   @override
   ContentCategory get contentCategory => ContentCategory.novel;
+
+  /// Headers to forward when downloading cover images for novels from this
+  /// source. Merges the plugin's request-level headers (User-Agent) with any
+  /// source-specific image headers (e.g. Referer spoofing for hotlink-protected
+  /// covers) declared in `customImageHeaders`.
+  Map<String, String> get coverHeaders => {
+        ...manifest.requestHeaders,
+        ...manifest.customImageHeaders,
+      }..removeWhere((_, v) => v.isEmpty);
 
   @override
   Future<NovelModel> getMetadata(Uri uri) async {
@@ -139,7 +157,7 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
     if (url == null) {
       throw Exception('$sourceName: chapter has no content URL');
     }
-    return template.chapterContent(_context, url);
+    return template.chapterContent(_contextFor(chapter.language), url);
   }
 
   @override

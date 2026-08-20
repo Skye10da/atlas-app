@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
@@ -32,7 +33,9 @@ class CookieTransport implements Transport {
   /// without the matching UA can still get rejected. Fetched once per
   /// process since it's a fixed platform string, not per-page. Cached at the
   /// class level (not per-instance) because a fresh [CookieTransport] is
-  /// constructed per plugin/run.
+  /// constructed per plugin/run. Only available where the plugin implements
+  /// `getDefaultUserAgent` (Android/iOS/macOS); on Windows, Linux, and Web it
+  /// stays null and requests pass through without a UA fill.
   static String? _cachedUserAgent;
   static Future<String?>? _userAgentLookup;
 
@@ -43,12 +46,32 @@ class CookieTransport implements Transport {
   }
 
   static Future<String?> _fetchDefaultUserAgent() async {
+    // `InAppWebViewController.getDefaultUserAgent` is only implemented by the
+    // Android/iOS/macOS plugin packages. On Windows the native manager answers
+    // `NotImplemented`, which the Dart MethodChannel surfaces as a
+    // MissingPluginException; on Web and Linux the call is unsupported too.
+    // Skip it entirely so those builds never throw (and never trip a
+    // debugger's exception breakpoint) — the UA fill is a best-effort replay
+    // nicety, not a requirement.
+    if (!_supportsDefaultUserAgent) return null;
     try {
       final ua = await InAppWebViewController.getDefaultUserAgent();
       _cachedUserAgent = ua;
       return ua;
     } on Object {
       return null;
+    }
+  }
+
+  static bool get _supportsDefaultUserAgent {
+    if (kIsWeb) return false;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+        return true;
+      default:
+        return false;
     }
   }
 

@@ -7,7 +7,7 @@
       "version": "1.0.0",
       "templateId": "html",
       "transport": "http",
-      "baseUrl": "https://allnovelfull.net",
+      "baseUrl": "https://novgo.net",
       "capabilities": [
         "search",
         "chapterList",

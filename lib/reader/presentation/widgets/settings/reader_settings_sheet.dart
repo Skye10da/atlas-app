@@ -2,17 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/providers/translation_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/settings/glossary_tab.dart';
+import 'package:atlas_app/reader/presentation/widgets/settings/language_selector.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/layout_tab.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/text_tab.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/theme_tab.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
+import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
 
 class ReaderSettingsSheet extends ConsumerStatefulWidget {
-  const ReaderSettingsSheet({super.key, required this.initialSettings});
+  const ReaderSettingsSheet({
+    super.key,
+    required this.initialSettings,
+    required this.bookId,
+    this.rawId,
+  });
 
   final ReadingSettingsEntity initialSettings;
+
+  /// The book being read — used to drop stale downloaded chapter text when the
+  /// WTR-Lab translation service changes.
+  final String bookId;
+
+  /// WTR-Lab raw id when the current book comes from wtr-lab.com; the
+  /// translation-service tab only shows for those novels.
+  final int? rawId;
 
   @override
   ConsumerState<ReaderSettingsSheet> createState() =>
@@ -39,10 +57,36 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
   late ScrollAnimation _scrollAnimation;
   late ReaderChromeStyle _chromeStyle;
 
+  /// Whether this reader session is reading a WTR-Lab novel, which gains the
+  /// translation-service (Web / WebPlus / AI) selector inside the Translate tab.
+  bool get _hasWtrTab => widget.rawId != null;
+
+  /// A WTR-Lab translation switch means any stored chapter text was fetched
+  /// under the *previous* service. Drop the book's downloaded content and
+  /// invalidate every loaded chapter so the reader refetches each one with the
+  /// newly selected service.
+  Future<void> _onWtrServiceChanged() async {
+    final repo = ref.read(readerRepositoryProvider);
+    await repo.resetChapterContent(widget.bookId);
+    ref.invalidate(readerChapterContentProvider);
+  }
+
+  /// Changing the target language (WTR novels) means stored chapters were
+  /// fetched under the old language — drop them so the next read refetches
+  /// translated. Non-WTR novels translate at read time, so only the loaded
+  /// chapters need a rebuild.
+  Future<void> _onLanguageChanged() async {
+    if (_hasWtrTab) {
+      final repo = ref.read(readerRepositoryProvider);
+      await repo.resetChapterContent(widget.bookId);
+    }
+    ref.invalidate(readerChapterContentProvider);
+  }
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     final s = widget.initialSettings;
     _fontSize = s.fontSize;
     _fontFamily = s.fontFamily;
@@ -106,10 +150,17 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
               labelColor: colors.primary,
               unselectedLabelColor: colors.onSurface.withValues(alpha: 0.6),
               indicatorColor: colors.primary,
-              tabs: const [
-                Tab(icon: Icon(Icons.palette, size: 20), text: 'Theme'),
-                Tab(icon: Icon(Icons.text_fields, size: 20), text: 'Text'),
-                Tab(icon: Icon(Icons.view_quilt, size: 20), text: 'Layout'),
+              tabs: [
+                const Tab(icon: Icon(Icons.palette, size: 20), text: 'Appearance'),
+                const Tab(
+                  icon: Icon(Icons.text_fields, size: 20),
+                  text: 'Typography',
+                ),
+                const Tab(icon: Icon(Icons.view_quilt, size: 20), text: 'Behavior'),
+                const Tab(
+                  icon: Icon(Icons.translate, size: 20),
+                  text: 'Translate',
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -204,11 +255,83 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
                       notifier.setFollowSystemBrightness(v);
                     },
                   ),
+                  SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.sm),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_hasWtrTab) ...[
+                            WtrTranslationSelector(
+                              rawId: widget.rawId!,
+                              onServiceChanged: _onWtrServiceChanged,
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            LanguageSelector(
+                              bookId: widget.bookId,
+                              onLanguageChanged: _onLanguageChanged,
+                            ),
+                          ] else ...[
+                            _TranslationToggle(bookId: widget.bookId),
+                            const SizedBox(height: AppSpacing.sm),
+                            LanguageSelector(
+                              bookId: widget.bookId,
+                              onLanguageChanged: _onLanguageChanged,
+                            ),
+                          ],
+                          const SizedBox(height: AppSpacing.sm),
+                          const Divider(height: 1),
+                          const SizedBox(height: AppSpacing.sm),
+                          GlossaryTab(bookId: widget.bookId),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Enables / disables on-device translation for a non-WTR novel. Shown only
+/// for books that are not WTR-Lab — those already translate via their Web /
+/// WebPlus / AI services, so they get the service selector instead.
+class _TranslationToggle extends ConsumerWidget {
+  const _TranslationToggle({required this.bookId});
+
+  final String bookId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).colorScheme;
+    final enabled =
+        ref.watch(translationEnabledProvider(bookId)).valueOrNull ?? false;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SwitchListTile(
+        value: enabled,
+        title: const Text('Translate this novel'),
+        subtitle: const Text(
+          'Translate the source text on-device into the target language.',
+        ),
+        secondary: const Icon(Icons.translate),
+        onChanged: (value) async {
+          await ref
+              .read(translationControllerProvider)
+              .setEnabled(bookId, value);
+          ref.invalidate(translationEnabledProvider(bookId));
+          ref.invalidate(readerChapterContentProvider);
+        },
       ),
     );
   }

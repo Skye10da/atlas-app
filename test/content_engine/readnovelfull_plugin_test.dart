@@ -90,6 +90,30 @@ const _searchPage = '''
 </div>
 </body></html>''';
 
+const _novelPageNoOgTags = '''
+<html><head>
+<title>Read Lord of the Realm novel online free - ReadNovelFull</title>
+<meta name="description" content="Read Lord of the Realm novel online free.">
+</head><body>
+<div class="col-info-desc">
+<div class="info-holder">
+  <div class="desc"><h3 class="title">Lord of the Realm</h3></div>
+  <div class="book"><img src="https://img.readnovelfull.com/thumb/t-300x439/lord-of-the-realm.jpg" alt="Lord of the Realm"></div>
+</div>
+<ul class="info info-meta">
+  <li><h3>Author:</h3><a href="/authors/guijingzhuzai">Guijingzhuzai</a></li>
+  <li><h3>Genre:</h3><a href="/genres/action">Action</a>, <a href="/genres/fantasy">Fantasy</a></li>
+  <li><h3>Status:</h3><a href="/novel-list/completed-novel" class="text-primary">Completed</a></li>
+</ul>
+</div>
+<div class="desc-text"><p>Steampunk, magic and secret arts.</p></div>
+<div class="col-xs-12" id="list-chapter">
+  <ul class="list-chapter">
+    <li><a href="/lord-of-the-realm/chapter-1-forbidden-love.html" title="Chapter 1"><span class="nchr-text">Chapter 1: Forbidden love</span></a></li>
+  </ul>
+</div>
+</body></html>''';
+
 class _FakeTransportRegistry extends TransportRegistry {
   const _FakeTransportRegistry(this.transport);
 
@@ -279,6 +303,24 @@ void main() {
       expect(chapter.content, contains('grip on the valley below'));
       expect(chapter.content, isNot(contains('Prev Chapter')));
       expect(chapter.wordCount, greaterThan(0));
+    });
+
+    test('metadata selectors supply title and cover when og: tags are missing',
+        () async {
+      final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
+      final source = await repo(transport).buildSource('readnovelfull');
+
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      expect(novel.title, 'Lord of the Realm',
+          reason: '.desc h3.title must be used instead of <title> tag');
+      expect(novel.author, 'Guijingzhuzai');
+      expect(novel.description, contains('Steampunk, magic and secret arts'));
+      expect(novel.coverUrl,
+          'https://img.readnovelfull.com/thumb/t-300x439/lord-of-the-realm.jpg',
+          reason: '.book img@src must resolve the cover URL');
+      expect(novel.genres, ['Action', 'Fantasy']);
+      expect(novel.source, 'ReadNovelFull');
     });
   });
 }

@@ -36,24 +36,30 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Starts on Web.
-      expect(find.text('WebPlus'), findsOneWidget);
+      // Starts on WebPlus (the signed-out default).
+      expect(find.text('Web'), findsOneWidget);
 
-      // Switch Web -> WebPlus fires the callback.
-      await tester.tap(find.text('WebPlus'));
+      // Switch WebPlus -> Web fires the callback.
+      await tester.tap(find.text('Web'));
       await tester.pumpAndSettle();
       expect(changes, 1);
-      expect(await provider.serviceFor(29058), WtrTranslationService.webPlus);
+      expect(await provider.serviceFor(29058), WtrTranslationService.web);
 
       // Re-tapping the already-selected service does not fire again.
-      await tester.tap(find.text('WebPlus'));
+      await tester.tap(find.text('Web'));
       await tester.pumpAndSettle();
       expect(changes, 1);
 
-      // WebPlus -> AI fires the callback.
+      // Web -> AI fires the callback.
       await tester.tap(find.text('AI'));
       await tester.pumpAndSettle();
       expect(changes, 2);
+
+      // AI -> WebPlus fires the callback.
+      await tester.tap(find.text('WebPlus'));
+      await tester.pumpAndSettle();
+      expect(changes, 3);
+      expect(await provider.serviceFor(29058), WtrTranslationService.webPlus);
     });
   });
 }

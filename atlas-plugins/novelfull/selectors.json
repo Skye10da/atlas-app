@@ -26,10 +26,12 @@
     "title": ".chapter-title"
   },
   "metadata": {
+    "title": ".m-desc h1.tit",
     "author": {
       "label": "Author:"
     },
     "description": "#novel-summary-inner p|.desc-text p",
+    "coverUrl": ".pic img@src",
     "genres": {
       "labels": ["Genres:", "Genre:"],
       "links": true

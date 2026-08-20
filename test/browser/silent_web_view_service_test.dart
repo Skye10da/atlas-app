@@ -31,6 +31,7 @@ class FakeBackgroundEngine implements BrowserWebEngine {
 
   final List<String> loadedUrls = [];
   final Map<String, JsHandlerCallback> handlers = {};
+  final List<String> evaluated = [];
   List<dynamic> cannedArgs = const [
     '{"b":"<html>from-background</html>","s":200,"u":"https://novelfull.net/"}'
   ];
@@ -70,6 +71,7 @@ class FakeBackgroundEngine implements BrowserWebEngine {
 
   @override
   Future<dynamic> evaluate(String script) async {
+    evaluated.add(script);
     final args = cannedArgsBuilder != null ? cannedArgsBuilder!() : cannedArgs;
     for (final entry in handlers.entries) {
       if (script.contains('"${entry.key}"')) {
@@ -197,6 +199,29 @@ void main() {
       expect(second?.body, '<html>from-background</html>');
       expect(engine.loadedUrls, [originRoot],
           reason: 'second fetch is same-origin -> no extra navigation');
+    });
+
+    test('serves a same-origin JSON POST through the background view', () async {
+      final engine = FakeBackgroundEngine();
+      final service = SilentWebViewService(engine: engine);
+      final reader = Uri.parse('https://wtr-lab.com/api/reader/get');
+
+      final result = await service.fetchHtml(
+        reader,
+        method: 'POST',
+        jsonBody: {'raw_id': 29058, 'chapter_no': 639},
+      );
+
+      expect(result?.body, '<html>from-background</html>');
+      expect(engine.loadedUrls, ['https://wtr-lab.com/'],
+          reason: 'the background view syncs to the API origin first');
+      expect(engine.evaluated, isNotEmpty);
+      final script = engine.evaluated.single;
+      expect(script, contains('"POST"'));
+      expect(script, contains('raw_id'));
+      expect(script, contains('29058'));
+      expect(script, contains('chapter_no'));
+      expect(script, contains('639'));
     });
 
     test('returns null for a non-servable URL without navigating', () async {

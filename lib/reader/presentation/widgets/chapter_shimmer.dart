@@ -6,12 +6,13 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 
 /// Builds a shimmer color scheme that stays legible across light and dark
 /// reading themes by deriving the bone shades from the theme's palette.
-ShimmerEffect chapterShimmerEffect(ReadingViewTheme theme) {
-  final background = theme.background;
-  final text = theme.text;
+ShimmerEffect chapterShimmerEffect(ReadingColors colors) {
+  final background = colors.background;
+  final text = colors.text;
   return ShimmerEffect(
     baseColor: Color.lerp(background, text, 0.07)!,
     highlightColor: Color.lerp(background, text, 0.15)!,
@@ -45,7 +46,7 @@ class ChapterShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: vt.background,
+        color: vt.resolve(Theme.of(context).colorScheme).background,
       child: Padding(
         padding: _padding,
         child: LayoutBuilder(
@@ -57,7 +58,7 @@ class ChapterShimmer extends StatelessWidget {
               physics: const NeverScrollableScrollPhysics(),
               child: Skeletonizer(
                 enabled: true,
-                effect: chapterShimmerEffect(vt),
+                effect: chapterShimmerEffect(vt.resolve(Theme.of(context).colorScheme)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -128,6 +129,7 @@ class ReaderLoadingOverlay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final phase = ref.watch(chapterLoadPhaseProvider(chapter));
     const steps = ChapterLoadPhase.values;
+    final colors = vt.resolve(Theme.of(context).colorScheme);
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -135,7 +137,7 @@ class ReaderLoadingOverlay extends ConsumerWidget {
         margin: const EdgeInsets.only(bottom: 16, left: 24, right: 24),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: vt.surface.withValues(alpha: 0.92),
+          color: colors.surface.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -155,7 +157,7 @@ class ReaderLoadingOverlay extends ConsumerWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color:
-                    phase == ChapterLoadPhase.done ? vt.accent : vt.text.withValues(alpha: 0.7),
+                    phase == ChapterLoadPhase.done ? colors.accent : colors.text.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(width: 10),
@@ -170,7 +172,7 @@ class ReaderLoadingOverlay extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: vt.text,
+                  color: colors.text,
                 ),
               ),
             ),

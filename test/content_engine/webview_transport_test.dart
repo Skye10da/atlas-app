@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
@@ -120,29 +122,26 @@ void main() {
       expect(inner.bytesCalls, 1);
     });
 
-    test('bypasses the web-view fetcher for form POSTs', () async {
+    test('tries the web-view fetcher first for form POSTs, then falls back '
+        'to inner', () async {
       final inner = _CountingInner();
       final transport = WebViewTransport(inner: inner);
-      var webViewCalls = 0;
-      service.fetcher = (url, {headers}) async {
-        webViewCalls++;
-        return const WebViewFetchResult(body: '<html>webview</html>');
-      };
+      service.fetcher = (url, {headers, method, jsonBody, binary = false}) async =>
+          const WebViewFetchResult(body: '<html>webview</html>');
 
       final body = await transport.fetchHtmlPost(
         Uri.parse('https://example.com/admin-ajax.php'),
         form: {'manga': '591'},
       );
 
-      expect(body, '<html>posted</html>');
-      expect(inner.postCalls, 1);
-      expect(webViewCalls, 0);
+      expect(body, '<html>webview</html>');
+      expect(inner.postCalls, 0);
     });
 
     test('serves HTML through the web-view fetcher when installed', () async {
       final inner = _CountingInner();
       final transport = WebViewTransport(inner: inner);
-      service.fetcher = (u, {headers}) async =>
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async =>
           const WebViewFetchResult(body: '<html>from-webview</html>');
 
       expect(await transport.fetchHtml(Uri.parse(url)),
@@ -155,10 +154,10 @@ void main() {
       final inner = _CountingInner();
       final transport = WebViewTransport(inner: inner);
 
-      service.fetcher = (u, {headers}) async => null;
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async => null;
       expect(await transport.fetchHtml(Uri.parse(url)), '<html>inner</html>');
 
-      service.fetcher = (u, {headers}) async => throw StateError('nope');
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async => throw StateError('nope');
       expect(await transport.fetchHtml(Uri.parse(url)), '<html>inner</html>');
 
       expect(inner.htmlCalls, 2);
@@ -168,8 +167,8 @@ void main() {
       final inner = _CountingInner();
       final transport = WebViewTransport(inner: inner);
 
-      service.fetcher = (u, {headers}) async => null;
-      service.fallbackFetcher = (u, {headers}) async =>
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async => null;
+      service.fallbackFetcher = (u, {headers, method, jsonBody, binary = false}) async =>
           const WebViewFetchResult(body: '<html>from-background</html>');
 
       expect(await transport.fetchHtml(Uri.parse(url)),
@@ -182,9 +181,9 @@ void main() {
       final inner = _CountingInner();
       final transport = WebViewTransport(inner: inner);
 
-      service.fetcher = (u, {headers}) async =>
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async =>
           const WebViewFetchResult(body: '<html>from-browser</html>');
-      service.fallbackFetcher = (u, {headers}) async =>
+      service.fallbackFetcher = (u, {headers, method, jsonBody, binary = false}) async =>
           const WebViewFetchResult(body: '<html>background</html>');
 
       expect(await transport.fetchHtml(Uri.parse(url)),
@@ -196,21 +195,88 @@ void main() {
       final inner = _CountingInner();
       final transport = WebViewTransport(inner: inner);
 
-      service.fetcher = (u, {headers}) async => null;
-      service.fallbackFetcher = (u, {headers}) async => throw StateError('down');
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async => null;
+      service.fallbackFetcher = (u, {headers, method, jsonBody, binary = false}) async => throw StateError('down');
 
       expect(await transport.fetchHtml(Uri.parse(url)), '<html>inner</html>');
       expect(inner.htmlCalls, 1);
     });
 
-    test('fallback serves JSON and bytes too', () async {
+    test('fallback serves JSON too', () async {
       final inner = _CountingInner();
       final transport = WebViewTransport(inner: inner);
 
-      service.fallbackFetcher = (u, {headers}) async =>
+      service.fallbackFetcher = (u, {headers, method, jsonBody, binary = false}) async =>
           const WebViewFetchResult(body: '{"ok":true}');
 
       expect(await transport.fetchJson(Uri.parse(url)), {'ok': true});
+      expect(inner.jsonCalls, 0);
+    });
+
+    test('fetchBytes tries the webview with binary mode and returns decoded '
+        'bytes', () async {
+      final inner = _CountingInner();
+      final transport = WebViewTransport(inner: inner);
+      var capturedBinary = false;
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async {
+        capturedBinary = binary;
+        return WebViewFetchResult(
+          bytes: Uint8List.fromList([10, 20, 30]),
+          status: 200,
+        );
+      };
+
+      final result = await transport.fetchBytes(Uri.parse(url));
+      expect(result, [10, 20, 30]);
+      expect(inner.bytesCalls, 0);
+      expect(capturedBinary, true,
+          reason: 'fetchBytes must request binary mode from the webview');
+    });
+
+    test('fetchBytes falls back to inner transport when webview returns null',
+        () async {
+      final inner = _CountingInner();
+      final transport = WebViewTransport(inner: inner);
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async =>
+          null;
+      service.fallbackFetcher =
+          (u, {headers, method, jsonBody, binary = false}) async => null;
+
+      expect(await transport.fetchBytes(Uri.parse(url)), [1, 2, 3]);
+      expect(inner.bytesCalls, 1);
+    });
+
+    test('fetchBytes retries through webview on Cloudflare error and returns '
+        'decoded bytes', () async {
+      final inner = _ThrowingInner(
+        const TransportException('Cloudflare blocked'),
+      );
+      final transport = WebViewTransport(inner: inner);
+      var webViewCalls = 0;
+      service.fallbackFetcher = (u, {headers, method, jsonBody, binary = false}) async {
+        webViewCalls++;
+        return WebViewFetchResult(bytes: Uint8List.fromList([4, 5, 6]), status: 200);
+      };
+
+      final result = await transport.fetchBytes(Uri.parse(url));
+      expect(result, [4, 5, 6]);
+      expect(webViewCalls, 1);
+    });
+
+    test('tries the web-view fetcher first for JSON POSTs, then falls back '
+        'to inner', () async {
+      final inner = _CountingInner();
+      final transport = WebViewTransport(inner: inner);
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async =>
+          const WebViewFetchResult(body: '{"source":"webview"}');
+
+      expect(
+        await transport.fetchJsonPost(
+          Uri.parse(url),
+          jsonBody: {'k': 1},
+        ),
+        {'source': 'webview'},
+      );
       expect(inner.jsonCalls, 0);
     });
 
@@ -219,12 +285,14 @@ void main() {
       final inner = _CountingInner();
       final transport = WebViewTransport(inner: inner);
 
-      service.fetcher = (u, {headers}) async =>
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async =>
           const WebViewFetchResult(body: '<login>', status: 401);
 
       expect(await transport.fetchHtml(Uri.parse(url)), '<html>inner</html>');
       expect(inner.htmlCalls, 1);
       expect(session.lastInvalidOrigin.value, Uri.parse(url));
+      expect(session.lastInvalidSeedUrl.value, Uri.parse(url),
+          reason: 'the challenged URL seeds the re-verify webview');
     });
 
     test('an inner session-expired failure is latched and rethrown', () async {
@@ -238,6 +306,8 @@ void main() {
         throwsA(isA<TransportException>()),
       );
       expect(session.lastInvalidOrigin.value, Uri.parse(url));
+      expect(session.lastInvalidSeedUrl.value, Uri.parse(url),
+          reason: 'the challenged URL seeds the re-verify webview');
     });
 
     test('a plain inner failure is not treated as a session wall', () async {
@@ -251,6 +321,51 @@ void main() {
         throwsA(isA<TransportException>()),
       );
       expect(session.lastInvalidOrigin.value, isNull);
+    });
+
+    test('retries through webview on Cloudflare bot-check from inner transport',
+        () async {
+      final inner = _ThrowingInner(
+        const TransportException('Cloudflare blocked'),
+      );
+      final transport = WebViewTransport(inner: inner);
+      service.fallbackFetcher = (u, {headers, method, jsonBody, binary = false}) async =>
+          const WebViewFetchResult(body: '<html>retried</html>');
+
+      expect(
+        await transport.fetchHtml(Uri.parse(url)),
+        '<html>retried</html>',
+      );
+    });
+
+    test('rethrows Cloudflare error when webview retry also fails', () async {
+      final inner = _ThrowingInner(
+        const TransportException('Cloudflare blocked'),
+      );
+      final transport = WebViewTransport(inner: inner);
+      service.fetcher = null;
+      service.fallbackFetcher = null;
+
+      await expectLater(
+        transport.fetchHtml(Uri.parse(url)),
+        throwsA(isA<TransportException>()),
+      );
+    });
+
+    test('falls back to inner transport when webview returns null for POST',
+        () async {
+      final inner = _CountingInner();
+      final transport = WebViewTransport(inner: inner);
+      service.fetcher = (u, {headers, method, jsonBody, binary = false}) async => null;
+      service.fallbackFetcher = (u, {headers, method, jsonBody, binary = false}) async => null;
+
+      final body = await transport.fetchHtmlPost(
+        Uri.parse('https://example.com/admin-ajax.php'),
+        form: {'manga': '591'},
+      );
+
+      expect(body, '<html>posted</html>');
+      expect(inner.postCalls, 1);
     });
   });
 }

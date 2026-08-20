@@ -9,6 +9,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
+import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 
@@ -59,6 +61,65 @@ class PdfImportService {
     return _importFromBytes(bytes, fileName);
   }
 
+  /// Extracts metadata from PDF bytes without importing.
+  /// Used by the import sheet to show a preview before the user confirms.
+  Future<NovelModel> extractMetadata(List<int> bytes, String fileName) async {
+    final title =
+        fileName.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+
+    // Best-effort cover render from first page
+    Uint8List? coverBytes;
+    try {
+      if (!kIsWeb) await pdfrxFlutterInitialize();
+      // Write to temp file, render first page, read bytes back
+      final tmpDir = await getTemporaryDirectory();
+      final tmpPath = p.join(tmpDir.path, 'atlas_pdf_preview_$fileName');
+      await File(tmpPath).writeAsBytes(bytes);
+      try {
+        final doc = await PdfDocument.openFile(tmpPath);
+        try {
+          if (doc.pages.isNotEmpty) {
+            final page = doc.pages.first;
+            const targetWidth = 360.0;
+            final ratio = page.height / page.width;
+            final pdfImage = await page.render(
+              fullWidth: targetWidth,
+              fullHeight: targetWidth * ratio,
+            );
+            if (pdfImage != null) {
+              final image = await pdfImage.createImage(pixelSizeThreshold: 360);
+              try {
+                final byteData =
+                    await image.toByteData(format: ui.ImageByteFormat.png);
+                if (byteData != null) {
+                  coverBytes = byteData.buffer.asUint8List();
+                }
+              } finally {
+                image.dispose();
+              }
+            }
+          }
+        } finally {
+          await doc.dispose();
+        }
+      } finally {
+        try {
+          await File(tmpPath).delete();
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    return NovelModel(
+      sourceId: fileName,
+      title: title,
+      source: 'PDF File',
+      sourceUrl: '',
+      category: ContentCategory.book,
+      fileFormat: 'pdf',
+      coverBytes: coverBytes,
+    );
+  }
+
   Future<Result<String>> _importFromBytes(List<int> bytes, String fileName) async {
     try {
       final title = fileName.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
@@ -103,19 +164,21 @@ class PdfImportService {
       );
       await _db.into(_db.books).insert(bookCompanion);
 
-      for (final (index, chapter) in chapters.indexed) {
-        final chapterId = '${bookId}_ch$index';
-        await _db.into(_db.chapters).insert(ChaptersCompanion(
-          id: Value(chapterId),
-          bookId: Value(bookId),
-          index: Value(index),
-          title: Value(chapter.title),
-          contentPath: Value(pdfPath),
-          wordCount: const Value(0),
-          pageCount: Value(chapter.pageNumber),
-          createdAt: Value(DateTime.now()),
-        ));
-      }
+      await _db.batch((batch) {
+        for (final (index, chapter) in chapters.indexed) {
+          final chapterId = '${bookId}_ch$index';
+          batch.insert(_db.chapters, ChaptersCompanion(
+            id: Value(chapterId),
+            bookId: Value(bookId),
+            index: Value(index),
+            title: Value(chapter.title),
+            contentPath: Value(pdfPath),
+            wordCount: const Value(0),
+            pageCount: Value(chapter.pageNumber),
+            createdAt: Value(DateTime.now()),
+          ));
+        }
+      });
 
       return Success(bookId);
     } on Exception catch (e) {

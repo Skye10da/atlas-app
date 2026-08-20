@@ -47,7 +47,8 @@ final wtrAuthManagerProvider = Provider<WtrAuthenticationManager>((ref) {
 });
 
 /// The user's chosen translation service for a given novel (`rawId`), defaulting
-/// to Web when never chosen.
+/// to the site's account-dependent default (AI when signed in, WebPlus
+/// otherwise) when never chosen.
 final wtrTranslationServiceProvider =
     FutureProvider.family<WtrTranslationService, int>((ref, rawId) async {
   final runtime = await ref.watch(wtrRuntimeProvider.future);

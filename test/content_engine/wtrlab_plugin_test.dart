@@ -13,6 +13,10 @@ import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/content_engine/templates/wtrlab_template.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:atlas_app/core/content_engine/transport/transport_registry.dart';
+import 'package:atlas_app/wtr/domain/repository_interfaces/wtr_session_repository.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_authentication_manager.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_chapter_provider.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_session_auxiliary.dart';
 
 import 'test_fixtures.dart';
 
@@ -65,6 +69,22 @@ class _FakeTransportRegistry extends TransportRegistry {
       transport;
 }
 
+/// A WTR session auxiliary that always reports session cookies present, so the
+/// auth manager can be driven to the authenticated state in tests.
+class _AuthenticatedWtrAuxiliary implements WtrSessionAuxiliary {
+  @override
+  String get origin => 'https://wtr-lab.com';
+
+  @override
+  Future<void> captureCookies() async {}
+
+  @override
+  Future<bool> hasSessionCookies() async => true;
+
+  @override
+  Future<void> clearCookies() async {}
+}
+
 Future<void> _copyDir(Directory from, Directory to) async {
   await to.create(recursive: true);
   await for (final entry in from.list()) {
@@ -90,10 +110,21 @@ void main() {
         reason: 'flutter test must run from the package root so that '
             'atlas-plugins/wtrlab resolves');
     await _copyDir(source, Directory(p.join(baseDir.path, 'wtrlab')));
+
+    // The default translation service is now AI (English), which requires an
+    // authenticated WTR-Lab session — provide one so the getChapter path
+    // passes through the sign-in gate.
+    final auth = WtrAuthenticationManager(
+      sessionRepository: InMemoryWtrSessionRepository(),
+      auxiliary: _AuthenticatedWtrAuxiliary(),
+    );
+    await auth.completeLogin();
+    WtrChapterProvider.overrideForTest(WtrChapterProvider(authManager: auth));
   });
 
   tearDown(() async {
     await tempDir.delete(recursive: true);
+    WtrChapterProvider.reset();
   });
 
   PluginRepository repo(Transport transport) => PluginRepository(

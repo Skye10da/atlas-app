@@ -4,11 +4,11 @@
       "id": "allnovelfull",
       "version": "1.0.0",
       "checksums": {
-        "filters.json": "cde06f6f3f27684c67c845039b5e4c76e72ceb53a8ca8583cc25698e03277cee",
-        "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "e81745596be6567ce35e63d86c72124a5186f7405af8dc2db0856b82bb20b97e",
-        "README.md": "48e8a85f22b6e6885a93960ab3749046880a82bb5a7dd97bc758d3c4c3b925d4",
-        "selectors.json": "52f90846f9a4f9aa266b6e54b756292f800b2168824e3cbacb2c831977b049e3"
+        "filters.json": "aafa7a4ec6be97d21fbfd262d03bcdd3ed92f94009910f31891dbe19081a336c",
+        "permissions.json": "c4e18dc39b5a96074adcd866a70635ac33b65fcb195469096681ebc12b777ba0",
+        "plugin.json": "8e07b864eb238b8385691fb8201686215d930fa95622887c54c373e5c7f6595e",
+        "README.md": "b2a2968df86515630bb4cd409b7f7e0d2eaf37a3e99ed77864f80712942c8b9f",
+        "selectors.json": "2bae21dd2046271d33fcadc1b482a0c3959dd76bf6bf19109ba057ba4cd2ca6b"
       }
     },
     {
@@ -19,7 +19,7 @@
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
         "plugin.json": "6f1c81fea15f37c0e734cae97eae1ad68dfe832e0e4e3714002db1543307c6fd",
         "README.md": "e7e2d0a5c67e37477762d7f10c61f17b1d039b7e69e7707a40e6cea2c696d34f",
-        "selectors.json": "724f6c65b0047eaaa4705c0b6c2ef08294e41fd1b033692eb86116d29c8725f8"
+        "selectors.json": "662890eb9fe927efefde8e51323f1aed7e0be57afa40a03e083e4c8f7dbee09f"
       }
     },
     {
@@ -36,22 +36,22 @@
       "id": "novel-hub",
       "version": "1.0.0",
       "checksums": {
-        "filters.json": "2739092ad7843ef81d33a290beed7d19d1c2551012abc3dd28abca563304f8c3",
-        "permissions.json": "1f52fd7af93de75b23e79b93413e77f681dd76468ee6cd85eb73bfca4e62993c",
-        "plugin.json": "3fb821e7be6be9d4268e1f58a95d9238c8f7a35ccad0f37c49f1660395104988",
-        "README.md": "a294c6f1091a8efa242c10d123fac884b76863dbdd9e2fb892a3cde74affd66f",
-        "selectors.json": "2c1c4fab71b5e5cf67bc342149c094dda32c5be3637f02dcb653cc3b9a833bae"
+        "filters.json": "21d59f13c73982399c4ec27d5d34ce90e53abf6fa208234ea2641b49c6e2a1d9",
+        "permissions.json": "de152c98212125d757df6c35a2e29dd5be60aee24d642bfa405edc7da85256b7",
+        "plugin.json": "171d62dc3adad59a7ff1ec79c26432faaa52c547557ceb4e4a7666d0c2c0c596",
+        "README.md": "011758dfdbd5cf76eb523c58fe79e37613b5225c480f191175061a8b33f1be08",
+        "selectors.json": "319a5f97e1200e36faab44b4613eea8dd002f6fffecc0b900fc9c483ee020e6f"
       }
     },
     {
       "id": "noveldrama",
       "version": "1.0.0",
       "checksums": {
-        "filters.json": "b21723432315ca2074ff05d7121593912b25b1138201040b750fa7fe7bc10790",
-        "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "9eb20379b9d7601677b051b6d0cc2ef9dafcdc4329107105ae0cefd143a2a12b",
-        "README.md": "428253c4151942e8c0cce19c63cc3e44d7580c3c8d8df670800eee12a2488b8b",
-        "selectors.json": "8f956c4915fb917b7b1f46a0169add46a29f6318b7b0775112bbc25150871cea"
+        "filters.json": "30e6167bf1b5c4388196b9f8d31363597d79665811897cd294664557de83a7ee",
+        "permissions.json": "c4e18dc39b5a96074adcd866a70635ac33b65fcb195469096681ebc12b777ba0",
+        "plugin.json": "efc0b2f8f23f18be4937cf4ff16f68df2c1bb4c7ba71ac5df9ca3fcb6f598b6d",
+        "README.md": "a39307db92000ac42a270ad31b5ee0d1c6e099d449b03efdf2a18f0ef5452638",
+        "selectors.json": "fae487b51c08ce4cab65b337a4f4f8004a7f484244e0aa6cdcd221f7eba87555"
       }
     },
     {
@@ -60,9 +60,9 @@
       "checksums": {
         "filters.json": "0068034c35164fb0c3490f0afc18190ca12fbbc8730dcacc01714a6d197fc07d",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "1b25f922f765ec6f0c5700b5859bf19f5413715c5f7746da8fe5f91c8786e08b",
+        "plugin.json": "5b7e0cee8d8218acb5014aa20f6031dff55eb5fc37c7751742d505235ddfad61",
         "README.md": "417ae8afce8488bb45a872d7b34bb42614799411323ffe63bccfa562ee3a5b28",
-        "selectors.json": "24c4e3b9be08f2483a26022307c8824e462e1fc7e378705cd9d559059e61afb7"
+        "selectors.json": "2824b2d26f28ab2bc13d7e33d051f2adab3a8c1c975b9617884ff6c5da5b3c48"
       }
     },
     {
@@ -71,9 +71,9 @@
       "checksums": {
         "filters.json": "0068034c35164fb0c3490f0afc18190ca12fbbc8730dcacc01714a6d197fc07d",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "9075213cbf86e3b42590a3cceb6ec01cd73a8c9d1fb6dd6980525a42d12a7fb2",
+        "plugin.json": "516c34813aae62179bace086d5a02a545d77cd716c56eca3dd00ec72afcc4795",
         "README.md": "62a11357824671397268f28040fdceee2b6208ea1dad5107f6152e6f78ab11c1",
-        "selectors.json": "30beebceac7f1129112a8b23bf5fe5ba1e77e981c0986610706d9f313cd9e7b1"
+        "selectors.json": "3c91d9cab48a658e30b6a82e84bf8e8514bff79305c652fbd8cfd919d052a582"
       }
     },
     {
@@ -91,10 +91,10 @@
       "id": "wtrlab",
       "version": "1.0.0",
       "checksums": {
-        "filters.json": "4fb7e3c81cc539a64e933c4146a50e5cdd7092216346b6ec330725b9c20d982a",
-        "permissions.json": "fd44a88bf39ce07216b8152cad3723c3a3b15331f998f987852e7bede7051116",
-        "plugin.json": "c5219677c62d26e9e87f9c14a77b95fad25dffc3dc3e7b070532e303311b69ce",
-        "README.md": "17d798b21c8b7e0af83ec4eedfe78b3fefe698c3844da4b636dfc9a72df9b121"
+        "filters.json": "063c0d5f1940423fbcb6115290dd6d4d9d1e8a7f3c42ebbc9d91a25f41f2bf74",
+        "permissions.json": "943587858f37df1bd64e5cb6ddfb47a1ccaab43bf2778529f0bb4aa6e6b43dd1",
+        "plugin.json": "7265a1f75d855661b226544658a8bc8eb66746cd2ec2e4a74ca20024b798b28e",
+        "README.md": "36ca3c5068514568b64051a0df4a533380058a12093dcc53dfc7c036b61c6416"
       }
     }
   ]

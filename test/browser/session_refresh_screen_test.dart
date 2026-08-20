@@ -188,6 +188,42 @@ void main() {
           reason: 'the quick view is torn down after verification');
     });
 
+    testWidgets('a verification probe keeps the window open until it passes',
+        (tester) async {
+      final engine = _FakeRefreshEngine();
+      final store = _CapturingStore();
+      var probePassed = false;
+      // Cookies exist immediately (true cookie probe), but the site-specific
+      // probe still reports "not verified" — the window must not close on the
+      // cookie probe alone (WTR sets cookies before the Turnstile is solved).
+      final result = await pumpAndPush(
+        tester,
+        SessionRefreshScreen(
+          origin: Uri.parse(origin),
+          seedUrl: seed,
+          engineFactory: ({String? initialUrl}) => engine,
+          sessionStore: store,
+          cookieProbe: (_) async => true,
+          verificationProbe: () async => probePassed,
+          pollInterval: const Duration(milliseconds: 10),
+        ),
+      );
+
+      // Probe still false after several polls: still waiting, nothing captured.
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(result.value, isNull);
+      expect(store.capturedOrigins, isEmpty);
+
+      probePassed = true;
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(result.value, isTrue);
+      expect(store.capturedOrigins, [Uri.parse(origin)]);
+      expect(engine.disposed, isTrue);
+    });
+
     testWidgets('times out and offers retry / cancel', (tester) async {
       final engine = _FakeRefreshEngine();
       final result = await pumpAndPush(
