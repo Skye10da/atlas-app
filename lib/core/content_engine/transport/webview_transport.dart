@@ -139,7 +139,11 @@ class WebViewTransport implements Transport {
   /// is *not* Cloudflare), notifies [SessionRefreshService] so the app can
   /// offer a re-verify pass. On a Cloudflare bot-challenge error, retries
   /// through the webview — the background view may have navigated to the site
-  /// and solved the challenge by the time the HTTP fallback fails.
+  /// and solved the challenge by the time the HTTP fallback fails. When the
+  /// webview cannot serve it either, the challenge escalates to the
+  /// session-refresh flow (same as a session wall): the refresh webview loads
+  /// the challenged URL, the user passes the bot check, and fresh cookies are
+  /// captured for the retry.
   Future<T> _inner<T>(
     Future<T> Function() run,
     Uri url,
@@ -158,7 +162,35 @@ class WebViewTransport implements Transport {
       // to navigate and solve the challenge.
       final retry = await _tryWebView(url);
       if (retry?.body != null || retry?.bytes != null) return decode(retry!);
+      if (e.botChallenge) {
+        // The webview could not solve it either. Escalate to the quick
+        // re-verify flow and surface as session-expired so the reader's
+        // auto-recovery (see reader_providers.dart) runs a visible webview
+        // that passes the challenge and captures cookies for the retry.
+        SessionRefreshService.instance.markInvalid(
+          url,
+          seedUrl: url,
+          verificationProbe: () => _challengeCleared(url),
+        );
+        throw TransportException(e.message, cause: e, sessionExpired: true);
+      }
       rethrow;
+    }
+  }
+
+  /// Probe the refresh webview polls to decide a bot challenge is really gone:
+  /// a plain HTTP fetch through [inner] (which replays cookies captured by the
+  /// refresh webview). While Cloudflare still challenges the client the fetch
+  /// throws a bot-challenge [TransportException]; once the `cf_clearance`
+  /// cookie lands, the same request succeeds.
+  Future<bool> _challengeCleared(Uri url) async {
+    try {
+      await inner.fetchHtml(url);
+      return true;
+    } on TransportException catch (e) {
+      return !e.botChallenge;
+    } on Object {
+      return false;
     }
   }
 

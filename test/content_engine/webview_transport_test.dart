@@ -91,6 +91,55 @@ class _ThrowingInner implements Transport {
   }
 }
 
+class _MutableInner implements Transport {
+  _MutableInner(this.error);
+
+  TransportException? error;
+
+  @override
+  Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) async {
+    final e = error;
+    if (e != null) throw e;
+    return '<html>cleared</html>';
+  }
+
+  @override
+  Future<String> fetchHtmlPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Map<String, String>? form,
+  }) async {
+    final e = error;
+    if (e != null) throw e;
+    return '<html>cleared</html>';
+  }
+
+  @override
+  Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
+    final e = error;
+    if (e != null) throw e;
+    return {'ok': true};
+  }
+
+  @override
+  Future<Object?> fetchJsonPost(
+    Uri url, {
+    Map<String, String>? headers,
+    Object? jsonBody,
+  }) async {
+    final e = error;
+    if (e != null) throw e;
+    return {'ok': true};
+  }
+
+  @override
+  Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {
+    final e = error;
+    if (e != null) throw e;
+    return [1, 2, 3];
+  }
+}
+
 void main() {
   final service = WebViewFetchService.instance;
   final session = SessionRefreshService.instance;
@@ -376,9 +425,38 @@ void main() {
       },
     );
 
-    test('rethrows Cloudflare error when webview retry also fails', () async {
+    test('escalates a Cloudflare bot-check to the session-refresh flow when '
+        'the webview retry also fails', () async {
       final inner = _ThrowingInner(
-        const TransportException('Cloudflare blocked'),
+        const TransportException('Cloudflare blocked', botChallenge: true),
+      );
+      final transport = WebViewTransport(inner: inner);
+      service.fetcher = null;
+      service.fallbackFetcher = null;
+
+      await expectLater(
+        transport.fetchHtml(Uri.parse(url)),
+        throwsA(
+          isA<TransportException>().having(
+            (e) => e.sessionExpired,
+            'sessionExpired',
+            isTrue,
+          ),
+        ),
+      );
+      expect(session.lastInvalidOrigin.value, Uri.parse(url));
+      expect(session.lastInvalidSeedUrl.value, Uri.parse(url));
+      expect(
+        session.lastInvalidVerificationProbe,
+        isNotNull,
+        reason: 'the challenged URL seeds the re-verify webview with a probe',
+      );
+    });
+
+    test('bot-challenge escalation latches a probe that reports when the '
+        'challenge clears', () async {
+      final inner = _MutableInner(
+        const TransportException('Cloudflare blocked', botChallenge: true),
       );
       final transport = WebViewTransport(inner: inner);
       service.fetcher = null;
@@ -388,6 +466,29 @@ void main() {
         transport.fetchHtml(Uri.parse(url)),
         throwsA(isA<TransportException>()),
       );
+      final probe = session.lastInvalidVerificationProbe;
+      expect(probe, isNotNull);
+
+      // Still challenged -> probe reports not cleared.
+      expect(await probe!(), isFalse);
+
+      // Once the challenge clears (fresh cookies captured), probe reports done.
+      inner.error = null;
+      expect(await probe(), isTrue);
+    });
+
+    test('does not escalate a generic (non-challenge) inner failure', () async {
+      final inner = _ThrowingInner(const TransportException('503'));
+      final transport = WebViewTransport(inner: inner);
+      service.fetcher = null;
+      service.fallbackFetcher = null;
+
+      await expectLater(
+        transport.fetchHtml(Uri.parse(url)),
+        throwsA(isA<TransportException>()),
+      );
+      expect(session.lastInvalidOrigin.value, isNull);
+      expect(session.lastInvalidVerificationProbe, isNull);
     });
 
     test(

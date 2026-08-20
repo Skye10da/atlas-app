@@ -16,6 +16,7 @@ class HttpTransport implements Transport {
       throw TransportException(
         _describeFailure(response, url),
         sessionExpired: _isSessionExpired(response),
+        botChallenge: _isBotChallenge(response),
       );
     }
   }

@@ -291,6 +291,7 @@ void main() {
             isFalse,
             reason: 'a Cloudflare bot-check is not an expired session',
           );
+          expect(e.botChallenge, isTrue);
         }
       },
     );
@@ -306,6 +307,7 @@ void main() {
         fail('expected a TransportException');
       } on TransportException catch (e) {
         expect(e.sessionExpired, isTrue);
+        expect(e.botChallenge, isFalse);
       }
     });
 
@@ -334,6 +336,7 @@ void main() {
         fail('expected a TransportException');
       } on TransportException catch (e) {
         expect(e.message, 'GET https://example.com/x failed with 404');
+        expect(e.botChallenge, isFalse);
       }
     });
 

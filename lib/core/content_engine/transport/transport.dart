@@ -41,6 +41,7 @@ class TransportException implements Exception {
     this.message, {
     this.cause,
     this.sessionExpired = false,
+    this.botChallenge = false,
   });
 
   final String message;
@@ -51,6 +52,12 @@ class TransportException implements Exception {
   /// signal that the saved webview session expired and a re-verify pass (see
   /// `SessionRefreshService`) would help.
   final bool sessionExpired;
+
+  /// True when the failure is a Cloudflare-style bot challenge rather than a
+  /// generic HTTP/session error. Distinct from [sessionExpired] so the
+  /// transport can decide whether a live-webview re-verify pass (which runs
+  /// the real JS challenge and captures fresh cookies) could solve it.
+  final bool botChallenge;
 
   @override
   String toString() => 'TransportException: $message';
