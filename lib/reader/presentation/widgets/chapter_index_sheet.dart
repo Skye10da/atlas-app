@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:atlas_app/core/design_system/molecules/app_search_bar.dart';
-import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 
 /// The chapter-list bottom sheet previously duplicated verbatim as
@@ -28,9 +28,10 @@ class ChapterIndexSheet extends StatefulWidget {
     required int currentChapterIndex,
     required void Function(int index) onChapterTap,
   }) {
-    DraggableBottomSheet.show(
+    AppSheet.show(
       context: context,
       id: sheetId,
+      title: 'Chapters',
       initialHeight: 0.5,
       child: ChapterIndexSheet(
         chapters: chapters,
@@ -137,16 +138,12 @@ class _ChapterIndexSheetState extends State<ChapterIndexSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'Chapters',
-            style: Theme.of(context).textTheme.titleMedium,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: AppSearchBar(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            hint: 'Search chapters',
           ),
-        ),
-        AppSearchBar(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          hint: 'Search chapters',
         ),
         const Divider(height: 1),
         Expanded(

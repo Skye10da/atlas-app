@@ -1,3 +1,4 @@
+import 'package:country_flags/country_flags.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,9 +53,9 @@ class LanguageSelector extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              Text(
-                effectiveSelected.flag,
-                style: const TextStyle(fontSize: 18),
+              CountryFlag.fromLanguageCode(
+                effectiveSelected.code,
+                theme: const ImageTheme(width: 24, height: 16),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -95,9 +96,20 @@ class LanguageSelector extends ConsumerWidget {
           for (final language in languages)
             DropdownMenuItem(
               value: language,
-              child: Text(
-                '${language.flag} ${language.nativeName} (${language.name})',
-                overflow: TextOverflow.ellipsis,
+              child: Row(
+                children: [
+                  CountryFlag.fromLanguageCode(
+                    language.code,
+                    theme: const ImageTheme(width: 24, height: 16),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      '${language.nativeName} (${language.name})',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
         ],

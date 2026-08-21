@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/theme/app_brand.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
@@ -29,7 +30,24 @@ class ReadingSettingsNotifier
 
   Future<void> _init() async {
     final settings = await _repo.load();
+    _apply(settings);
+  }
+
+  /// Publishes [settings] and mirrors presentation prefs onto the design
+  /// system's static sheet config, which call sites read without a widget
+  /// rebuild dependency.
+  void _apply(ReadingSettingsEntity settings) {
+    AppSheet.desktopPresentation = settings.desktopSheetPresentation;
     state = AsyncData(settings);
+  }
+
+  Future<void> setDesktopSheetPresentation(
+    DesktopSheetPresentation value,
+  ) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(desktopSheetPresentation: value);
+    _apply(updated);
+    await _repo.save(updated);
   }
 
   Future<void> setSystemFontFamily(String? fontFamily) async {

@@ -5,6 +5,7 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/theme/app_brand.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/theme_preview_screen.dart';
+import 'package:atlas_app/settings/presentation/providers/font_download_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/settings/presentation/screens/font_manager_screen.dart';
 import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
@@ -12,34 +13,10 @@ import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
 class AppearanceSettingsScreen extends ConsumerWidget {
   const AppearanceSettingsScreen({super.key});
 
-  static const _systemFontOptions = <String?>[
-    null,
-    'Inter',
-    'Open Sans',
-    'Merriweather',
-    'Lora',
-    'Noto Serif',
-    'Playfair Display',
-    'Roboto Slab',
-    'EB Garamond',
-    'JetBrains Mono',
-  ];
-  static const _systemFontLabels = [
-    'System Default',
-    'Inter',
-    'Open Sans',
-    'Merriweather',
-    'Lora',
-    'Noto Serif',
-    'Playfair Display',
-    'Roboto Slab',
-    'Garamond',
-    'JetBrains Mono',
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(readingSettingsProvider);
+    final fontFamiliesAsync = ref.watch(availableFontFamiliesProvider);
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -114,21 +91,30 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   children: [
                     Text('System Font', style: textTheme.titleSmall),
                     const SizedBox(height: AppSpacing.xs),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: List.generate(_systemFontOptions.length, (i) {
-                        final f = _systemFontOptions[i];
-                        final isSelected = settings.systemFontFamily == f;
-                        return ChoiceChip(
-                          label: Text(
-                            _systemFontLabels[i],
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          selected: isSelected,
-                          onSelected: (_) => notifier.setSystemFontFamily(f),
+                    Builder(
+                      builder: (context) {
+                        final fontFamilies =
+                            fontFamiliesAsync.valueOrNull ?? [];
+                        final options = [null, ...fontFamilies];
+                        return Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: List.generate(options.length, (i) {
+                            final f = options[i];
+                            final isSelected =
+                                settings.systemFontFamily == f;
+                            return ChoiceChip(
+                              label: Text(
+                                f ?? 'System Default',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              selected: isSelected,
+                              onSelected: (_) =>
+                                  notifier.setSystemFontFamily(f),
+                            );
+                          }),
                         );
-                      }),
+                      },
                     ),
                   ],
                 ),
@@ -144,7 +130,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                     style: TextStyle(fontSize: 14),
                   ),
                   subtitle: Text(
-                    'Manage Google Fonts for the reader',
+                    'Manage reader fonts — bundled and downloadable',
                     style: textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),

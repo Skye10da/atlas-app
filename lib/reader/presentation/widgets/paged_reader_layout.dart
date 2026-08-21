@@ -4,10 +4,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
-import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
@@ -592,6 +591,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       if (!mounted) return;
       if (_failedChapters.remove(index) && mounted) setState(() {});
       _onContentLoaded(index, content);
+      // Prefetch neighboring chapters so the next page turn is instant.
+      prefetchNeighboringChapters(ref, chapter);
     } on Object {
       _markChapterFailed(index);
     }
@@ -713,7 +714,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       fontWeight: s.fontWeight != null ? FontWeight(s.fontWeight!) : null,
     );
     final textStyle = s.fontFamily != null
-        ? GoogleFonts.getFont(s.fontFamily!, textStyle: baseStyle)
+        ? baseStyle.copyWith(fontFamily: s.fontFamily)
         : baseStyle;
 
     final startOffset = _chunkedOffset[index] ?? 0;
@@ -978,7 +979,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
               child: ReaderBottomNav(
                 textColor: colorScheme.onSurface,
                 onSettingsTap: widget.onSettingsTap,
-                onChapterIndexTap: () => _showChapterIndex(context),
+                onChapterIndexTap: _useSidePanels
+                    ? toggleRightPanel
+                    : () => _showChapterIndex(context),
                 onBookmarkTap: widget.onBookmarkToggle,
                 isBookmarked: widget.isBookmarked,
                 currentChapterTitle: chapters[currentIndex].title,
@@ -990,7 +993,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                 progressColor: widget.settings.theme
                     .resolve(colorScheme)
                     .accent,
-                onListenTap: isDesktop ? toggleNarrationPanel : null,
+                onListenTap: _useSidePanels ? toggleNarrationPanel : null,
               ),
             )
           : null,
@@ -1170,6 +1173,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                     coverPath: widget.coverPath,
                     chapterTitle: chapters[currentIndex].title,
                     accent: widget.settings.theme.resolve(colorScheme).accent,
+                    onExpand: _useSidePanels ? toggleNarrationPanel : null,
                   ),
                 ),
             ],
@@ -1269,6 +1273,13 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     _ensureChapterLoaded(idx);
     widget.onChapterSelected(idx);
   }
+
+  /// When the user prefers side panels on desktop, panel-capable sheets
+  /// (Chapters / Listen) dock into the right panel instead of opening a
+  /// floating dialog.
+  bool get _useSidePanels =>
+      isDesktop &&
+      AppSheet.desktopPresentation == DesktopSheetPresentation.sidePanel;
 
   void _showChapterIndex(BuildContext context) {
     final (curChIdx, _) = _globalToLocal(_currentGlobalPage);
@@ -1422,7 +1433,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   }
 
   void _openGlossaryTerm(String bookId, String term) {
-    DraggableBottomSheet.show(
+    AppSheet.show(
       context: context,
       id: 'glossary_term',
       initialHeight: 0.6,
@@ -1535,7 +1546,7 @@ class _PagedPageView extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final resolvedStyle = fontFamily != null
-        ? GoogleFonts.getFont(fontFamily!, textStyle: textStyle)
+        ? textStyle.copyWith(fontFamily: fontFamily)
         : textStyle;
     final cs = chapterStyle;
 
@@ -1823,7 +1834,7 @@ class _PagedPageView extends StatelessWidget {
     String? sentence,
     String? sourceTitle,
   }) {
-    DraggableBottomSheet.show(
+    AppSheet.show(
       context: ctx,
       id: 'word_lookup',
       initialHeight: 0.7,

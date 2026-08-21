@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
@@ -925,6 +926,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
                 coverPath: widget.coverPath,
                 chapterTitle: chapters[index].title,
                 accent: widget.settings.theme.resolve(colorScheme).accent,
+                onExpand: _useSidePanels ? toggleNarrationPanel : null,
               ),
             ),
         ],
@@ -936,7 +938,9 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
               child: ReaderBottomNav(
                 textColor: colorScheme.onSurface,
                 onSettingsTap: widget.onSettingsTap,
-                onChapterIndexTap: () => _showChapterIndex(context),
+                onChapterIndexTap: _useSidePanels
+                    ? toggleRightPanel
+                    : () => _showChapterIndex(context),
                 onBookmarkTap: widget.onBookmarkToggle,
                 isBookmarked: widget.isBookmarked,
                 currentChapterTitle: chapters[index].title,
@@ -950,12 +954,19 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
                 progressColor: widget.settings.theme
                     .resolve(colorScheme)
                     .accent,
-                onListenTap: isDesktop ? toggleNarrationPanel : null,
+                onListenTap: _useSidePanels ? toggleNarrationPanel : null,
               ),
             )
           : null,
     );
   }
+
+  /// When the user prefers side panels on desktop, panel-capable sheets
+  /// (Chapters / Listen) dock into the right panel instead of opening a
+  /// floating dialog.
+  bool get _useSidePanels =>
+      isDesktop &&
+      AppSheet.desktopPresentation == DesktopSheetPresentation.sidePanel;
 
   void _showChapterIndex(BuildContext context) {
     ChapterIndexSheet.show(

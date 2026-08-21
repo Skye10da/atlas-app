@@ -5,7 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart' hide WordBoundary;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_speed_control.dart';
@@ -39,10 +39,13 @@ class NowPlayingSheet extends ConsumerStatefulWidget {
     String? bookTitle,
     String? coverPath,
   }) {
-    return DraggableBottomSheet.show(
+    return AppSheet.show(
       context: context,
       id: 'reader_now_playing',
+      title: 'Now Playing',
       initialHeight: 0.9,
+      snapPoints: const [0.55, 0.9],
+      maxHeightFactor: 0.95,
       child: NowPlayingSheet(
         chapterTitle: chapterTitle,
         bookTitle: bookTitle,

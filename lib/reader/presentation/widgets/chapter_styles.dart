@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 
@@ -27,22 +26,18 @@ class ChapterStyle {
     return ChapterStyle._(
       accentColor: theme.resolve(colorScheme).accent,
       bannerBackground: theme.resolve(colorScheme).surface,
-      titleStyle: GoogleFonts.getFont(
-        _displayFont,
-        textStyle: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-          color: theme.resolve(colorScheme).text,
-        ),
+      titleStyle: TextStyle(
+        fontFamily: _displayFont,
+        fontSize: 22,
+        fontWeight: FontWeight.bold,
+        color: theme.resolve(colorScheme).text,
       ),
-      dropCapStyle: GoogleFonts.getFont(
-        _displayFont,
-        textStyle: TextStyle(
-          fontSize: 44,
-          fontWeight: FontWeight.bold,
-          color: theme.resolve(colorScheme).accent,
-          height: 1.1,
-        ),
+      dropCapStyle: TextStyle(
+        fontFamily: _displayFont,
+        fontSize: 44,
+        fontWeight: FontWeight.bold,
+        color: theme.resolve(colorScheme).accent,
+        height: 1.1,
       ),
     );
   }

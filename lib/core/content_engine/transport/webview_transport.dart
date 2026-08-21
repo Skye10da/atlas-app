@@ -217,6 +217,15 @@ class WebViewTransport implements Transport {
           SessionRefreshService.instance.markInvalid(url, seedUrl: url);
           continue;
         }
+        // A Cloudflare interstitial is *not* a session wall — the webview may
+        // still be waiting out the JS challenge, so serving its HTML as
+        // chapter content would hide the bot check behind an "empty content"
+        // failure and skip the re-verify flow entirely. Skip it; the caller
+        // (WebViewTransport._inner) escalates the bot challenge to the session
+        // refresh flow instead.
+        if (result.isBotChallenge) {
+          continue;
+        }
         return result;
       } on Object {
         // A broken fetcher must not kill the request; try the next layer.

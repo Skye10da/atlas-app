@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/settings/presentation/providers/font_download_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
 
@@ -12,6 +13,7 @@ class ReadingSettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(readingSettingsProvider);
+    final fontFamiliesAsync = ref.watch(availableFontFamiliesProvider);
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -21,6 +23,7 @@ class ReadingSettingsScreen extends ConsumerWidget {
         error: (_, _) => const Center(child: Text('Failed to load settings')),
         data: (settings) {
           final notifier = ref.read(readingSettingsProvider.notifier);
+          final fontFamilies = fontFamiliesAsync.valueOrNull ?? [];
           return ListView(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             children: [
@@ -59,15 +62,8 @@ class ReadingSettingsScreen extends ConsumerWidget {
                     value: settings.fontFamily,
                     options: [
                       (null, 'System'),
-                      ('Merriweather', 'Merriweather'),
-                      ('Lora', 'Lora'),
-                      ('Inter', 'Inter'),
-                      ('Noto Serif', 'Noto Serif'),
-                      ('Playfair Display', 'Playfair'),
-                      ('Roboto Slab', 'Roboto Slab'),
-                      ('Open Sans', 'Open Sans'),
-                      ('EB Garamond', 'Garamond'),
-                      ('JetBrains Mono', 'JetBrains'),
+                      for (final family in fontFamilies)
+                        (family, family),
                     ],
                     onChanged: notifier.setFontFamily,
                   ),

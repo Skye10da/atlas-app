@@ -425,6 +425,42 @@ void main() {
       },
     );
 
+    test('a Cloudflare challenge from the webview is not served as content; '
+        'the inner bot-check escalates to the session-refresh flow', () async {
+      final inner = _ThrowingInner(
+        const TransportException('Cloudflare blocked', botChallenge: true),
+      );
+      final transport = WebViewTransport(inner: inner);
+      service.fallbackFetcher =
+          (u, {headers, method, jsonBody, binary = false}) async =>
+              const WebViewFetchResult(
+                body: '<html>Just a moment... enable JavaScript</html>',
+                status: 403,
+              );
+
+      await expectLater(
+        transport.fetchHtml(Uri.parse(url)),
+        throwsA(
+          isA<TransportException>().having(
+            (e) => e.sessionExpired,
+            'sessionExpired',
+            isTrue,
+          ),
+        ),
+      );
+      expect(
+        session.lastInvalidOrigin.value,
+        Uri.parse(url),
+        reason: 'the challenge page must not be treated as content; the '
+            'origin latches as invalid so the re-verify webview can open',
+      );
+      expect(
+        session.lastInvalidVerificationProbe,
+        isNotNull,
+        reason: 'the challenged URL seeds the re-verify webview with a probe',
+      );
+    });
+
     test('escalates a Cloudflare bot-check to the session-refresh flow when '
         'the webview retry also fails', () async {
       final inner = _ThrowingInner(

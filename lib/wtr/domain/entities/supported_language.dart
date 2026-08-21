@@ -19,6 +19,16 @@ class SupportedLanguage {
   /// The language's own name, shown in the picker.
   final String nativeName;
 
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SupportedLanguage &&
+          runtimeType == other.runtimeType &&
+          code == other.code;
+
+  @override
+  int get hashCode => code.hashCode;
+
   /// Flag emoji for this language.
   final String flag;
 

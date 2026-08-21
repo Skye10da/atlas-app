@@ -22,7 +22,7 @@ import 'package:atlas_app/core/content_acquisition/models/content_category.dart'
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
-import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -1013,7 +1013,7 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
             icon: Icons.translate_rounded,
             onPressed: () {
               _dismissSelectionMenu();
-              DraggableBottomSheet.show(
+              AppSheet.show(
                 context: context,
                 id: 'word_lookup',
                 initialHeight: 0.7,

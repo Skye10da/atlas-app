@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
@@ -115,25 +114,21 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
           // Chapter header
           Text(
             'Chapter 1',
-            style: GoogleFonts.getFont(
-              'Playfair Display',
-              textStyle: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: colors.accent,
-              ),
+            style: TextStyle(
+              fontFamily: 'Playfair Display',
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: colors.accent,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'The Beginning of a Journey',
-            style: GoogleFonts.getFont(
-              'Playfair Display',
-              textStyle: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: colors.text,
-              ),
+            style: TextStyle(
+              fontFamily: 'Playfair Display',
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: colors.text,
             ),
           ),
           const SizedBox(height: 16),
@@ -154,14 +149,12 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
               children: [
                 TextSpan(
                   text: 'T',
-                  style: GoogleFonts.getFont(
-                    'Playfair Display',
-                    textStyle: TextStyle(
-                      fontSize: 44,
-                      fontWeight: FontWeight.bold,
-                      color: colors.accent,
-                      height: 1.1,
-                    ),
+                  style: TextStyle(
+                    fontFamily: 'Playfair Display',
+                    fontSize: 44,
+                    fontWeight: FontWeight.bold,
+                    color: colors.accent,
+                    height: 1.1,
                   ),
                 ),
                 TextSpan(

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:atlas_app/core/theme/app_brand.dart';
 import 'package:atlas_app/core/theme/app_theme_tokens.dart';
+import 'package:atlas_app/core/theme/local_fonts.dart';
 
 abstract final class AppTheme {
   static const _displayFont = 'Playfair Display';
@@ -197,33 +197,30 @@ abstract final class AppTheme {
     );
 
     return TextTheme(
-      displayLarge: GoogleFonts.getFont(
-        _displayFont,
-        textStyle: base.displayLarge,
-      ),
-      displayMedium: GoogleFonts.getFont(
+      displayLarge: LocalFonts.getFont(_displayFont, textStyle: base.displayLarge),
+      displayMedium: LocalFonts.getFont(
         _displayFont,
         textStyle: base.displayMedium,
       ),
-      displaySmall: GoogleFonts.getFont(
+      displaySmall: LocalFonts.getFont(
         _displayFont,
         textStyle: base.displaySmall,
       ),
-      headlineLarge: GoogleFonts.getFont(uiFont, textStyle: base.headlineLarge),
-      headlineMedium: GoogleFonts.getFont(
+      headlineLarge: LocalFonts.getFont(uiFont, textStyle: base.headlineLarge),
+      headlineMedium: LocalFonts.getFont(
         uiFont,
         textStyle: base.headlineMedium,
       ),
-      headlineSmall: GoogleFonts.getFont(uiFont, textStyle: base.headlineSmall),
-      titleLarge: GoogleFonts.getFont(uiFont, textStyle: base.titleLarge),
-      titleMedium: GoogleFonts.getFont(uiFont, textStyle: base.titleMedium),
-      titleSmall: GoogleFonts.getFont(uiFont, textStyle: base.titleSmall),
-      bodyLarge: GoogleFonts.getFont(_bodyFont, textStyle: base.bodyLarge),
-      bodyMedium: GoogleFonts.getFont(_bodyFont, textStyle: base.bodyMedium),
-      bodySmall: GoogleFonts.getFont(_bodyFont, textStyle: base.bodySmall),
-      labelLarge: GoogleFonts.getFont(uiFont, textStyle: base.labelLarge),
-      labelMedium: GoogleFonts.getFont(uiFont, textStyle: base.labelMedium),
-      labelSmall: GoogleFonts.getFont(uiFont, textStyle: base.labelSmall),
+      headlineSmall: LocalFonts.getFont(uiFont, textStyle: base.headlineSmall),
+      titleLarge: LocalFonts.getFont(uiFont, textStyle: base.titleLarge),
+      titleMedium: LocalFonts.getFont(uiFont, textStyle: base.titleMedium),
+      titleSmall: LocalFonts.getFont(uiFont, textStyle: base.titleSmall),
+      bodyLarge: LocalFonts.getFont(_bodyFont, textStyle: base.bodyLarge),
+      bodyMedium: LocalFonts.getFont(_bodyFont, textStyle: base.bodyMedium),
+      bodySmall: LocalFonts.getFont(_bodyFont, textStyle: base.bodySmall),
+      labelLarge: LocalFonts.getFont(uiFont, textStyle: base.labelLarge),
+      labelMedium: LocalFonts.getFont(uiFont, textStyle: base.labelMedium),
+      labelSmall: LocalFonts.getFont(uiFont, textStyle: base.labelSmall),
     );
   }
 }

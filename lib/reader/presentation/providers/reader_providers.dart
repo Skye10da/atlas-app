@@ -59,9 +59,15 @@ final readerChapterContentProvider =
         ref.read(chapterLoadPhaseProvider(chapter).notifier).state = phase;
       });
 
-      publish(ChapterLoadPhase.gettingText);
+      // Check if the file is already cached on disk — if so, skip the
+      // download phase entirely for a faster perceived load.
+      final fileExists = await File(chapter.contentPath).exists();
 
-      if (!await File(chapter.contentPath).exists()) {
+      if (fileExists) {
+        // File is cached: jump straight to processing (skip gettingText).
+        publish(ChapterLoadPhase.processing);
+      } else {
+        publish(ChapterLoadPhase.gettingText);
         final downloadService = ref.watch(chapterDownloadServiceProvider);
         final downloadResult = await _downloadChapterWithSessionRefresh(
           ref,
@@ -75,9 +81,9 @@ final readerChapterContentProvider =
           // through the `error` case of `AsyncValue.when`.
           throw downloadResult.error;
         }
+        publish(ChapterLoadPhase.processing);
       }
 
-      publish(ChapterLoadPhase.processing);
       final result = await repo.getChapterContent(chapter.contentPath);
       publish(ChapterLoadPhase.preparing);
       return switch (result) {
@@ -296,3 +302,30 @@ final lastReadChapterProvider = FutureProvider.family<ChapterEntity?, String>((
   }
   return null;
 });
+
+/// Prefetches neighboring chapters (next 2 and previous 1) in the background
+/// so that when the user navigates to them, their content is already cached
+/// on disk and the shimmer is skipped entirely.
+///
+/// Call this once a chapter finishes loading (reaches [ChapterLoadPhase.done]).
+/// Only the chapters that are *not* already cached are fetched — the disk-exists
+/// check inside [readerChapterContentProvider] makes this cheap to call
+/// repeatedly.
+void prefetchNeighboringChapters(WidgetRef ref, ChapterEntity current) {
+  final chaptersAsync = ref.read(novelChaptersProvider(current.bookId));
+  final chapters = chaptersAsync.valueOrNull;
+  if (chapters == null || chapters.isEmpty) return;
+
+  // Prefetch next 2 chapters and previous 1.
+  const lookAhead = 2;
+  const lookBehind = 1;
+  final start = (current.index - lookBehind).clamp(0, chapters.length - 1);
+  final end = (current.index + lookAhead).clamp(0, chapters.length - 1);
+
+  for (var i = start; i <= end; i++) {
+    if (i == current.index) continue;
+    final neighbor = chapters[i];
+    // Fire-and-forget: the provider handles caching and dedup internally.
+    ref.read(readerChapterContentProvider(neighbor).future);
+  }
+}

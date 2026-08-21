@@ -208,11 +208,11 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: EdgeInsets.only(
+      padding: const EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
         top: AppSpacing.sm,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
+        bottom: AppSpacing.lg,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

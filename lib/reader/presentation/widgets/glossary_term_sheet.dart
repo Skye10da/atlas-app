@@ -99,11 +99,11 @@ class _GlossaryTermSheetState extends ConsumerState<GlossaryTermSheet> {
     final effectiveTerm = entry?.term ?? widget.term;
 
     return Padding(
-      padding: EdgeInsets.only(
+      padding: const EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
         top: AppSpacing.sm,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
+        bottom: AppSpacing.lg,
       ),
       child: SingleChildScrollView(
         child: Column(

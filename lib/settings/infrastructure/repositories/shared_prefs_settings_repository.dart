@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/theme/app_brand.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
@@ -29,6 +30,7 @@ final class SharedPrefsSettingsRepository
   static const _keyPageTurnAnimation = 'reader_page_turn_animation';
   static const _keyScrollAnimation = 'reader_scroll_animation';
   static const _keyChromeStyle = 'reader_chrome_style';
+  static const _keyDesktopSheetPresentation = 'desktop_sheet_presentation';
 
   @override
   Future<ReadingSettingsEntity> load() async {
@@ -119,6 +121,12 @@ final class SharedPrefsSettingsRepository
         'frosted' => ReaderChromeStyle.frosted,
         _ => ReaderChromeStyle.translucent,
       },
+      desktopSheetPresentation: switch (prefs.getString(
+        _keyDesktopSheetPresentation,
+      )) {
+        'sidePanel' => DesktopSheetPresentation.sidePanel,
+        _ => DesktopSheetPresentation.dialog,
+      },
     );
   }
 
@@ -166,5 +174,9 @@ final class SharedPrefsSettingsRepository
     );
     await prefs.setString(_keyScrollAnimation, settings.scrollAnimation.name);
     await prefs.setString(_keyChromeStyle, settings.chromeStyle.name);
+    await prefs.setString(
+      _keyDesktopSheetPresentation,
+      settings.desktopSheetPresentation.name,
+    );
   }
 }

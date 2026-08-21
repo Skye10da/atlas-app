@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:atlas_app/core/design_system/atoms/app_chip.dart';
 import 'package:atlas_app/core/design_system/atoms/app_divider.dart';
 import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 
@@ -18,6 +19,7 @@ class LayoutTab extends StatelessWidget {
     this.pageTurnAnimation,
     this.scrollAnimation,
     this.chromeStyle = ReaderChromeStyle.translucent,
+    this.desktopSheetPresentation = DesktopSheetPresentation.dialog,
     required this.onReadingModeChanged,
     required this.onKeepScreenAwakeChanged,
     required this.onBrightnessChanged,
@@ -26,6 +28,7 @@ class LayoutTab extends StatelessWidget {
     this.onPageTurnAnimationChanged,
     this.onScrollAnimationChanged,
     this.onChromeStyleChanged,
+    this.onDesktopSheetPresentationChanged,
   });
 
   final ReadingMode readingMode;
@@ -36,6 +39,7 @@ class LayoutTab extends StatelessWidget {
   final PageTurnAnimation? pageTurnAnimation;
   final ScrollAnimation? scrollAnimation;
   final ReaderChromeStyle chromeStyle;
+  final DesktopSheetPresentation desktopSheetPresentation;
   final ValueChanged<ReadingMode> onReadingModeChanged;
   final ValueChanged<bool> onKeepScreenAwakeChanged;
   final ValueChanged<double> onBrightnessChanged;
@@ -44,6 +48,8 @@ class LayoutTab extends StatelessWidget {
   final ValueChanged<PageTurnAnimation>? onPageTurnAnimationChanged;
   final ValueChanged<ScrollAnimation>? onScrollAnimationChanged;
   final ValueChanged<ReaderChromeStyle>? onChromeStyleChanged;
+  final ValueChanged<DesktopSheetPresentation>?
+  onDesktopSheetPresentationChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +125,32 @@ class LayoutTab extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           const AppDivider(),
           const SizedBox(height: AppSpacing.sm),
+          if (MediaQuery.sizeOf(context).width >=
+              AppSheet.desktopBreakpoint) ...[
+            const AppSectionHeader(title: 'Desktop Layout'),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              spacing: 8,
+              children:
+                  [
+                    (DesktopSheetPresentation.dialog, 'Floating dialogs'),
+                    (DesktopSheetPresentation.sidePanel, 'Side panels'),
+                  ].map((entry) {
+                    final (value, label) = entry;
+                    return AppChip(
+                      label: label,
+                      selected: desktopSheetPresentation == value,
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        onDesktopSheetPresentationChanged?.call(value);
+                      },
+                    );
+                  }).toList(),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            const AppDivider(),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           const AppSectionHeader(title: 'Screen Brightness'),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,

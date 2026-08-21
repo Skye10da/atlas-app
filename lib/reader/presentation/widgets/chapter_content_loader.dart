@@ -109,6 +109,8 @@ class ChapterContentLoader extends ConsumerWidget {
           if (context.mounted) {
             ref.read(chapterLoadPhaseProvider(chapter).notifier).state =
                 ChapterLoadPhase.done;
+            // Prefetch neighboring chapters so the next swipe is instant.
+            prefetchNeighboringChapters(ref, chapter);
           }
         });
         return Container(

@@ -7,7 +7,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:atlas_app/core/database/providers.dart';
-import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -483,7 +483,7 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     if (!mounted) return;
     final word = raw.split(RegExp(r'\s+')).join(' ').trim();
     if (word.isEmpty) return;
-    await DraggableBottomSheet.show(
+    await AppSheet.show(
       context: context,
       id: 'word_lookup',
       initialHeight: 0.7,
@@ -638,7 +638,7 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
   }
 
   void _showSettingsSheet() {
-    DraggableBottomSheet.show(
+    AppSheet.show(
       context: context,
       id: 'pdf_reader_settings',
       initialHeight: 0.6,

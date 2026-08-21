@@ -23,12 +23,18 @@ class NarrationMiniPlayer extends ConsumerWidget {
     this.coverPath,
     this.chapterTitle,
     this.accent,
+    this.onExpand,
   });
 
   final String? bookTitle;
   final String? coverPath;
   final String? chapterTitle;
   final Color? accent;
+
+  /// Overrides the tap-to-expand action (e.g. desktop side-panel mode
+  /// reopens the narration panel instead of the bottom sheet). Falls back
+  /// to [NowPlayingSheet.show].
+  final VoidCallback? onExpand;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -62,12 +68,19 @@ class NarrationMiniPlayer extends ConsumerWidget {
           color: colorScheme.surfaceContainerHigh,
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: () => NowPlayingSheet.show(
-              context,
-              chapterTitle: chapterTitle,
-              bookTitle: bookTitle,
-              coverPath: coverPath,
-            ),
+            onTap: () {
+              final expand = onExpand;
+              if (expand != null) {
+                expand();
+                return;
+              }
+              NowPlayingSheet.show(
+                context,
+                chapterTitle: chapterTitle,
+                bookTitle: bookTitle,
+                coverPath: coverPath,
+              );
+            },
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

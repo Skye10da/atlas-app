@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/theme/app_brand.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 
@@ -24,6 +25,7 @@ class ReadingSettingsEntity {
     this.scrollAnimation = ScrollAnimation.smooth,
     this.chromeStyle = ReaderChromeStyle.translucent,
     this.themeMode = ThemeMode.system,
+    this.desktopSheetPresentation = DesktopSheetPresentation.dialog,
   });
 
   final String? systemFontFamily;
@@ -49,6 +51,10 @@ class ReadingSettingsEntity {
   final ReaderChromeStyle chromeStyle;
   final ThemeMode themeMode;
 
+  /// How sheets are presented on desktop-sized windows: floating centered
+  /// dialogs or docked into the reader's right side panel.
+  final DesktopSheetPresentation desktopSheetPresentation;
+
   ReadingSettingsEntity copyWith({
     String? systemFontFamily,
     AppBrand? brand,
@@ -69,6 +75,7 @@ class ReadingSettingsEntity {
     ScrollAnimation? scrollAnimation,
     ReaderChromeStyle? chromeStyle,
     ThemeMode? themeMode,
+    DesktopSheetPresentation? desktopSheetPresentation,
   }) {
     return ReadingSettingsEntity(
       systemFontFamily: systemFontFamily ?? this.systemFontFamily,
@@ -92,6 +99,8 @@ class ReadingSettingsEntity {
       scrollAnimation: scrollAnimation ?? this.scrollAnimation,
       chromeStyle: chromeStyle ?? this.chromeStyle,
       themeMode: themeMode ?? this.themeMode,
+      desktopSheetPresentation:
+          desktopSheetPresentation ?? this.desktopSheetPresentation,
     );
   }
 }

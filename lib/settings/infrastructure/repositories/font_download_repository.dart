@@ -1,23 +1,24 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Tracks which Google Font families have been downloaded and cached
-/// on the device for offline use.
+/// Tracks which font families the user has downloaded to the device
+/// and which weights are installed per family.
 ///
-/// Actual font fetching is handled by `google_fonts` at render time;
-/// this class persists the "downloaded" state so the UI can show status.
+/// Actual font fetching + registration is handled by [FontDownloader]; this
+/// class persists the "downloaded" state so the UI can show status.
 final class FontDownloadRepository {
   const FontDownloadRepository();
 
-  static const _keyPrefix = 'font_downloaded_';
   static const _keyAll = 'font_downloaded_families';
+  static const _keyWeightsPrefix = 'font_weights_';
 
-  /// The Google Font families available for download.
-  /// These are the 6 non-bundled reader-font families.
-  static const downloadableFamilies = <String>{
+  /// Curated popular font families pinned at the top of the browser.
+  static const popularFamilies = <String>{
     'Merriweather',
     'Lora',
-    'Noto Serif',
     'Roboto Slab',
+    'Noto Serif',
     'EB Garamond',
     'JetBrains Mono',
   };
@@ -33,8 +34,7 @@ final class FontDownloadRepository {
   Future<Set<String>> downloadedFamilies() async {
     final prefs = await SharedPreferences.getInstance();
     final names = prefs.getStringList(_keyAll);
-    if (names == null) return {};
-    return names.where(downloadableFamilies.contains).toSet();
+    return names?.toSet() ?? {};
   }
 
   /// Returns true if [family] has been downloaded and cached.
@@ -43,19 +43,46 @@ final class FontDownloadRepository {
     return downloaded.contains(family);
   }
 
-  Future<void> markDownloaded(String family) async {
+  /// Returns the installed weights for each downloaded family.
+  Future<Map<String, Set<int>>> installedWeights() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('$_keyPrefix$family', true);
-    final current = await downloadedFamilies();
-    current.add(family);
+    final result = <String, Set<int>>{};
+    for (final family in await downloadedFamilies()) {
+      final raw = prefs.getString('$_keyWeightsPrefix$family');
+      if (raw != null) {
+        try {
+          final list = jsonDecode(raw) as List;
+          result[family] = {
+            for (final w in list)
+              if (w is int) w,
+          };
+        } catch (_) {
+          result[family] = {400};
+        }
+      } else {
+        result[family] = {400};
+      }
+    }
+    return result;
+  }
+
+  /// Persists that a family was downloaded with the given weights.
+  Future<void> markDownloaded(String family, {Set<int> weights = const {}}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = (await downloadedFamilies())..add(family);
     await prefs.setStringList(_keyAll, current.toList());
+    if (weights.isNotEmpty) {
+      await prefs.setString(
+        '$_keyWeightsPrefix$family',
+        jsonEncode(weights.toList()),
+      );
+    }
   }
 
   Future<void> removeFamily(String family) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('$_keyPrefix$family');
-    final current = await downloadedFamilies();
-    current.remove(family);
+    final current = (await downloadedFamilies())..remove(family);
     await prefs.setStringList(_keyAll, current.toList());
+    await prefs.remove('$_keyWeightsPrefix$family');
   }
 }

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:atlas_app/browser/presentation/widgets/app_session_refresh_bridge.dart';
 import 'package:atlas_app/browser/presentation/widgets/silent_web_view_host.dart';
@@ -15,6 +14,7 @@ import 'package:atlas_app/core/import/opened_file_import_service.dart';
 import 'package:atlas_app/core/router/app_router.dart';
 import 'package:atlas_app/core/services/window_theme_channel.dart';
 import 'package:atlas_app/core/theme/app_theme.dart';
+import 'package:atlas_app/core/theme/local_fonts.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
@@ -26,7 +26,7 @@ final _windowThemeChannel = WindowThemeChannel();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  GoogleFonts.config.allowRuntimeFetching = true;
+  unawaited(LocalFonts.initialize());
   runApp(
     ProviderScope(
       child: AtlasApp(key: ValueKey(DateTime.now().millisecondsSinceEpoch)),

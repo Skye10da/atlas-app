@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/translation_providers.dart';
@@ -13,6 +14,7 @@ import 'package:atlas_app/reader/presentation/widgets/settings/theme_tab.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/font_download_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
+import 'package:atlas_app/settings/presentation/screens/font_manager_screen.dart';
 import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
 
 class ReaderSettingsSheet extends ConsumerStatefulWidget {
@@ -57,6 +59,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
   late PageTurnAnimation _pageTurnAnimation;
   late ScrollAnimation _scrollAnimation;
   late ReaderChromeStyle _chromeStyle;
+  late DesktopSheetPresentation _desktopSheetPresentation;
 
   /// Whether this reader session is reading a WTR-Lab novel, which gains the
   /// translation-service (Web / WebPlus / AI) selector inside the Translate tab.
@@ -105,6 +108,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
     _pageTurnAnimation = s.pageTurnAnimation;
     _scrollAnimation = s.scrollAnimation;
     _chromeStyle = s.chromeStyle;
+    _desktopSheetPresentation = s.desktopSheetPresentation;
   }
 
   @override
@@ -118,14 +122,15 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     final notifier = ref.read(readingSettingsProvider.notifier);
-    final downloadedFamilies = ref.watch(fontDownloadProvider).downloaded;
+    final fontFamilies =
+        ref.watch(availableFontFamiliesProvider).valueOrNull ?? [];
 
     return Padding(
-      padding: EdgeInsets.only(
+      padding: const EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
         top: AppSpacing.lg,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
+        bottom: AppSpacing.lg,
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -196,7 +201,12 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
                     textAlignment: _textAlignment,
                     lineHeight: _lineHeight,
                     letterSpacing: _letterSpacing,
-                    downloadedFamilies: downloadedFamilies,
+                    fontFamilies: fontFamilies,
+                    onDownloadMore: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const FontManagerScreen(),
+                      ),
+                    ),
                     onFontSizeChanged: (v) {
                       setState(() => _fontSize = v);
                       notifier.setFontSize(v);
@@ -231,6 +241,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
                     pageTurnAnimation: _pageTurnAnimation,
                     scrollAnimation: _scrollAnimation,
                     chromeStyle: _chromeStyle,
+                    desktopSheetPresentation: _desktopSheetPresentation,
                     onReadingModeChanged: (m) {
                       setState(() => _readingMode = m);
                       notifier.setReadingMode(m);
@@ -246,6 +257,10 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
                     onChromeStyleChanged: (s) {
                       setState(() => _chromeStyle = s);
                       notifier.setChromeStyle(s);
+                    },
+                    onDesktopSheetPresentationChanged: (p) {
+                      setState(() => _desktopSheetPresentation = p);
+                      notifier.setDesktopSheetPresentation(p);
                     },
                     onKeepScreenAwakeChanged: (v) {
                       setState(() => _keepScreenAwake = v);

@@ -3,9 +3,8 @@ import 'package:flutter/rendering.dart'
     show RenderAbstractViewport, RenderBox, RenderEditable;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
@@ -740,7 +739,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
 
   Widget _buildText(TextStyle baseStyle) {
     final textStyle = widget.fontFamily != null
-        ? GoogleFonts.getFont(widget.fontFamily!, textStyle: baseStyle)
+        ? baseStyle.copyWith(fontFamily: widget.fontFamily)
         : baseStyle;
 
     final ds = widget.dropCapStyle;
@@ -1061,7 +1060,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   }
 
   void _showDefine(String word, {String? sentence}) {
-    DraggableBottomSheet.show(
+    AppSheet.show(
       context: context,
       id: 'word_lookup',
       initialHeight: 0.7,
@@ -1076,7 +1075,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   void _openGlossaryTerm(String word) {
     final bookId = widget.bookId;
     if (bookId == null) return;
-    DraggableBottomSheet.show(
+    AppSheet.show(
       context: context,
       id: 'glossary_term',
       initialHeight: 0.6,

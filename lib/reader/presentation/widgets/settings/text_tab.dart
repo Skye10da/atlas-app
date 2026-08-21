@@ -4,7 +4,6 @@ import 'package:atlas_app/core/design_system/atoms/app_chip.dart';
 import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
-import 'package:atlas_app/settings/infrastructure/repositories/font_download_repository.dart';
 
 class TextTab extends StatelessWidget {
   const TextTab({
@@ -21,7 +20,8 @@ class TextTab extends StatelessWidget {
     required this.onLineHeightChanged,
     required this.onLetterSpacingChanged,
     required this.onTextAlignmentChanged,
-    this.downloadedFamilies = const {},
+    required this.fontFamilies,
+    required this.onDownloadMore,
   });
 
   final double fontSize;
@@ -39,33 +39,19 @@ class TextTab extends StatelessWidget {
   final ValueChanged<double> onLetterSpacingChanged;
   final ValueChanged<TextAlignment> onTextAlignmentChanged;
 
-  /// Families that have been downloaded and cached for offline use.
-  final Set<String> downloadedFamilies;
+  /// Available font families (bundled + downloaded).
+  final List<String> fontFamilies;
 
-  static const _fontOptions = <String?>[
-    null,
-    'Merriweather',
-    'Lora',
-    'Inter',
-    'Noto Serif',
-    'Playfair Display',
-    'Roboto Slab',
-    'Open Sans',
-    'EB Garamond',
-    'JetBrains Mono',
-  ];
-  static const _fontLabels = [
-    'System',
-    'Merriweather',
-    'Lora',
-    'Inter',
-    'Noto Serif',
-    'Playfair',
-    'Roboto Slab',
-    'Open Sans',
-    'Garamond',
-    'JetBrains',
-  ];
+  /// Called when the user taps "Download more fonts…".
+  final VoidCallback onDownloadMore;
+
+  /// Threshold: when System + fontFamilies exceeds this, use the sheet picker.
+  static const _sheetThreshold = 6;
+
+  List<(String?, String)> get _allOptions => [
+        (null, 'System'),
+        ...fontFamilies.map((f) => (f, f)),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -85,25 +71,16 @@ class TextTab extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           const AppSectionHeader(title: 'Font Family'),
           const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: List.generate(_fontOptions.length, (i) {
-              final f = _fontOptions[i];
-              final isSelected = fontFamily == f;
-              final needsDownload =
-                  f != null &&
-                  !FontDownloadRepository.bundledFamilies.contains(f) &&
-                  !downloadedFamilies.contains(f);
-              return AppChip(
-                label: _fontLabels[i],
-                selected: isSelected,
-                onPressed: () => onFontFamilyChanged(f),
-                leading: needsDownload
-                    ? const Icon(Icons.cloud_download_outlined, size: 14)
-                    : null,
-              );
-            }),
+          _buildFontFamilySection(context),
+          const SizedBox(height: AppSpacing.xs),
+          // Download more button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: TextButton.icon(
+              onPressed: onDownloadMore,
+              icon: const Icon(Icons.download_outlined, size: 18),
+              label: const Text('Download more fonts…'),
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
           const AppSectionHeader(title: 'Font Weight'),
@@ -161,6 +138,132 @@ class TextTab extends StatelessWidget {
             }).toList(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFontFamilySection(BuildContext context) {
+    final options = _allOptions;
+    final totalOptions = options.length;
+
+    // Few fonts: show chips (fast, glanceable).
+    if (totalOptions <= _sheetThreshold) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: options.map((opt) {
+            final (f, label) = opt;
+            final isSelected = fontFamily == f;
+            return AppChip(
+              label: label,
+              selected: isSelected,
+              onPressed: () => onFontFamilyChanged(f),
+            );
+          }).toList(),
+        ),
+      );
+    }
+
+    // Many fonts: compact selector → modal bottom sheet.
+    final currentLabel =
+        _allOptions.firstWhere((o) => o.$1 == fontFamily, orElse: () => (null, 'System')).$2;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: GestureDetector(
+        onTap: () => _openFontPickerSheet(context),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  currentLabel,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              Icon(
+                Icons.arrow_drop_down,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openFontPickerSheet(BuildContext context) {
+    final options = _allOptions;
+    final currentFamily = fontFamily;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (ctx, scrollController) => Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
+              width: 32,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+              child: Text(
+                'Font Family',
+                style: Theme.of(ctx).textTheme.titleMedium,
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: options.length,
+                itemBuilder: (ctx, i) {
+                  final (f, label) = options[i];
+                  final isSelected = currentFamily == f;
+                  return ListTile(
+                    title: Text(
+                      label,
+                      style: TextStyle(
+                        fontFamily: f,
+                        fontSize: 16,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? Icon(
+                            Icons.check,
+                            color: Theme.of(ctx).colorScheme.primary,
+                          )
+                        : null,
+                    onTap: () {
+                      onFontFamilyChanged(f);
+                      Navigator.pop(ctx);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

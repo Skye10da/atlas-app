@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
-import 'package:atlas_app/core/design_system/organisms/draggable_bottom_sheet.dart';
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/services/platform_service.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
@@ -548,10 +548,11 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   }
 
   void _showSettingsDrawer() {
-    DraggableBottomSheet.show(
+    AppSheet.show(
       context: context,
       id: 'reader_settings',
       initialHeight: 0.8,
+      snapPoints: const [0.6, 0.8],
       child: ReaderSettingsSheet(
         initialSettings: widget.settings,
         bookId: widget.bookId,
