@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
-import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 
 /// A full-screen preview of a reading theme, allowing the user to see
 /// how text looks on the selected background before applying it.

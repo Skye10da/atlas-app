@@ -49,9 +49,9 @@ class TextTab extends StatelessWidget {
   static const _sheetThreshold = 6;
 
   List<(String?, String)> get _allOptions => [
-        (null, 'System'),
-        ...fontFamilies.map((f) => (f, f)),
-      ];
+    (null, 'System'),
+    ...fontFamilies.map((f) => (f, f)),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -167,8 +167,9 @@ class TextTab extends StatelessWidget {
     }
 
     // Many fonts: compact selector → modal bottom sheet.
-    final currentLabel =
-        _allOptions.firstWhere((o) => o.$1 == fontFamily, orElse: () => (null, 'System')).$2;
+    final currentLabel = _allOptions
+        .firstWhere((o) => o.$1 == fontFamily, orElse: () => (null, 'System'))
+        .$2;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: GestureDetector(
@@ -176,10 +177,9 @@ class TextTab extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: Theme.of(context)
-                .colorScheme
-                .surfaceContainerHighest
-                .withValues(alpha: 0.5),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -221,12 +221,17 @@ class TextTab extends StatelessWidget {
               width: 32,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                color: Theme.of(
+                  ctx,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 4,
+              ),
               child: Text(
                 'Font Family',
                 style: Theme.of(ctx).textTheme.titleMedium,
@@ -243,10 +248,7 @@ class TextTab extends StatelessWidget {
                   return ListTile(
                     title: Text(
                       label,
-                      style: TextStyle(
-                        fontFamily: f,
-                        fontSize: 16,
-                      ),
+                      style: TextStyle(fontFamily: f, fontSize: 16),
                     ),
                     trailing: isSelected
                         ? Icon(

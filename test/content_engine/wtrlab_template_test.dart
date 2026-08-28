@@ -9,9 +9,12 @@ import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/templates/wtrlab_template.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:atlas_app/core/session/session_refresh_service.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_glossary_term.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_translation_service.dart';
 import 'package:atlas_app/wtr/domain/repository_interfaces/wtr_preference_repository.dart';
 import 'package:atlas_app/wtr/domain/repository_interfaces/wtr_session_repository.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_ai_status_tracker.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_ai_translate_service.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_authentication_manager.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_chapter_provider.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_session_auxiliary.dart';
@@ -116,6 +119,33 @@ class _AuthenticatedWtrAuxiliary implements WtrSessionAuxiliary {
 
   @override
   Future<void> clearCookies() async {}
+}
+
+/// AI+ translation service stub: returns a scripted result (or throws the
+/// scripted error) and records what the template handed it.
+class _ScriptedAiTranslate extends WtrAiTranslateService {
+  _ScriptedAiTranslate({this.result, this.error});
+
+  final List<String>? result;
+  final Object? error;
+
+  List<String>? lastParagraphs;
+  List<WtrGlossaryTerm> lastTerms = const [];
+  String? lastTo;
+
+  @override
+  Future<List<String>> translateParagraphs(
+    Transport transport, {
+    required List<String> paragraphs,
+    List<WtrGlossaryTerm> terms = const [],
+    String to = 'en',
+  }) async {
+    lastParagraphs = paragraphs;
+    lastTerms = terms;
+    lastTo = to;
+    if (error != null) throw error!;
+    return result!;
+  }
 }
 
 /// Wraps [paragraphs] in the site's encrypted `arr:<iv>:<tag>:<ct>` body using
@@ -416,6 +446,84 @@ void main() {
         throwsA(isA<TransportException>()),
       );
     });
+  });
+
+  group('WtrLabTemplate AI+ translation', () {
+    setUp(WtrAiStatusTracker.instance.reset);
+    tearDown(WtrAiStatusTracker.instance.reset);
+
+    Future<WtrLabTemplate> aiPlusTemplate(_ScriptedAiTranslate ai) async {
+      final provider = WtrChapterProvider(
+        preferenceRepository: InMemoryWtrPreferenceRepository(),
+        authManager: WtrAuthenticationManager(),
+      );
+      await provider.setService(29058, WtrTranslationService.aiPlus);
+      return WtrLabTemplate(chapterProvider: provider, aiTranslateService: ai);
+    }
+
+    test(
+      'AI+ fetches source text without an account, translates it and reports '
+      'success',
+      () async {
+        final ai = _ScriptedAiTranslate(result: ['Hello there.', 'Quiet!']);
+        final localTemplate = await aiPlusTemplate(ai);
+        final transport = FakeTransport()
+          ..addPostJson(
+            _readerUrl,
+            _readerResponse(body: _encryptBody(_paragraphs)),
+          );
+
+        final doc = await localTemplate.chapterContent(
+          contextWith(transport),
+          _chapterUrl,
+        );
+
+        // The reader POST went out as plain `web` — no account needed.
+        expect(transport.jsonPostBodies.single, isA<Map>());
+        expect((transport.jsonPostBodies.single! as Map)['translate'], 'web');
+        // The AI service received the raw source paragraphs.
+        expect(ai.lastParagraphs, _paragraphs);
+        final text = doc.renderToText();
+        expect(text, contains('Hello there.'));
+        expect(text, contains('Quiet!'));
+        final outcome = WtrAiStatusTracker.instance.outcomeFor(29058);
+        expect(outcome!.fellBack, isFalse);
+      },
+    );
+
+    test(
+      'AI+ degrades to Google translation and reports why, instead of failing',
+      () async {
+        final ai = _ScriptedAiTranslate(
+          error: const WtrAiTranslateException(
+            WtrAiFailureReason.rateLimited,
+            'Rate limited by the AI provider.',
+          ),
+        );
+        final localTemplate = await aiPlusTemplate(ai);
+        // AI+ fails with rateLimited; the degrade path then uses the mocked
+        // Google translation served by the shared translate transport.
+        final transport = FakeTransport()
+          ..addPostJson(
+            _readerUrl,
+            _readerResponse(body: _encryptBody(_paragraphs)),
+          );
+
+        final doc = await localTemplate.chapterContent(
+          contextWith(transport),
+          _chapterUrl,
+        );
+
+        final outcome = WtrAiStatusTracker.instance.outcomeFor(29058)!;
+        expect(outcome.fellBack, isTrue);
+        expect(outcome.reason, WtrAiFailureReason.rateLimited);
+        // Degraded output comes from the mocked Google pass, so the reader
+        // still shows translated text instead of raw source.
+        final rendered = doc.renderToText();
+        expect(rendered, contains('Everyone, please be quiet'));
+        expect(rendered, isNot(contains('陆言没说话')));
+      },
+    );
   });
 
   group('WtrLabTemplate contract', () {

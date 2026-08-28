@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/notifications/presentation/screens/update_check_settings_screen.dart';
+import 'package:atlas_app/settings/presentation/screens/ai_translation_settings_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/appearance_settings_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/danger_zone_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/reading_settings_screen.dart';
@@ -33,6 +35,26 @@ class SettingsScreen extends StatelessWidget {
             subtitle: 'Font, layout, theme, brightness',
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ReadingSettingsScreen()),
+            ),
+          ),
+          _MenuTile(
+            icon: Icons.auto_awesome_outlined,
+            title: 'AI Translation',
+            subtitle: 'AI+ provider, API key, and model',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const AiTranslationSettingsScreen(),
+              ),
+            ),
+          ),
+          _MenuTile(
+            icon: Icons.update_outlined,
+            title: 'Novel Updates',
+            subtitle: 'Chapter update checks and notifications',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const UpdateCheckSettingsScreen(),
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.xl),

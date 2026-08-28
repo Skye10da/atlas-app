@@ -3,12 +3,16 @@ import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/tokens/animation.dart';
 
+/// [key] must come from `GoRouterState.pageKey`: go_router assigns every
+/// imperative push a unique key, so pushing the same location twice stacks two
+/// pages instead of tripping Navigator's duplicate-page-key assertion. A
+/// hand-written constant key (e.g. `'book_$id'`) defeats that uniqueness.
 CustomTransitionPage buildPageTransition({
   required Widget child,
-  required String key,
+  required ValueKey<String> key,
 }) {
   return CustomTransitionPage(
-    key: ValueKey(key),
+    key: key,
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       return FadeTransition(

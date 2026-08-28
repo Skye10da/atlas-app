@@ -2,6 +2,7 @@
 
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -107,7 +108,7 @@ void main() {
         final version = await appDb
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(version.data['user_version'], 9);
+        expect(version.data['user_version'], 10);
 
         final result = await DriftLibraryRepository(appDb).getBooks();
         expect(result, isA<Success<List<BookEntity>>>());
@@ -166,7 +167,7 @@ void main() {
           final version = await appDb
               .customSelect('PRAGMA user_version')
               .getSingle();
-          expect(version.data['user_version'], 9);
+          expect(version.data['user_version'], 10);
 
           final cols = await appDb
               .customSelect('PRAGMA table_info(chapters)')
@@ -181,5 +182,65 @@ void main() {
         }
       },
     );
+  });
+
+  group('v9 to v10 migration (update tracking)', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('atlas_migration');
+    });
+
+    tearDown(() async {
+      await tempDir.delete(recursive: true);
+    });
+
+    test('adds update-tracking columns with safe defaults', () async {
+      final file = p.join(tempDir.path, 'atlas.db');
+      final db = sqlite3.sqlite3.open(file);
+      db.execute(_booksV6);
+      db.execute(_readingProgressV6);
+      db.execute(_chaptersV7);
+      db.execute(r'''
+        INSERT INTO books (id, title, format, file_path, total_chapters,
+        created_at, updated_at) VALUES
+        ('b1', 'Tracked Novel', 'web', '/f/b', 5, 0, 0)
+      ''');
+      db.execute('PRAGMA user_version = 9');
+      db.dispose();
+
+      final appDb = AppDatabase.open(NativeDatabase(File(file)));
+      try {
+        final version = await appDb
+            .customSelect('PRAGMA user_version')
+            .getSingle();
+        expect(version.data['user_version'], 10);
+
+        final cols = await appDb.customSelect('PRAGMA table_info(books)').get();
+        final names = cols.map((r) => r.data['name']).toSet();
+        expect(
+          names,
+          containsAll([
+            'update_tracking_enabled',
+            'last_checked_at',
+            'new_chapter_count',
+            'has_update',
+          ]),
+        );
+
+        final row = await appDb
+            .customSelect(
+              'SELECT update_tracking_enabled, new_chapter_count, has_update '
+              'FROM books WHERE id = ?',
+              variables: [Variable.withString('b1')],
+            )
+            .getSingle();
+        expect(row.data['update_tracking_enabled'], 1);
+        expect(row.data['new_chapter_count'], 0);
+        expect(row.data['has_update'], 0);
+      } finally {
+        await appDb.close();
+      }
+    });
   });
 }

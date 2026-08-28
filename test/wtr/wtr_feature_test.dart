@@ -171,6 +171,16 @@ void main() {
       );
       expect(WtrTranslationService.fromApiValue('unknown'), isNull);
     });
+
+    test('AI+ persists under its own value but fetches like Web', () {
+      const aiPlus = WtrTranslationService.aiPlus;
+      expect(aiPlus.apiValue, 'aiplus');
+      expect(aiPlus.label, 'AI+');
+      expect(
+        WtrTranslationService.fromApiValue('aiplus'),
+        WtrTranslationService.aiPlus,
+      );
+    });
   });
 
   group('WtrAuthenticationManager', () {
@@ -368,6 +378,19 @@ void main() {
         );
         await provider.setService(29058, WtrTranslationService.ai);
         expect(await provider.resolveTranslate(29058), 'ai');
+      },
+    );
+
+    test(
+      'AI+ resolveTranslate fetches source text without an account',
+      () async {
+        final provider = WtrChapterProvider(
+          preferenceRepository: InMemoryWtrPreferenceRepository(),
+          authManager: WtrAuthenticationManager(),
+        );
+        await provider.setService(29058, WtrTranslationService.aiPlus);
+        expect(await provider.serviceFor(29058), WtrTranslationService.aiPlus);
+        expect(await provider.resolveTranslate(29058), 'web');
       },
     );
   });

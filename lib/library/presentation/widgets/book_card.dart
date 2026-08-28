@@ -48,8 +48,8 @@ class BookGridCard extends StatefulWidget {
     required this.book,
     this.onTap,
     this.onLongPress,
-    this.coverWidth = 120,
-    this.coverHeight = 180,
+    this.coverWidth = 115,
+    this.coverHeight = 175,
     this.isDesktop = false,
   });
 
@@ -274,6 +274,42 @@ class _NewBadge extends StatelessWidget {
   }
 }
 
+/// Marker for tracked ongoing novels that gained new chapters since the
+/// user last opened them.
+class _UpdateBadge extends StatelessWidget {
+  const _UpdateBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final label = count > 0 ? '+$count' : 'NEW';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.green.shade700,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.auto_stories, size: 10, color: Colors.white),
+          const SizedBox(width: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: cs.onPrimary,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BookCoverStack extends StatelessWidget {
   const _BookCoverStack({
     required this.book,
@@ -298,11 +334,17 @@ class _BookCoverStack extends StatelessWidget {
           child: BookCover(
             coverPath: book.coverPath,
             format: book.format,
-            width: coverWidth ?? 56,
-            height: coverHeight ?? 80,
+            width: coverWidth ?? 72,
+            height: coverHeight ?? 100,
           ),
         ),
-        if (book.progress == null)
+        if (book.hasUpdate)
+          Positioned(
+            top: 6,
+            right: 6,
+            child: _UpdateBadge(count: book.newChapterCount),
+          )
+        else if (book.progress == null)
           const Positioned(top: 6, right: 6, child: _NewBadge()),
         ?overlay,
         ?hoverOverlay,

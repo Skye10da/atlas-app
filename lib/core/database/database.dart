@@ -40,7 +40,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open(super.executor);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -114,6 +114,19 @@ class AppDatabase extends _$AppDatabase {
         await migrator.createTable(webHistory);
         await migrator.createTable(webBookmarks);
         await migrator.createTable(webTabs);
+      }
+      if (from <= 9) {
+        // Ongoing-novel update tracking (schema 10).
+        for (final col in [
+          books.updateTrackingEnabled,
+          books.lastCheckedAt,
+          books.newChapterCount,
+          books.hasUpdate,
+        ]) {
+          try {
+            await migrator.addColumn(books, col);
+          } catch (_) {}
+        }
       }
     },
   );

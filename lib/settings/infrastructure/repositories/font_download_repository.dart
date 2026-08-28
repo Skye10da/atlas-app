@@ -67,7 +67,10 @@ final class FontDownloadRepository {
   }
 
   /// Persists that a family was downloaded with the given weights.
-  Future<void> markDownloaded(String family, {Set<int> weights = const {}}) async {
+  Future<void> markDownloaded(
+    String family, {
+    Set<int> weights = const {},
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final current = (await downloadedFamilies())..add(family);
     await prefs.setStringList(_keyAll, current.toList());

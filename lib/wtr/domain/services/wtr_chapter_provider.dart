@@ -90,10 +90,18 @@ class WtrChapterProvider {
   /// AI request throws [WtrAuthRequiredException] / [WtrSessionExpiredException]
   /// *before* any network call, so Atlas never silently falls back to another
   /// translation service.
+  ///
+  /// [WtrTranslationService.aiPlus] is Atlas-side: the server has no such
+  /// mode, so it receives the same request as Web (source-language text) and
+  /// the template translates the response with the user's own AI provider.
+  /// No account gate applies.
   Future<String> resolveTranslate(int rawId) async {
     final service = await serviceFor(rawId);
     if (service == WtrTranslationService.ai) {
       auth.ensureAuthenticatedOrThrow();
+    }
+    if (service == WtrTranslationService.aiPlus) {
+      return WtrTranslationService.web.apiValue;
     }
     return service.apiValue;
   }

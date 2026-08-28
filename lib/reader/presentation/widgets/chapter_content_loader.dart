@@ -86,6 +86,8 @@ class ChapterContentLoader extends ConsumerWidget {
         ? activeItem
         : null;
 
+    final blockCardSpans = ref.watch(chapterBlockCardSpansProvider(chapter));
+
     final colorScheme = Theme.of(context).colorScheme;
 
     return contentAsync.when(
@@ -141,6 +143,7 @@ class ChapterContentLoader extends ConsumerWidget {
             onSearchWeb: onSearchWeb,
             onListen: onListen,
             onErase: onErase,
+            spans: blockCardSpans,
           ),
         );
       },

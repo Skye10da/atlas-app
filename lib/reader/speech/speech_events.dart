@@ -33,6 +33,19 @@ class ChapterFinished extends SpeechEvent {
   final String chapterId;
 }
 
+/// Emitted when narration advances to a new chapter. Used to update
+/// lockscreen metadata (title, artwork, duration) per chapter.
+class ChapterStarted extends SpeechEvent {
+  const ChapterStarted({
+    required this.chapterId,
+    required this.chapterTitle,
+    this.coverPath,
+  });
+  final String chapterId;
+  final String chapterTitle;
+  final String? coverPath;
+}
+
 class SpeechPaused extends SpeechEvent {
   const SpeechPaused();
 }

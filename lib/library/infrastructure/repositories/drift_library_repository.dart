@@ -72,6 +72,10 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
       updatedAt: book.updatedAt,
       lastOpenedAt: book.lastOpenedAt,
       progress: progress?.percentage,
+      updateTrackingEnabled: book.updateTrackingEnabled,
+      lastCheckedAt: book.lastCheckedAt,
+      newChapterCount: book.newChapterCount,
+      hasUpdate: book.hasUpdate,
     );
   }
 
@@ -116,6 +120,10 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
           updatedAt: book.updatedAt,
           lastOpenedAt: book.lastOpenedAt,
           progress: progress?.percentage,
+          updateTrackingEnabled: book.updateTrackingEnabled,
+          lastCheckedAt: book.lastCheckedAt,
+          newChapterCount: book.newChapterCount,
+          hasUpdate: book.hasUpdate,
         ),
       );
     } catch (e, st) {
@@ -199,6 +207,33 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to mark book as opened', e), st);
+    }
+  }
+
+  @override
+  Future<Result<void>> setUpdateTracking(String id, bool enabled) async {
+    try {
+      await (_db.update(_db.books)..where((b) => b.id.equals(id))).write(
+        BooksCompanion(updateTrackingEnabled: Value(enabled)),
+      );
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to update tracking', e), st);
+    }
+  }
+
+  @override
+  Future<Result<void>> clearUpdateFlag(String id) async {
+    try {
+      await (_db.update(_db.books)..where((b) => b.id.equals(id))).write(
+        const BooksCompanion(
+          hasUpdate: Value(false),
+          newChapterCount: Value(0),
+        ),
+      );
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to clear update flag', e), st);
     }
   }
 

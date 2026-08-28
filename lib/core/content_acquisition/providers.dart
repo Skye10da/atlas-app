@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'package:atlas_app/core/content_acquisition/adapters/source_registry.dart';
+import 'package:atlas_app/core/content_acquisition/application/chapter_update_service.dart';
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_acquisition/sources/direct_url_source.dart';
 import 'package:atlas_app/core/content_acquisition/sources/epub_url_source.dart';
@@ -28,6 +29,9 @@ import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
+import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
+import 'package:atlas_app/notifications/infrastructure/update_check_settings_store.dart';
+import 'package:atlas_app/notifications/presentation/providers/update_check_settings_provider.dart';
 
 final sourceRegistryProvider = Provider<SourceRegistry>((ref) {
   final httpClient = ref.watch(httpClientProvider);
@@ -118,6 +122,16 @@ final contentAcquisitionEngineProvider = Provider<ContentAcquisitionEngine>((
   );
 });
 
+/// Re-fetches chapter lists of tracked ongoing novels and stores new
+/// chapters. Plugin sources register into the shared [sourceRegistryProvider]
+/// instance, so this resolves them once [pluginSourcesProvider] has warmed up.
+final chapterUpdateServiceProvider = Provider<ChapterUpdateService>((ref) {
+  return ChapterUpdateService(
+    db: ref.watch(databaseProvider),
+    registry: ref.watch(sourceRegistryProvider),
+  );
+});
+
 /// Rich-content cache: AtlasDocument JSON stored beside each chapter's txt.
 final documentCacheProvider = Provider<DocumentCache>((ref) => DocumentCache());
 
@@ -157,7 +171,12 @@ final contentIndexerProvider = Provider<ContentIndexer>(
 /// caches (cleanup). Not started until the app calls [TaskScheduler.start].
 final taskSchedulerProvider = Provider<TaskScheduler>((ref) {
   final engine = ref.watch(contentAcquisitionEngineProvider);
-  final scheduler = TaskScheduler();
+  final scheduler = TaskScheduler(
+    // Mirrored by `updateCheckIntervalHoursProvider` (synced on every
+    // settings change), so runtime changes take effect on the next tick.
+    updateCheckIntervalResolver: () =>
+        Duration(hours: ref.read(updateCheckIntervalHoursProvider)),
+  );
 
   scheduler.setTasks(
     resumeDownloads: () async {
@@ -212,6 +231,26 @@ final taskSchedulerProvider = Provider<TaskScheduler>((ref) {
       return removed.isNotEmpty
           ? 'cleaned ${removed.length} stale book cache(s)'
           : null;
+    },
+    updateCheck: () async {
+      final settings = await UpdateCheckSettingsStore.load();
+      if (!settings.enabled) return null;
+      final result = await ref
+          .read(chapterUpdateServiceProvider)
+          .checkTrackedBooks();
+      if (result.booksWithUpdates == 0) return null;
+      if (settings.notificationsEnabled) {
+        await UpdateNotificationService.instance.initialize();
+        await UpdateNotificationService.instance.showUpdateSummary(
+          result.updates
+              .map(
+                (u) => (title: u.title, bookId: u.bookId, count: u.newChapters),
+              )
+              .toList(),
+        );
+      }
+      return 'found ${result.totalNewChapters} new chapter(s) '
+          'across ${result.booksWithUpdates} novel(s)';
     },
   );
 

@@ -26,6 +26,9 @@ class SpeechSessionBuilder {
     required String language,
     required NarrationSettings settings,
     int sentenceIndex = 0,
+    String? coverPath,
+    String? bookTitle,
+    String? author,
   }) {
     final paragraphs = content
         .split(_paragraphBreak)
@@ -39,6 +42,7 @@ class SpeechSessionBuilder {
       paragraphs: paragraphs,
       language: language,
       voiceId: settings.selectedVoiceId,
+      speechRate: settings.speechRate,
     );
 
     final queue = SpeechQueue(items);
@@ -49,6 +53,9 @@ class SpeechSessionBuilder {
       chapterId: chapter.id,
       queue: queue,
       settings: settings,
+      coverPath: coverPath,
+      bookTitle: bookTitle,
+      author: author,
     );
   }
 }

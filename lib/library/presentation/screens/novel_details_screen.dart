@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
+import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -49,16 +51,28 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
   // that was current when the reader was opened — stale chapter/progress —
   // until some unrelated rebuild happened to occur.
   late Future<Result<BookEntity>> _bookFuture;
+  bool _checkingUpdates = false;
 
   @override
   void initState() {
     super.initState();
     _bookFuture = _fetchBook();
+    unawaited(_acknowledgeUpdates());
   }
 
   Future<Result<BookEntity>> _fetchBook() {
     final db = ref.read(databaseProvider);
     return DriftLibraryRepository(db).getBookById(widget.bookId);
+  }
+
+  /// Opening the details screen counts as having seen the "new chapters"
+  /// badge, so clear it (and the library tile marker).
+  Future<void> _acknowledgeUpdates() async {
+    final result = await _fetchBook();
+    if (result is! Success<BookEntity> || !result.value.hasUpdate) return;
+    final db = ref.read(databaseProvider);
+    await DriftLibraryRepository(db).clearUpdateFlag(widget.bookId);
+    if (mounted) ref.invalidate(libraryBooksProvider);
   }
 
   void _refreshBook() {
@@ -75,6 +89,46 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
     final repo = ref.read(readerRepositoryProvider);
     await repo.resetChapterContent(widget.bookId);
     ref.invalidate(novelChaptersProvider(widget.bookId));
+  }
+
+  Future<void> _checkForUpdates({bool showSnackbars = true}) async {
+    setState(() => _checkingUpdates = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final outcome = await ref
+          .read(chapterUpdateServiceProvider)
+          .refreshBook(widget.bookId);
+      if (!mounted) return;
+      ref.invalidate(novelChaptersProvider(widget.bookId));
+      _refreshBook();
+      final message = !outcome.success
+          ? outcome.error ?? 'Update check failed.'
+          : outcome.newChapters == 0
+          ? 'No new chapters.'
+          : 'Found ${outcome.newChapters} new chapter'
+                '${outcome.newChapters == 1 ? '' : 's'}.';
+      if (showSnackbars) {
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      }
+    } catch (_) {
+      if (showSnackbars && mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Update check failed.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _checkingUpdates = false);
+    }
+  }
+
+  Future<void> _toggleTracking(BookEntity book) async {
+    final db = ref.read(databaseProvider);
+    await DriftLibraryRepository(
+      db,
+    ).setUpdateTracking(book.id, !book.updateTrackingEnabled);
+    if (!mounted) return;
+    ref.invalidate(libraryBooksProvider);
+    _refreshBook();
   }
 
   @override
@@ -128,6 +182,29 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                   : null,
               actions: [
                 IconButton(
+                  icon: _checkingUpdates
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh),
+                  tooltip: 'Check for updates',
+                  onPressed: _checkingUpdates ? null : () => _checkForUpdates(),
+                ),
+                if (book.isNovel)
+                  IconButton(
+                    icon: Icon(
+                      book.updateTrackingEnabled
+                          ? Icons.notifications_active_outlined
+                          : Icons.notifications_off_outlined,
+                    ),
+                    tooltip: book.updateTrackingEnabled
+                        ? 'Stop tracking updates'
+                        : 'Track updates',
+                    onPressed: () => _toggleTracking(book),
+                  ),
+                IconButton(
                   icon: const Icon(Icons.file_upload_outlined),
                   tooltip: 'Export',
                   onPressed: () => _exportNovel(book),
@@ -172,17 +249,22 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
           ],
         );
 
-        if (widget.isEmbedded) return scrollView;
+        final refreshableScrollView = RefreshIndicator(
+          onRefresh: () => _checkForUpdates(showSnackbars: false),
+          child: scrollView,
+        );
+
+        if (widget.isEmbedded) return refreshableScrollView;
 
         return Scaffold(
           body: isDesktop
               ? Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 800),
-                    child: scrollView,
+                    child: refreshableScrollView,
                   ),
                 )
-              : scrollView,
+              : refreshableScrollView,
         );
       },
     );

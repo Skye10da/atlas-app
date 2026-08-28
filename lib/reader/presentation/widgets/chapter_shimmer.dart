@@ -6,7 +6,6 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
-import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 
 /// Builds a shimmer color scheme that stays legible across light and dark
 /// reading themes by deriving the bone shades from the theme's palette.
@@ -119,9 +118,7 @@ class _ChapterShimmerState extends State<ChapterShimmer> {
                           style: TextStyle(height: widget.lineHeight),
                           textAlign: TextAlign.start,
                         ),
-                        SizedBox(
-                          height: tileHeight * (i % 3 == 2 ? 1.4 : 0.8),
-                        ),
+                        SizedBox(height: tileHeight * (i % 3 == 2 ? 1.4 : 0.8)),
                       ],
                     ],
                   ),
@@ -262,9 +259,10 @@ class _BouncingDotsState extends State<_BouncingDots>
       );
     });
     _animations = _controllers.map((c) {
-      return Tween<double>(begin: 0, end: -4).animate(
-        CurvedAnimation(parent: c, curve: Curves.easeInOut),
-      );
+      return Tween<double>(
+        begin: 0,
+        end: -4,
+      ).animate(CurvedAnimation(parent: c, curve: Curves.easeInOut));
     }).toList();
 
     _startAnimations();

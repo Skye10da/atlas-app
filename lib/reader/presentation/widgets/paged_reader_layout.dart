@@ -17,17 +17,17 @@ import 'package:atlas_app/reader/presentation/providers/annotations_provider.dar
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
+import 'package:atlas_app/reader/presentation/utils/pager_boundary.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
-import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_pager.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/paged_page_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/pager.dart';
-import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
-import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_bar_surface.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_bottom_nav.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_chrome_bar.dart';
@@ -119,34 +119,64 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
 
 class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     with ReaderChromeController {
-  final _pageController = PageController();
+  /// Outer pager: one page per CHAPTER. Every cross-chapter motion — swipe
+  /// past a seam, explicit selection, narration advance — animates here.
+  late PageController _outerController;
+
+  /// Inner pagers, one per chapter, created lazily and kept alive for the
+  /// session so a chapter remembers the panel the reader left it on.
+  final Map<int, PageController> _innerControllers = {};
   final Map<int, List<String>> _pageCache = {};
   final Map<int, String> _contentCache = {};
   final Set<int> _loadedChapters = {};
 
   /// Chapters whose fetch failed (network / source error) — rendered as an
   /// error state with a Retry action instead of an endless shimmer. A chapter
-  /// in this set is, deliberately, also absent from [_pageCache], which is
-  /// what already keeps [_maxNavigableGlobalPage] from letting the reader
-  /// page past it until a retry succeeds.
+  /// in this set is, deliberately, also absent from [_pageCache], so its
+  /// outer item keeps showing this error until a retry succeeds.
   final Set<int> _failedChapters = {};
   final ValueNotifier<double> _progress = ValueNotifier<double>(0.0);
-  int _totalPages = 0;
-  int _currentGlobalPage = 0;
   String _cacheKey = '';
-  bool _pendingChapterJump = true;
   double _layoutWidth = 0;
   double _layoutHeight = 0;
   int? _neighborPrefetchScheduledFor;
   static const double _maxReadingWidth = 720.0;
 
+  /// The chapter currently displayed (the outer pager's settled index). The
+  /// single source of truth at chapter granularity; the chrome bar reads it,
+  /// which is what makes chrome and content structurally incapable of
+  /// disagreeing.
+  int _chapterIndex = 0;
+
+  /// The last settled panel per chapter (pages on handset, spreads on wide
+  /// desktop). Seeds freshly created inner controllers so revisiting a
+  /// chapter resumes where the reader left off.
+  final Map<int, int> _lastPanelIndex = {};
+
+  /// True while a chapter transition animation runs; boundary intents from
+  /// inner pagers are swallowed meanwhile so one swipe can't fire twice.
+  bool _chapterTurnLocked = false;
+
   /// The chapter the exact-position resume applies to — the chapter the reader
   /// opened on, so a later chapter selection never re-fires the resume.
   late final int _resumeChapterIndex = widget.currentChapterIndex;
 
+  /// Armed when an exact resume was requested (a saved sentence index > 0);
+  /// disarmed once that chapter's content has paginated AND the sentence
+  /// resolved to a panel.
+  bool _restorePending = false;
+
   @override
   void initState() {
     super.initState();
+    // Landing on the right chapter is structural now: the outer controller
+    // starts at the opened chapter before the first frame paints. No post-
+    // build jump means nothing can race pagination and leave the reader
+    // looking at one chapter while the chrome bar claims another.
+    _chapterIndex = widget.currentChapterIndex;
+    _outerController = PageController(initialPage: _chapterIndex);
+    _restorePending =
+        widget.restorePosition != null && widget.restorePosition! > 0;
     _cacheKey = _computeCacheKey();
   }
 
@@ -167,61 +197,21 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   @override
   void dispose() {
     disposeReaderChrome();
-    _pageController.dispose();
+    _outerController.dispose();
+    for (final controller in _innerControllers.values) {
+      controller.dispose();
+    }
     _progress.dispose();
     super.dispose();
-  }
-
-  void _onDesktopSpreadTapUp(TapUpDetails details, BoxConstraints constraints) {
-    final width = constraints.maxWidth;
-    final x = details.localPosition.dx;
-    final spreadBefore = _currentGlobalPage ~/ 2;
-    if (x < width / 3) {
-      if (spreadBefore > 0) {
-        final target = (spreadBefore - 1) * 2;
-        _pageController.animateToPage(
-          target ~/ 2,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-        );
-      }
-    } else if (x > width * 2 / 3) {
-      if (_currentGlobalPage < _totalPages - 1) {
-        final target = (spreadBefore + 1) * 2;
-        if (_canAdvanceTo(target)) {
-          _pageController.animateToPage(
-            target ~/ 2,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-          );
-        }
-      }
-    } else {
-      toggleChrome(
-        isDarkTheme:
-            Theme.of(context).colorScheme.brightness == Brightness.dark,
-      );
-    }
   }
 
   void _onMobileTapUp(TapUpDetails details, BoxConstraints constraints) {
     final width = constraints.maxWidth;
     final x = details.localPosition.dx;
     if (x < width / 3) {
-      if (_currentGlobalPage > 0) {
-        _pageController.previousPage(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-        );
-      }
+      _turnBack();
     } else if (x > width * 2 / 3) {
-      if (_currentGlobalPage < _totalPages - 1 &&
-          _canAdvanceTo(_currentGlobalPage + 1)) {
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-        );
-      }
+      _turnForward();
     } else {
       toggleChrome(
         isDarkTheme:
@@ -236,8 +226,6 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     final svc = ref.read(platformServiceProvider);
     svc.setBrightness(newBrightness, smooth: true);
   }
-
-  int get _totalSpreads => (_totalPages + 1) ~/ 2;
 
   double _pageWidthForCurrentMode() {
     final rawWidth = _layoutWidth > 0 ? _layoutWidth : 800.0;
@@ -275,22 +263,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         isDarkTheme:
             Theme.of(context).colorScheme.brightness == Brightness.dark,
       );
-      if (_currentGlobalPage > 0) {
-        final step = isWideDesktop ? 2 : 1;
-        final target = _currentGlobalPage - step;
-        if (isWideDesktop) {
-          _pageController.animateToPage(
-            target ~/ 2,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-          );
-        } else {
-          _pageController.previousPage(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-          );
-        }
-      }
+      _turnBack();
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
@@ -298,23 +271,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         isDarkTheme:
             Theme.of(context).colorScheme.brightness == Brightness.dark,
       );
-      if (_currentGlobalPage < _totalPages - 1) {
-        if (isWideDesktop) {
-          final target = _currentGlobalPage + 2;
-          if (_canAdvanceTo(target)) {
-            _pageController.animateToPage(
-              target ~/ 2,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-            );
-          }
-        } else if (_canAdvanceTo(_currentGlobalPage + 1)) {
-          _pageController.nextPage(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-          );
-        }
-      }
+      _turnForward();
       return KeyEventResult.handled;
     }
 
@@ -341,56 +298,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     return false;
   }
 
-  (int chapterIndex, int pageInChapter) _globalToLocal(int global) {
-    int remaining = global;
-    for (int i = 0; i < widget.chapters.length; i++) {
-      final len = _pagesFor(i);
-      if (remaining < len) return (i, remaining);
-      remaining -= len;
-    }
-    final last = widget.chapters.length - 1;
-    return (last, (_pagesFor(last) - 1).clamp(0, 0));
-  }
-
-  int _localToGlobal(int chapterIndex, int pageInChapter) {
-    int offset = 0;
-    for (int i = 0; i < chapterIndex; i++) {
-      offset += _pagesFor(i);
-    }
-    return offset + pageInChapter;
-  }
-
-  int _pagesFor(int index) {
-    final cached = _pageCache[index];
-    if (cached != null) return cached.length;
-    final chapter = widget.chapters[index];
-    if (chapter.pageCount > 0) return chapter.pageCount;
-    // Not yet paginated this session AND no persisted estimate — treating
-    // this as 0 pages (the old behavior) silently collapsed every global
-    // page-index computation that summed over unpaginated preceding
-    // chapters, which is what made jumping to a chapter beyond the first
-    // land back on chapter 1 (studied in novel_reader's per-chapter-only
-    // pagination model, which sidesteps this by never summing across
-    // chapters at all — see reading_area.dart's ValueKey('chapter_$i')
-    // pattern). A word-count estimate keeps Atlas's cross-chapter cache
-    // and prefetch, while avoiding the confident-zero collapse.
-    return _estimatedPageCount(chapter.wordCount);
-  }
-
-  /// ~275 words/page is a standard paperback-equivalent estimate. Only used
-  /// until real pagination (which accounts for the reader's actual font
-  /// size, margins, and viewport) replaces it — this is a placeholder for
-  /// jump-target math, never for rendering.
-  int _estimatedPageCount(int wordCount) {
-    if (wordCount <= 0) return 1;
-    return math.max(1, (wordCount / 275).ceil());
-  }
-
   static const ChapterPositionResolver _resolver = ChapterPositionResolver();
-
-  /// Whether an exact resume was requested (a saved sentence index > 0).
-  bool get _hasPendingRestore =>
-      widget.restorePosition != null && widget.restorePosition! > 0;
 
   /// Character offset of [localPage]'s first character within chapter
   /// [chapterIndex]'s paginated content (0 for the first page).
@@ -453,110 +361,208 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     return _localPageForCharOffset(chapterIndex, charOffset);
   }
 
-  /// Reports the flat sentence index at the top of the current page so the
+  /// The first real page under the reader's current panel in [chIdx] —
+  /// spread mode maps a spread back to its left page, which is where the
+  /// reported sentence position is taken from.
+  int _currentLocalPage(int chIdx) {
+    final pages = _pageCache[chIdx];
+    if (pages == null || pages.isEmpty) return 0;
+    final panel = _lastPanelIndex[chIdx] ?? 0;
+    final base = isWideDesktop ? panel * 2 : panel;
+    return base.clamp(0, pages.length - 1);
+  }
+
+  /// Reports the flat sentence index at the top of the current panel so the
   /// parent can persist an exact-position resume.
   void _reportPositionFromCurrentPage() {
     final onPosition = widget.onPositionChanged;
     if (onPosition == null) return;
-    final (chIdx, localPage) = _globalToLocal(_currentGlobalPage);
-    final content = _contentCache[chIdx];
+    final content = _contentCache[_chapterIndex];
     if (content == null || content.isEmpty) return;
-    final offset = _pageStartOffset(chIdx, localPage);
+    final localPage = _currentLocalPage(_chapterIndex);
+    final offset = _pageStartOffset(_chapterIndex, localPage);
     final resolved = _resolver.resolve(content, offset);
     onPosition(resolved.index, resolved.total);
   }
 
-  /// Jumps the controller to [target] global page. Retries across a few
-  /// frames if the PageView hasn't attached yet (common right after this
-  /// layout is freshly created, e.g. on a reading-mode switch) — a single
-  /// unconditional postFrameCallback would otherwise silently drop the jump
-  /// whenever `hasClients` isn't true on that exact frame, leaving the
-  /// PageView stuck on its default page 0 with no retry, since callers
-  /// already consider the pending jump "handled" by the time this runs.
-  void _jumpControllerTo(int target, {int retries = 5}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_pageController.hasClients) {
-        _pageController.jumpToPage(isWideDesktop ? target ~/ 2 : target);
-        return;
-      }
-      if (retries > 0) {
-        _jumpControllerTo(target, retries: retries - 1);
-      }
+  /// Returns the inner controller for [chapterIdx], creating it seeded at the
+  /// chapter's remembered panel — so the FIRST build of a revisited chapter's
+  /// pager already shows the right page with no post-frame jump.
+  PageController _innerControllerFor(int chapterIdx) {
+    return _innerControllers.putIfAbsent(chapterIdx, () {
+      return PageController(initialPage: _lastPanelIndex[chapterIdx] ?? 0);
     });
+  }
+
+  /// How many locally addressable panels [chapterIdx] currently has — pages
+  /// on handset, two-page spreads on wide desktop.
+  int _panelCountFor(int chapterIdx) {
+    final pages = _pageCache[chapterIdx]?.length ?? 0;
+    return isWideDesktop ? spreadCount(pages) : pages;
+  }
+
+  /// Whole-book progress as a chapter-based fraction. Deliberately free of
+  /// any cross-chapter page-count sums.
+  double get _computedProgress => chapterFraction(
+    chapterIndex: _chapterIndex,
+    chapterCount: widget.chapters.length,
+    localIndex: _lastPanelIndex[_chapterIndex] ?? 0,
+    localCount: math.max(1, _panelCountFor(_chapterIndex)),
+  );
+
+  /// Pushes [_computedProgress] to both the chrome bar notifier and the
+  /// parent (which persists it).
+  void _updateProgress() {
+    final value = _computedProgress;
+    _progress.value = value;
+    widget.onProgressChanged(value);
+  }
+
+  /// Advances within the current chapter when panels remain; spills across
+  /// the chapter seam otherwise. This is the single entry point for tap
+  /// zones and arrow keys.
+  void _turnForward() {
+    _turnPanel(forward: true);
+  }
+
+  void _turnBack() {
+    _turnPanel(forward: false);
+  }
+
+  void _turnPanel({required bool forward}) {
+    if (_chapterTurnLocked) return;
+    final controller = _innerControllers[_chapterIndex];
+    final count = _panelCountFor(_chapterIndex);
+    if (controller == null || !controller.hasClients || count <= 0) {
+      // This chapter hasn't finished paginating — no local panels exist to
+      // move through, so treat the gesture as a chapter-level turn.
+      _turnChapter(forward);
+      return;
+    }
+    final page = controller.page ?? 0;
+    if (forward && page < count - 1) {
+      controller.nextPage(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+    if (!forward && page > 0) {
+      controller.previousPage(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+    _turnChapter(forward);
+  }
+
+  /// Animates the OUTER pager to the neighboring chapter. The outer
+  /// `onPageChanged` does all bookkeeping when the animation settles.
+  void _turnChapter(bool forward) {
+    if (_chapterTurnLocked) return;
+    final target = _chapterIndex + (forward ? 1 : -1);
+    if (target < 0 || target >= widget.chapters.length) return;
+    _ensureChapterLoaded(target);
+    setState(() => _chapterTurnLocked = true);
+    _outerController
+        .animateToPage(
+          target,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        )
+        .whenComplete(() {
+          if (mounted) setState(() => _chapterTurnLocked = false);
+        });
+  }
+
+  /// Bookkeeping for the outer pager settling on [chapterIdx]: loads the
+  /// chapter and its neighbors, then reports position BEFORE notifying the
+  /// parent. The parent's onPageChanged handler persists progress
+  /// synchronously using whatever position was last reported — if that
+  /// notification fired first, the save would capture the *previous*
+  /// chapter's position under the *new* chapter's id, corrupting resume.
+  void _onOuterPageChanged(int chapterIdx) {
+    if (chapterIdx == _chapterIndex) return;
+    _chapterIndex = chapterIdx;
+    _ensureChapterLoaded(chapterIdx);
+    if (chapterIdx + 1 < widget.chapters.length) {
+      _ensureChapterLoaded(chapterIdx + 1);
+    }
+    if (chapterIdx > 0) {
+      _ensureChapterLoaded(chapterIdx - 1);
+    }
+    _reportPositionFromCurrentPage();
+    widget.onPageChanged(chapterIdx);
+    _updateProgress();
+    resetChromeTimer(
+      isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark,
+    );
+  }
+
+  /// A chapter's inner pager settled on [panel]. Remembers it (so revisits
+  /// resume there), and refreshes progress/position when it's the displayed
+  /// chapter.
+  void _onInnerPageChanged(int chapterIdx, int panel) {
+    _lastPanelIndex[chapterIdx] = panel;
+    if (chapterIdx != _chapterIndex) return;
+    _reportPositionFromCurrentPage();
+    widget.onPageChanged(chapterIdx);
+    _updateProgress();
   }
 
   @override
   void didUpdateWidget(PagedReaderLayout oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.currentChapterIndex == oldWidget.currentChapterIndex) return;
-    // Only an explicit chapter selection (index sheet / palette / panel)
-    // should re-anchor the pages here. Natural paging across a chapter
-    // boundary also changes `currentChapterIndex`, but the PageView has
-    // already positioned itself — jumping would snap the reader back to
-    // page 0 of the chapter they just left behind.
-    final explicit = _pendingExplicitChapter;
-    _pendingExplicitChapter = null;
-    if (explicit != widget.currentChapterIndex) return;
-    final targetIndex = widget.currentChapterIndex;
-    if (_pageCache[targetIndex] == null) {
-      // Not paginated yet: defer so the jump lands on real content instead of
-      // being clamped back to the nearest loaded chapter. `build` fires the
-      // jump once pagination completes.
-      _pendingJumpToChapter = targetIndex;
+    // The parent only changes currentChapterIndex for an EXTERNAL navigation
+    // request (index sheet, palette, side panel, narration advance). Natural
+    // paging echoes this widget's own callbacks back unchanged — and since
+    // the outer pager is already settled on [_chapterIndex] at that point,
+    // the guard below makes those echoes no-ops. No flag bookkeeping, no
+    // re-anchoring: a mismatch between parent state and displayed chapter
+    // IS the navigation request.
+    if (widget.currentChapterIndex == _chapterIndex) return;
+    _navigateToChapter(widget.currentChapterIndex, startAtTop: true);
+  }
+
+  /// Moves to [target]: loads its content, animates the outer chapter pager
+  /// there, and starts that chapter from its top (explicit selections never
+  /// resume a remembered mid-chapter panel). The outer `onPageChanged` fires
+  /// as the animation settles and does all reporting/bookkeeping.
+  void _navigateToChapter(int target, {required bool startAtTop}) {
+    _ensureChapterLoaded(target);
+    if (startAtTop) {
+      _lastPanelIndex[target] = 0;
+      final controller = _innerControllers[target];
+      if (controller != null && controller.hasClients) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && controller.hasClients && (controller.page ?? 0) != 0) {
+            controller.jumpToPage(0);
+          }
+        });
+      }
+    }
+    if (!_outerController.hasClients) {
+      // Corner case: the parent rebuilt with a new chapter before this
+      // layout ever attached its pager (e.g. a mode switch raced a
+      // selection). Recreating the not-yet-attached controller with the
+      // right initial page is the only way to honor the request.
+      _outerController.dispose();
+      _outerController = PageController(initialPage: target);
+      _chapterIndex = target;
       return;
     }
-    final target = _localToGlobal(targetIndex, 0);
-    _currentGlobalPage = target;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _pageController.hasClients) {
-        _pageController.animateToPage(
-          isWideDesktop ? target ~/ 2 : target,
+    setState(() => _chapterTurnLocked = true);
+    _outerController
+        .animateToPage(
+          target,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
-        );
-      }
-    });
-    _reportPositionFromCurrentPage();
-  }
-
-  /// The deepest global page the reader may navigate to. When a chapter is
-  /// still loading, only its *first* page may be entered — so its shimmer and
-  /// status overlay can be shown — and no page beyond that is reachable until
-  /// its content has been paginated. Chapters that ARE paginated are always
-  /// navigable, even when reached out of order by an explicit jump — otherwise
-  /// leaping from 21 → 40 would be clamped back to the nearest loaded chapter.
-  int _maxNavigableGlobalPage() {
-    int maxPage = 0;
-    if (widget.chapters.isNotEmpty) {
-      var lastReady = -1;
-      for (var i = 0; i < widget.chapters.length; i++) {
-        if (_pageCache[i] != null) {
-          lastReady = i;
-        } else {
-          break;
-        }
-      }
-      maxPage = lastReady == -1
-          ? 0
-          : lastReady == widget.chapters.length - 1
-          ? _localToGlobal(lastReady, math.max(0, _pagesFor(lastReady) - 1))
-          : _localToGlobal(lastReady + 1, 0);
-    }
-    for (var i = 0; i < widget.chapters.length; i++) {
-      final cache = _pageCache[i];
-      if (cache == null || cache.isEmpty) continue;
-      final end = _localToGlobal(i, cache.length - 1);
-      if (end > maxPage) maxPage = end;
-    }
-    return maxPage;
-  }
-
-  /// Whether advancing to [globalPage] is allowed given the chapters that
-  /// still have their shimmer active.
-  bool _canAdvanceTo(int globalPage) {
-    if (globalPage >= _totalPages) return false;
-    return globalPage <= _maxNavigableGlobalPage();
+        )
+        .whenComplete(() {
+          if (mounted) setState(() => _chapterTurnLocked = false);
+        });
   }
 
   void _ensureChapterLoaded(int index) {
@@ -650,14 +656,13 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     );
   }
 
-  void _recomputeTotalPages() {
-    _totalPages = 0;
-    for (int i = 0; i < widget.chapters.length; i++) {
-      _totalPages += _pagesFor(i);
-    }
-  }
-
   final Set<int> _paginationInFlight = {};
+
+  /// Bumped whenever cached pagination state is invalidated (settings change,
+  /// re-rendered text). Chunked chains capture the value at their start and
+  /// abort themselves when it moves on, so chains scheduled before an
+  /// invalidation can never interleave with fresh ones.
+  int _paginationEpoch = 0;
 
   /// Character offset within each chapter's text where the next chunk of
   /// pagination should resume. Entries are removed once pagination completes.
@@ -676,17 +681,24 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
   void _schedulePagination(int index, String content) {
     if (_paginationInFlight.contains(index)) return;
     _paginationInFlight.add(index);
+    final epoch = _paginationEpoch;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _paginationInFlight.remove(index);
-      if (!mounted) return;
-      _paginateChapterIncremental(index, content);
+      if (!mounted || epoch != _paginationEpoch) {
+        _paginationInFlight.remove(index);
+        return;
+      }
+      _paginateChapterIncremental(index, content, epoch);
     });
   }
 
   /// Paginates [content] for chapter [index] in chunks of
   /// [_chunkedMaxPagesPerFrame] pages, yielding back to the event loop
   /// between chunks so the UI stays responsive for long chapters.
-  void _paginateChapterIncremental(int index, String content) {
+  void _paginateChapterIncremental(int index, String content, int epoch) {
+    if (epoch != _paginationEpoch || !mounted) {
+      _paginationInFlight.remove(index);
+      return;
+    }
     final colorScheme = Theme.of(context).colorScheme;
     final s = widget.settings;
     final horizontalMargin = switch (s.marginPreset) {
@@ -730,20 +742,47 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     _chunkedAccumulator.putIfAbsent(index, () => []).addAll(result.pages);
 
     if (result.complete) {
+      _paginationInFlight.remove(index);
       _pageCache[index] = _chunkedAccumulator.remove(index) ?? [''];
       _chunkedOffset.remove(index);
-      _recomputeTotalPages();
       ref
               .read(chapterLoadPhaseProvider(widget.chapters[index]).notifier)
               .state =
           ChapterLoadPhase.done;
-      setState(() {});
+      if (mounted) {
+        // A re-pagination can shrink this chapter (settings change); make
+        // sure the panel the reader occupies still exists.
+        _clampInnerAfterRepagination(index);
+        if (index == _chapterIndex) {
+          _updateProgress();
+          _reportPositionFromCurrentPage();
+        }
+        setState(() {});
+      }
     } else {
       _chunkedOffset[index] = result.endIndex;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _paginateChapterIncremental(index, content);
+        if (!mounted || epoch != _paginationEpoch) {
+          _paginationInFlight.remove(index);
+          return;
+        }
+        _paginateChapterIncremental(index, content, epoch);
       });
+    }
+  }
+
+  /// If repagination left the reader's inner pager pointing past the last
+  /// panel of [chapterIdx] (a settings change can shrink a chapter), snap it
+  /// back to that last panel.
+  void _clampInnerAfterRepagination(int chapterIdx) {
+    final controller = _innerControllers[chapterIdx];
+    if (controller == null || !controller.hasClients) return;
+    final count = _panelCountFor(chapterIdx);
+    if (count <= 0) return;
+    final page = controller.page ?? 0;
+    if (page > count - 1) {
+      controller.jumpToPage(count - 1);
+      _lastPanelIndex[chapterIdx] = count - 1;
     }
   }
 
@@ -752,7 +791,6 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     if (_needsRepagination() || _pageCache[index] == null) {
       _schedulePagination(index, content);
     } else {
-      _recomputeTotalPages();
       ref
               .read(chapterLoadPhaseProvider(widget.chapters[index]).notifier)
               .state =
@@ -783,7 +821,11 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     final vt = widget.settings.theme;
     final colorScheme = Theme.of(context).colorScheme;
     final chapters = widget.chapters;
-    final currentIndex = widget.currentChapterIndex;
+    // The DISPLAYED chapter drives everything chrome-related — titles,
+    // chapter number, palette highlight, prefetch. It can only diverge from
+    // `widget.currentChapterIndex` for the few frames an external navigation
+    // animation is still settling.
+    final currentIndex = _chapterIndex;
 
     _ensureChapterLoaded(currentIndex);
     _scheduleNeighborPrefetch(currentIndex, chapters.length);
@@ -793,6 +835,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       // A settings change (font size, margins, etc.) invalidates all cached
       // pages. Cancel any in-flight chunked pagination so each chapter can
       // be re-scheduled fresh on the next frame.
+      _paginationEpoch++;
       _paginationInFlight.clear();
       _chunkedOffset.clear();
       _chunkedAccumulator.clear();
@@ -819,6 +862,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         _contentCache[index] = content;
         // Cancel any in-flight pagination for this chapter so the new
         // content can be paginated fresh.
+        _paginationEpoch++;
         _paginationInFlight.remove(index);
         _chunkedOffset.remove(index);
         _chunkedAccumulator.remove(index);
@@ -826,93 +870,39 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       }
     }
 
-    // A deferred explicit jump can fire now that its chapter is paginated.
-    final pendingJump = _pendingJumpToChapter;
-    if (pendingJump != null && _pageCache[pendingJump] != null) {
-      _pendingJumpToChapter = null;
-      final target = _localToGlobal(pendingJump, 0);
-      _currentGlobalPage = target;
-      _jumpControllerTo(target);
-      _reportPositionFromCurrentPage();
-    }
-
-    // Capture where the reader currently sits, in chapter-relative terms,
-    // using this build's *pre-recompute* page counts — so that if a
-    // background pagination pass (below) changes how many pages a
-    // preceding chapter actually has, we can re-express the same logical
-    // position in the new page-index space instead of leaving the global
-    // page pointer stranded on whatever content now happens to live there.
-    final oldTotalPages = _totalPages;
-    int? anchorChapter;
-    int? anchorLocalPage;
-    if (!_pendingChapterJump && oldTotalPages > 0) {
-      final (ch, pg) = _globalToLocal(_currentGlobalPage);
-      anchorChapter = ch;
-      anchorLocalPage = pg;
-    }
-
-    _totalPages = 0;
-    for (int i = 0; i < chapters.length; i++) {
-      _totalPages += _pagesFor(i);
-    }
-
-    if (anchorChapter != null && _totalPages != oldTotalPages) {
-      final newGlobalPage = _localToGlobal(
-        anchorChapter,
-        anchorLocalPage!,
-      ).clamp(0, _totalPages - 1);
-      if (newGlobalPage != _currentGlobalPage) {
-        _currentGlobalPage = newGlobalPage;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_pageController.hasClients) {
-            _pageController.jumpToPage(
-              isWideDesktop ? newGlobalPage ~/ 2 : newGlobalPage,
-            );
-          }
-        });
-      }
-    } else if (needsRepaginate && _currentGlobalPage >= _totalPages) {
-      _currentGlobalPage = 0;
-    }
-
-    if (_pendingChapterJump) {
-      // Exact-position resume: resolve the saved sentence index to a page
-      // within the chapter we opened on. Kept armed until that chapter's
-      // content has been paginated, so a slow/async load never strands the
-      // reader on chapter one — and never approximated from a whole-book
-      // percentage, which is what used to land on the wrong chapter.
+    // Exact-position resume: resolve the saved sentence index to a panel of
+    // the chapter we opened on. Stays armed until that chapter's content has
+    // paginated, so a slow/async load never strands the reader elsewhere —
+    // and the position is never approximated from a whole-book percentage.
+    // Seeding [_lastPanelIndex] BEFORE the chapter's pager is first built
+    // means its controller is created at the right page directly; the jump
+    // below covers the rare case where the pager already exists.
+    if (_restorePending && _pageCache[_resumeChapterIndex] != null) {
       final resumePage = _restoreLocalPage(_resumeChapterIndex);
       if (resumePage != null) {
-        _pendingChapterJump = false;
-        final target = _localToGlobal(_resumeChapterIndex, resumePage);
-        _currentGlobalPage = target;
-        _progress.value = _totalPages > 0
-            ? _currentGlobalPage / _totalPages
-            : 0.0;
-        widget.onProgressChanged(
-          _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0,
-        );
-        _jumpControllerTo(target);
-      } else if (!_hasPendingRestore && _totalPages > 0) {
-        // No exact resume (legacy row or no saved position): land on the top
-        // of the current chapter, never a whole-book estimate. When a resume
-        // IS pending but not yet resolvable, stay armed for the next build.
-        _pendingChapterJump = false;
-        final target = _localToGlobal(widget.currentChapterIndex, 0);
-        _currentGlobalPage = target;
-        _progress.value = _totalPages > 0
-            ? _currentGlobalPage / _totalPages
-            : 0.0;
-        widget.onProgressChanged(
-          _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0,
-        );
-        _jumpControllerTo(target);
+        _restorePending = false;
+        final panel = isWideDesktop ? resumePage ~/ 2 : resumePage;
+        _lastPanelIndex[_resumeChapterIndex] = panel;
+        final controller = _innerControllers[_resumeChapterIndex];
+        if (controller != null && controller.hasClients) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (!controller.hasClients) return;
+            if ((controller.page ?? 0) != panel) {
+              controller.jumpToPage(panel);
+            }
+          });
+        }
+        _updateProgress();
+        _reportPositionFromCurrentPage();
       }
     }
 
-    _progress.value = _totalPages > 0 ? _currentGlobalPage / _totalPages : 0.0;
+    // Display-only refresh of the progress notifier; parent notifications
+    // flow exclusively through the page-change handlers below.
+    _progress.value = _computedProgress;
 
-    if (!_contentCache.containsKey(currentIndex) || _totalPages == 0) {
+    if (!_contentCache.containsKey(currentIndex)) {
       return Scaffold(
         backgroundColor: vt.resolve(colorScheme).background,
         extendBodyBehindAppBar: true,
@@ -1003,7 +993,6 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
               constraints.maxHeight != _layoutHeight) {
             _layoutWidth = constraints.maxWidth;
             _layoutHeight = constraints.maxHeight;
-            _cacheKey = '';
           }
           return Stack(
             children: [
@@ -1026,10 +1015,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                       hideRightPanel();
                       return;
                     }
-                    if (!isDesktop) {
+                    if (!isDesktop || isWideDesktop) {
                       _onMobileTapUp(details, constraints);
-                    } else if (isWideDesktop) {
-                      _onDesktopSpreadTapUp(details, constraints);
                     } else {
                       toggleChrome(
                         isDarkTheme:
@@ -1039,71 +1026,15 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                     }
                   },
                   child: PageView.builder(
-                    controller: _pageController,
-                    onPageChanged: (pageIndex) {
-                      // Any page change supersedes a deferred leap.
-                      _pendingJumpToChapter = null;
-                      var global = isWideDesktop ? pageIndex * 2 : pageIndex;
-                      final maxAllowed = _maxNavigableGlobalPage();
-                      if (global > maxAllowed) {
-                        global = maxAllowed;
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted && _pageController.hasClients) {
-                            _pageController.jumpToPage(
-                              isWideDesktop ? maxAllowed ~/ 2 : maxAllowed,
-                            );
-                          }
-                        });
-                      }
-                      _currentGlobalPage = global;
-                      _progress.value = _totalPages > 0
-                          ? _currentGlobalPage / _totalPages
-                          : 0.0;
-                      final (chIdx, _) = _globalToLocal(_currentGlobalPage);
-                      _ensureChapterLoaded(chIdx);
-                      if (chIdx + 1 < chapters.length) {
-                        _ensureChapterLoaded(chIdx + 1);
-                      }
-                      // Report the exact sentence position for the page we've
-                      // just landed on BEFORE notifying the parent of the
-                      // chapter/page change. The parent's onPageChanged
-                      // handler persists progress synchronously using
-                      // whatever position was last reported — if that
-                      // notification fired first, the save would always
-                      // capture the *previous* page's position (one turn
-                      // behind), and when the turn also crossed a chapter
-                      // boundary, that stale position would be persisted
-                      // under the *new* chapter's id, corrupting resume.
-                      _reportPositionFromCurrentPage();
-                      widget.onPageChanged(chIdx);
-                      widget.onProgressChanged(
-                        _totalPages > 0
-                            ? _currentGlobalPage / _totalPages
-                            : 0.0,
-                      );
-                      resetChromeTimer(
-                        isDarkTheme:
-                            Theme.of(context).colorScheme.brightness ==
-                            Brightness.dark,
-                      );
-                    },
-                    itemCount: isWideDesktop ? _totalSpreads : _totalPages,
-                    itemBuilder: (context, index) {
-                      if (isWideDesktop) {
-                        return _buildSpread(
-                          index,
-                          vt,
-                          chapters,
-                          colorScheme: colorScheme,
-                        );
-                      }
-                      return _buildSinglePage(
-                        index,
-                        vt,
-                        chapters,
-                        colorScheme: colorScheme,
-                      );
-                    },
+                    controller: _outerController,
+                    itemCount: chapters.length,
+                    onPageChanged: _onOuterPageChanged,
+                    itemBuilder: (context, chapterIdx) => _buildChapterItem(
+                      chapterIdx,
+                      vt,
+                      chapters,
+                      colorScheme: colorScheme,
+                    ),
                   ),
                 ),
               ),
@@ -1183,19 +1114,25 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     );
   }
 
-  Widget _wrapWithPageAnimation(Widget page, int index) {
+  /// Wraps a panel of [chapterIdx] in the reader's page-turn animation,
+  /// interpolated off that chapter's INNER controller position. The float is
+  /// strictly local to the chapter, so all four effects behave exactly as
+  /// they did in the flat model — chapter seams themselves always slide.
+  Widget _wrapPanelPage(Widget page, int chapterIdx, int panel) {
     final animation = widget.settings.pageTurnAnimation;
     if (animation == PageTurnAnimation.slide) return page;
+    final controller = _innerControllers[chapterIdx];
+    if (controller == null) return page;
 
     return ClipRect(
-      key: ValueKey('page_$index'),
+      key: ValueKey('panel_${chapterIdx}_$panel'),
       child: ListenableBuilder(
-        listenable: _pageController,
+        listenable: controller,
         builder: (context, child) {
-          final pagePos = _pageController.hasClients
-              ? (_pageController.page ?? index.toDouble())
-              : index.toDouble();
-          final offset = pagePos - index;
+          final pagePos = controller.hasClients
+              ? (controller.page ?? panel.toDouble())
+              : panel.toDouble();
+          final offset = pagePos - panel;
           final absOffset = offset.abs().clamp(0.0, 1.0);
           final viewportWidth = _layoutWidth > 0 ? _layoutWidth : 360.0;
           final isLeaving = offset < 0;
@@ -1256,20 +1193,10 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     );
   }
 
-  /// The chapter an explicit selection (index sheet / palette / panel) asked
-  /// to jump to, consumed by [didUpdateWidget]. Distinct from natural paging,
-  /// which must never re-anchor the pages.
-  int? _pendingExplicitChapter;
-
-  /// A chapter the reader selected but whose content hasn't paginated yet.
-  /// The jump fires as soon as it does, so a far leap (e.g. 21 → 40) is never
-  /// swallowed by the navigation gate.
-  int? _pendingJumpToChapter;
-
-  /// Forwards an explicit chapter selection, marking it so [didUpdateWidget]
-  /// anchors the pages once the parent rebuilds with the new index.
+  /// Forwards an explicit chapter selection to the parent; the navigation
+  /// itself happens when the parent echoes the new index back through
+  /// [didUpdateWidget], which sees it as an external request.
   void _selectChapterExplicitly(int idx) {
-    _pendingExplicitChapter = idx;
     _ensureChapterLoaded(idx);
     widget.onChapterSelected(idx);
   }
@@ -1282,49 +1209,131 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       AppSheet.desktopPresentation == DesktopSheetPresentation.sidePanel;
 
   void _showChapterIndex(BuildContext context) {
-    final (curChIdx, _) = _globalToLocal(_currentGlobalPage);
     ChapterIndexSheet.show(
       context,
       sheetId: 'paged_chapter_index',
       chapters: widget.chapters,
-      currentChapterIndex: curChIdx,
+      currentChapterIndex: _chapterIndex,
       onChapterTap: (idx) {
         _selectChapterExplicitly(idx);
       },
     );
   }
 
-  Widget _buildSinglePage(
-    int globalPage,
+  /// The outer pager's item for [chIdx]: a loading/error state while the
+  /// chapter has no pages, otherwise its inner [ChapterPager].
+  Widget _buildChapterItem(
+    int chIdx,
     ReadingViewTheme vt,
     List<ChapterEntity> chapters, {
     required ColorScheme colorScheme,
   }) {
-    final (chIdx, pageInChapter) = _globalToLocal(globalPage);
     final pages = _pageCache[chIdx];
-    if (pages == null) {
+    if (pages == null || pages.isEmpty) {
       _ensureChapterLoaded(chIdx);
       return _buildChapterLoadingState(
         chIdx,
         vt,
-        showHeaders: pageInChapter == 0,
+        showHeaders: true,
         colorScheme: colorScheme,
       );
     }
-    final clampedPage = pageInChapter.clamp(0, pages.length - 1);
+    return ChapterPager(
+      key: ValueKey('chapter_pager_$chIdx'),
+      controller: _innerControllerFor(chIdx),
+      itemCount: _panelCountFor(chIdx),
+      turnLocked: _chapterTurnLocked,
+      onPageChanged: (panel) => _onInnerPageChanged(chIdx, panel),
+      onBoundaryTurn: (forward) {
+        if (chIdx == _chapterIndex && !_chapterTurnLocked) {
+          _turnChapter(forward);
+        }
+      },
+      itemBuilder: (context, panel) =>
+          _buildPanel(chIdx, panel, vt, chapters, colorScheme: colorScheme),
+    );
+  }
+
+  /// One panel of chapter [chIdx]: a single page on handset, or a two-page
+  /// spread on wide desktop. Panels are strictly local — the seam between
+  /// chapters is handled by [_turnChapter], never by page arithmetic.
+  Widget _buildPanel(
+    int chIdx,
+    int panel,
+    ReadingViewTheme vt,
+    List<ChapterEntity> chapters, {
+    required ColorScheme colorScheme,
+  }) {
+    if (!isWideDesktop) {
+      return _wrapPanelPage(
+        _buildSinglePanel(
+          chIdx,
+          panel,
+          vt,
+          chapters,
+          showHeaders: true,
+          colorScheme: colorScheme,
+        ),
+        chIdx,
+        panel,
+      );
+    }
+    final pages = _pageCache[chIdx];
+    final left = panel * 2;
+    final right = left + 1;
+    final hasPages = pages != null && pages.isNotEmpty;
+    Widget side(int localPage) {
+      if (!hasPages || localPage >= pages.length) {
+        return Container(color: vt.resolve(colorScheme).background);
+      }
+      return _buildSinglePanel(
+        chIdx,
+        localPage,
+        vt,
+        chapters,
+        showHeaders: false,
+        colorScheme: colorScheme,
+      );
+    }
+
+    return _wrapPanelPage(
+      Row(
+        children: [
+          Expanded(child: side(left)),
+          Container(
+            width: 1,
+            color: vt.resolve(colorScheme).text.withValues(alpha: 0.1),
+          ),
+          Expanded(child: side(right)),
+        ],
+      ),
+      chIdx,
+      panel,
+    );
+  }
+
+  Widget _buildSinglePanel(
+    int chIdx,
+    int localPage,
+    ReadingViewTheme vt,
+    List<ChapterEntity> chapters, {
+    required bool showHeaders,
+    required ColorScheme colorScheme,
+  }) {
+    final pages = _pageCache[chIdx]!;
+    final clampedPage = localPage.clamp(0, pages.length - 1);
     final content = pages[clampedPage];
     final isFirstOfChapter = clampedPage == 0;
     final isLastOfChapter = clampedPage == pages.length - 1;
     final chapter = chapters[chIdx];
-    final pageStartOffset = _pageStartOffset(chIdx, clampedPage);
 
-    final pageWidget = _PagedPageView(
+    return PagedPageView(
       content: content,
       chapterTitle: chapter.title,
       chapterIndex: chIdx,
       bookId: chapter.bookId,
       chapterId: chapter.id,
-      pageStartOffset: pageStartOffset,
+      pageStartOffset: _pageStartOffset(chIdx, clampedPage),
       highlights: _highlightsFor(chapter, _contentCache[chIdx] ?? ''),
       isFirstPageOfChapter: isFirstOfChapter,
       isLastPageOfChapter: isLastOfChapter,
@@ -1341,7 +1350,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       textAlignment: widget.settings.textAlignment,
       marginPreset: widget.settings.marginPreset,
       vt: vt,
-      showHeaders: true,
+      showHeaders: showHeaders,
       chapterStyle: ChapterStyle.forChapter(chIdx, colorScheme),
       onHighlight: widget.onHighlight,
       onAddNote: widget.onAddNote,
@@ -1351,85 +1360,6 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       onErase: widget.onErase,
       onSetGlossaryTerm: (term) => _openGlossaryTerm(chapter.bookId, term),
     );
-    return _wrapWithPageAnimation(pageWidget, globalPage);
-  }
-
-  Widget _buildSpread(
-    int spreadIndex,
-    ReadingViewTheme vt,
-    List<ChapterEntity> chapters, {
-    required ColorScheme colorScheme,
-  }) {
-    final leftGlobalPage = spreadIndex * 2;
-    final rightGlobalPage = spreadIndex * 2 + 1;
-    final (leftChIdx, _) = _globalToLocal(leftGlobalPage);
-    final (rightChIdx, _) = _globalToLocal(rightGlobalPage);
-
-    Widget side(int globalPage, int chIdx) {
-      if (_pageCache[chIdx] == null) {
-        _ensureChapterLoaded(chIdx);
-        return _buildChapterLoadingState(
-          chIdx,
-          vt,
-          showHeaders: _isFirstPageOfChapter(globalPage),
-          colorScheme: colorScheme,
-        );
-      }
-      final (_, pageInChapter) = _globalToLocal(globalPage);
-      final chapter = chapters[chIdx];
-      return _PagedPageView(
-        content: _pageContentAt(globalPage),
-        chapterTitle: chapter.title,
-        chapterIndex: chIdx,
-        bookId: chapter.bookId,
-        chapterId: chapter.id,
-        pageStartOffset: _pageStartOffset(chIdx, pageInChapter),
-        highlights: _highlightsFor(chapter, _contentCache[chIdx] ?? ''),
-        isFirstPageOfChapter: _isFirstPageOfChapter(globalPage),
-        isLastPageOfChapter: _isLastPageOfChapter(globalPage),
-        textStyle: TextStyle(
-          fontSize: widget.settings.fontSize,
-          height: widget.settings.lineHeight,
-          letterSpacing: widget.settings.letterSpacing,
-          color: vt.resolve(colorScheme).text,
-          fontWeight: widget.settings.fontWeight != null
-              ? FontWeight(widget.settings.fontWeight!)
-              : null,
-        ),
-        fontFamily: widget.settings.fontFamily,
-        textAlignment: widget.settings.textAlignment,
-        marginPreset: widget.settings.marginPreset,
-        vt: vt,
-        showHeaders: false,
-        chapterStyle: ChapterStyle.forChapter(chIdx, colorScheme),
-        onHighlight: widget.onHighlight,
-        onAddNote: widget.onAddNote,
-        onShare: widget.onShare,
-        onSearchWeb: widget.onSearchWeb,
-        onListen: widget.onListen,
-        onErase: widget.onErase,
-        onSetGlossaryTerm: (term) => _openGlossaryTerm(chapter.bookId, term),
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: rightGlobalPage <= _totalPages
-              ? side(leftGlobalPage, leftChIdx)
-              : Container(color: vt.resolve(colorScheme).background),
-        ),
-        Container(
-          width: 1,
-          color: vt.resolve(colorScheme).text.withValues(alpha: 0.1),
-        ),
-        Expanded(
-          child: rightGlobalPage < _totalPages
-              ? side(rightGlobalPage, rightChIdx)
-              : Container(color: vt.resolve(colorScheme).background),
-        ),
-      ],
-    );
   }
 
   void _openGlossaryTerm(String bookId, String term) {
@@ -1438,411 +1368,6 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       id: 'glossary_term',
       initialHeight: 0.6,
       child: GlossaryTermSheet(bookId: bookId, term: term),
-    );
-  }
-
-  String _pageContentAt(int globalPage) {
-    final (chIdx, pageInChapter) = _globalToLocal(globalPage);
-    final pages = _pageCache[chIdx];
-    if (pages == null || pages.isEmpty) return '';
-    return pages[pageInChapter.clamp(0, pages.length - 1)];
-  }
-
-  bool _isFirstPageOfChapter(int globalPage) {
-    final (_, pageInChapter) = _globalToLocal(globalPage);
-    return pageInChapter == 0;
-  }
-
-  bool _isLastPageOfChapter(int globalPage) {
-    final (chIdx, pageInChapter) = _globalToLocal(globalPage);
-    final pages = _pageCache[chIdx];
-    return pages != null &&
-        pageInChapter.clamp(0, pages.length - 1) == pages.length - 1;
-  }
-}
-
-class _PagedPageView extends StatelessWidget {
-  const _PagedPageView({
-    required this.content,
-    required this.chapterTitle,
-    required this.chapterIndex,
-    this.bookId,
-    this.chapterId,
-    this.pageStartOffset = 0,
-    this.highlights = const [],
-    required this.isFirstPageOfChapter,
-    required this.isLastPageOfChapter,
-    required this.textStyle,
-    this.fontFamily,
-    required this.textAlignment,
-    required this.marginPreset,
-    required this.vt,
-    this.showHeaders = true,
-    this.chapterStyle,
-    this.onHighlight,
-    this.onAddNote,
-    this.onShare,
-    this.onSearchWeb,
-    this.onListen,
-    this.onErase,
-    this.onSetGlossaryTerm,
-  });
-
-  final String content;
-  final String chapterTitle;
-  final int chapterIndex;
-
-  /// Book/chapter identity for storing page-relative selections back as
-  /// chapter-relative highlights. Omit to disable highlight handling.
-  final String? bookId;
-  final String? chapterId;
-
-  /// Character offset of this page within its chapter's content, so
-  /// page-local selection offsets can be mapped to chapter-global offsets.
-  final int pageStartOffset;
-
-  /// Stored highlights for this chapter; those intersecting this page's slice
-  /// are rendered as backgrounds.
-  final List<HighlightEntry> highlights;
-
-  final bool isFirstPageOfChapter;
-  final bool isLastPageOfChapter;
-  final TextStyle textStyle;
-  final String? fontFamily;
-  final TextAlignment textAlignment;
-  final MarginPreset marginPreset;
-  final ReadingViewTheme vt;
-  final bool showHeaders;
-  final ChapterStyle? chapterStyle;
-  final void Function(String text, Color color, int start, int end)?
-  onHighlight;
-  final void Function(String text, String? sentence)? onAddNote;
-  final void Function(String text)? onShare;
-  final void Function(String text)? onSearchWeb;
-  final void Function(String text, String? sentence, int start, int end)?
-  onListen;
-  final void Function(int start, int end)? onErase;
-
-  /// Called with the selected text so the host can define a glossary term for
-  /// it. Omit to hide the "Set as term…" action.
-  final ValueChanged<String>? onSetGlossaryTerm;
-
-  EdgeInsets get _padding => switch (marginPreset) {
-    MarginPreset.narrow => const EdgeInsets.symmetric(
-      horizontal: AppSpacing.md,
-      vertical: AppSpacing.sm,
-    ),
-    MarginPreset.normal => const EdgeInsets.symmetric(
-      horizontal: AppSpacing.lg,
-      vertical: AppSpacing.md,
-    ),
-    MarginPreset.wide => const EdgeInsets.symmetric(
-      horizontal: AppSpacing.xxl,
-      vertical: AppSpacing.lg,
-    ),
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final resolvedStyle = fontFamily != null
-        ? textStyle.copyWith(fontFamily: fontFamily)
-        : textStyle;
-    final cs = chapterStyle;
-
-    return Container(
-      color: vt.resolve(colorScheme).background,
-      child: Column(
-        children: [
-          if (isFirstPageOfChapter && showHeaders && cs != null)
-            ChapterHeaderBanner(
-              chapterNumber: chapterIndex + 1,
-              title: chapterTitle,
-              style: cs,
-            ),
-          if (isFirstPageOfChapter && showHeaders && cs != null)
-            ChapterOrnamentalDivider(
-              accentColor: cs.accentColor,
-              verticalPadding: 4,
-            ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: _padding,
-              child: _buildText(resolvedStyle, cs),
-            ),
-          ),
-          if (isLastPageOfChapter && showHeaders) ...[
-            if (cs != null)
-              ChapterOrnamentalDivider(accentColor: cs.accentColor),
-            ChapterEndFooter(
-              chapterNumber: chapterIndex + 1,
-              textColor: vt.resolve(colorScheme).text,
-              baseFontSize: textStyle.fontSize!,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildText(TextStyle resolvedStyle, ChapterStyle? cs) {
-    final c = content;
-    final contextMenu = _contextMenuBuilder(c);
-    final pageHighlights = _pageHighlights(c);
-
-    final spans = _pageSpans(c, resolvedStyle, pageHighlights);
-
-    if (cs != null && isFirstPageOfChapter && c.isNotEmpty) {
-      return SelectableText.rich(
-        TextSpan(
-          children: [
-            TextSpan(text: c.substring(0, 1), style: cs.dropCapStyle),
-            ..._restSpans(c, resolvedStyle, pageHighlights),
-          ],
-        ),
-        textAlign: textAlignment.flutterTextAlign,
-        contextMenuBuilder: contextMenu,
-      );
-    }
-    return SelectableText.rich(
-      TextSpan(children: spans),
-      textAlign: textAlignment.flutterTextAlign,
-      contextMenuBuilder: contextMenu,
-    );
-  }
-
-  /// Highlights whose chapter-global range intersects this page's slice,
-  /// translated into page-local coordinates (may be empty).
-  List<HighlightEntry> _pageHighlights(String pageContent) {
-    if (chapterId == null || pageStartOffset >= pageContent.length) {
-      return const [];
-    }
-    final out = <HighlightEntry>[];
-    for (final h in highlights) {
-      final localStart = h.start - pageStartOffset;
-      final localEnd = h.end - pageStartOffset;
-      if (localEnd <= 0 || localStart >= pageContent.length) continue;
-      out.add(
-        HighlightEntry(
-          chapterId: h.chapterId,
-          start: localStart.clamp(0, pageContent.length),
-          end: localEnd.clamp(0, pageContent.length),
-          text: h.text,
-          colorValue: h.colorValue,
-        ),
-      );
-    }
-    return out;
-  }
-
-  /// Plain body spans (drop-cap first char excluded) with highlight layering.
-  List<TextSpan> _restSpans(
-    String c,
-    TextStyle resolvedStyle,
-    List<HighlightEntry> pageHighlights,
-  ) {
-    final spans = <TextSpan>[];
-    var cursor = 1;
-    for (final h in pageHighlights) {
-      if (h.end <= 1) continue;
-      final start = h.start < 1 ? 1 : h.start;
-      final end = h.end;
-      if (start > cursor) {
-        spans.add(
-          TextSpan(text: c.substring(cursor, start), style: resolvedStyle),
-        );
-      }
-      spans.add(
-        TextSpan(
-          text: c.substring(start, end > c.length ? c.length : end),
-          style: resolvedStyle.copyWith(
-            backgroundColor: h.color.withValues(alpha: 0.30),
-          ),
-        ),
-      );
-      cursor = end > c.length ? c.length : end;
-    }
-    if (cursor < c.length) {
-      spans.add(TextSpan(text: c.substring(cursor), style: resolvedStyle));
-    }
-    return spans;
-  }
-
-  /// Whole-page spans with highlight layering (first char kept plain).
-  List<TextSpan> _pageSpans(
-    String c,
-    TextStyle resolvedStyle,
-    List<HighlightEntry> pageHighlights,
-  ) {
-    if (pageHighlights.isEmpty) {
-      return [TextSpan(text: c, style: resolvedStyle)];
-    }
-    final spans = <TextSpan>[];
-    var cursor = 0;
-    for (final h in pageHighlights) {
-      if (h.start > cursor) {
-        spans.add(
-          TextSpan(text: c.substring(cursor, h.start), style: resolvedStyle),
-        );
-      }
-      spans.add(
-        TextSpan(
-          text: c.substring(h.start, h.end > c.length ? c.length : h.end),
-          style: resolvedStyle.copyWith(
-            backgroundColor: h.color.withValues(alpha: 0.30),
-          ),
-        ),
-      );
-      cursor = h.end > c.length ? c.length : h.end;
-    }
-    if (cursor < c.length) {
-      spans.add(TextSpan(text: c.substring(cursor), style: resolvedStyle));
-    }
-    return spans;
-  }
-
-  static const _highlightPalette = [
-    AppContextMenuHighlightOption(color: Color(0xFFFFF176), label: 'Yellow'),
-    AppContextMenuHighlightOption(color: Color(0xFFA5D6A7), label: 'Green'),
-    AppContextMenuHighlightOption(color: Color(0xFF90CAF9), label: 'Blue'),
-    AppContextMenuHighlightOption(color: Color(0xFFF48FB1), label: 'Pink'),
-    AppContextMenuHighlightOption(color: Color(0xFFCE93D8), label: 'Purple'),
-  ];
-
-  EditableTextContextMenuBuilder _contextMenuBuilder(String fullText) {
-    return AppContextMenu.builder(
-      build: (ctx, editable, anchor) {
-        final sel = editable.textEditingValue.selection;
-        final hasSelection = sel.isValid && !sel.isCollapsed;
-        final word = hasSelection
-            ? fullText.substring(sel.start, sel.end).trim()
-            : '';
-        final sentence = hasSelection && word.isNotEmpty
-            ? _sentenceAround(fullText, sel)
-            : null;
-        final showSelectionActions = hasSelection && word.isNotEmpty;
-        final srcTitle = chapterTitle;
-        final chapterOffset = pageStartOffset;
-        final globalStart = chapterOffset + sel.start;
-        final globalEnd = chapterOffset + sel.end;
-        final hasOverlappingHighlight = highlights.any(
-          (h) => h.overlaps(globalStart, globalEnd),
-        );
-        final eraseEnabled =
-            showSelectionActions && hasOverlappingHighlight && onErase != null;
-
-        return AppContextMenu(
-          anchor: anchor,
-          highlightColors: showSelectionActions ? _highlightPalette : const [],
-          onHighlightSelected: showSelectionActions && onHighlight != null
-              ? (color) => onHighlight!(word, color, globalStart, globalEnd)
-              : null,
-          quickActions: [
-            AppContextMenuAction(
-              label: 'Copy',
-              icon: Icons.content_copy_rounded,
-              onPressed: () {
-                final data = editable.textEditingValue.selection.textInside(
-                  editable.textEditingValue.text,
-                );
-                Clipboard.setData(ClipboardData(text: data));
-              },
-            ),
-            if (showSelectionActions && onAddNote != null)
-              AppContextMenuAction(
-                label: 'Note',
-                icon: Icons.edit_note_rounded,
-                onPressed: () => onAddNote!(word, sentence),
-              ),
-            if (showSelectionActions && onListen != null)
-              AppContextMenuAction(
-                label: 'Listen',
-                icon: Icons.play_circle_outline_rounded,
-                onPressed: () =>
-                    onListen!(word, sentence, globalStart, globalEnd),
-              ),
-            if (showSelectionActions && onShare != null)
-              AppContextMenuAction(
-                label: 'Share',
-                icon: Icons.ios_share_rounded,
-                onPressed: () => onShare!(word),
-              ),
-          ],
-          listActions: [
-            if (showSelectionActions)
-              AppContextMenuAction(
-                label: 'Look up "$word"',
-                icon: Icons.translate_rounded,
-                onPressed: () => _showDefine(
-                  ctx,
-                  word,
-                  sentence: sentence,
-                  sourceTitle: srcTitle,
-                ),
-              ),
-            if (showSelectionActions && onSetGlossaryTerm != null)
-              AppContextMenuAction(
-                label: 'Set as term…',
-                icon: Icons.settings_suggest_outlined,
-                onPressed: () => onSetGlossaryTerm!(word),
-              ),
-            if (eraseEnabled)
-              AppContextMenuAction(
-                label: 'Erase highlight',
-                icon: Icons.format_color_reset_rounded,
-                destructive: true,
-                onPressed: () => onErase!(globalStart, globalEnd),
-              ),
-            if (showSelectionActions && onSearchWeb != null)
-              AppContextMenuAction(
-                label: 'Search the web for "$word"',
-                icon: Icons.search_rounded,
-                onPressed: () => onSearchWeb!(word),
-              ),
-            AppContextMenuAction(
-              label: 'Select all',
-              icon: Icons.select_all_rounded,
-              onPressed: () =>
-                  editable.selectAll(SelectionChangedCause.toolbar),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  String _sentenceAround(String fullText, TextSelection sel) {
-    if (!sel.isValid || sel.isCollapsed) return '';
-    const punctuation = '.!?\n';
-    int start = sel.start;
-    while (start > 0) {
-      if (punctuation.contains(fullText[start - 1])) break;
-      start--;
-    }
-    int end = sel.end;
-    while (end < fullText.length) {
-      if (punctuation.contains(fullText[end])) break;
-      end++;
-    }
-    if (end < fullText.length) end++;
-    return fullText.substring(start, end).trim();
-  }
-
-  void _showDefine(
-    BuildContext ctx,
-    String word, {
-    String? sentence,
-    String? sourceTitle,
-  }) {
-    AppSheet.show(
-      context: ctx,
-      id: 'word_lookup',
-      initialHeight: 0.7,
-      child: WordLookupSheet(
-        word: word,
-        sourceSentence: sentence,
-        sourceTitle: sourceTitle,
-      ),
     );
   }
 }

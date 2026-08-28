@@ -14,6 +14,9 @@ class SpeechSession {
     required this.queue,
     required this.settings,
     this.elapsed = Duration.zero,
+    this.coverPath,
+    this.bookTitle,
+    this.author,
   });
 
   final String bookId;
@@ -21,6 +24,9 @@ class SpeechSession {
   final SpeechQueue queue;
   NarrationSettings settings;
   Duration elapsed;
+  final String? coverPath;
+  final String? bookTitle;
+  final String? author;
 
   SpeechItem? get currentItem => queue.current;
 

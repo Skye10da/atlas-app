@@ -88,7 +88,9 @@ abstract final class FontDownloader {
   }) async {
     final weightParam = weights.join(';');
     final familyParam = Uri.encodeQueryComponent(family);
-    final uri = Uri.parse('$_cssApi?family=$familyParam:wght@$weightParam&display=swap');
+    final uri = Uri.parse(
+      '$_cssApi?family=$familyParam:wght@$weightParam&display=swap',
+    );
 
     final response = await http
         .get(uri, headers: {'User-Agent': _cssUserAgent})
@@ -106,8 +108,10 @@ abstract final class FontDownloader {
     final bytesForFamily = <int, List<_FontVariantBytes>>{};
 
     for (final variant in variants) {
-      final file = File('${dir.path}${Platform.pathSeparator}'
-          '${_fileName(family, variant.weight, variant.subset)}');
+      final file = File(
+        '${dir.path}${Platform.pathSeparator}'
+        '${_fileName(family, variant.weight, variant.subset)}',
+      );
 
       Uint8List bytes;
       if (await file.exists()) {
@@ -238,11 +242,10 @@ abstract final class FontDownloader {
       searchRange > 200 ? searchRange - 200 : 0,
       searchRange,
     );
-    final commentMatches =
-        RegExp(r'/\*\s*(\w[\w-]*)\s*\*/').allMatches(preceding);
-    final commentMatch = commentMatches.isNotEmpty
-        ? commentMatches.last
-        : null;
+    final commentMatches = RegExp(
+      r'/\*\s*(\w[\w-]*)\s*\*/',
+    ).allMatches(preceding);
+    final commentMatch = commentMatches.isNotEmpty ? commentMatches.last : null;
     if (commentMatch != null) return commentMatch.group(1)!;
 
     // Fallback: extract from URL filename.

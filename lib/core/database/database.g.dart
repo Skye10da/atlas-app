@@ -182,6 +182,60 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _updateTrackingEnabledMeta =
+      const VerificationMeta('updateTrackingEnabled');
+  @override
+  late final GeneratedColumn<bool> updateTrackingEnabled =
+      GeneratedColumn<bool>(
+        'update_tracking_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("update_tracking_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(true),
+      );
+  static const VerificationMeta _lastCheckedAtMeta = const VerificationMeta(
+    'lastCheckedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastCheckedAt =
+      GeneratedColumn<DateTime>(
+        'last_checked_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _newChapterCountMeta = const VerificationMeta(
+    'newChapterCount',
+  );
+  @override
+  late final GeneratedColumn<int> newChapterCount = GeneratedColumn<int>(
+    'new_chapter_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _hasUpdateMeta = const VerificationMeta(
+    'hasUpdate',
+  );
+  @override
+  late final GeneratedColumn<bool> hasUpdate = GeneratedColumn<bool>(
+    'has_update',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_update" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -234,6 +288,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     sourceUrl,
     rating,
     status,
+    updateTrackingEnabled,
+    lastCheckedAt,
+    newChapterCount,
+    hasUpdate,
     createdAt,
     updatedAt,
     lastOpenedAt,
@@ -365,6 +423,39 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         status.isAcceptableOrUnknown(data['status']!, _statusMeta),
       );
     }
+    if (data.containsKey('update_tracking_enabled')) {
+      context.handle(
+        _updateTrackingEnabledMeta,
+        updateTrackingEnabled.isAcceptableOrUnknown(
+          data['update_tracking_enabled']!,
+          _updateTrackingEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_checked_at')) {
+      context.handle(
+        _lastCheckedAtMeta,
+        lastCheckedAt.isAcceptableOrUnknown(
+          data['last_checked_at']!,
+          _lastCheckedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('new_chapter_count')) {
+      context.handle(
+        _newChapterCountMeta,
+        newChapterCount.isAcceptableOrUnknown(
+          data['new_chapter_count']!,
+          _newChapterCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('has_update')) {
+      context.handle(
+        _hasUpdateMeta,
+        hasUpdate.isAcceptableOrUnknown(data['has_update']!, _hasUpdateMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -467,6 +558,22 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         DriftSqlType.string,
         data['${effectivePrefix}status'],
       ),
+      updateTrackingEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}update_tracking_enabled'],
+      )!,
+      lastCheckedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_checked_at'],
+      ),
+      newChapterCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}new_chapter_count'],
+      )!,
+      hasUpdate: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_update'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -506,6 +613,19 @@ class Book extends DataClass implements Insertable<Book> {
   final String? sourceUrl;
   final double? rating;
   final String? status;
+
+  /// Update tracking (ongoing novels): whether periodic checks should run.
+  final bool updateTrackingEnabled;
+
+  /// Last time an update check was performed for this book.
+  final DateTime? lastCheckedAt;
+
+  /// Number of newly discovered chapters not yet acknowledged by opening
+  /// the book.
+  final int newChapterCount;
+
+  /// True when new chapters were found since the book was last opened.
+  final bool hasUpdate;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastOpenedAt;
@@ -527,6 +647,10 @@ class Book extends DataClass implements Insertable<Book> {
     this.sourceUrl,
     this.rating,
     this.status,
+    required this.updateTrackingEnabled,
+    this.lastCheckedAt,
+    required this.newChapterCount,
+    required this.hasUpdate,
     required this.createdAt,
     required this.updatedAt,
     this.lastOpenedAt,
@@ -573,6 +697,12 @@ class Book extends DataClass implements Insertable<Book> {
     if (!nullToAbsent || status != null) {
       map['status'] = Variable<String>(status);
     }
+    map['update_tracking_enabled'] = Variable<bool>(updateTrackingEnabled);
+    if (!nullToAbsent || lastCheckedAt != null) {
+      map['last_checked_at'] = Variable<DateTime>(lastCheckedAt);
+    }
+    map['new_chapter_count'] = Variable<int>(newChapterCount);
+    map['has_update'] = Variable<bool>(hasUpdate);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || lastOpenedAt != null) {
@@ -620,6 +750,12 @@ class Book extends DataClass implements Insertable<Book> {
       status: status == null && nullToAbsent
           ? const Value.absent()
           : Value(status),
+      updateTrackingEnabled: Value(updateTrackingEnabled),
+      lastCheckedAt: lastCheckedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCheckedAt),
+      newChapterCount: Value(newChapterCount),
+      hasUpdate: Value(hasUpdate),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       lastOpenedAt: lastOpenedAt == null && nullToAbsent
@@ -651,6 +787,12 @@ class Book extends DataClass implements Insertable<Book> {
       sourceUrl: serializer.fromJson<String?>(json['sourceUrl']),
       rating: serializer.fromJson<double?>(json['rating']),
       status: serializer.fromJson<String?>(json['status']),
+      updateTrackingEnabled: serializer.fromJson<bool>(
+        json['updateTrackingEnabled'],
+      ),
+      lastCheckedAt: serializer.fromJson<DateTime?>(json['lastCheckedAt']),
+      newChapterCount: serializer.fromJson<int>(json['newChapterCount']),
+      hasUpdate: serializer.fromJson<bool>(json['hasUpdate']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       lastOpenedAt: serializer.fromJson<DateTime?>(json['lastOpenedAt']),
@@ -677,6 +819,10 @@ class Book extends DataClass implements Insertable<Book> {
       'sourceUrl': serializer.toJson<String?>(sourceUrl),
       'rating': serializer.toJson<double?>(rating),
       'status': serializer.toJson<String?>(status),
+      'updateTrackingEnabled': serializer.toJson<bool>(updateTrackingEnabled),
+      'lastCheckedAt': serializer.toJson<DateTime?>(lastCheckedAt),
+      'newChapterCount': serializer.toJson<int>(newChapterCount),
+      'hasUpdate': serializer.toJson<bool>(hasUpdate),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'lastOpenedAt': serializer.toJson<DateTime?>(lastOpenedAt),
@@ -701,6 +847,10 @@ class Book extends DataClass implements Insertable<Book> {
     Value<String?> sourceUrl = const Value.absent(),
     Value<double?> rating = const Value.absent(),
     Value<String?> status = const Value.absent(),
+    bool? updateTrackingEnabled,
+    Value<DateTime?> lastCheckedAt = const Value.absent(),
+    int? newChapterCount,
+    bool? hasUpdate,
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> lastOpenedAt = const Value.absent(),
@@ -722,6 +872,12 @@ class Book extends DataClass implements Insertable<Book> {
     sourceUrl: sourceUrl.present ? sourceUrl.value : this.sourceUrl,
     rating: rating.present ? rating.value : this.rating,
     status: status.present ? status.value : this.status,
+    updateTrackingEnabled: updateTrackingEnabled ?? this.updateTrackingEnabled,
+    lastCheckedAt: lastCheckedAt.present
+        ? lastCheckedAt.value
+        : this.lastCheckedAt,
+    newChapterCount: newChapterCount ?? this.newChapterCount,
+    hasUpdate: hasUpdate ?? this.hasUpdate,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     lastOpenedAt: lastOpenedAt.present ? lastOpenedAt.value : this.lastOpenedAt,
@@ -751,6 +907,16 @@ class Book extends DataClass implements Insertable<Book> {
       sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
       rating: data.rating.present ? data.rating.value : this.rating,
       status: data.status.present ? data.status.value : this.status,
+      updateTrackingEnabled: data.updateTrackingEnabled.present
+          ? data.updateTrackingEnabled.value
+          : this.updateTrackingEnabled,
+      lastCheckedAt: data.lastCheckedAt.present
+          ? data.lastCheckedAt.value
+          : this.lastCheckedAt,
+      newChapterCount: data.newChapterCount.present
+          ? data.newChapterCount.value
+          : this.newChapterCount,
+      hasUpdate: data.hasUpdate.present ? data.hasUpdate.value : this.hasUpdate,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       lastOpenedAt: data.lastOpenedAt.present
@@ -779,6 +945,10 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('sourceUrl: $sourceUrl, ')
           ..write('rating: $rating, ')
           ..write('status: $status, ')
+          ..write('updateTrackingEnabled: $updateTrackingEnabled, ')
+          ..write('lastCheckedAt: $lastCheckedAt, ')
+          ..write('newChapterCount: $newChapterCount, ')
+          ..write('hasUpdate: $hasUpdate, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt')
@@ -787,7 +957,7 @@ class Book extends DataClass implements Insertable<Book> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     title,
     author,
@@ -805,10 +975,14 @@ class Book extends DataClass implements Insertable<Book> {
     sourceUrl,
     rating,
     status,
+    updateTrackingEnabled,
+    lastCheckedAt,
+    newChapterCount,
+    hasUpdate,
     createdAt,
     updatedAt,
     lastOpenedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -830,6 +1004,10 @@ class Book extends DataClass implements Insertable<Book> {
           other.sourceUrl == this.sourceUrl &&
           other.rating == this.rating &&
           other.status == this.status &&
+          other.updateTrackingEnabled == this.updateTrackingEnabled &&
+          other.lastCheckedAt == this.lastCheckedAt &&
+          other.newChapterCount == this.newChapterCount &&
+          other.hasUpdate == this.hasUpdate &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.lastOpenedAt == this.lastOpenedAt);
@@ -853,6 +1031,10 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<String?> sourceUrl;
   final Value<double?> rating;
   final Value<String?> status;
+  final Value<bool> updateTrackingEnabled;
+  final Value<DateTime?> lastCheckedAt;
+  final Value<int> newChapterCount;
+  final Value<bool> hasUpdate;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> lastOpenedAt;
@@ -875,6 +1057,10 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.sourceUrl = const Value.absent(),
     this.rating = const Value.absent(),
     this.status = const Value.absent(),
+    this.updateTrackingEnabled = const Value.absent(),
+    this.lastCheckedAt = const Value.absent(),
+    this.newChapterCount = const Value.absent(),
+    this.hasUpdate = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.lastOpenedAt = const Value.absent(),
@@ -898,6 +1084,10 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.sourceUrl = const Value.absent(),
     this.rating = const Value.absent(),
     this.status = const Value.absent(),
+    this.updateTrackingEnabled = const Value.absent(),
+    this.lastCheckedAt = const Value.absent(),
+    this.newChapterCount = const Value.absent(),
+    this.hasUpdate = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
     this.lastOpenedAt = const Value.absent(),
@@ -927,6 +1117,10 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<String>? sourceUrl,
     Expression<double>? rating,
     Expression<String>? status,
+    Expression<bool>? updateTrackingEnabled,
+    Expression<DateTime>? lastCheckedAt,
+    Expression<int>? newChapterCount,
+    Expression<bool>? hasUpdate,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? lastOpenedAt,
@@ -950,6 +1144,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (sourceUrl != null) 'source_url': sourceUrl,
       if (rating != null) 'rating': rating,
       if (status != null) 'status': status,
+      if (updateTrackingEnabled != null)
+        'update_tracking_enabled': updateTrackingEnabled,
+      if (lastCheckedAt != null) 'last_checked_at': lastCheckedAt,
+      if (newChapterCount != null) 'new_chapter_count': newChapterCount,
+      if (hasUpdate != null) 'has_update': hasUpdate,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (lastOpenedAt != null) 'last_opened_at': lastOpenedAt,
@@ -975,6 +1174,10 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Value<String?>? sourceUrl,
     Value<double?>? rating,
     Value<String?>? status,
+    Value<bool>? updateTrackingEnabled,
+    Value<DateTime?>? lastCheckedAt,
+    Value<int>? newChapterCount,
+    Value<bool>? hasUpdate,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? lastOpenedAt,
@@ -998,6 +1201,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
       sourceUrl: sourceUrl ?? this.sourceUrl,
       rating: rating ?? this.rating,
       status: status ?? this.status,
+      updateTrackingEnabled:
+          updateTrackingEnabled ?? this.updateTrackingEnabled,
+      lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
+      newChapterCount: newChapterCount ?? this.newChapterCount,
+      hasUpdate: hasUpdate ?? this.hasUpdate,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
@@ -1059,6 +1267,20 @@ class BooksCompanion extends UpdateCompanion<Book> {
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
+    if (updateTrackingEnabled.present) {
+      map['update_tracking_enabled'] = Variable<bool>(
+        updateTrackingEnabled.value,
+      );
+    }
+    if (lastCheckedAt.present) {
+      map['last_checked_at'] = Variable<DateTime>(lastCheckedAt.value);
+    }
+    if (newChapterCount.present) {
+      map['new_chapter_count'] = Variable<int>(newChapterCount.value);
+    }
+    if (hasUpdate.present) {
+      map['has_update'] = Variable<bool>(hasUpdate.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1094,6 +1316,10 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('sourceUrl: $sourceUrl, ')
           ..write('rating: $rating, ')
           ..write('status: $status, ')
+          ..write('updateTrackingEnabled: $updateTrackingEnabled, ')
+          ..write('lastCheckedAt: $lastCheckedAt, ')
+          ..write('newChapterCount: $newChapterCount, ')
+          ..write('hasUpdate: $hasUpdate, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt, ')
@@ -5847,6 +6073,10 @@ typedef $$BooksTableCreateCompanionBuilder =
       Value<String?> sourceUrl,
       Value<double?> rating,
       Value<String?> status,
+      Value<bool> updateTrackingEnabled,
+      Value<DateTime?> lastCheckedAt,
+      Value<int> newChapterCount,
+      Value<bool> hasUpdate,
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<DateTime?> lastOpenedAt,
@@ -5871,6 +6101,10 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<String?> sourceUrl,
       Value<double?> rating,
       Value<String?> status,
+      Value<bool> updateTrackingEnabled,
+      Value<DateTime?> lastCheckedAt,
+      Value<int> newChapterCount,
+      Value<bool> hasUpdate,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> lastOpenedAt,
@@ -5967,6 +6201,26 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<String> get status => $composableBuilder(
     column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get updateTrackingEnabled => $composableBuilder(
+    column: $table.updateTrackingEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get newChapterCount => $composableBuilder(
+    column: $table.newChapterCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasUpdate => $composableBuilder(
+    column: $table.hasUpdate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6080,6 +6334,26 @@ class $$BooksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get updateTrackingEnabled => $composableBuilder(
+    column: $table.updateTrackingEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get newChapterCount => $composableBuilder(
+    column: $table.newChapterCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hasUpdate => $composableBuilder(
+    column: $table.hasUpdate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -6162,6 +6436,24 @@ class $$BooksTableAnnotationComposer
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
+  GeneratedColumn<bool> get updateTrackingEnabled => $composableBuilder(
+    column: $table.updateTrackingEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastCheckedAt => $composableBuilder(
+    column: $table.lastCheckedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get newChapterCount => $composableBuilder(
+    column: $table.newChapterCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get hasUpdate =>
+      $composableBuilder(column: $table.hasUpdate, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -6219,6 +6511,10 @@ class $$BooksTableTableManager
                 Value<String?> sourceUrl = const Value.absent(),
                 Value<double?> rating = const Value.absent(),
                 Value<String?> status = const Value.absent(),
+                Value<bool> updateTrackingEnabled = const Value.absent(),
+                Value<DateTime?> lastCheckedAt = const Value.absent(),
+                Value<int> newChapterCount = const Value.absent(),
+                Value<bool> hasUpdate = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
@@ -6241,6 +6537,10 @@ class $$BooksTableTableManager
                 sourceUrl: sourceUrl,
                 rating: rating,
                 status: status,
+                updateTrackingEnabled: updateTrackingEnabled,
+                lastCheckedAt: lastCheckedAt,
+                newChapterCount: newChapterCount,
+                hasUpdate: hasUpdate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 lastOpenedAt: lastOpenedAt,
@@ -6265,6 +6565,10 @@ class $$BooksTableTableManager
                 Value<String?> sourceUrl = const Value.absent(),
                 Value<double?> rating = const Value.absent(),
                 Value<String?> status = const Value.absent(),
+                Value<bool> updateTrackingEnabled = const Value.absent(),
+                Value<DateTime?> lastCheckedAt = const Value.absent(),
+                Value<int> newChapterCount = const Value.absent(),
+                Value<bool> hasUpdate = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
@@ -6287,6 +6591,10 @@ class $$BooksTableTableManager
                 sourceUrl: sourceUrl,
                 rating: rating,
                 status: status,
+                updateTrackingEnabled: updateTrackingEnabled,
+                lastCheckedAt: lastCheckedAt,
+                newChapterCount: newChapterCount,
+                hasUpdate: hasUpdate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 lastOpenedAt: lastOpenedAt,

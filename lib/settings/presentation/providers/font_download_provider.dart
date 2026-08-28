@@ -48,10 +48,7 @@ final availableFontFamiliesProvider = FutureProvider<List<String>>((ref) async {
   final state = ref.watch(fontDownloadProvider);
   final downloaded = state.downloaded;
   const bundled = FontDownloadRepository.bundledFamilies;
-  return [
-    ...bundled,
-    ...downloaded.difference(bundled),
-  ]..sort();
+  return [...bundled, ...downloaded.difference(bundled)]..sort();
 });
 
 class FontDownloadNotifier extends StateNotifier<FontDownloadState> {
@@ -76,10 +73,7 @@ class FontDownloadNotifier extends StateNotifier<FontDownloadState> {
 
   void markDownloaded(String family, {Set<int> weights = const {}}) {
     final downloading = {...state.downloading}..remove(family);
-    final newWeights = {
-      ...state.installedWeights,
-      family: weights,
-    };
+    final newWeights = {...state.installedWeights, family: weights};
     state = state.copyWith(
       downloaded: {...state.downloaded, family},
       downloading: downloading,

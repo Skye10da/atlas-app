@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
-import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
+import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 import 'package:atlas_app/settings/presentation/providers/font_download_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
@@ -62,8 +63,7 @@ class ReadingSettingsScreen extends ConsumerWidget {
                     value: settings.fontFamily,
                     options: [
                       (null, 'System'),
-                      for (final family in fontFamilies)
-                        (family, family),
+                      for (final family in fontFamilies) (family, family),
                     ],
                     onChanged: notifier.setFontFamily,
                   ),

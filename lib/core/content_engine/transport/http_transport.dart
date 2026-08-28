@@ -17,8 +17,21 @@ class HttpTransport implements Transport {
         _describeFailure(response, url),
         sessionExpired: _isSessionExpired(response),
         botChallenge: _isBotChallenge(response),
+        statusCode: response.statusCode,
+        retryAfter: _retryAfter(response),
       );
     }
+  }
+
+  /// `Retry-After` in its integer-seconds form (the form every AI API uses).
+  /// HTTP-date form and missing/unparseable values yield null — callers fall
+  /// back to their own backoff schedule.
+  static Duration? _retryAfter(http.Response response) {
+    final raw = response.headers['retry-after'];
+    if (raw == null) return null;
+    final seconds = int.tryParse(raw.trim());
+    if (seconds == null || seconds < 0) return null;
+    return Duration(seconds: seconds);
   }
 
   String _describeFailure(http.Response response, Uri url) {

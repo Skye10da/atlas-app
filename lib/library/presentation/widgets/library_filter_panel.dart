@@ -41,8 +41,7 @@ class LibraryFilterPanel extends ConsumerWidget {
           ],
           selected: {category},
           onSelectionChanged: (selected) {
-            ref.read(libraryCategoryProvider.notifier).state = selected.first;
-            ref.read(libraryGenreFilterProvider.notifier).state = null;
+            ref.read(libraryViewModelProvider.notifier).setCategory(selected.first);
           },
           style: const ButtonStyle(
             visualDensity: VisualDensity.compact,
@@ -103,14 +102,14 @@ class _GenreMenu extends ConsumerWidget {
       menuChildren: [
         MenuItemButton(
           onPressed: () =>
-              ref.read(libraryGenreFilterProvider.notifier).state = null,
+              ref.read(libraryViewModelProvider.notifier).setGenreFilter(null),
           leadingIcon: Icon(selected == null ? Icons.check : null, size: 18),
           child: const Text('All genres'),
         ),
         for (final g in genres)
           MenuItemButton(
             onPressed: () =>
-                ref.read(libraryGenreFilterProvider.notifier).state = g,
+                ref.read(libraryViewModelProvider.notifier).setGenreFilter(g),
             leadingIcon: Icon(selected == g ? Icons.check : null, size: 18),
             child: Text(g, overflow: TextOverflow.ellipsis),
           ),

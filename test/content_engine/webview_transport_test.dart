@@ -451,7 +451,8 @@ void main() {
       expect(
         session.lastInvalidOrigin.value,
         Uri.parse(url),
-        reason: 'the challenge page must not be treated as content; the '
+        reason:
+            'the challenge page must not be treated as content; the '
             'origin latches as invalid so the re-verify webview can open',
       );
       expect(

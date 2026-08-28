@@ -4,19 +4,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/settings/presentation/screens/ai_translation_settings_screen.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_ai_settings.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_auth_state.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_translation_service.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_ai_status_tracker.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_ai_translate_service.dart';
 import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
 import 'package:atlas_app/wtr/presentation/screens/wtr_login_screen.dart';
 
-/// Selects the translation service (Web / WebPlus / AI) a WTR-Lab novel uses
-/// when its chapters are fetched.
+/// Selects the translation service (Web / WebPlus / AI / AI+) a WTR-Lab novel
+/// uses when its chapters are fetched.
 ///
 /// The AI service is account-gated: selecting it never auto-signs-in, but the
 /// card explains the requirement and offers the one-tap login. The reader
 /// (via `WtrChapterProvider.resolveTranslate`) throws when AI is selected
 /// without a valid session, so an unattended AI selection surfaces a clear
 /// message instead of silently falling back to another service.
+///
+/// AI+ is Atlas-side and needs an AI-provider API key; its row links to
+/// Settings → AI Translation while unconfigured, shows the active provider +
+/// model once set up, and surfaces the tracker's fallback notice when a rate
+/// limit or bad key degraded the latest chapter to Web translation — so a
+/// silent downgrade never masquerades as working AI+ output.
 ///
 /// [onServiceChanged] fires only when the selection actually changes — not on
 /// re-tapping the already-selected service — so hosts can drop stale chapter
@@ -38,22 +48,39 @@ class WtrTranslationSelector extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(wtrAuthManagerProvider);
     final serviceAsync = ref.watch(wtrTranslationServiceProvider(rawId));
+    final aiSettingsAsync = ref.watch(wtrAiSettingsProvider);
 
     return ValueListenableBuilder<WtrAuthState>(
       valueListenable: auth.state,
       builder: (context, authState, _) {
-        return serviceAsync.when(
-          loading: () => const SizedBox.shrink(),
-          error: (_, _) => const SizedBox.shrink(),
-          data: (service) => _SelectorCard(
-            service: service,
-            authState: authState,
-            onSelect: (selected) => _select(ref, selected, service),
-            onSignIn: () => _signIn(context, ref),
-            onChangeAccount: () => _changeAccount(context, ref),
-          ),
+        return ValueListenableBuilder<Map<int, WtrAiChapterOutcome>>(
+          valueListenable: WtrAiStatusTracker.instance.outcomes,
+          builder: (context, outcomes, _) {
+            return serviceAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
+              data: (service) => _SelectorCard(
+                service: service,
+                authState: authState,
+                aiSettings: aiSettingsAsync.valueOrNull,
+                aiOutcome: outcomes[rawId],
+                onSelect: (selected) => _select(ref, selected, service),
+                onSignIn: () => _signIn(context, ref),
+                onChangeAccount: () => _changeAccount(context, ref),
+                onConfigureAi: () => _openAiSettings(context),
+              ),
+            );
+          },
         );
       },
+    );
+  }
+
+  Future<void> _openAiSettings(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const AiTranslationSettingsScreen(),
+      ),
     );
   }
 
@@ -91,13 +118,26 @@ class _SelectorCard extends StatelessWidget {
     required this.onSelect,
     required this.onSignIn,
     required this.onChangeAccount,
+    required this.onConfigureAi,
+    this.aiSettings,
+    this.aiOutcome,
   });
 
   final WtrTranslationService service;
   final WtrAuthState authState;
+
+  /// The user's AI-translation configuration, null while loading. Drives the
+  /// AI+ context row (set-up prompt vs. active provider/model).
+  final WtrAiSettings? aiSettings;
+
+  /// What the AI+ path last did for this novel in the current session, used
+  /// to surface a fallback notice instead of a silent downgrade.
+  final WtrAiChapterOutcome? aiOutcome;
+
   final void Function(WtrTranslationService service) onSelect;
   final VoidCallback onSignIn;
   final VoidCallback onChangeAccount;
+  final VoidCallback onConfigureAi;
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +184,10 @@ class _SelectorCard extends StatelessWidget {
   Widget _contextRow(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+
+    if (service == WtrTranslationService.aiPlus) {
+      return _aiPlusContextRow(context);
+    }
 
     if (service != WtrTranslationService.ai) {
       return Text(
@@ -205,6 +249,60 @@ class _SelectorCard extends StatelessWidget {
             child: const Text('Try again'),
           ),
         );
+    }
+  }
+
+  /// Status line for the AI+ option: a set-up prompt while unconfigured, the
+  /// active provider + model once set up, and the tracker's fallback notice
+  /// when the latest chapter degraded to Web translation.
+  Widget _aiPlusContextRow(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    if (aiSettings == null || !aiSettings!.isConfigured) {
+      return _ActionRow(
+        text:
+            'AI+ translates with your own AI-provider key — no WTR-Lab '
+            'account needed.',
+        action: FilledButton.tonal(
+          onPressed: onConfigureAi,
+          child: const Text('Set up AI+'),
+        ),
+      );
+    }
+
+    if (aiOutcome != null && aiOutcome!.fellBack) {
+      return _ActionRow(
+        text:
+            'AI+ could not translate this chapter '
+            '(${_reasonText(aiOutcome!.reason)}) — Web translation was used '
+            'instead.',
+        action: TextButton(
+          onPressed: onConfigureAi,
+          child: const Text('Check setup'),
+        ),
+      );
+    }
+
+    return Text(
+      '${aiSettings!.provider.label} · ${aiSettings!.modelFor(aiSettings!.provider)}',
+      style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+    );
+  }
+
+  String _reasonText(WtrAiFailureReason? reason) {
+    switch (reason) {
+      case WtrAiFailureReason.notConfigured:
+        return 'no API key';
+      case WtrAiFailureReason.auth:
+        return 'API key rejected';
+      case WtrAiFailureReason.rateLimited:
+        return 'rate limit';
+      case WtrAiFailureReason.transient:
+        return 'network problem';
+      case WtrAiFailureReason.badResponse:
+      case null:
+        return 'unexpected reply';
     }
   }
 }

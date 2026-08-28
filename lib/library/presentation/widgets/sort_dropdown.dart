@@ -16,6 +16,7 @@ class SortDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final options = [
       (LibrarySortOrder.recentlyRead, 'Recent'),
+      (LibrarySortOrder.recentlyUpdated, 'Updated'),
       (LibrarySortOrder.titleAsc, 'Title'),
       (LibrarySortOrder.author, 'Author'),
       (LibrarySortOrder.recentlyAdded, 'Added'),

@@ -15,6 +15,7 @@ class FakeTransport implements Transport {
   final Map<String, Object?> jsonByUrl = {};
   final Map<String, String> postHtmlByUrl = {};
   final Map<String, Object?> postJsonByUrl = {};
+  final List<Object?> jsonPostBodies = [];
   int htmlCalls = 0;
   int jsonCalls = 0;
 
@@ -72,6 +73,7 @@ class FakeTransport implements Transport {
     Object? jsonBody,
   }) async {
     jsonCalls++;
+    jsonPostBodies.add(jsonBody);
     final value = postJsonByUrl[url.toString()];
     if (value == null) throw TransportException('No fixture for POST $url');
     return value;

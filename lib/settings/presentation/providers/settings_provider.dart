@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/theme/app_brand.dart';
-import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/infrastructure/repositories/shared_prefs_settings_repository.dart';
 

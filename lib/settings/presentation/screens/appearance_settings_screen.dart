@@ -101,8 +101,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                           runSpacing: 4,
                           children: List.generate(options.length, (i) {
                             final f = options[i];
-                            final isSelected =
-                                settings.systemFontFamily == f;
+                            final isSelected = settings.systemFontFamily == f;
                             return ChoiceChip(
                               label: Text(
                                 f ?? 'System Default',

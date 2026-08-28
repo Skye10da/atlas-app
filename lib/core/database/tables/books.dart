@@ -18,6 +18,21 @@ class Books extends Table {
   TextColumn get sourceUrl => text().nullable()();
   RealColumn get rating => real().nullable()();
   TextColumn get status => text().nullable()();
+
+  /// Update tracking (ongoing novels): whether periodic checks should run.
+  BoolColumn get updateTrackingEnabled =>
+      boolean().withDefault(const Constant(true))();
+
+  /// Last time an update check was performed for this book.
+  DateTimeColumn get lastCheckedAt => dateTime().nullable()();
+
+  /// Number of newly discovered chapters not yet acknowledged by opening
+  /// the book.
+  IntColumn get newChapterCount => integer().withDefault(const Constant(0))();
+
+  /// True when new chapters were found since the book was last opened.
+  BoolColumn get hasUpdate => boolean().withDefault(const Constant(false))();
+
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get lastOpenedAt => dateTime().nullable()();

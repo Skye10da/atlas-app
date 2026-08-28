@@ -2,10 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
+import 'package:atlas_app/wtr/domain/entities/wtr_ai_settings.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_translation_service.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_authentication_manager.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_chapter_provider.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_session_auxiliary.dart';
+import 'package:atlas_app/wtr/infrastructure/repositories/shared_prefs_wtr_ai_settings_repository.dart';
 import 'package:atlas_app/wtr/infrastructure/repositories/shared_prefs_wtr_preference_repository.dart';
 import 'package:atlas_app/wtr/infrastructure/repositories/shared_prefs_wtr_session_repository.dart';
 import 'package:atlas_app/wtr/infrastructure/services/webview_wtr_session_auxiliary.dart';
@@ -59,4 +61,18 @@ final wtrTranslationServiceProvider =
 /// separate provider so tests can swap in a fake engine.
 final wtrLoginEngineFactoryProvider = Provider<BrowserEngineFactory>((ref) {
   return ref.watch(browserEngineFactoryProvider);
+});
+
+/// The SharedPreferences-backed store for AI+ provider/key/model settings.
+final wtrAiSettingsRepositoryProvider =
+    Provider<SharedPrefsWtrAiSettingsRepository>(
+      (ref) => const SharedPrefsWtrAiSettingsRepository(),
+    );
+
+/// The user's AI-translation configuration (active provider, per-provider
+/// API keys and models). Invalidate after saving to propagate changes — the
+/// translation selector watches it for the AI+ status row.
+final wtrAiSettingsProvider = FutureProvider<WtrAiSettings>((ref) async {
+  final repository = ref.watch(wtrAiSettingsRepositoryProvider);
+  return repository.load();
 });

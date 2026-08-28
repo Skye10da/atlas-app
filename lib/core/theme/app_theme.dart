@@ -197,7 +197,10 @@ abstract final class AppTheme {
     );
 
     return TextTheme(
-      displayLarge: LocalFonts.getFont(_displayFont, textStyle: base.displayLarge),
+      displayLarge: LocalFonts.getFont(
+        _displayFont,
+        textStyle: base.displayLarge,
+      ),
       displayMedium: LocalFonts.getFont(
         _displayFont,
         textStyle: base.displayMedium,

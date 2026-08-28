@@ -27,6 +27,17 @@ Before ANY `git commit`, you MUST:
 NEVER commit with `--no-verify` or any flag that bypasses checks.
 NEVER commit if `analyze_files` reports even a single warning.
 
+## Temp File Cleanup Rule
+
+At the end of EVERY operation/task, you MUST clean up all temporary files and folders created during that operation:
+
+1. Track every temp file/folder you create during a task (scratch scripts, test artifacts, downloaded files, extracted archives, etc.).
+2. Before reporting completion, delete them all — including any temp dirs created under `C:\Users\skye\AppData\Local\Temp\opencode` or inside the project.
+3. Never leave temp files behind "just in case" — if content must be preserved, move it into the repo properly or include it in the response, then delete the temp copy.
+4. Verify cleanup with a directory listing when unsure.
+
+NEVER end an operation with temp files still on disk unless deletion was explicitly blocked (report it if so).
+
 ## Code Style
 
 - Use `logger` from the `logger` package instead of `print` or `debugPrint`.

@@ -13,17 +13,25 @@ class TaskScheduler {
     this.pluginRefreshInterval = const Duration(hours: 6),
     this.resumeDownloadsInterval = const Duration(minutes: 30),
     this.cacheCleanupInterval = const Duration(hours: 24),
+    Duration Function()? updateCheckIntervalResolver,
     Future<void> Function(Duration)? timer,
-  }) : _timer = timer ?? Future<void>.delayed;
+  }) : _timer = timer ?? Future<void>.delayed,
+       _updateCheckIntervalResolver =
+           updateCheckIntervalResolver ?? (() => const Duration(hours: 6));
 
   final Duration pluginRefreshInterval;
   final Duration resumeDownloadsInterval;
   final Duration cacheCleanupInterval;
+
+  /// Resolved on every scheduling tick so runtime changes to the user's
+  /// preferred check interval take effect without restarting the scheduler.
+  final Duration Function() _updateCheckIntervalResolver;
   final Future<void> Function(Duration) _timer;
 
   ScheduledTask? _pluginRefresh;
   ScheduledTask? _resumeDownloads;
   ScheduledTask? _cacheCleanup;
+  ScheduledTask? _updateCheck;
 
   final Map<String, bool> _running = {};
   final List<StreamController<String>> _logControllers = [];
@@ -33,33 +41,42 @@ class TaskScheduler {
     ScheduledTask? pluginRefresh,
     ScheduledTask? resumeDownloads,
     ScheduledTask? cacheCleanup,
+    ScheduledTask? updateCheck,
   }) {
     _pluginRefresh = pluginRefresh;
     _resumeDownloads = resumeDownloads;
     _cacheCleanup = cacheCleanup;
+    _updateCheck = updateCheck;
   }
 
   void start() {
     if (_started) return;
     _started = true;
     if (_pluginRefresh != null) {
-      _schedule('pluginRefresh', pluginRefreshInterval, _pluginRefresh!);
+      _schedule('pluginRefresh', () => pluginRefreshInterval, _pluginRefresh!);
     }
     if (_resumeDownloads != null) {
-      _schedule('resumeDownloads', resumeDownloadsInterval, _resumeDownloads!);
+      _schedule(
+        'resumeDownloads',
+        () => resumeDownloadsInterval,
+        _resumeDownloads!,
+      );
     }
     if (_cacheCleanup != null) {
-      _schedule('cacheCleanup', cacheCleanupInterval, _cacheCleanup!);
+      _schedule('cacheCleanup', () => cacheCleanupInterval, _cacheCleanup!);
+    }
+    if (_updateCheck != null) {
+      _schedule('updateCheck', _updateCheckIntervalResolver, _updateCheck!);
     }
   }
 
   Future<void> _schedule(
     String name,
-    Duration interval,
+    Duration Function() interval,
     ScheduledTask task,
   ) async {
     while (_started) {
-      await _timer(interval);
+      await _timer(interval());
       if (!_started) return;
       await _run(name, task);
     }
@@ -92,6 +109,7 @@ class TaskScheduler {
       ('pluginRefresh', _pluginRefresh),
       ('resumeDownloads', _resumeDownloads),
       ('cacheCleanup', _cacheCleanup),
+      ('updateCheck', _updateCheck),
     ]) {
       final name = entry.$1;
       final task = entry.$2;

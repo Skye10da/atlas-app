@@ -31,7 +31,7 @@ abstract final class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => buildPageTransition(
           child: ReaderScreen(bookId: state.pathParameters['bookId']!),
-          key: state.pathParameters['bookId']!,
+          key: state.pageKey,
         ),
       ),
       GoRoute(
@@ -46,7 +46,7 @@ abstract final class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => buildPageTransition(
           child: SourceSearchScreen(sourceName: state.pathParameters['name']!),
-          key: state.uri.toString(),
+          key: state.pageKey,
         ),
       ),
       GoRoute(
@@ -72,7 +72,7 @@ abstract final class AppRouter {
                 name: 'library',
                 pageBuilder: (context, state) => buildPageTransition(
                   child: const LibraryScreen(),
-                  key: 'library',
+                  key: state.pageKey,
                 ),
               ),
               GoRoute(
@@ -82,7 +82,7 @@ abstract final class AppRouter {
                   child: BookDetailsScreen(
                     bookId: state.pathParameters['bookId']!,
                   ),
-                  key: 'book_${state.pathParameters['bookId']!}',
+                  key: state.pageKey,
                 ),
               ),
               GoRoute(
@@ -92,7 +92,7 @@ abstract final class AppRouter {
                   child: NovelDetailsScreen(
                     bookId: state.pathParameters['bookId']!,
                   ),
-                  key: 'novel_${state.pathParameters['bookId']!}',
+                  key: state.pageKey,
                 ),
               ),
             ],
@@ -106,7 +106,7 @@ abstract final class AppRouter {
                   child: BrowserScreen(
                     initialUrl: state.uri.queryParameters['url'],
                   ),
-                  key: 'web',
+                  key: state.pageKey,
                 ),
               ),
             ],
@@ -118,7 +118,7 @@ abstract final class AppRouter {
                 name: 'bookmarks',
                 pageBuilder: (context, state) => buildPageTransition(
                   child: const BookmarksScreen(),
-                  key: 'bookmarks',
+                  key: state.pageKey,
                 ),
               ),
             ],
@@ -130,7 +130,7 @@ abstract final class AppRouter {
                 name: 'search',
                 pageBuilder: (context, state) => buildPageTransition(
                   child: const SearchScreen(),
-                  key: 'search',
+                  key: state.pageKey,
                 ),
               ),
             ],
@@ -142,7 +142,7 @@ abstract final class AppRouter {
                 name: 'dictionary',
                 pageBuilder: (context, state) => buildPageTransition(
                   child: const DictionaryScreen(),
-                  key: 'dictionary',
+                  key: state.pageKey,
                 ),
               ),
             ],
@@ -154,7 +154,7 @@ abstract final class AppRouter {
                 name: 'settings',
                 pageBuilder: (context, state) => buildPageTransition(
                   child: const SettingsScreen(),
-                  key: 'settings',
+                  key: state.pageKey,
                 ),
               ),
             ],

@@ -77,6 +77,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
 
   String? _bookLanguage;
   String? _bookTitle;
+  String? _bookAuthor;
   String? _bookCoverPath;
   int? _wtrRawId;
   SpeechCheckpoint? _restoredCheckpoint;
@@ -152,6 +153,9 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       language: _bookLanguage ?? 'en',
       settings: settings,
       sentenceIndex: restoreHere ? checkpoint.sentenceIndex : 0,
+      coverPath: _bookCoverPath,
+      bookTitle: _bookTitle,
+      author: _bookAuthor,
     );
     await engine.loadSession(session);
   }
@@ -222,6 +226,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       final book = bookResult.value;
       _bookLanguage = book.language;
       _bookTitle = book.title;
+      _bookAuthor = book.author;
       _bookCoverPath = book.coverPath;
       _wtrRawId =
           isWtrLabSource(sourceUrl: book.sourceUrl, sourceName: book.sourceName)

@@ -1,9 +1,16 @@
-/// The three content-retrieval services WTR-Lab offers for a chapter.
+/// The content-retrieval services a WTR-Lab chapter can be read with.
 ///
 /// These are *user-selectable preferences for a WTR-Lab novel*, not separate
-/// sources. Each maps to the `translate` value the site's
-/// `POST /api/reader/get` endpoint accepts (and mirrors the `?service=` URL
+/// sources. `web`, `webPlus` and `ai` map to the `translate` value the site's
+/// `POST /api/reader/get` endpoint accepts (and mirror the `?service=` URL
 /// param on the chapter page: `web`, `webplus`, and no param for `ai`).
+///
+/// [aiPlus] is the exception: it is an *Atlas-side* mode, not a WTR-Lab
+/// service. Chapters are fetched exactly like [web] (source-language text)
+/// and translated on-device by the user's own AI provider (Gemini, OpenAI,
+/// …) using the per-novel glossary — so its [apiValue] is only a
+/// persistence key, and [WtrChapterProvider.resolveTranslate] sends
+/// `web`'s value to the server for it.
 enum WtrTranslationService {
   /// The site's web translation. Serves the *source-language* text — Chinese
   /// for Chinese-origin novels — so it is not an English option. No account
@@ -16,7 +23,18 @@ enum WtrTranslationService {
   /// The AI translation service. Returns English (machine-translated), which is
   /// the site's default output language. Requires signing in to a WTR-Lab
   /// account so Atlas can reuse the authenticated browser session.
-  ai('ai', 'AI', 'AI translation into English — requires a WTR-Lab account');
+  ai('ai', 'AI', 'AI translation into English — requires a WTR-Lab account'),
+
+  /// Atlas-side glossary-aware AI translation through the user's own AI
+  /// provider (Gemini / OpenAI / OpenRouter / OpenCode Zen / Anthropic).
+  /// Fetches source-language text like [web], then translates locally with
+  /// the per-novel glossary injected into the prompt. No WTR-Lab account,
+  /// but requires an API key configured in Settings → AI Translation.
+  aiPlus(
+    'aiplus',
+    'AI+',
+    'Glossary-aware AI translation using your own AI-provider API key',
+  );
 
   const WtrTranslationService(this.apiValue, this.label, this.description);
 

@@ -28,15 +28,15 @@ class BookshelfGrid extends StatelessWidget {
     final crossSpacing = isDesktop ? 20.0 : 12.0;
     final mainSpacing = isDesktop ? 20.0 : 12.0;
     final coverWidth = isDesktop
-        ? 140.0
+        ? 150.0
         : isTablet
-        ? 120.0
-        : 100.0;
+        ? 130.0
+        : 115.0;
     final coverHeight = isDesktop
-        ? 210.0
+        ? 225.0
         : isTablet
-        ? 180.0
-        : 150.0;
+        ? 195.0
+        : 175.0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -65,7 +65,7 @@ class BookshelfGrid extends StatelessWidget {
                   crossAxisCount: columns,
                   mainAxisSpacing: mainSpacing,
                   crossAxisSpacing: crossSpacing,
-                  childAspectRatio: tileWidth / (coverHeight + 110),
+                  childAspectRatio: tileWidth / (coverHeight + 100),
                 ),
                 itemCount: books.length,
                 itemBuilder: (context, index) {

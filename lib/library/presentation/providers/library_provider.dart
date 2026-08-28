@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
@@ -14,53 +14,12 @@ import 'package:atlas_app/library/application/atlas_source_import_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/domain/entities/bookshelf_layout.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
+import 'package:atlas_app/library/presentation/view_models/library_state.dart';
+import 'package:atlas_app/library/presentation/view_models/library_view_model.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 
-enum LibrarySortOrder {
-  titleAsc,
-  titleDesc,
-  author,
-  recentlyAdded,
-  recentlyRead,
-}
-
-enum LibraryCategory { books, novels }
-
-final bookshelfLayoutProvider = StateProvider<BookshelfLayout>(
-  (ref) => BookshelfLayout.grid,
-);
-
-final librarySortProvider = StateProvider<LibrarySortOrder>(
-  (ref) => LibrarySortOrder.titleAsc,
-);
-
-final librarySearchQueryProvider = StateProvider<String>((ref) => '');
-
-final libraryCategoryProvider = StateProvider<LibraryCategory>(
-  (ref) => LibraryCategory.novels,
-);
-
-final libraryGenreFilterProvider = StateProvider<String?>((ref) => null);
-
-/// The book currently shown in the detail panel on desktop. Null when no
-/// panel is open. Setting this on desktop opens the panel; tapping the same
-/// book again clears it (closes the panel).
-final selectedBookIdProvider = StateProvider<String?>((ref) => null);
-
-/// Derives the set of all unique genres across every book in the library,
-/// sorted alphabetically. Used by the filter sidebar to populate genre chips.
-final availableGenresProvider = Provider<List<String>>((ref) {
-  final booksResult = ref.watch(libraryBooksProvider);
-  final books =
-      booksResult.whenOrNull(
-        data: (result) =>
-            result is Success<List<BookEntity>> ? result.value : null,
-      ) ??
-      <BookEntity>[];
-  final allTags = books.expand((b) => b.tags).toSet().toList();
-  allTags.sort();
-  return allTags;
-});
+export 'package:atlas_app/library/presentation/view_models/library_state.dart';
+export 'package:atlas_app/library/presentation/view_models/library_view_model.dart';
 
 final libraryRepositoryProvider = Provider((ref) {
   final db = ref.watch(databaseProvider);
@@ -75,58 +34,60 @@ final libraryBooksProvider = StreamProvider<Result<List<BookEntity>>>((ref) {
   return repo.watchBooks();
 });
 
+/// The unified Library ViewModel managing reactive shelf state, filtering,
+/// sorting, layout modes, update-checks, and deletions.
+final libraryViewModelProvider =
+    StateNotifierProvider<LibraryViewModel, AsyncValue<LibraryState>>((ref) {
+      final repo = ref.watch(libraryRepositoryProvider);
+      return LibraryViewModel(repository: repo);
+    });
+
+/// Backward-compatible bridge provider: derives filtered books from the ViewModel.
 final filteredLibraryProvider = Provider<List<BookEntity>>((ref) {
-  final booksResult = ref.watch(libraryBooksProvider);
-  final sortOrder = ref.watch(librarySortProvider);
-  final query = ref.watch(librarySearchQueryProvider).toLowerCase();
-  final category = ref.watch(libraryCategoryProvider);
-  final genreFilter = ref.watch(libraryGenreFilterProvider);
+  final state = ref.watch(libraryViewModelProvider).valueOrNull;
+  return state?.filteredBooks ?? const <BookEntity>[];
+});
 
-  final books =
-      booksResult.whenOrNull(
-        data: (result) =>
-            result is Success<List<BookEntity>> ? result.value : null,
-      ) ??
-      <BookEntity>[];
+/// Backward-compatible bridge provider: derives available genres from the ViewModel.
+final availableGenresProvider = Provider<List<String>>((ref) {
+  final state = ref.watch(libraryViewModelProvider).valueOrNull;
+  return state?.availableGenres ?? const <String>[];
+});
 
-  final categoryFiltered = switch (category) {
-    LibraryCategory.books => books.where((b) => !b.isNovel).toList(),
-    LibraryCategory.novels => books.where((b) => b.isNovel).toList(),
-  };
+/// Backward-compatible bridge provider: derives bookshelf layout from the ViewModel.
+final bookshelfLayoutProvider = Provider<BookshelfLayout>((ref) {
+  final state = ref.watch(libraryViewModelProvider).valueOrNull;
+  return state?.layout ?? BookshelfLayout.grid;
+});
 
-  final genreFiltered = genreFilter != null && genreFilter.isNotEmpty
-      ? categoryFiltered.where((b) => b.tags.contains(genreFilter)).toList()
-      : categoryFiltered;
+/// Backward-compatible bridge provider: derives sort order from the ViewModel.
+final librarySortProvider = Provider<LibrarySortOrder>((ref) {
+  final state = ref.watch(libraryViewModelProvider).valueOrNull;
+  return state?.sortOrder ?? LibrarySortOrder.titleAsc;
+});
 
-  final searchFiltered = query.isEmpty
-      ? genreFiltered
-      : genreFiltered
-            .where(
-              (b) =>
-                  b.title.toLowerCase().contains(query) ||
-                  (b.author?.toLowerCase().contains(query) ?? false),
-            )
-            .toList();
+/// Backward-compatible bridge provider: derives search query from the ViewModel.
+final librarySearchQueryProvider = Provider<String>((ref) {
+  final state = ref.watch(libraryViewModelProvider).valueOrNull;
+  return state?.searchQuery ?? '';
+});
 
-  searchFiltered.sort(
-    (a, b) => switch (sortOrder) {
-      LibrarySortOrder.titleAsc => a.title.compareTo(b.title),
-      LibrarySortOrder.titleDesc => b.title.compareTo(a.title),
-      LibrarySortOrder.author => (a.author ?? '').compareTo(b.author ?? ''),
-      LibrarySortOrder.recentlyAdded => b.createdAt.compareTo(a.createdAt),
-      LibrarySortOrder.recentlyRead => switch ((
-        a.lastOpenedAt,
-        b.lastOpenedAt,
-      )) {
-        (null, null) => 0,
-        (null, _) => 1,
-        (_, null) => -1,
-        (final aDate?, final bDate?) => bDate.compareTo(aDate),
-      },
-    },
-  );
+/// Backward-compatible bridge provider: derives category from the ViewModel.
+final libraryCategoryProvider = Provider<LibraryCategory>((ref) {
+  final state = ref.watch(libraryViewModelProvider).valueOrNull;
+  return state?.category ?? LibraryCategory.novels;
+});
 
-  return searchFiltered;
+/// Backward-compatible bridge provider: derives genre filter from the ViewModel.
+final libraryGenreFilterProvider = Provider<String?>((ref) {
+  final state = ref.watch(libraryViewModelProvider).valueOrNull;
+  return state?.genreFilter;
+});
+
+/// Backward-compatible bridge provider: derives selected book id from the ViewModel.
+final selectedBookIdProvider = Provider<String?>((ref) {
+  final state = ref.watch(libraryViewModelProvider).valueOrNull;
+  return state?.selectedBookId;
 });
 
 final librarySeedProvider = FutureProvider<Result<void>>((ref) async {
@@ -234,13 +195,11 @@ class _LibraryDeleteActions {
 
   final Ref _ref;
 
-  Future<Result<void>> delete(String bookId) async {
-    final repo = _ref.read(libraryRepositoryProvider);
-    return repo.deleteBook(bookId);
+  Future<Result<void>> delete(String bookId) {
+    return _ref.read(libraryViewModelProvider.notifier).deleteBook(bookId);
   }
 
-  Future<Result<void>> deleteAll() async {
-    final repo = _ref.read(libraryRepositoryProvider);
-    return repo.deleteAllBooks();
+  Future<Result<void>> deleteAll() {
+    return _ref.read(libraryViewModelProvider.notifier).deleteAllBooks();
   }
 }

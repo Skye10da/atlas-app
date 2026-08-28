@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/theme/app_brand.dart';
-import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/settings/domain/value_objects/desktop_sheet_presentation.dart';
+import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 
 class ReadingSettingsEntity {
   const ReadingSettingsEntity({

@@ -64,15 +64,24 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
       _isLoadingMore = loadMore;
     });
 
-    final response = await _source.search(
-      SourceSearchQuery(term: term, page: _page),
-    );
-    setState(() {
-      _lastResponse = response;
-      _results.addAll(response.results);
-      _isLoadingMore = false;
-      _isSearching = false;
-    });
+    try {
+      final response = await _source.search(
+        SourceSearchQuery(term: term, page: _page),
+      );
+      if (!mounted) return;
+      setState(() {
+        _lastResponse = response;
+        _results.addAll(response.results);
+        _isLoadingMore = false;
+        _isSearching = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingMore = false;
+        _isSearching = false;
+      });
+    }
   }
 
   Future<void> _import(SourceSearchResult result) async {

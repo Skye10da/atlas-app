@@ -15,6 +15,10 @@ import 'package:atlas_app/core/router/app_router.dart';
 import 'package:atlas_app/core/services/window_theme_channel.dart';
 import 'package:atlas_app/core/theme/app_theme.dart';
 import 'package:atlas_app/core/theme/local_fonts.dart';
+import 'package:atlas_app/notifications/infrastructure/background_update_check.dart';
+import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
+import 'package:atlas_app/notifications/presentation/providers/update_check_settings_provider.dart';
+import 'package:atlas_app/notifications/infrastructure/update_check_settings_store.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
@@ -81,10 +85,15 @@ class AtlasApp extends ConsumerWidget {
     );
   }
 
+  static bool _bootstrapped = false;
+
   /// One-time background startup: kicks off plugin discovery, starts the
-  /// maintenance scheduler, boots the Speech subsystem, and wires up OS file
-  /// import (open with Atlas). Safe to call repeatedly; all idempotent.
+  /// maintenance scheduler, boots the Speech subsystem, wires up OS file
+  /// import (open with Atlas), and registers ongoing-novel update checks.
   Future<void> _bootstrap(WidgetRef ref) async {
+    if (_bootstrapped) return;
+    _bootstrapped = true;
+
     ref.read(pluginSourcesProvider);
     ref.read(taskSchedulerProvider).start();
     ref.read(speechStartupProvider);
@@ -92,7 +101,24 @@ class AtlasApp extends ConsumerWidget {
     // store + WebView-cookie session) and restores the persisted auth state so
     // reading starts authenticated-aware.
     await ref.read(wtrRuntimeProvider.future);
+
+    await _initUpdateChecks(ref);
+
     await _initFileOpen(ref);
+  }
+
+  static bool _updateChecksInitialized = false;
+
+  Future<void> _initUpdateChecks(WidgetRef ref) async {
+    if (_updateChecksInitialized) return;
+    _updateChecksInitialized = true;
+    final settings = await UpdateCheckSettingsStore.load();
+    ref.read(updateCheckIntervalHoursProvider.notifier).state =
+        settings.intervalHours;
+    // Initialized unconditionally so notification taps deep-link even when
+    // the OS-level checks are off.
+    await UpdateNotificationService.instance.initialize();
+    await initializeBackgroundUpdateChecks(settings);
   }
 
   static bool _fileOpenSubscribed = false;

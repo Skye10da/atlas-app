@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/content_acquisition/providers.dart';
+import 'package:atlas_app/core/content_engine/block_card/block_card_detector.dart';
+import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/session/session_refresh_service.dart';
@@ -94,6 +96,21 @@ final readerChapterContentProvider =
         ),
         Failure(error: final error) => throw error,
       };
+    });
+
+/// Scans the fully-prepared chapter text (after translation and
+/// glossary transforms, so detection always matches what is displayed)
+/// into an ordered list of prose/card [ContentSpan]s. Runs synchronously
+/// in the same provider cycle as the content (no extra async round-trip),
+/// since [BlockCardDetector.process] is pure and offline.
+final chapterBlockCardSpansProvider =
+    Provider.family<List<ContentSpan>, ChapterEntity>((ref, chapter) {
+      final contentAsync = ref.watch(readerChapterContentProvider(chapter));
+      return contentAsync.when(
+        data: (content) => BlockCardDetector().processSync(content),
+        loading: () => <ContentSpan>[],
+        error: (_, _) => <ContentSpan>[],
+      );
     });
 
 /// Translates [content] for a non-WTR novel when the reader's translation

@@ -5,9 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
-
-/// How sheets are presented on desktop-sized windows.
-enum DesktopSheetPresentation { dialog, sidePanel }
+import 'package:atlas_app/settings/domain/value_objects/desktop_sheet_presentation.dart';
+export 'package:atlas_app/settings/domain/value_objects/desktop_sheet_presentation.dart';
 
 /// Modern adaptive modal sheet.
 ///

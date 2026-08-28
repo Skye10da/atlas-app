@@ -1,233 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart'
-    show RenderAbstractViewport, RenderBox, RenderEditable;
-import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart' show Selectable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
+import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
-import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
-import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/block_card_widget.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_narration_coordinator.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_selection_menu.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_span_builder.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
-import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
-import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
-import 'package:atlas_app/reader/speech/parser/sentence_splitter.dart';
 import 'package:atlas_app/reader/speech/speech_models.dart';
+import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 
-enum ReadingViewTheme {
-  paper,
-  parchment,
-  ivory,
-  sepia,
-  blueLight,
-  warmGray,
-  mint,
-  forest,
-  ocean,
-  midnight,
-  charcoal,
-  nord,
-  dracula,
-  amoled,
-}
-
-extension ReadingViewThemeX on ReadingViewTheme {
-  ReadingColors resolve(ColorScheme scheme) {
-    final isDark = scheme.brightness == Brightness.dark;
-    final bg = isDark ? scheme.surface : scheme.surface;
-    final txt = isDark ? scheme.onSurface : scheme.onSurface;
-    final sf = isDark ? scheme.surfaceContainerLow : scheme.surfaceContainerLow;
-
-    return switch (this) {
-      ReadingViewTheme.paper => ReadingColors(
-        background: bg,
-        text: txt,
-        surface: sf,
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.parchment => ReadingColors(
-        background: _tint(bg, hueShift: 30, satBoost: 0.08),
-        text: _tint(txt, hueShift: 20, satBoost: 0.05),
-        surface: _tint(sf, hueShift: 30, satBoost: 0.1),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.ivory => ReadingColors(
-        background: _tint(bg, hueShift: 40, satBoost: 0.06),
-        text: _tint(txt, hueShift: 30, satBoost: 0.04),
-        surface: _tint(sf, hueShift: 40, satBoost: 0.08),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.sepia => ReadingColors(
-        background: _tint(bg, hueShift: 35, satBoost: 0.15),
-        text: _tint(txt, hueShift: 25, satBoost: 0.1),
-        surface: _tint(sf, hueShift: 35, satBoost: 0.18),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.blueLight => ReadingColors(
-        background: _tint(bg, hueShift: -30, satBoost: 0.1),
-        text: _tint(txt, hueShift: -20, satBoost: 0.06),
-        surface: _tint(sf, hueShift: -30, satBoost: 0.12),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.warmGray => ReadingColors(
-        background: _desaturate(bg, amount: 0.15),
-        text: _desaturate(txt, amount: 0.1),
-        surface: _desaturate(sf, amount: 0.18),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.mint => ReadingColors(
-        background: _tint(bg, hueShift: -60, satBoost: 0.12),
-        text: _tint(txt, hueShift: -50, satBoost: 0.08),
-        surface: _tint(sf, hueShift: -60, satBoost: 0.15),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.forest => ReadingColors(
-        background: _tint(bg, hueShift: -70, satBoost: 0.1),
-        text: _tint(txt, hueShift: -60, satBoost: 0.07),
-        surface: _tint(sf, hueShift: -70, satBoost: 0.12),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.ocean => ReadingColors(
-        background: _tint(bg, hueShift: -40, satBoost: 0.15),
-        text: _tint(txt, hueShift: -30, satBoost: 0.1),
-        surface: _tint(sf, hueShift: -40, satBoost: 0.18),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.midnight => ReadingColors(
-        background: _tint(
-          bg,
-          hueShift: -50,
-          satBoost: 0.12,
-          lightShift: isDark ? -0.05 : 0,
-        ),
-        text: _tint(txt, hueShift: -40, satBoost: 0.08),
-        surface: _tint(
-          sf,
-          hueShift: -50,
-          satBoost: 0.15,
-          lightShift: isDark ? -0.05 : 0,
-        ),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.charcoal => ReadingColors(
-        background: _desaturate(
-          bg,
-          amount: 0.25,
-          lightShift: isDark ? 0.02 : -0.04,
-        ),
-        text: _desaturate(txt, amount: 0.2),
-        surface: _desaturate(
-          sf,
-          amount: 0.28,
-          lightShift: isDark ? 0.02 : -0.04,
-        ),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.nord => ReadingColors(
-        background: _tint(
-          bg,
-          hueShift: -45,
-          satBoost: 0.08,
-          lightShift: isDark ? 0.02 : -0.01,
-        ),
-        text: _tint(txt, hueShift: -35, satBoost: 0.05),
-        surface: _tint(
-          sf,
-          hueShift: -45,
-          satBoost: 0.1,
-          lightShift: isDark ? 0.02 : -0.01,
-        ),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.dracula => ReadingColors(
-        background: _tint(
-          bg,
-          hueShift: 60,
-          satBoost: 0.12,
-          lightShift: isDark ? -0.02 : 0,
-        ),
-        text: _tint(txt, hueShift: 50, satBoost: 0.08),
-        surface: _tint(
-          sf,
-          hueShift: 60,
-          satBoost: 0.15,
-          lightShift: isDark ? -0.02 : 0,
-        ),
-        accent: scheme.primary,
-      ),
-      ReadingViewTheme.amoled => ReadingColors(
-        background: isDark ? const Color(0xFF000000) : bg,
-        text: isDark ? const Color(0xFFFFFFFF) : txt,
-        surface: isDark ? const Color(0xFF0A0A0A) : sf,
-        accent: scheme.primary,
-      ),
-    };
-  }
-
-  static Color _tint(
-    Color c, {
-    double hueShift = 0,
-    double satBoost = 0,
-    double lightShift = 0,
-  }) {
-    final hsl = HSLColor.fromColor(c);
-    return hsl
-        .withHue((hsl.hue + hueShift) % 360)
-        .withSaturation((hsl.saturation + satBoost).clamp(0.0, 1.0))
-        .withLightness((hsl.lightness + lightShift).clamp(0.0, 1.0))
-        .toColor();
-  }
-
-  static Color _desaturate(
-    Color c, {
-    double amount = 0.1,
-    double lightShift = 0,
-  }) {
-    final hsl = HSLColor.fromColor(c);
-    return hsl
-        .withSaturation((hsl.saturation - amount).clamp(0.0, 1.0))
-        .withLightness((hsl.lightness + lightShift).clamp(0.0, 1.0))
-        .toColor();
-  }
-
-  String get label => switch (this) {
-    ReadingViewTheme.paper => 'Paper',
-    ReadingViewTheme.parchment => 'Parchment',
-    ReadingViewTheme.ivory => 'Ivory',
-    ReadingViewTheme.sepia => 'Sepia',
-    ReadingViewTheme.blueLight => 'Blue Light',
-    ReadingViewTheme.warmGray => 'Warm Gray',
-    ReadingViewTheme.mint => 'Mint',
-    ReadingViewTheme.forest => 'Forest',
-    ReadingViewTheme.ocean => 'Ocean',
-    ReadingViewTheme.midnight => 'Midnight',
-    ReadingViewTheme.charcoal => 'Charcoal',
-    ReadingViewTheme.nord => 'Nord',
-    ReadingViewTheme.dracula => 'Dracula',
-    ReadingViewTheme.amoled => 'AMOLED',
-  };
-
-  IconData get icon => switch (this) {
-    ReadingViewTheme.paper => Icons.description,
-    ReadingViewTheme.parchment => Icons.wb_sunny,
-    ReadingViewTheme.ivory => Icons.wb_sunny,
-    ReadingViewTheme.sepia => Icons.wb_sunny,
-    ReadingViewTheme.blueLight => Icons.water_drop,
-    ReadingViewTheme.warmGray => Icons.blur_on,
-    ReadingViewTheme.mint => Icons.nature,
-    ReadingViewTheme.forest => Icons.nature,
-    ReadingViewTheme.ocean => Icons.water_drop,
-    ReadingViewTheme.midnight => Icons.dark_mode,
-    ReadingViewTheme.charcoal => Icons.dark_mode,
-    ReadingViewTheme.nord => Icons.ac_unit,
-    ReadingViewTheme.dracula => Icons.nightlight_round,
-    ReadingViewTheme.amoled => Icons.nightlight_round,
-  };
-}
+export 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
+export 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 
 class ChapterView extends ConsumerStatefulWidget {
   const ChapterView({
@@ -259,9 +49,19 @@ class ChapterView extends ConsumerStatefulWidget {
     this.onRestoreRevealed,
     this.onNarrationOutOfSyncChanged,
     this.onRegisterNarrationReveal,
+    this.spans,
   });
 
   final String content;
+
+  /// Optional block-card scan of [content]: prose/card spans in reading
+  /// order. When set, the continuous renderer interleaves detected
+  /// status cards ([BlockCardWidget]) with normally styled prose
+  /// segments; all highlight/narration offsets stay chapter-global
+  /// because each card's rawText is part of [content]. When narration
+  /// is active the flat single-text path is used instead so speech
+  /// offset math is never affected. Null keeps the legacy behavior.
+  final List<ContentSpan>? spans;
 
   /// Book and chapter identity for loading/storing highlights from the
   /// in-memory annotations store. Omit to disable highlight rendering.
@@ -341,6 +141,10 @@ class ChapterView extends ConsumerStatefulWidget {
 
 class _ChapterViewState extends ConsumerState<ChapterView>
     with SingleTickerProviderStateMixin {
+  static const _spanBuilder = ChapterSpanBuilder();
+  static const _selectionMenuBuilder = ChapterSelectionMenuBuilder();
+  static const _narrationCoordinator = ChapterNarrationCoordinator();
+
   final _scrollController = ScrollController();
   final _textKey = GlobalKey();
   double _lastScrollPos = 0;
@@ -350,10 +154,10 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   bool _didRestoreReveal = false;
   ScrollPosition? _listenedPosition;
 
-  /// Matches quoted dialogue/text — straight double quotes and typographic
-  /// (curly) double quotes. Single quotes are deliberately excluded since
-  /// they're far more often apostrophes/contractions than actual quotation.
-  static final _quotePattern = RegExp('"[^"]*"|\u201C[^\u201D]*\u201D');
+  /// Prose-chunk map recorded by [_buildSegmented]: each entry is
+  /// (renderStart, renderEnd, contentStart) for one contiguous run of prose
+  /// text.
+  List<(int, int, int)>? _renderContentMap;
 
   /// Stored user highlights for this chapter (empty when identity is absent).
   List<HighlightEntry> get _highlights {
@@ -382,14 +186,8 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     );
   }
 
-  List<(int, int)>? _cachedQuoteRanges;
-  String? _cachedQuoteRangesFor;
-
   /// Fades the narration highlight in on each new sentence rather than
-  /// popping it on instantly. Created in [initState] (not lazily) so there's
-  /// always a controller to dispose in [dispose]; a lazy initializer that
-  /// first ran during unmount would call `createTicker` against a deactivated
-  /// widget and crash.
+  /// popping it on instantly.
   late final AnimationController _highlightController;
 
   @override
@@ -505,205 +303,60 @@ class _ChapterViewState extends ConsumerState<ChapterView>
 
   void _refreshOutOfSync() {
     final narrating = widget.activeSpeechItem != null;
-    _reportOutOfSync(narrating && !_isActiveSentenceVisible());
+    final isVisible = _narrationCoordinator.isSentenceVisible(
+      context: context,
+      textKey: _textKey,
+      activeSpeechItem: widget.activeSpeechItem,
+      content: widget.content,
+    );
+    _reportOutOfSync(narrating && !isVisible);
   }
 
   /// Registers this view's reveal handle with the parent while it is the
-  /// active narrator (so the overlay button can call it). Only non-null
-  /// handles are ever forwarded; leaving narration is conveyed via the
-  /// out-of-sync report instead, so parallel post-frame callbacks can't
-  /// wipe a newly registered handle with a stale `null`.
+  /// active narrator (so the overlay button can call it).
   void _registerNarrationReveal() {
     if (widget.activeSpeechItem == null) return;
     widget.onRegisterNarrationReveal?.call(_followActive);
   }
 
-  /// [SelectableText] composes its actual [RenderEditable] inside gesture/
-  /// tap-region wrapper widgets (e.g. TextFieldTapRegion, MouseRegion) that
-  /// are themselves RenderObjectWidgets — so `context.findRenderObject()`
-  /// on the SelectableText's own key returns the *outer* wrapper's render
-  /// object, never the RenderEditable itself. Walk the subtree to find the
-  /// real one instead of assuming it's the first render object encountered.
-  RenderEditable? _findRenderEditable() {
-    final context = _textKey.currentContext;
-    if (context == null) return null;
-    RenderEditable? found;
-    void visitor(Element element) {
-      if (found != null) return;
-      final renderObject = element.renderObject;
-      if (renderObject is RenderEditable) {
-        found = renderObject;
-        return;
-      }
-      element.visitChildren(visitor);
-    }
-
-    context.visitChildElements(visitor);
-    return found;
-  }
-
-  bool _isActiveSentenceVisible() {
-    final info = _activeSentenceViewport();
-    if (info == null) return false;
-    const margin = 24.0;
-    return info.$2 >= info.$5 + margin && info.$2 <= info.$6 - margin;
-  }
-
   /// Scrolls the nearest scrollable so the currently narrated sentence stays
-  /// in view (following the speech), reusing the same text lookup the
-  /// highlight does. No-op when the sentence is already fully visible.
+  /// in view.
   void _followActive() {
     if (!mounted || _revealAnimating) return;
-    if (_isActiveSentenceVisible()) {
-      _reportOutOfSync(false);
-      return;
-    }
-    final item = widget.activeSpeechItem;
-    final idx = _activeTextOffset();
-    final scrollable = Scrollable.maybeOf(context);
-    final render = _findRenderEditable();
-    final viewport = render != null
-        ? RenderAbstractViewport.maybeOf(render)
-        : null;
-    if (item == null ||
-        idx == null ||
-        idx < 0 ||
-        scrollable == null ||
-        render == null ||
-        viewport == null) {
-      return;
-    }
-
-    final edge = render.getLocalRectForCaret(TextPosition(offset: idx)).top;
-    final revealed = viewport.getOffsetToReveal(
-      render,
-      0.0,
-      rect: Rect.fromLTWH(0, edge, 0, 0),
+    _narrationCoordinator.revealSentence(
+      context: context,
+      textKey: _textKey,
+      activeSpeechItem: widget.activeSpeechItem,
+      content: widget.content,
+      onAnimatingStart: () {
+        _revealAnimating = true;
+      },
+      onAnimatingEnd: () {
+        _revealAnimating = false;
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _refreshOutOfSync();
+          });
+        }
+      },
+      onReportSync: _reportOutOfSync,
     );
-    final position = scrollable.position;
-    const margin = 24.0;
-    final target = (revealed.offset - margin).clamp(
-      0.0,
-      position.maxScrollExtent,
-    );
-    _revealAnimating = true;
-    _reportOutOfSync(false);
-    position
-        .animateTo(
-          target,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        )
-        .whenComplete(() {
-          _revealAnimating = false;
-          if (mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _refreshOutOfSync();
-            });
-          }
-        });
   }
 
-  /// One-shot exact-position resume: scrolls this chapter's nearest scrollable
-  /// so the character at [widget.restoreCharOffset] is in view, then calls
-  /// [widget.onRestoreRevealed] so the parent clears the offset and nothing
-  /// re-fires on a later rebuild or navigation. No-op once applied, while no
-  /// offset is set, or before layout settles.
+  /// One-shot exact-position resume: scrolls so the character at
+  /// [widget.restoreCharOffset] is in view.
   void _revealRestoreIfNeeded() {
     if (_didRestoreReveal) return;
-    final offset = widget.restoreCharOffset;
-    if (offset == null || offset < 0) return;
-    final content = widget.content;
-    if (content.isEmpty) return;
-
-    final scrollable = Scrollable.maybeOf(context);
-    final render = _findRenderEditable();
-    final viewport = render != null
-        ? RenderAbstractViewport.maybeOf(render)
-        : null;
-    if (scrollable == null || render == null || viewport == null) return;
-
     _didRestoreReveal = true;
-    final edge = render
-        .getLocalRectForCaret(
-          TextPosition(offset: offset.clamp(0, content.length)),
-        )
-        .top;
-    final revealed = viewport.getOffsetToReveal(
-      render,
-      0.0,
-      rect: Rect.fromLTWH(0, edge, 0, 0),
+    _narrationCoordinator.revealRestoreOffset(
+      context: context,
+      textKey: _textKey,
+      restoreCharOffset: widget.restoreCharOffset,
+      content: widget.content,
+      onRestored: () {
+        widget.onRestoreRevealed?.call();
+      },
     );
-    final position = scrollable.position;
-    final target = (revealed.offset - 24.0).clamp(
-      0.0,
-      position.maxScrollExtent,
-    );
-    _revealAnimating = true;
-    position.jumpTo(target);
-    _revealAnimating = false;
-    widget.onRestoreRevealed?.call();
-  }
-
-  /// Returns `(idx, caretGlobalTop, render, viewport, vpTop, vpBottom)` for the
-  /// active sentence, or `null` when there is nothing to reveal.
-  (int, double, RenderEditable, RenderAbstractViewport, double, double)?
-  _activeSentenceViewport() {
-    final item = widget.activeSpeechItem;
-    if (item == null) return null;
-    final idx = _activeTextOffset();
-    if (idx == null || idx < 0) return null;
-
-    final scrollable = Scrollable.maybeOf(context);
-    final render = _findRenderEditable();
-    if (scrollable == null || render == null) return null;
-    final viewport = RenderAbstractViewport.maybeOf(render);
-    final viewportBox =
-        scrollable.position.context.storageContext.findRenderObject()
-            as RenderBox?;
-    if (viewport == null || viewportBox == null) return null;
-
-    final caretTop = render.getLocalRectForCaret(TextPosition(offset: idx)).top;
-    final caretGlobalTop = render.localToGlobal(Offset(0, caretTop)).dy;
-    final vpTop = viewportBox.localToGlobal(Offset.zero).dy;
-    final vpBottom = vpTop + viewportBox.size.height;
-    return (idx, caretGlobalTop, render, viewport, vpTop, vpBottom);
-  }
-
-  /// Resolves the character offset in [ChapterView.content] where the
-  /// currently narrated sentence begins, using the sentence's own
-  /// paragraph + sentence indexes rather than a naive text search — so a
-  /// name or phrase that also appears earlier in the chapter doesn't pull
-  /// the highlight/scroll back to the wrong (first) occurrence.
-  int? _activeTextOffset() {
-    final item = widget.activeSpeechItem;
-    if (item == null) return null;
-    final content = widget.content;
-
-    // Reuse the shared paragraph segmentation (trimmed, non-empty, each
-    // recording its start offset in the raw content) — the same one
-    // ChapterPositionResolver uses for reading-position persistence.
-    final segments = const ChapterPositionResolver().paragraphsOf(content);
-    if (item.paragraphIndex >= segments.length) return null;
-    final para = segments[item.paragraphIndex];
-    final paraTrim = para.text.trim();
-    if (paraTrim.isEmpty) return null;
-    final paraOffsetInSeg = para.text.indexOf(paraTrim);
-
-    final spans = const SentenceSplitter().splitParagraphSpans(paraTrim);
-    if (spans.isEmpty) return null;
-    final span = spans[item.sentenceIndex.clamp(0, spans.length - 1)];
-    final start = para.offset + paraOffsetInSeg + span.offset;
-
-    if (content.startsWith(item.text, start)) return start;
-
-    // The exact sentence couldn't be pinned (e.g. it was hard-split into a
-    // piece longer than the per-item cap) — fall back to locating the text
-    // inside the correct paragraph before doing a whole-chapter search.
-    final inParagraph = paraTrim.indexOf(item.text);
-    if (inParagraph >= 0) return para.offset + paraOffsetInSeg + inParagraph;
-    final anywhere = content.indexOf(item.text);
-    return anywhere >= 0 ? anywhere : null;
   }
 
   @override
@@ -724,15 +377,18 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       return Padding(padding: _padding, child: content);
     }
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        _handleScroll(notification);
-        return false;
-      },
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        padding: _padding,
-        child: content,
+    return SelectionArea(
+      contextMenuBuilder: _selectionAreaContextMenuBuilder,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          _handleScroll(notification);
+          return false;
+        },
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          padding: _padding,
+          child: content,
+        ),
       ),
     );
   }
@@ -747,16 +403,32 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     final highlights = [..._highlights, ..._glossaryHighlights(c)];
 
     final active = widget.activeSpeechItem;
+    if (active != null || widget.spans == null) {
+      _renderContentMap = null;
+      return _buildFlat(c, textStyle, highlights, ds);
+    }
+    return _buildSegmented(textStyle, highlights, applyDropCap: ds != null);
+  }
+
+  Widget _buildFlat(
+    String c,
+    TextStyle textStyle,
+    List<HighlightEntry> highlights,
+    TextStyle? dropCapStyle,
+  ) {
+    final active = widget.activeSpeechItem;
     if (active != null) {
       return _narrationHighlighted(c, textStyle);
     }
 
-    if (ds != null && c.isNotEmpty) {
-      return SelectableText.rich(
-        TextSpan(
+    if (dropCapStyle != null && c.isNotEmpty) {
+      return RichText(
+        key: _textKey,
+        textAlign: widget.textAlignment.flutterTextAlign,
+        text: TextSpan(
           children: [
-            TextSpan(text: c.substring(0, 1), style: ds),
-            ..._quoteAwareSpans(
+            TextSpan(text: c.substring(0, 1), style: dropCapStyle),
+            ..._spanBuilder.buildQuoteAwareSpans(
               c,
               1,
               c.length,
@@ -765,15 +437,14 @@ class _ChapterViewState extends ConsumerState<ChapterView>
             ),
           ],
         ),
-        key: _textKey,
-        textAlign: widget.textAlignment.flutterTextAlign,
-        contextMenuBuilder: _contextMenuBuilder(c),
       );
     }
 
-    return SelectableText.rich(
-      TextSpan(
-        children: _quoteAwareSpans(
+    return RichText(
+      key: _textKey,
+      textAlign: widget.textAlignment.flutterTextAlign,
+      text: TextSpan(
+        children: _spanBuilder.buildQuoteAwareSpans(
           c,
           0,
           c.length,
@@ -781,99 +452,51 @@ class _ChapterViewState extends ConsumerState<ChapterView>
           highlights: highlights,
         ),
       ),
-      key: _textKey,
-      textAlign: widget.textAlignment.flutterTextAlign,
-      contextMenuBuilder: _contextMenuBuilder(c),
     );
   }
 
-  /// Returns [content]'s `[start, end)` range as TextSpans, italicizing any
-  /// portion that falls inside a quoted span and laying a user-highlight
-  /// background over any portion inside a stored [HighlightEntry]. [extraStyle]
-  /// (if given) is merged on top of each resulting span's style — used to layer
-  /// the narration highlight's background on top of quote-italic + user-highlight
-  /// styling rather than one silently overriding the other.
-  List<TextSpan> _quoteAwareSpans(
-    String content,
-    int start,
-    int end,
-    TextStyle style, {
-    TextStyle? extraStyle,
-    List<HighlightEntry> highlights = const [],
+  /// Renders the chapter as a single [RichText] with [WidgetSpan] for cards.
+  Widget _buildSegmented(
+    TextStyle textStyle,
+    List<HighlightEntry> highlights, {
+    required bool applyDropCap,
   }) {
-    if (start >= end) return const [];
-    final spans = <TextSpan>[];
-    final quoteStyle = style.copyWith(fontStyle: FontStyle.italic);
+    final (richSpans, renderMap) = _spanBuilder.buildSegmentedSpans(
+      spans: widget.spans!,
+      content: widget.content,
+      textStyle: textStyle,
+      readingColors: widget.theme.resolve(Theme.of(context).colorScheme),
+      fontSize: widget.fontSize,
+      lineHeight: widget.lineHeight,
+      highlights: highlights,
+      dropCapStyle: widget.dropCapStyle,
+      applyDropCap: applyDropCap,
+    );
+    _renderContentMap = renderMap;
 
-    // Collect every cut point from quote and highlight boundaries so each
-    // emitted segment gets a single, unambiguous style.
-    final quoteRanges = _quoteRanges(content);
-    final cuts = <int>{start, end};
-    for (final range in quoteRanges) {
-      if (range.$2 <= start || range.$1 >= end) continue;
-      cuts.add(range.$1.clamp(start, end));
-      cuts.add(range.$2.clamp(start, end));
-    }
-    for (final h in highlights) {
-      if (h.end <= start || h.start >= end) continue;
-      cuts.add(h.start.clamp(start, end));
-      cuts.add(h.end.clamp(start, end));
-    }
-    final sorted = cuts.toList()..sort();
-
-    for (var i = 0; i < sorted.length - 1; i++) {
-      final segStart = sorted[i];
-      final segEnd = sorted[i + 1];
-      if (segEnd <= segStart) continue;
-
-      var segStyle = style;
-      final inQuote = quoteRanges.any(
-        (r) => r.$1 <= segStart && r.$2 >= segEnd,
-      );
-      if (inQuote) segStyle = quoteStyle;
-      for (final h in highlights) {
-        if (h.start <= segStart && h.end >= segEnd) {
-          segStyle = segStyle.copyWith(
-            backgroundColor: h.color.withValues(alpha: 0.30),
-          );
-          break;
-        }
-      }
-      if (extraStyle != null) segStyle = segStyle.merge(extraStyle);
-      spans.add(
-        TextSpan(text: content.substring(segStart, segEnd), style: segStyle),
-      );
-    }
-    return spans;
-  }
-
-  /// Quoted-text ranges (start, end) within [content], cached since this is
-  /// recomputed on every rebuild while narrating (once per sentence).
-  List<(int, int)> _quoteRanges(String content) {
-    if (_cachedQuoteRangesFor == content && _cachedQuoteRanges != null) {
-      return _cachedQuoteRanges!;
-    }
-    final ranges = [
-      for (final m in _quotePattern.allMatches(content)) (m.start, m.end),
-    ];
-    _cachedQuoteRangesFor = content;
-    _cachedQuoteRanges = ranges;
-    return ranges;
+    return RichText(
+      key: _textKey,
+      textAlign: widget.textAlignment.flutterTextAlign,
+      text: TextSpan(children: richSpans),
+    );
   }
 
   /// Renders the whole chapter as a [TextSpan], tinting the currently
-  /// narrated sentence's substring (fading the tint in via
-  /// [_highlightController] rather than snapping it on) and italicizing any
-  /// quoted text throughout. Falls back to plain rendering when the
-  /// sentence can't be located (e.g. it crosses a paragraph break).
+  /// narrated sentence's substring.
   Widget _narrationHighlighted(String content, TextStyle textStyle) {
     final item = widget.activeSpeechItem;
-    final idx = _activeTextOffset() ?? -1;
+    final idx = _narrationCoordinator.resolveActiveSpeechOffset(
+      item: item,
+      content: content,
+    ) ?? -1;
     final highlights = _highlights;
+
     if (item == null || idx < 0) {
-      return SelectableText.rich(
-        TextSpan(
-          children: _quoteAwareSpans(
+      return RichText(
+        key: _textKey,
+        textAlign: widget.textAlignment.flutterTextAlign,
+        text: TextSpan(
+          children: _spanBuilder.buildQuoteAwareSpans(
             content,
             0,
             content.length,
@@ -881,9 +504,6 @@ class _ChapterViewState extends ConsumerState<ChapterView>
             highlights: highlights,
           ),
         ),
-        key: _textKey,
-        textAlign: widget.textAlignment.flutterTextAlign,
-        contextMenuBuilder: _contextMenuBuilder(content),
       );
     }
     final highlightEnd = idx + item.text.length;
@@ -896,17 +516,19 @@ class _ChapterViewState extends ConsumerState<ChapterView>
               .accent
               .withValues(alpha: 0.25 * _highlightController.value),
         );
-        return SelectableText.rich(
-          TextSpan(
+        return RichText(
+          key: _textKey,
+          textAlign: widget.textAlignment.flutterTextAlign,
+          text: TextSpan(
             children: [
-              ..._quoteAwareSpans(
+              ..._spanBuilder.buildQuoteAwareSpans(
                 content,
                 0,
                 idx,
                 textStyle,
                 highlights: highlights,
               ),
-              ..._quoteAwareSpans(
+              ..._spanBuilder.buildQuoteAwareSpans(
                 content,
                 idx,
                 highlightEnd,
@@ -914,7 +536,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
                 extraStyle: highlightStyle,
                 highlights: highlights,
               ),
-              ..._quoteAwareSpans(
+              ..._spanBuilder.buildQuoteAwareSpans(
                 content,
                 highlightEnd,
                 content.length,
@@ -923,23 +545,15 @@ class _ChapterViewState extends ConsumerState<ChapterView>
               ),
             ],
           ),
-          key: _textKey,
-          textAlign: widget.textAlignment.flutterTextAlign,
-          contextMenuBuilder: _contextMenuBuilder(content),
         );
       },
     );
   }
 
-  static const _highlightPalette = [
-    AppContextMenuHighlightOption(color: Color(0xFFFFF176), label: 'Yellow'),
-    AppContextMenuHighlightOption(color: Color(0xFFA5D6A7), label: 'Green'),
-    AppContextMenuHighlightOption(color: Color(0xFF90CAF9), label: 'Blue'),
-    AppContextMenuHighlightOption(color: Color(0xFFF48FB1), label: 'Pink'),
-    AppContextMenuHighlightOption(color: Color(0xFFCE93D8), label: 'Purple'),
-  ];
-
-  EditableTextContextMenuBuilder _contextMenuBuilder(String fullText) {
+  Widget _selectionAreaContextMenuBuilder(
+    BuildContext context,
+    SelectableRegionState selectableRegionState,
+  ) {
     final bookId = widget.bookId;
     final chapterId = widget.chapterId;
     final highlights = (bookId != null && chapterId != null)
@@ -947,232 +561,25 @@ class _ChapterViewState extends ConsumerState<ChapterView>
               const []
         : const <HighlightEntry>[];
 
-    return AppContextMenu.builder(
-      build: (ctx, editable, anchor) {
-        final sel = editable.textEditingValue.selection;
-        final hasSelection = sel.isValid && !sel.isCollapsed;
-        final word = hasSelection
-            ? fullText.substring(sel.start, sel.end).trim()
-            : '';
-        final sentence = hasSelection && word.isNotEmpty
-            ? _sentenceAround(fullText, sel)
-            : null;
-        final showSelectionActions = hasSelection && word.isNotEmpty;
-        final hasOverlappingHighlight = highlights.any(
-          (h) => h.overlaps(sel.start, sel.end),
-        );
-        final eraseEnabled =
-            showSelectionActions &&
-            hasOverlappingHighlight &&
-            widget.onErase != null;
+    final render = _narrationCoordinator.findRenderParagraph(_textKey);
+    final selectable = render is Selectable ? render as Selectable : null;
 
-        return AppContextMenu(
-          anchor: anchor,
-          highlightColors: showSelectionActions ? _highlightPalette : const [],
-          onHighlightSelected:
-              showSelectionActions && widget.onHighlight != null
-              ? (color) => widget.onHighlight!(word, color, sel.start, sel.end)
-              : null,
-          quickActions: [
-            AppContextMenuAction(
-              label: 'Copy',
-              icon: Icons.content_copy_rounded,
-              onPressed: () {
-                final data = editable.textEditingValue.selection.textInside(
-                  editable.textEditingValue.text,
-                );
-                Clipboard.setData(ClipboardData(text: data));
-              },
-            ),
-            if (showSelectionActions && widget.onAddNote != null)
-              AppContextMenuAction(
-                label: 'Note',
-                icon: Icons.edit_note_rounded,
-                onPressed: () => widget.onAddNote!(word, sentence),
-              ),
-            if (showSelectionActions && widget.onListen != null)
-              AppContextMenuAction(
-                label: 'Listen',
-                icon: Icons.play_circle_outline_rounded,
-                onPressed: () =>
-                    widget.onListen!(word, sentence, sel.start, sel.end),
-              ),
-            if (showSelectionActions && widget.onShare != null)
-              AppContextMenuAction(
-                label: 'Share',
-                icon: Icons.ios_share_rounded,
-                onPressed: () => widget.onShare!(word),
-              ),
-          ],
-          listActions: [
-            if (showSelectionActions)
-              AppContextMenuAction(
-                label: 'Look up "$word"',
-                icon: Icons.translate_rounded,
-                onPressed: () => _showDefine(word, sentence: sentence),
-              ),
-            if (showSelectionActions && bookId != null)
-              AppContextMenuAction(
-                label: 'Set as term…',
-                icon: Icons.settings_suggest_outlined,
-                onPressed: () => _openGlossaryTerm(word),
-              ),
-            if (eraseEnabled)
-              AppContextMenuAction(
-                label: 'Erase highlight',
-                icon: Icons.format_color_reset_rounded,
-                destructive: true,
-                onPressed: () => widget.onErase!(sel.start, sel.end),
-              ),
-            if (showSelectionActions && widget.onSearchWeb != null)
-              AppContextMenuAction(
-                label: 'Search the web for "$word"',
-                icon: Icons.search_rounded,
-                onPressed: () => widget.onSearchWeb!(word),
-              ),
-            AppContextMenuAction(
-              label: 'Select all',
-              icon: Icons.select_all_rounded,
-              onPressed: () =>
-                  editable.selectAll(SelectionChangedCause.toolbar),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  String _sentenceAround(String fullText, TextSelection sel) {
-    if (!sel.isValid || sel.isCollapsed) return '';
-    const punctuation = '.!?\n';
-    int start = sel.start;
-    while (start > 0) {
-      if (punctuation.contains(fullText[start - 1])) break;
-      start--;
-    }
-    int end = sel.end;
-    while (end < fullText.length) {
-      if (punctuation.contains(fullText[end])) break;
-      end++;
-    }
-    if (end < fullText.length) end++;
-    return fullText.substring(start, end).trim();
-  }
-
-  void _showDefine(String word, {String? sentence}) {
-    AppSheet.show(
+    return _selectionMenuBuilder.buildContextMenu(
       context: context,
-      id: 'word_lookup',
-      initialHeight: 0.7,
-      child: WordLookupSheet(
-        word: word,
-        sourceSentence: sentence,
-        sourceTitle: widget.chapterTitle,
-      ),
+      selectableRegionState: selectableRegionState,
+      content: widget.content,
+      bookId: bookId,
+      chapterId: chapterId,
+      chapterTitle: widget.chapterTitle,
+      highlights: highlights,
+      renderContentMap: _renderContentMap,
+      selectable: selectable,
+      onHighlight: widget.onHighlight,
+      onAddNote: widget.onAddNote,
+      onShare: widget.onShare,
+      onSearchWeb: widget.onSearchWeb,
+      onListen: widget.onListen,
+      onErase: widget.onErase,
     );
   }
-
-  void _openGlossaryTerm(String word) {
-    final bookId = widget.bookId;
-    if (bookId == null) return;
-    AppSheet.show(
-      context: context,
-      id: 'glossary_term',
-      initialHeight: 0.6,
-      child: GlossaryTermSheet(bookId: bookId, term: word),
-    );
-  }
-}
-
-enum ScrollDirection { up, down }
-
-enum ReadingMode { page, continuous }
-
-enum PageTurnAnimation { slide, fade, reveal, cube, depth }
-
-extension PageTurnAnimationX on PageTurnAnimation {
-  String get label => switch (this) {
-    PageTurnAnimation.slide => 'Slide',
-    PageTurnAnimation.fade => 'Fade',
-    PageTurnAnimation.reveal => 'Reveal',
-    PageTurnAnimation.cube => 'Cube',
-    PageTurnAnimation.depth => 'Depth',
-  };
-
-  IconData get icon => switch (this) {
-    PageTurnAnimation.slide => Icons.arrow_forward,
-    PageTurnAnimation.fade => Icons.blur_on,
-    PageTurnAnimation.reveal => Icons.swap_horiz,
-    PageTurnAnimation.cube => Icons.view_in_ar,
-    PageTurnAnimation.depth => Icons.layers,
-  };
-}
-
-enum ScrollAnimation { smooth, snap, fadeEdges, parallax, glow }
-
-extension ScrollAnimationX on ScrollAnimation {
-  String get label => switch (this) {
-    ScrollAnimation.smooth => 'Smooth',
-    ScrollAnimation.snap => 'Snap',
-    ScrollAnimation.fadeEdges => 'Fade Edges',
-    ScrollAnimation.parallax => 'Parallax',
-    ScrollAnimation.glow => 'Scroll Glow',
-  };
-
-  IconData get icon => switch (this) {
-    ScrollAnimation.smooth => Icons.swap_vert,
-    ScrollAnimation.snap => Icons.first_page,
-    ScrollAnimation.fadeEdges => Icons.blur_linear,
-    ScrollAnimation.parallax => Icons.view_carousel,
-    ScrollAnimation.glow => Icons.touch_app,
-  };
-}
-
-extension ReadingModeX on ReadingMode {
-  String get label => switch (this) {
-    ReadingMode.page => 'Page Mode',
-    ReadingMode.continuous => 'Continuous',
-  };
-}
-
-enum ReaderChromeStyle { translucent, frosted }
-
-extension ReaderChromeStyleX on ReaderChromeStyle {
-  String get label => switch (this) {
-    ReaderChromeStyle.translucent => 'Translucent',
-    ReaderChromeStyle.frosted => 'Frosted Glass',
-  };
-
-  IconData get icon => switch (this) {
-    ReaderChromeStyle.translucent => Icons.blur_on,
-    ReaderChromeStyle.frosted => Icons.grain,
-  };
-}
-
-enum TextAlignment { left, justify, center, right }
-
-extension TextAlignmentX on TextAlignment {
-  String get label => switch (this) {
-    TextAlignment.left => 'Left',
-    TextAlignment.justify => 'Justify',
-    TextAlignment.center => 'Center',
-    TextAlignment.right => 'Right',
-  };
-
-  TextAlign get flutterTextAlign => switch (this) {
-    TextAlignment.left => TextAlign.left,
-    TextAlignment.justify => TextAlign.justify,
-    TextAlignment.center => TextAlign.center,
-    TextAlignment.right => TextAlign.right,
-  };
-}
-
-enum MarginPreset { narrow, normal, wide }
-
-extension MarginPresetX on MarginPreset {
-  String get label => switch (this) {
-    MarginPreset.narrow => 'Narrow',
-    MarginPreset.normal => 'Normal',
-    MarginPreset.wide => 'Wide',
-  };
 }

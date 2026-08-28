@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/core/content_acquisition/application/chapter_update_service.dart';
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
+import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/molecules/app_empty_state.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
@@ -44,23 +46,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredBooks = ref.watch(filteredLibraryProvider);
+    final libraryAsync = ref.watch(libraryViewModelProvider);
+    final libraryState = libraryAsync.valueOrNull ?? const LibraryState();
     final importActions = ref.watch(libraryImportProvider);
     final width = MediaQuery.of(context).size.width;
     final isDesktop = width >= 900;
     final isBigDesktop = width >= 1200;
     final isTablet = width >= 600 && !isDesktop;
-
-    final recentlyRead = [...filteredBooks]
-      ..sort(
-        (a, b) => switch ((a.lastOpenedAt, b.lastOpenedAt)) {
-          (null, null) => 0,
-          (null, _) => 1,
-          (_, null) => -1,
-          (final aDate?, final bDate?) => bDate.compareTo(aDate),
-        },
-      );
-    final recentBooks = recentlyRead.take(3).toList();
 
     return AppScaffold(
       title: 'Library',
@@ -93,11 +85,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             onPressed: () => _showAddSheet(),
             tooltip: 'Add to library',
           ),
+        IconButton(
+          icon: libraryState.isCheckingUpdates
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.sync),
+          tooltip: 'Check ongoing novels for updates',
+          onPressed: libraryState.isCheckingUpdates ? null : () => _checkAllUpdates(),
+        ),
       ],
       child: _buildContent(
         ref,
-        filteredBooks,
-        recentBooks,
+        libraryAsync,
+        libraryState,
         importActions.isImporting,
         isDesktop,
         isBigDesktop,
@@ -106,18 +109,40 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
+  Future<void> _checkAllUpdates() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final service = ref.read(chapterUpdateServiceProvider);
+      final result = await ref
+          .read(libraryViewModelProvider.notifier)
+          .checkUpdates(service);
+      if (result == null) return;
+      final message = result.booksWithUpdates == 0
+          ? 'No new chapters found.'
+          : 'Found ${result.totalNewChapters} new chapter(s) in '
+                '${result.booksWithUpdates} novel(s).';
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Update check failed: '
+            '${ChapterUpdateService.describeFailure(e)}',
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _buildContent(
     WidgetRef ref,
-    List<BookEntity> filteredBooks,
-    List<BookEntity> recentBooks,
+    AsyncValue<LibraryState> libraryAsync,
+    LibraryState libraryState,
     bool isImporting,
     bool isDesktop,
     bool isBigDesktop,
     bool isTablet,
   ) {
-    final booksAsync = ref.watch(libraryBooksProvider);
-    final selectedBookId = ref.watch(selectedBookIdProvider);
-
     return Column(
       children: [
         Padding(
@@ -127,13 +152,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             decoration: InputDecoration(
               hintText: 'Filter books...',
               prefixIcon: const Icon(Icons.search, size: 20),
-              suffixIcon: ref.watch(librarySearchQueryProvider).isNotEmpty
+              suffixIcon: libraryState.searchQuery.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear, size: 18),
                       onPressed: () {
                         _searchController.clear();
-                        ref.read(librarySearchQueryProvider.notifier).state =
-                            '';
+                        ref
+                            .read(libraryViewModelProvider.notifier)
+                            .setSearchQuery('');
                       },
                     )
                   : null,
@@ -144,7 +170,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ),
             onChanged: (v) =>
-                ref.read(librarySearchQueryProvider.notifier).state = v,
+                ref.read(libraryViewModelProvider.notifier).setSearchQuery(v),
           ),
         ),
         if (!isBigDesktop) ...[
@@ -163,11 +189,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     label: Text('Novels'),
                   ),
                 ],
-                selected: {ref.watch(libraryCategoryProvider)},
+                selected: {libraryState.category},
                 onSelectionChanged: (selected) {
-                  ref.read(libraryCategoryProvider.notifier).state =
-                      selected.first;
-                  ref.read(libraryGenreFilterProvider.notifier).state = null;
+                  ref
+                      .read(libraryViewModelProvider.notifier)
+                      .setCategory(selected.first);
                 },
                 style: const ButtonStyle(
                   visualDensity: VisualDensity.compact,
@@ -176,7 +202,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ),
           ),
-          if (ref.watch(libraryGenreFilterProvider) case final genre?)
+          if (libraryState.genreFilter case final genre?)
             Padding(
               padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
               child: Row(
@@ -184,9 +210,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   Chip(
                     label: Text(genre, style: const TextStyle(fontSize: 12)),
                     deleteIcon: const Icon(Icons.close, size: 16),
-                    onDeleted: () =>
-                        ref.read(libraryGenreFilterProvider.notifier).state =
-                            null,
+                    onDeleted: () => ref
+                        .read(libraryViewModelProvider.notifier)
+                        .setGenreFilter(null),
                     visualDensity: VisualDensity.compact,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -195,51 +221,40 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
         ],
         Expanded(
-          child: booksAsync.when(
+          child: libraryAsync.when(
             loading: () => const AppLoading(),
             error: (error, _) => AppErrorState(
               message: 'Something went wrong.',
               technicalDetails: error.toString(),
-              onRetry: () => ref.invalidate(libraryBooksProvider),
+              onRetry: () => ref.invalidate(libraryViewModelProvider),
             ),
-            data: (result) {
-              return switch (result) {
-                Success(value: _) => _BookshelfContent(
-                  books: filteredBooks,
-                  recentBooks: recentBooks,
-                  isDesktop: isDesktop,
-                  isBigDesktop: isBigDesktop,
-                  isTablet: isTablet,
-                  onBookTap: (id) {
-                    if (isDesktop) {
-                      final current = ref.read(selectedBookIdProvider);
-                      ref.read(selectedBookIdProvider.notifier).state =
-                          current == id ? null : id;
-                    } else {
-                      final book = filteredBooks
-                          .where((b) => b.id == id)
-                          .firstOrNull;
-                      if (book?.isNovel == true) {
-                        context.push('/novel/$id');
-                      } else {
-                        context.push('/book/$id');
-                      }
-                    }
-                  },
-                  onBookLongPress: (id, pos) => _showBookContextMenu(id, pos),
-                  onLoadSamples: () => _loadSamples(),
-                  onImport: () => _showAddSheet(),
-                  onDeleteBook: (id) => _deleteBook(id),
-                  isImporting: isImporting,
-                  selectedBookId: isDesktop ? selectedBookId : null,
-                ),
-                Failure(error: final err) => AppErrorState(
-                  message: err.userMessage,
-                  technicalDetails: err.message,
-                  onRetry: () => ref.invalidate(libraryBooksProvider),
-                ),
-              };
-            },
+            data: (state) => _BookshelfContent(
+              books: state.filteredBooks,
+              recentBooks: state.recentBooks,
+              isDesktop: isDesktop,
+              isBigDesktop: isBigDesktop,
+              isTablet: isTablet,
+              onBookTap: (id) {
+                if (isDesktop) {
+                  ref.read(libraryViewModelProvider.notifier).selectBook(id);
+                } else {
+                  final book = state.filteredBooks
+                      .where((b) => b.id == id)
+                      .firstOrNull;
+                  if (book?.isNovel == true) {
+                    context.push('/novel/$id');
+                  } else {
+                    context.push('/book/$id');
+                  }
+                }
+              },
+              onBookLongPress: (id, pos) => _showBookContextMenu(id, pos),
+              onLoadSamples: () => _loadSamples(),
+              onImport: () => _showAddSheet(),
+              onDeleteBook: (id) => _deleteBook(id),
+              isImporting: isImporting,
+              selectedBookId: isDesktop ? state.selectedBookId : null,
+            ),
           ),
         ),
       ],
@@ -483,24 +498,16 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
                               if (isDesktop)
                                 SortToolbar(
                                   currentOrder: ref.watch(librarySortProvider),
-                                  onSort: (order) =>
-                                      ref
-                                              .read(
-                                                librarySortProvider.notifier,
-                                              )
-                                              .state =
-                                          order,
+                                  onSort: (order) => ref
+                                      .read(libraryViewModelProvider.notifier)
+                                      .setSortOrder(order),
                                 )
                               else
                                 SortDropdown(
                                   currentOrder: ref.watch(librarySortProvider),
-                                  onSort: (order) =>
-                                      ref
-                                              .read(
-                                                librarySortProvider.notifier,
-                                              )
-                                              .state =
-                                          order,
+                                  onSort: (order) => ref
+                                      .read(libraryViewModelProvider.notifier)
+                                      .setSortOrder(order),
                                 ),
                               IconButton(
                                 icon: Icon(
@@ -550,9 +557,9 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
                   child: Material(
                     child: BookDetailPanel(
                       bookId: widget.selectedBookId!,
-                      onClose: () =>
-                          ref.read(selectedBookIdProvider.notifier).state =
-                              null,
+                      onClose: () => ref
+                          .read(libraryViewModelProvider.notifier)
+                          .selectBook(null),
                     ),
                   ),
                 ),
@@ -609,6 +616,6 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
     final current = ref.read(bookshelfLayoutProvider);
     const values = BookshelfLayout.values;
     final nextIndex = (current.index + 1) % values.length;
-    ref.read(bookshelfLayoutProvider.notifier).state = values[nextIndex];
+    ref.read(libraryViewModelProvider.notifier).setLayout(values[nextIndex]);
   }
 }

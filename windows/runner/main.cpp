@@ -1,9 +1,7 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
-#include <shlwapi.h>
 #include <shlobj.h>
-#include <cctype>
 #include <string>
 #include <vector>
 
@@ -11,61 +9,6 @@
 #include "utils.h"
 
 namespace {
-
-// Names a per-user mutex so a second "Open with Atlas" launch can hand the
-// document to the running instance instead of opening another window. Kept in
-// the "Local\\" namespace so forwarding only applies within the same logon
-// session (Windows Desktop apps cannot trade WM_COPYDATA across sessions).
-constexpr const wchar_t kSingleInstanceMutexName[] =
-    L"Local\\Atlas.Book.1.Instance";
-
-// The window class every Atlas top-level window is registered under. Must be
-// kept in sync with kWindowClassName in win32_window.cpp.
-constexpr const wchar_t kMainWindowClassName[] = L"AtlasMainWindow";
-
-// Extensions the shell is allowed to hand Atlas. Mirror of
-// FileOpenController._supportedFilePath.
-const char* const kOpenedExtensions[] = {".epub", ".pdf", ".atlas"};
-
-bool IsSupportedOpenPath(const std::string& path) {
-  std::string lower = path;
-  for (auto& c : lower) {
-    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  }
-  for (const char* ext : kOpenedExtensions) {
-    const size_t ext_len = std::char_traits<char>::length(ext);
-    if (lower.size() > ext_len &&
-        lower.compare(lower.size() - ext_len, ext_len, ext) == 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Brings an already-running Atlas to the front and hands it the documents the
-// shell asked us to open. Each path travels in its own WM_COPYDATA so the
-// receiver can process it synchronously before this process exits.
-void ForwardOpenedFiles(const std::vector<std::string>& paths) {
-  HWND existing = FindWindowW(kMainWindowClassName, nullptr);
-  if (existing == nullptr) {
-    existing = FindWindowW(nullptr, L"Atlas");
-  }
-  if (existing == nullptr) {
-    return;
-  }
-  if (IsIconic(existing)) {
-    ShowWindow(existing, SW_RESTORE);
-  }
-  SetForegroundWindow(existing);
-  for (const std::string& path : paths) {
-    COPYDATASTRUCT cds{};
-    cds.dwData = 0;
-    cds.cbData = static_cast<DWORD>(path.size() + 1);
-    cds.lpData = const_cast<char*>(path.c_str());
-    SendMessageW(existing, WM_COPYDATA, reinterpret_cast<WPARAM>(existing),
-                 reinterpret_cast<LPARAM>(&cds));
-  }
-}
 
 // Registers .epub/.pdf/.atlas so the shell's "Open with Atlas" offers this app
 // and launches it with the document path as a command-line argument (delivered
@@ -128,26 +71,9 @@ void RegisterFileAssociations() {
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
-  // Single-instance: if an Atlas is already running, forward any opened
-  // documents to it and exit without creating a second window.
-  HANDLE single_instance =
-      CreateMutexW(nullptr, FALSE, kSingleInstanceMutexName);
-  if (single_instance != nullptr &&
-      GetLastError() == ERROR_ALREADY_EXISTS) {
-    std::vector<std::string> open_paths;
-    for (const std::string& arg : GetCommandLineArguments()) {
-      if (IsSupportedOpenPath(arg)) {
-        open_paths.push_back(arg);
-      }
-    }
-    ForwardOpenedFiles(open_paths);
-    CloseHandle(single_instance);
-    return EXIT_SUCCESS;
-  }
-
-  // Ensure "Open with Atlas" is available for our document types. The handle
-  // is intentionally kept open for the process lifetime so subsequent launches
-  // keep detecting this instance.
+  // Ensure "Open with Atlas" is available for our document types. Documents
+  // opened this way arrive as command-line arguments and are handed to Dart
+  // via the Dart entrypoint arguments below, one window per launch.
   RegisterFileAssociations();
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.

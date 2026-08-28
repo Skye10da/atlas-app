@@ -114,6 +114,13 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
   bool _autoScrollActive = false;
   ScrollAnimation _animation = ScrollAnimation.smooth;
   bool _jumpInFlight = false;
+
+  /// Guards the snap-to-page correction: while it runs — including its
+  /// synchronous no-op path — further scroll-end events must not re-enter
+  /// the snap. A zero-distance animateScroll short-circuits through jumpTo,
+  /// which emits another ScrollEndNotification inside the original dispatch
+  /// and would otherwise recurse until stack overflow.
+  bool _snapInFlight = false;
   bool _applyingGate = false;
   int _lastReportedChapterIndex = 0;
   bool _narrationOutOfSync = false;
@@ -566,17 +573,27 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
 
   bool _onScrollEnd(ScrollEndNotification notification) {
     if (_animation != ScrollAnimation.snap) return false;
+    // Only this list's own notifications may trigger a snap; ones bubbling
+    // up out of nested scrollables inside chapter blocks belong elsewhere.
+    if (notification.depth != 0) return false;
     if (notification.dragDetails == null) return false;
+    if (_snapInFlight) return false;
     if (!_itemScrollController.isAttached) return false;
     final viewport = MediaQuery.of(context).size.height;
     final page = (_scrollOffset / viewport).round();
-    final target = page * viewport;
+    final correction = page * viewport - _scrollOffset;
+    // Already snapped: animating a ~zero distance makes animateTo fall back
+    // to a synchronous jumpTo, whose end notification would re-enter here.
+    if (correction.abs() < 0.5) return false;
+    _snapInFlight = true;
     unawaited(
-      _scrollOffsetController.animateScroll(
-        offset: target - _scrollOffset,
-        duration: _snapScrollDuration,
-        curve: Curves.easeOut,
-      ),
+      _scrollOffsetController
+          .animateScroll(
+            offset: correction,
+            duration: _snapScrollDuration,
+            curve: Curves.easeOut,
+          )
+          .whenComplete(() => _snapInFlight = false),
     );
     return true;
   }

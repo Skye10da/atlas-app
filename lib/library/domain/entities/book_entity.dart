@@ -23,6 +23,10 @@ class BookEntity {
     required this.updatedAt,
     this.lastOpenedAt,
     this.progress,
+    this.updateTrackingEnabled = true,
+    this.lastCheckedAt,
+    this.newChapterCount = 0,
+    this.hasUpdate = false,
   });
 
   final String id;
@@ -46,6 +50,18 @@ class BookEntity {
   final DateTime updatedAt;
   final DateTime? lastOpenedAt;
   final double? progress;
+
+  /// Whether periodic update checks run for this book (ongoing novels).
+  final bool updateTrackingEnabled;
+
+  /// Last time an update check was performed for this book.
+  final DateTime? lastCheckedAt;
+
+  /// Newly discovered chapters not yet acknowledged by opening the book.
+  final int newChapterCount;
+
+  /// True when new chapters were found since the book was last opened.
+  final bool hasUpdate;
 
   bool get isNovel => itemType == ContentCategory.novel;
 }

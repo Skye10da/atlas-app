@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' hide WordBoundary;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -224,6 +226,13 @@ class _MiniLyricState extends State<_MiniLyric>
   double _renderedX = 0;
   int _activeWord = -1;
   Timer? _fallbackTimer;
+  Timer? _stallTimer;
+  bool _boundariesStalled = false;
+
+  // Platform & word boundary detection
+  bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  bool get _wordBoundariesAvailable => widget.boundary != null && widget.boundary!.word.isNotEmpty;
+  bool get _useWordBoundaries => _isMobile && _wordBoundariesAvailable;
 
   @override
   void initState() {
@@ -244,9 +253,7 @@ class _MiniLyricState extends State<_MiniLyric>
       _resetLine();
       return;
     }
-    // Re-anchor to the real spoken word when a boundary event arrives (present
-    // on most platforms). This keeps the fallback timer in line with actual
-    // speech when those events are live.
+    // Re-anchor to the real spoken word when a boundary event arrives.
     _syncFromProvider();
     if (widget.playing != oldWidget.playing) {
       if (widget.playing) {
@@ -270,6 +277,9 @@ class _MiniLyricState extends State<_MiniLyric>
     _controller.stop();
     _controller.value = 0;
     _stopFallback();
+    _stallTimer?.cancel();
+    _stallTimer = null;
+    _boundariesStalled = false;
     _rebuildPainter();
     // Slide to word 0's resting position (near the left inset).
     if (_activeWord >= 0 && _words.first.start > 0) {
@@ -311,11 +321,15 @@ class _MiniLyricState extends State<_MiniLyric>
   }
 
   void _syncFromProvider() {
+    if (!_useWordBoundaries) return;
     final w = widget.boundary?.word.trim();
     if (w == null || w.isEmpty || _words.isEmpty) return;
     for (var i = 0; i < _words.length; i++) {
       if (_sameWord(_words[i].word, w)) {
-        _animateTo(i);
+        _stallTimer?.cancel();
+        _stallTimer = null;
+        _animateTo(i); // Immediate animation to actual word
+        _scheduleNext(i); // Schedule stall detection for next word
         return;
       }
     }
@@ -332,15 +346,31 @@ class _MiniLyricState extends State<_MiniLyric>
 
   void _scheduleNext(int wi) {
     _stopFallback();
+    _stallTimer?.cancel();
+    _stallTimer = null;
+
     if (!widget.playing) return;
-    if (wi < 0) return;
-    final next = wi + 1;
-    if (next >= _words.length) return;
-    _fallbackTimer = Timer(
-      Duration(milliseconds: _estimateMs(_words[wi].word.length)),
+    if (wi < 0 || wi >= _words.length) return;
+
+    // If boundaries stalled or not available, use fallback timer
+    if (_boundariesStalled || !_useWordBoundaries) {
+      _fallbackTimer = Timer(
+        Duration(milliseconds: _estimateMs(_words[wi].word.length)),
+        () {
+          if (!mounted) return;
+          _animateTo(wi + 1);
+        },
+      );
+      return;
+    }
+
+    // Mobile with boundaries: NO fallback timer — set stall detection (2× expected duration)
+    _stallTimer = Timer(
+      Duration(milliseconds: _estimateMs(_words[wi].word.length) * 2),
       () {
         if (!mounted) return;
-        _animateTo(next);
+        _boundariesStalled = true;
+        _scheduleNext(wi); // Re-enter with stalled=true → uses fallback
       },
     );
   }
@@ -348,6 +378,8 @@ class _MiniLyricState extends State<_MiniLyric>
   void _stopFallback() {
     _fallbackTimer?.cancel();
     _fallbackTimer = null;
+    _stallTimer?.cancel();
+    _stallTimer = null;
   }
 
   int _estimateMs(int charCount) =>
@@ -414,6 +446,7 @@ class _MiniLyricState extends State<_MiniLyric>
   @override
   void dispose() {
     _stopFallback();
+    _stallTimer?.cancel();
     _painter?.dispose();
     _controller.dispose();
     super.dispose();

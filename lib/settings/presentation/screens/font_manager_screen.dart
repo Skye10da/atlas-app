@@ -43,12 +43,12 @@ class _FontManagerScreenState extends ConsumerState<FontManagerScreen> {
             tooltip: 'Sort by',
             onSelected: (s) => setState(() => _sort = s),
             itemBuilder: (_) => const [
-              PopupMenuItem(value: FontSort.popularity, child: Text('Popularity')),
-              PopupMenuItem(value: FontSort.trending, child: Text('Trending')),
               PopupMenuItem(
-                value: FontSort.alphabetical,
-                child: Text('A – Z'),
+                value: FontSort.popularity,
+                child: Text('Popularity'),
               ),
+              PopupMenuItem(value: FontSort.trending, child: Text('Trending')),
+              PopupMenuItem(value: FontSort.alphabetical, child: Text('A – Z')),
             ],
           ),
         ],
@@ -172,9 +172,7 @@ class _FontBrowserBody extends ConsumerWidget {
 
     return catalogAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => const Center(
-        child: Text('Failed to load font catalog'),
-      ),
+      error: (_, _) => const Center(child: Text('Failed to load font catalog')),
       data: (allEntries) {
         final filtered = service.filter(
           allEntries,
@@ -185,10 +183,14 @@ class _FontBrowserBody extends ConsumerWidget {
 
         // Separate popular + rest.
         final popular = filtered
-            .where((e) => FontDownloadRepository.popularFamilies.contains(e.family))
+            .where(
+              (e) => FontDownloadRepository.popularFamilies.contains(e.family),
+            )
             .toList();
         final rest = filtered
-            .where((e) => !FontDownloadRepository.popularFamilies.contains(e.family))
+            .where(
+              (e) => !FontDownloadRepository.popularFamilies.contains(e.family),
+            )
             .toList();
 
         if (filtered.isEmpty) {
@@ -242,11 +244,8 @@ class _FontBrowserBody extends ConsumerWidget {
                   installedWeights: installedWeights[entry.family],
                   onPreviewLoaded: onPreviewLoaded,
                   onPreviewFailed: onPreviewFailed,
-                  onDownload: () => _downloadFamily(
-                    ref,
-                    entry.family,
-                    entry.weights,
-                  ),
+                  onDownload: () =>
+                      _downloadFamily(ref, entry.family, entry.weights),
                   onRemove: () => _removeFamily(ref, entry.family),
                 ),
               ),
@@ -268,11 +267,8 @@ class _FontBrowserBody extends ConsumerWidget {
                   installedWeights: installedWeights[entry.family],
                   onPreviewLoaded: onPreviewLoaded,
                   onPreviewFailed: onPreviewFailed,
-                  onDownload: () => _downloadFamily(
-                    ref,
-                    entry.family,
-                    entry.weights,
-                  ),
+                  onDownload: () =>
+                      _downloadFamily(ref, entry.family, entry.weights),
                   onRemove: () => _removeFamily(ref, entry.family),
                 ),
               ),
@@ -374,7 +370,9 @@ class _FontTileState extends State<_FontTile> {
 
   void _maybeStartPreview() {
     if (_previewStarted) return;
-    if (widget.isDownloaded || widget.isLoadingPreview || widget.hasPreviewFailed) {
+    if (widget.isDownloaded ||
+        widget.isLoadingPreview ||
+        widget.hasPreviewFailed) {
       return;
     }
     _previewStarted = true;
@@ -395,8 +393,8 @@ class _FontTileState extends State<_FontTile> {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    final weightInfo = widget.installedWeights != null &&
-            widget.installedWeights!.isNotEmpty
+    final weightInfo =
+        widget.installedWeights != null && widget.installedWeights!.isNotEmpty
         ? '${widget.installedWeights!.length} weight${widget.installedWeights!.length > 1 ? 's' : ''}'
         : widget.isBundled
         ? 'Bundled'
@@ -511,19 +509,16 @@ class _CacheTile extends ConsumerWidget {
         ? '${(bytes / 1048576).toStringAsFixed(1)} MB'
         : '${(bytes / 1024).toStringAsFixed(0)} KB';
     return ListTile(
-      title: Text(
-        'Clear font cache',
-        style: TextStyle(color: colors.error),
-      ),
+      title: Text('Clear font cache', style: TextStyle(color: colors.error)),
       subtitle: Text('Cached fonts: $sizeStr'),
       trailing: Icon(Icons.delete_outline, color: colors.error),
       onTap: () async {
         await FontDownloader.clearAllCachedFonts();
         ref.invalidate(cachedFontSizeBytesProvider);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Font cache cleared')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Font cache cleared')));
         }
       },
     );

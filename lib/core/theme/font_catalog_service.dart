@@ -19,11 +19,10 @@ enum FontCatalogCategory {
   const FontCatalogCategory(this.label);
   final String label;
 
-  static FontCatalogCategory? fromLabel(String label) =>
-      FontCatalogCategory.values.cast<FontCatalogCategory?>().firstWhere(
-            (c) => c!.label == label,
-            orElse: () => null,
-          );
+  static FontCatalogCategory? fromLabel(String label) => FontCatalogCategory
+      .values
+      .cast<FontCatalogCategory?>()
+      .firstWhere((c) => c!.label == label, orElse: () => null);
 }
 
 class FontCatalogEntry {
@@ -74,8 +73,7 @@ class FontCatalogService {
 
   final http.Client _client;
 
-  static const _metadataUrl =
-      'https://fonts.google.com/metadata/fonts';
+  static const _metadataUrl = 'https://fonts.google.com/metadata/fonts';
   static const _ttl = Duration(days: 7);
 
   /// Google's CSS API user-agent; old enough to get TTF instead of woff2.
@@ -192,9 +190,7 @@ class FontCatalogService {
     final dir = await getApplicationSupportDirectory();
     final fontsDir = Directory('${dir.path}${Platform.pathSeparator}fonts');
     if (!fontsDir.existsSync()) fontsDir.createSync(recursive: true);
-    return File(
-      '${fontsDir.path}${Platform.pathSeparator}catalog.json',
-    );
+    return File('${fontsDir.path}${Platform.pathSeparator}catalog.json');
   }
 
   Future<void> _saveDiskCache(List<FontCatalogEntry> entries) async {
@@ -214,7 +210,8 @@ class FontCatalogService {
     try {
       final file = await _cacheFile();
       if (!await file.exists()) return null;
-      final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final data =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       final timestamp = DateTime.fromMillisecondsSinceEpoch(
         data['timestamp'] as int,
       );

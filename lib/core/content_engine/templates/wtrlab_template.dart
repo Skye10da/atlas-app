@@ -10,11 +10,14 @@ import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_models.dart';
 import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
+import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/core/session/session_refresh_service.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_auth_state.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_exceptions.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_glossary_term.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_translation_service.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_ai_status_tracker.dart';
+import 'package:atlas_app/wtr/domain/services/wtr_ai_translate_service.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_chapter_provider.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_glossary_service.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_term_preference_service.dart';
@@ -41,13 +44,21 @@ import 'package:atlas_app/wtr/domain/services/wtr_web_translate_service.dart';
 /// Atlas mirrors the site's reader: it applies the per-novel glossary (WebPlus
 /// only, like the site) and then translates the paragraphs to the plugin's
 /// language through the same on-device Google endpoint the site uses. The AI
-/// service returns English from the API, but its body embeds `※n⛬` name
+/// service returns English from the API, but its body embeds `※n⃬` name
 /// placeholders that must be resolved from the response's `glossary_data`, and
 /// any source-language terms the AI body leaves untranslated are then
 /// substituted from the fullest glossary Atlas can build: the response's
 /// `glossary_data`, the per-novel glossary (all glossaries plus community
 /// replacements) and — when a WTR-Lab account is connected — the account's top
 /// term preferences.
+///
+/// The AI+ service is Atlas-only: chapters are fetched exactly like Web and
+/// translated on-device by the user's own AI provider (Gemini / OpenAI /
+/// OpenRouter / OpenCode Zen / Anthropic) with the per-novel glossary baked
+/// into the prompt. It is fail-soft like every enhancement here, but its
+/// outcome is reported to [WtrAiStatusTracker] so the reader can tell the
+/// user when a rate limit or bad key degraded the chapter to Google
+/// translation.
 class WtrLabTemplate implements Template {
   const WtrLabTemplate({
     this.chapterProvider,
@@ -55,6 +66,7 @@ class WtrLabTemplate implements Template {
     this.webTranslateService,
     this.translateTransport,
     this.termPreferenceService,
+    this.aiTranslateService,
   });
 
   /// Optional injection point for tests. Defaults to the process-wide
@@ -81,6 +93,11 @@ class WtrLabTemplate implements Template {
   /// with its own in-memory cache.
   final WtrTermPreferenceService? termPreferenceService;
 
+  /// Optional injection point for tests. Defaults to a service that reads the
+  /// user's provider/key/model from SharedPreferences and talks to the real
+  /// AI APIs.
+  final WtrAiTranslateService? aiTranslateService;
+
   static const _aesKey = 'IJAFUUxjM25hyzL2AZrn0wl7cESED6Ru';
   static const _readerPath = '/api/reader/get';
 
@@ -94,6 +111,9 @@ class WtrLabTemplate implements Template {
 
   WtrWebTranslateService get _webTranslate =>
       webTranslateService ?? const WtrWebTranslateService();
+
+  WtrAiTranslateService get _aiTranslate =>
+      aiTranslateService ?? WtrAiTranslateService();
 
   Transport get _translateTransport => translateTransport ?? HttpTransport();
 
@@ -351,10 +371,18 @@ class WtrLabTemplate implements Template {
     // * AI already returns English, but its body embeds `※n⛬` name
     //   placeholders that must be resolved from the response's glossary_data.
     // Every enhancement is fail-soft: an outage keeps the decrypted text.
+    // The *selected* service drives post-processing. The wire value usually
+    // names it, but AI+ posts `web` (no WTR-Lab account needed) — so a plain
+    // `web` response must re-check what the user actually picked.
+    final wireService = WtrTranslationService.fromApiValue(translate);
+    final service =
+        wireService == WtrTranslationService.web || wireService == null
+        ? await _provider.serviceFor(rawId)
+        : wireService;
     final enhanced = await _enhance(
       context,
       rawId: rawId,
-      translate: translate,
+      service: service,
       paragraphs: paragraphs,
       readerValue: value,
     );
@@ -436,11 +464,10 @@ class WtrLabTemplate implements Template {
   Future<List<String>> _enhance(
     PluginContext context, {
     required int rawId,
-    required String translate,
+    required WtrTranslationService service,
     required List<String> paragraphs,
     required Object? readerValue,
   }) async {
-    final service = WtrTranslationService.fromApiValue(translate);
     if (service == WtrTranslationService.ai) {
       final resolved = _resolveAiMarkers(paragraphs, readerValue);
       try {
@@ -469,6 +496,47 @@ class WtrLabTemplate implements Template {
         return paragraphs;
       }
     }
+    if (service == WtrTranslationService.aiPlus) {
+      // Translating Chinese *into* the plugin language when that already is
+      // Chinese is a no-op — mirror the Web branch and keep the source text.
+      if (context.effectiveLanguage == 'zh') {
+        WtrAiStatusTracker.instance.clear(rawId);
+        return paragraphs;
+      }
+      try {
+        final terms = await _aiPlusGlossaryTerms(
+          context,
+          rawId: rawId,
+          paragraphs: paragraphs,
+        );
+        final translated = await _aiTranslate.translateParagraphs(
+          _translateTransport,
+          paragraphs: paragraphs,
+          terms: terms,
+          to: context.effectiveLanguage,
+        );
+        WtrAiStatusTracker.instance.reportSuccess(rawId);
+        return translated;
+      } on WtrAiTranslateException catch (e) {
+        AppLogger.warning('WTR-LAB AI+: ${e.message} Using web translation.');
+        WtrAiStatusTracker.instance.reportFallback(rawId, e.reason);
+      } on Object catch (e) {
+        AppLogger.warning(
+          'WTR-LAB AI+: unexpected failure ($e); using web translation.',
+        );
+        WtrAiStatusTracker.instance.reportFallback(
+          rawId,
+          WtrAiFailureReason.transient,
+        );
+      }
+      // Degraded path: the same on-device Google translation Web uses, so
+      // the chapter still renders while the selector explains what happened.
+      try {
+        return await _translateToPluginLanguage(context, paragraphs);
+      } on Object {
+        return paragraphs;
+      }
+    }
     // `web`: source-language text, translated like the site does. No glossary
     // (the site applies it only for webplus).
     try {
@@ -490,6 +558,32 @@ class WtrLabTemplate implements Template {
       to: context.effectiveLanguage,
       headers: context.plugin.requestHeaders,
     );
+  }
+
+  /// The glossary terms relevant to this chapter's text, for the AI+ prompt.
+  ///
+  /// Uses the *fullest* glossary (`loadAll` — every glossary plus community
+  /// replacements and account term preferences) but only terms that actually
+  /// appear in the text, so the prompt stays small and on-token.
+  Future<List<WtrGlossaryTerm>> _aiPlusGlossaryTerms(
+    PluginContext context, {
+    required int rawId,
+    required List<String> paragraphs,
+  }) async {
+    // Fail-soft: a broken/absent glossary must not cost the user their
+    // AI translation — the prompt just loses its naming rules.
+    final List<WtrGlossaryTerm> all;
+    try {
+      all = await _glossary.loadAll(
+        context.transport,
+        Uri.parse(context.plugin.baseUrl),
+        rawId: rawId,
+        headers: context.plugin.requestHeaders,
+      );
+    } on Object {
+      return const [];
+    }
+    return all.where((t) => _containsTerm(paragraphs, t.zh)).toList();
   }
 
   /// Substitutes glossary Chinese terms for their primary English alias.

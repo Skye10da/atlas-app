@@ -14,12 +14,16 @@ class SentenceSplitter {
   /// branching (ASA §4).
   static const int maxChunkChars = 3800;
 
+  /// Average words per minute for TTS at 1.0x speed.
+  static const _baseWpm = 150;
+
   List<SpeechItem> splitChapter({
     required String bookId,
     required String chapterId,
     required List<String> paragraphs,
     required String language,
     String? voiceId,
+    double speechRate = 1.0,
   }) {
     final items = <SpeechItem>[];
     for (var pIndex = 0; pIndex < paragraphs.length; pIndex++) {
@@ -28,6 +32,8 @@ class SentenceSplitter {
       for (final sentence in sentences) {
         for (final piece in _hardSplitIfTooLong(sentence, maxChunkChars)) {
           if (piece.trim().isEmpty) continue;
+          final wordCount = piece.trim().split(RegExp(r'\s+')).length;
+          final estSeconds = (wordCount / _baseWpm * 60).round();
           items.add(
             SpeechItem(
               bookId: bookId,
@@ -37,6 +43,7 @@ class SentenceSplitter {
               text: piece.trim(),
               language: language,
               voiceId: voiceId,
+              estimatedDuration: Duration(seconds: estSeconds.clamp(1, 3600)),
             ),
           );
           sIndex++;

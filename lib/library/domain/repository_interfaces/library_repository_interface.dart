@@ -14,4 +14,10 @@ abstract interface class LibraryRepositoryInterface {
   Future<Result<void>> deleteAllBooks();
   Future<Result<void>> updateBook(String id, {String? title, String? author});
   Future<Result<void>> markAsOpened(String id);
+
+  /// Enables or disables periodic update checks for a book.
+  Future<Result<void>> setUpdateTracking(String id, bool enabled);
+
+  /// Clears the "new chapters" badge once the user has seen the book.
+  Future<Result<void>> clearUpdateFlag(String id);
 }

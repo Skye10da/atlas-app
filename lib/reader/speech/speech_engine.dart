@@ -58,6 +58,12 @@ class SpeechEngine {
       volume: 1.0,
       voiceId: session.settings.selectedVoiceId,
     );
+    // Emit ChapterStarted so lockscreen metadata updates immediately
+    _eventsController.add(ChapterStarted(
+      chapterId: session.chapterId,
+      chapterTitle: session.currentItem?.text.split('\n').first ?? 'Chapter',
+      coverPath: session.coverPath,
+    ));
   }
 
   /// Live-apply a settings change (rate/pitch/voice/sleep timer) without

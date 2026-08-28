@@ -58,6 +58,9 @@ void _emitBatteryLevel(
 final httpClientProvider = Provider<http.Client>((ref) {
   final httpClient = HttpClient();
   httpClient.badCertificateCallback = (_, _, _) => true;
+  // Without this, a stalled TLS negotiation (e.g. "connection terminated
+  // during handshake") blocks the request forever.
+  httpClient.connectionTimeout = const Duration(seconds: 15);
   final client = IOClient(httpClient);
   ref.onDispose(client.close);
   return client;

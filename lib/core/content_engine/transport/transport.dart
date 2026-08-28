@@ -42,6 +42,8 @@ class TransportException implements Exception {
     this.cause,
     this.sessionExpired = false,
     this.botChallenge = false,
+    this.statusCode,
+    this.retryAfter,
   });
 
   final String message;
@@ -58,6 +60,16 @@ class TransportException implements Exception {
   /// transport can decide whether a live-webview re-verify pass (which runs
   /// the real JS challenge and captures fresh cookies) could solve it.
   final bool botChallenge;
+
+  /// The HTTP status code that triggered the failure, when the error came
+  /// from an HTTP response at all (network errors have none). Callers use it
+  /// to classify failures — e.g. an AI-API client distinguishes rate limits
+  /// (429) from bad requests (4xx) when deciding whether to retry.
+  final int? statusCode;
+
+  /// Server-provided hint for when to retry (`Retry-After` header), parsed
+  /// from the integer-seconds form. Null when absent or unparseable.
+  final Duration? retryAfter;
 
   @override
   String toString() => 'TransportException: $message';
