@@ -12,9 +12,12 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_narration_coordinator.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_selection_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
+import 'package:atlas_app/reader/speech/speech_models.dart';
 
 class PagedPageView extends StatelessWidget {
   const PagedPageView({
@@ -26,6 +29,8 @@ class PagedPageView extends StatelessWidget {
     this.chapterId,
     this.pageStartOffset = 0,
     this.highlights = const [],
+    this.activeSpeechItem,
+    this.fullChapterContent,
     required this.isFirstPageOfChapter,
     required this.isLastPageOfChapter,
     required this.textStyle,
@@ -42,6 +47,7 @@ class PagedPageView extends StatelessWidget {
     this.onListen,
     this.onErase,
     this.onSetGlossaryTerm,
+    this.onTap,
   });
 
   final String content;
@@ -61,6 +67,12 @@ class PagedPageView extends StatelessWidget {
   /// are rendered as backgrounds.
   final List<HighlightEntry> highlights;
 
+  /// Currently narrated speech item, for speech/paragraph highlighting on this page.
+  final SpeechItem? activeSpeechItem;
+
+  /// Full text of the chapter containing this page, for speech offset resolution.
+  final String? fullChapterContent;
+
   final bool isFirstPageOfChapter;
   final bool isLastPageOfChapter;
   final TextStyle textStyle;
@@ -70,8 +82,13 @@ class PagedPageView extends StatelessWidget {
   final ReadingViewTheme vt;
   final bool showHeaders;
   final ChapterStyle? chapterStyle;
-  final void Function(String text, Color color, int start, int end)?
-  onHighlight;
+  final void Function(
+    String text,
+    Color color,
+    int start,
+    int end, {
+    HighlightStyleType styleType,
+  })? onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
@@ -82,6 +99,9 @@ class PagedPageView extends StatelessWidget {
   /// Called with the selected text so the host can define a glossary term for
   /// it. Omit to hide the "Set as term…" action.
   final ValueChanged<String>? onSetGlossaryTerm;
+
+  /// Called when the page text is single-tapped so the reader can toggle chrome.
+  final VoidCallback? onTap;
 
   EdgeInsets get _padding => switch (marginPreset) {
     MarginPreset.narrow => const EdgeInsets.symmetric(
@@ -124,7 +144,7 @@ class PagedPageView extends StatelessWidget {
           Expanded(
             child: SingleChildScrollView(
               padding: _padding,
-              child: _buildText(resolvedStyle, cs),
+              child: _buildText(context, resolvedStyle, cs),
             ),
           ),
           if (isLastPageOfChapter && showHeaders) ...[
@@ -141,10 +161,10 @@ class PagedPageView extends StatelessWidget {
     );
   }
 
-  Widget _buildText(TextStyle resolvedStyle, ChapterStyle? cs) {
+  Widget _buildText(BuildContext context, TextStyle resolvedStyle, ChapterStyle? cs) {
     final c = content;
     final contextMenu = _contextMenuBuilder(c);
-    final pageHighlights = _pageHighlights(c);
+    final pageHighlights = _pageHighlights(context, c);
 
     final spans = _pageSpans(c, resolvedStyle, pageHighlights);
 
@@ -158,19 +178,21 @@ class PagedPageView extends StatelessWidget {
         ),
         textAlign: textAlignment.flutterTextAlign,
         contextMenuBuilder: contextMenu,
+        onTap: onTap,
       );
     }
     return SelectableText.rich(
       TextSpan(children: spans),
       textAlign: textAlignment.flutterTextAlign,
       contextMenuBuilder: contextMenu,
+      onTap: onTap,
     );
   }
 
   /// Highlights whose chapter-global range intersects this page's slice,
-  /// translated into page-local coordinates (may be empty).
-  List<HighlightEntry> _pageHighlights(String pageContent) {
-    if (chapterId == null || pageStartOffset >= pageContent.length) {
+  /// translated into page-local coordinates, including active narration highlights.
+  List<HighlightEntry> _pageHighlights(BuildContext context, String pageContent) {
+    if (chapterId == null || pageStartOffset >= (fullChapterContent?.length ?? pageContent.length + pageStartOffset)) {
       return const [];
     }
     final out = <HighlightEntry>[];
@@ -185,9 +207,59 @@ class PagedPageView extends StatelessWidget {
           end: localEnd.clamp(0, pageContent.length),
           text: h.text,
           colorValue: h.colorValue,
+          styleType: h.styleType,
+          bounds: h.bounds,
         ),
       );
     }
+
+    if (activeSpeechItem != null &&
+        activeSpeechItem!.chapterId == chapterId &&
+        fullChapterContent != null &&
+        fullChapterContent!.isNotEmpty) {
+      final paraRange = const ChapterNarrationCoordinator().resolveActiveParagraphRange(
+        item: activeSpeechItem,
+        content: fullChapterContent!,
+      );
+      final speechOffset = const ChapterNarrationCoordinator().resolveActiveSpeechOffset(
+        item: activeSpeechItem,
+        content: fullChapterContent!,
+      );
+      final accentColor = vt.resolve(Theme.of(context).colorScheme).accent;
+
+      if (paraRange != null) {
+        final localParaStart = (paraRange.start - pageStartOffset).clamp(0, pageContent.length);
+        final localParaEnd = (paraRange.end - pageStartOffset).clamp(0, pageContent.length);
+        if (localParaEnd > localParaStart) {
+          out.add(
+            HighlightEntry(
+              chapterId: chapterId ?? '',
+              start: localParaStart,
+              end: localParaEnd,
+              text: pageContent.substring(localParaStart, localParaEnd),
+              colorValue: accentColor.withValues(alpha: 0.12).toARGB32(),
+            ),
+          );
+        }
+      }
+
+      if (speechOffset != null) {
+        final localSpeechStart = (speechOffset - pageStartOffset).clamp(0, pageContent.length);
+        final localSpeechEnd = (speechOffset + activeSpeechItem!.text.length - pageStartOffset).clamp(0, pageContent.length);
+        if (localSpeechEnd > localSpeechStart) {
+          out.add(
+            HighlightEntry(
+              chapterId: chapterId ?? '',
+              start: localSpeechStart,
+              end: localSpeechEnd,
+              text: pageContent.substring(localSpeechStart, localSpeechEnd),
+              colorValue: accentColor.withValues(alpha: 0.32).toARGB32(),
+            ),
+          );
+        }
+      }
+    }
+
     return out;
   }
 
@@ -197,79 +269,103 @@ class PagedPageView extends StatelessWidget {
     TextStyle resolvedStyle,
     List<HighlightEntry> pageHighlights,
   ) {
-    final spans = <TextSpan>[];
-    var cursor = 1;
-    for (final h in pageHighlights) {
-      if (h.end <= 1) continue;
-      final start = h.start < 1 ? 1 : h.start;
-      final end = h.end;
-      if (start > cursor) {
-        spans.add(
-          TextSpan(text: c.substring(cursor, start), style: resolvedStyle),
-        );
-      }
-      spans.add(
-        TextSpan(
-          text: c.substring(start, end > c.length ? c.length : end),
-          style: resolvedStyle.copyWith(
-            backgroundColor: h.color.withValues(alpha: 0.30),
-          ),
-        ),
-      );
-      cursor = end > c.length ? c.length : end;
-    }
-    if (cursor < c.length) {
-      spans.add(TextSpan(text: c.substring(cursor), style: resolvedStyle));
-    }
-    return spans;
+    if (c.length <= 1) return const [];
+    return _buildLayeredSpans(c, 1, c.length, resolvedStyle, pageHighlights);
   }
 
-  /// Whole-page spans with highlight layering (first char kept plain).
+  /// Whole-page spans with highlight layering.
   List<TextSpan> _pageSpans(
     String c,
     TextStyle resolvedStyle,
     List<HighlightEntry> pageHighlights,
   ) {
+    if (c.isEmpty) return const [];
+    return _buildLayeredSpans(c, 0, c.length, resolvedStyle, pageHighlights);
+  }
+
+  List<TextSpan> _buildLayeredSpans(
+    String c,
+    int startOffset,
+    int endOffset,
+    TextStyle resolvedStyle,
+    List<HighlightEntry> pageHighlights,
+  ) {
     if (pageHighlights.isEmpty) {
-      return [TextSpan(text: c, style: resolvedStyle)];
+      return [TextSpan(text: c.substring(startOffset, endOffset), style: resolvedStyle)];
     }
-    final spans = <TextSpan>[];
-    var cursor = 0;
+    final cuts = <int>{startOffset, endOffset};
     for (final h in pageHighlights) {
-      if (h.start > cursor) {
-        spans.add(
-          TextSpan(text: c.substring(cursor, h.start), style: resolvedStyle),
-        );
-      }
-      spans.add(
-        TextSpan(
-          text: c.substring(h.start, h.end > c.length ? c.length : h.end),
-          style: resolvedStyle.copyWith(
-            backgroundColor: h.color.withValues(alpha: 0.30),
-          ),
-        ),
-      );
-      cursor = h.end > c.length ? c.length : h.end;
+      if (h.end <= startOffset || h.start >= endOffset) continue;
+      cuts.add(h.start.clamp(startOffset, endOffset));
+      cuts.add(h.end.clamp(startOffset, endOffset));
     }
-    if (cursor < c.length) {
-      spans.add(TextSpan(text: c.substring(cursor), style: resolvedStyle));
+    final sorted = cuts.toList()..sort();
+    final spans = <TextSpan>[];
+    for (var i = 0; i < sorted.length - 1; i++) {
+      final segStart = sorted[i];
+      final segEnd = sorted[i + 1];
+      if (segEnd <= segStart) continue;
+
+      var segStyle = resolvedStyle;
+      // Layer highlights: paragraph tint is overlaid by active sentence / user highlight
+      HighlightEntry? activeH;
+      for (final h in pageHighlights) {
+        if (h.start <= segStart && h.end >= segEnd) {
+          activeH = h;
+        }
+      }
+      if (activeH != null) {
+        switch (activeH.styleType) {
+          case HighlightStyleType.solid:
+            segStyle = segStyle.copyWith(backgroundColor: activeH.color);
+          case HighlightStyleType.underline:
+            segStyle = segStyle.copyWith(
+              decoration: TextDecoration.underline,
+              decorationColor: activeH.color,
+              decorationThickness: 2.2,
+            );
+          case HighlightStyleType.wavy:
+            segStyle = segStyle.copyWith(
+              decoration: TextDecoration.underline,
+              decorationStyle: TextDecorationStyle.wavy,
+              decorationColor: activeH.color,
+              decorationThickness: 2.0,
+            );
+          case HighlightStyleType.strikethrough:
+            segStyle = segStyle.copyWith(
+              decoration: TextDecoration.lineThrough,
+              decorationColor: activeH.color,
+              decorationThickness: 2.0,
+            );
+          case HighlightStyleType.bold:
+            segStyle = segStyle.copyWith(
+              fontWeight: FontWeight.w900,
+              backgroundColor: activeH.color.withValues(alpha: 0.22),
+            );
+          case HighlightStyleType.italic:
+            segStyle = segStyle.copyWith(
+              fontStyle: FontStyle.italic,
+              backgroundColor: activeH.color.withValues(alpha: 0.22),
+            );
+        }
+      }
+
+      spans.add(TextSpan(text: c.substring(segStart, segEnd), style: segStyle));
     }
     return spans;
   }
 
-  static const _highlightPalette = [
-    AppContextMenuHighlightOption(color: Color(0xFFFFF176), label: 'Yellow'),
-    AppContextMenuHighlightOption(color: Color(0xFFA5D6A7), label: 'Green'),
-    AppContextMenuHighlightOption(color: Color(0xFF90CAF9), label: 'Blue'),
-    AppContextMenuHighlightOption(color: Color(0xFFF48FB1), label: 'Pink'),
-    AppContextMenuHighlightOption(color: Color(0xFFCE93D8), label: 'Purple'),
-  ];
+  static const _highlightPalette = ChapterSelectionMenuBuilder.highlightPalette;
 
   EditableTextContextMenuBuilder _contextMenuBuilder(String fullText) {
     return AppContextMenu.builder(
       build: (ctx, editable, anchor) {
         final sel = editable.textEditingValue.selection;
-        final hasSelection = sel.isValid && !sel.isCollapsed;
+        final hasSelection = sel.isValid &&
+            !sel.isCollapsed &&
+            sel.start >= 0 &&
+            sel.end <= fullText.length &&
+            sel.start < sel.end;
         final word = hasSelection
             ? fullText.substring(sel.start, sel.end).trim()
             : '';
@@ -279,29 +375,48 @@ class PagedPageView extends StatelessWidget {
         final showSelectionActions = hasSelection && word.isNotEmpty;
         final srcTitle = chapterTitle;
         final chapterOffset = pageStartOffset;
-        final globalStart = chapterOffset + sel.start;
-        final globalEnd = chapterOffset + sel.end;
-        final hasOverlappingHighlight = highlights.any(
-          (h) => h.overlaps(globalStart, globalEnd),
-        );
+        final globalStart = hasSelection ? chapterOffset + sel.start : 0;
+        final globalEnd = hasSelection ? chapterOffset + sel.end : 0;
+        final overlappingHighlight = showSelectionActions
+            ? highlights
+                .where((h) => h.overlaps(globalStart, globalEnd))
+                .firstOrNull
+            : null;
+        final hasOverlappingHighlight = overlappingHighlight != null;
         final eraseEnabled =
             showSelectionActions && hasOverlappingHighlight && onErase != null;
 
         return AppContextMenu(
           anchor: anchor,
           highlightColors: showSelectionActions ? _highlightPalette : const [],
-          onHighlightSelected: showSelectionActions && onHighlight != null
-              ? (color) => onHighlight!(word, color, globalStart, globalEnd)
+          initialStyle:
+              overlappingHighlight?.styleType ?? HighlightStyleType.solid,
+          onHighlightWithStyle: showSelectionActions && onHighlight != null
+              ? (color, style) => onHighlight!(
+                  word,
+                  color,
+                  globalStart,
+                  globalEnd,
+                  styleType: style,
+                )
               : null,
           quickActions: [
             AppContextMenuAction(
               label: 'Copy',
               icon: Icons.content_copy_rounded,
               onPressed: () {
-                final data = editable.textEditingValue.selection.textInside(
-                  editable.textEditingValue.text,
-                );
-                Clipboard.setData(ClipboardData(text: data));
+                final text = editable.textEditingValue.text;
+                final s = editable.textEditingValue.selection;
+                if (s.isValid &&
+                    !s.isCollapsed &&
+                    s.start >= 0 &&
+                    s.end <= text.length &&
+                    s.start < s.end) {
+                  final data = text.substring(s.start, s.end);
+                  Clipboard.setData(ClipboardData(text: data));
+                } else if (word.isNotEmpty) {
+                  Clipboard.setData(ClipboardData(text: word));
+                }
               },
             ),
             if (showSelectionActions && onAddNote != null)
@@ -368,14 +483,19 @@ class PagedPageView extends StatelessWidget {
   }
 
   String _sentenceAround(String fullText, TextSelection sel) {
-    if (!sel.isValid || sel.isCollapsed) return '';
+    if (fullText.isEmpty || !sel.isValid || sel.isCollapsed || sel.start < 0) {
+      return '';
+    }
+    final safeStart = sel.start.clamp(0, fullText.length);
+    final safeEnd = sel.end.clamp(0, fullText.length);
+    if (safeStart >= safeEnd) return '';
     const punctuation = '.!?\n';
-    int start = sel.start;
+    int start = safeStart;
     while (start > 0) {
       if (punctuation.contains(fullText[start - 1])) break;
       start--;
     }
-    int end = sel.end;
+    int end = safeEnd;
     while (end < fullText.length) {
       if (punctuation.contains(fullText[end])) break;
       end++;

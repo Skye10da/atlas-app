@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_markers_panel.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_notes_panel.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_outline_panel.dart';
@@ -8,9 +9,11 @@ import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_search_panel.dart'
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_thumbnails_panel.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_viewer_models.dart';
 
-/// Left-hand side panel with Search / Outline / Pages / Markers / Notes tabs.
-class PdfReaderPanel extends StatelessWidget {
+/// Right-hand side panel (or sheet) for PDF navigation with Outline / Pages /
+/// Markers / Notes / Search tabs, matching the [ReaderRightPanel] visual styling.
+class PdfReaderPanel extends StatefulWidget {
   const PdfReaderPanel({
+    super.key,
     required this.controller,
     required this.document,
     required this.outline,
@@ -24,8 +27,8 @@ class PdfReaderPanel extends StatelessWidget {
     required this.onMarkerDeleted,
     required this.onNoteSelected,
     required this.onNoteDeleted,
-    required this.nightMode,
-    super.key,
+    required this.onClose,
+    this.initialTabIndex = 0,
   });
 
   final PdfViewerController controller;
@@ -41,116 +44,157 @@ class PdfReaderPanel extends StatelessWidget {
   final void Function(PdfMarker marker) onMarkerDeleted;
   final void Function(PdfNoteEntry note) onNoteSelected;
   final void Function(PdfNoteEntry note) onNoteDeleted;
-  final bool nightMode;
+  final VoidCallback onClose;
+  final int initialTabIndex;
+
+  @override
+  State<PdfReaderPanel> createState() => _PdfReaderPanelState();
+}
+
+class _PdfReaderPanelState extends State<PdfReaderPanel>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(
+      length: 5,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 4),
+    );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final nightMode = this.nightMode;
-    return Container(
-      decoration: BoxDecoration(
-        color: nightMode ? const Color(0xFF1E1E1E) : Colors.white,
-        border: Border(
-          right: BorderSide(color: nightMode ? Colors.white12 : Colors.black12),
-        ),
-      ),
-      child: DefaultTabController(
-        length: 5,
-        child: Column(
-          children: [
-            SizedBox(
-              height: 46,
-              child: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                labelColor: nightMode ? Colors.white : Colors.black87,
-                unselectedLabelColor: nightMode ? Colors.white54 : Colors.grey,
-                tabs: const [
-                  Tab(icon: Icon(Icons.search), iconMargin: EdgeInsets.zero),
-                  Tab(icon: Icon(Icons.menu_book), iconMargin: EdgeInsets.zero),
-                  Tab(icon: Icon(Icons.grid_view), iconMargin: EdgeInsets.zero),
-                  Tab(icon: Icon(Icons.bookmark), iconMargin: EdgeInsets.zero),
-                  Tab(
-                    icon: Icon(Icons.sticky_note_2_outlined),
-                    iconMargin: EdgeInsets.zero,
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Material(
+      elevation: 4,
+      color: colors.surfaceContainerLow,
+      child: Column(
+        children: [
+          Container(
+            height: 48,
+            padding: const EdgeInsets.only(left: AppSpacing.md),
+            child: Row(
+              children: [
+                Text(
+                  'Document',
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: widget.onClose,
+                  tooltip: 'Close panel',
+                ),
+              ],
             ),
-            const Divider(height: 1),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildSearch(),
-                  _buildOutline(),
-                  _buildThumbnails(),
-                  _buildMarkers(),
-                  _buildNotes(),
-                ],
+          ),
+          TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            labelColor: colors.primary,
+            unselectedLabelColor: colors.onSurface.withValues(alpha: 0.6),
+            indicatorColor: colors.primary,
+            labelStyle: const TextStyle(fontSize: 12),
+            tabs: const [
+              Tab(icon: Icon(Icons.menu_book_rounded, size: 18), text: 'Outline'),
+              Tab(icon: Icon(Icons.grid_view_rounded, size: 18), text: 'Pages'),
+              Tab(icon: Icon(Icons.bookmark_rounded, size: 18), text: 'Markers'),
+              Tab(
+                icon: Icon(Icons.sticky_note_2_outlined, size: 18),
+                text: 'Notes',
               ),
+              Tab(icon: Icon(Icons.search_rounded, size: 18), text: 'Search'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOutline(),
+                _buildThumbnails(),
+                _buildMarkers(),
+                _buildNotes(),
+                _buildSearch(),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSearch() {
-    final searcher = textSearcher;
-    if (searcher == null) {
-      return _empty('Open document to search');
-    }
-    return PdfSearchPanel(textSearcher: searcher, nightMode: nightMode);
-  }
-
   Widget _buildOutline() {
-    final outline = this.outline;
+    final outline = widget.outline;
     if (outline == null) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Text(
+          'Loading outline…',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
     }
     return PdfOutlinePanel(
       outline: outline,
-      onSelected: onOutlineSelected,
-      nightMode: nightMode,
+      onSelected: widget.onOutlineSelected,
+      nightMode: false,
     );
   }
 
   Widget _buildThumbnails() {
-    final document = this.document;
-    if (document == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
     return PdfThumbnailsPanel(
-      document: document,
-      currentPage: currentPage,
-      onPageSelected: onPageSelected,
-      nightMode: nightMode,
+      document: widget.document,
+      currentPage: widget.currentPage,
+      onPageSelected: widget.onPageSelected,
+      nightMode: false,
     );
   }
 
   Widget _buildMarkers() {
     return PdfMarkersPanel(
-      markers: markers,
-      onSelected: onMarkerSelected,
-      onDelete: onMarkerDeleted,
-      nightMode: nightMode,
+      markers: widget.markers,
+      onSelected: widget.onMarkerSelected,
+      onDelete: widget.onMarkerDeleted,
+      nightMode: false,
     );
   }
 
   Widget _buildNotes() {
     return PdfNotesPanel(
-      notes: notes,
-      onSelected: onNoteSelected,
-      onDelete: onNoteDeleted,
-      nightMode: nightMode,
+      notes: widget.notes,
+      onSelected: widget.onNoteSelected,
+      onDelete: widget.onNoteDeleted,
+      nightMode: false,
     );
   }
 
-  Widget _empty(String message) {
-    return Center(
-      child: Text(
-        message,
-        style: TextStyle(color: nightMode ? Colors.white70 : Colors.grey),
-      ),
-    );
+  Widget _buildSearch() {
+    final searcher = widget.textSearcher;
+    if (searcher == null) {
+      return Center(
+        child: Text(
+          'Open document to search',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+    return PdfSearchPanel(textSearcher: searcher, nightMode: false);
   }
 }

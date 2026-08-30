@@ -187,8 +187,12 @@ class ContentNormalizer {
       if (n is Text) {
         buffer.write(n.text);
       } else if (n is Element) {
-        for (final child in n.nodes) {
-          collect(child);
+        if (n.localName == 'br') {
+          buffer.write(' ');
+        } else {
+          for (final child in n.nodes) {
+            collect(child);
+          }
         }
       }
     }

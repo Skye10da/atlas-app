@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'package:atlas_app/core/content_acquisition/utils/book_id_normalizer.dart';
 import 'package:atlas_app/core/database/database.dart';
 
 class SeedData {
@@ -69,9 +70,7 @@ class SeedData {
     }
   }
 
-  String _normalizeId(String title) {
-    return title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
-  }
+  String _normalizeId(String title) => BookIdNormalizer.normalize(title);
 }
 
 class _SampleBook {

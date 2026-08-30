@@ -9,9 +9,11 @@ import 'package:atlas_app/core/content_acquisition/adapters/source_adapter.dart'
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
+import 'package:atlas_app/core/import/epub_html_converter.dart';
 
 class EpubUrlSource implements SourceAdapter {
   List<EpubChapter>? _cachedFlatChapters;
+  static const _converter = EpubHtmlConverter();
 
   @override
   String get sourceName => 'EPUB URL';
@@ -36,11 +38,13 @@ class EpubUrlSource implements SourceAdapter {
         for (final entry in content.html.entries) {
           final raw = entry.value.content;
           if (raw == null) continue;
-          final text = _stripHtml(raw).trim();
+          final text = _converter.convert(raw).trim();
           if (text.isEmpty) continue;
+          final title = _converter.extractTitle(raw) ??
+              'Chapter ${_cachedFlatChapters!.length + 1}';
           _cachedFlatChapters!.add(
             EpubChapter(
-              title: 'Chapter ${_cachedFlatChapters!.length + 1}',
+              title: title,
               htmlContent: raw,
               subChapters: [],
             ),
@@ -89,10 +93,10 @@ class EpubUrlSource implements SourceAdapter {
       final html = ch.htmlContent;
       if (html == null) continue;
 
-      final text = _stripHtml(html).trim();
+      final text = _converter.convert(html).trim();
       if (text.isEmpty) continue;
 
-      final chTitle = ch.title ?? 'Chapter ${index + 1}';
+      final chTitle = ch.title ?? _converter.extractTitle(html) ?? 'Chapter ${index + 1}';
       results.add(
         ChapterModel(
           id: '${novel.sourceId}_ch$index',
@@ -186,29 +190,6 @@ class EpubUrlSource implements SourceAdapter {
     final imageFile = book.content?.images[href];
     final bytes = imageFile?.content;
     return bytes != null ? Uint8List.fromList(bytes) : null;
-  }
-
-  String _stripHtml(String html) {
-    return html
-        .replaceAll(
-          RegExp(r'<head>.*?</head>', dotAll: true, caseSensitive: false),
-          '',
-        )
-        .replaceAll(
-          RegExp(
-            r'<script.*?>.*?</script>',
-            dotAll: true,
-            caseSensitive: false,
-          ),
-          '',
-        )
-        .replaceAll(
-          RegExp(r'<style.*?>.*?</style>', dotAll: true, caseSensitive: false),
-          '',
-        )
-        .replaceAll(RegExp(r'<[^>]*>'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
   }
 
   List<EpubChapter> _flattenChapters(List<EpubChapter> chapters) {

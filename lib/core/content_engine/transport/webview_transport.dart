@@ -58,13 +58,12 @@ class WebViewTransport implements Transport {
   final WebViewFetchService _service;
 
   @override
-  Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) async {
-    final webView = await _tryWebView(url, headers: headers);
-    if (webView?.body != null) return webView!.body!;
-    return _inner(
+  Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) {
+    return _exec(
       () => inner.fetchHtml(url, headers: headers),
       url,
-      (r) => r.body!,
+      headers: headers,
+      decode: (r) => r.body ?? '',
     );
   }
 
@@ -73,29 +72,24 @@ class WebViewTransport implements Transport {
     Uri url, {
     Map<String, String>? headers,
     Map<String, String>? form,
-  }) async {
-    final webView = await _tryWebView(
+  }) {
+    return _exec(
+      () => inner.fetchHtmlPost(url, headers: headers, form: form),
       url,
       headers: headers,
       method: 'POST',
       jsonBody: form,
-    );
-    if (webView?.body != null) return webView!.body!;
-    return _inner(
-      () => inner.fetchHtmlPost(url, headers: headers, form: form),
-      url,
-      (r) => r.body!,
+      decode: (r) => r.body ?? '',
     );
   }
 
   @override
-  Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
-    final webView = await _tryWebView(url, headers: headers);
-    if (webView?.body != null) return jsonDecode(webView!.body!);
-    return _inner(
+  Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) {
+    return _exec(
       () => inner.fetchJson(url, headers: headers),
       url,
-      (r) => jsonDecode(r.body!),
+      headers: headers,
+      decode: (r) => r.body == null ? null : jsonDecode(r.body!),
     );
   }
 
@@ -104,77 +98,99 @@ class WebViewTransport implements Transport {
     Uri url, {
     Map<String, String>? headers,
     Object? jsonBody,
-  }) async {
-    final webView = await _tryWebView(
+  }) {
+    return _exec(
+      () => inner.fetchJsonPost(url, headers: headers, jsonBody: jsonBody),
       url,
       headers: headers,
       method: 'POST',
       jsonBody: jsonBody,
-    );
-    if (webView?.body != null) return jsonDecode(webView!.body!);
-    return _inner(
-      () => inner.fetchJsonPost(url, headers: headers, jsonBody: jsonBody),
-      url,
-      (r) => jsonDecode(r.body!),
+      decode: (r) => r.body == null ? null : jsonDecode(r.body!),
     );
   }
 
   @override
-  Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {
-    // Try the webview first with binary mode: the in-page fetcher uses
-    // arrayBuffer() + base64 to transfer raw bytes without UTF-8 corruption.
-    // The webview carries the browser's cookies and TLS fingerprint, so it
-    // can pass Cloudflare bot challenges that block plain HTTP.
-    final webView = await _tryWebView(url, headers: headers, binary: true);
-    if (webView?.bytes != null) return webView!.bytes!;
-    if (webView?.body != null) return utf8.encode(webView!.body!);
-    return _inner(
+  Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) {
+    return _exec(
       () => inner.fetchBytes(url, headers: headers),
       url,
-      (r) => r.bytes ?? utf8.encode(r.body!),
+      headers: headers,
+      binary: true,
+      decode: (r) => r.bytes ?? (r.body != null ? utf8.encode(r.body!) : const <int>[]),
     );
   }
 
-  /// Runs [run] against the inner transport. On a session wall (401/403 that
-  /// is *not* Cloudflare), notifies [SessionRefreshService] so the app can
-  /// offer a re-verify pass. On a Cloudflare bot-challenge error, retries
-  /// through the webview — the background view may have navigated to the site
-  /// and solved the challenge by the time the HTTP fallback fails. When the
-  /// webview cannot serve it either, the challenge escalates to the
-  /// session-refresh flow (same as a session wall): the refresh webview loads
-  /// the challenged URL, the user passes the bot check, and fresh cookies are
-  /// captured for the retry.
-  Future<T> _inner<T>(
+  /// High-performance HTTP-First execution:
+  /// Executes [run] against the inner transport (fast HTTP + cookie replay).
+  ///
+  /// Only on a bot challenge (Cloudflare 403/503) or session wall does it:
+  /// 1. Try a live open browser tab on that origin (if available).
+  /// 2. If unresolved, escalate to [SessionRefreshService] so the app can
+  ///    offer a visible re-verify pass.
+  Future<T> _exec<T>(
     Future<T> Function() run,
-    Uri url,
-    T Function(WebViewFetchResult) decode,
-  ) async {
+    Uri url, {
+    Map<String, String>? headers,
+    String? method,
+    Object? jsonBody,
+    bool binary = false,
+    required T Function(WebViewFetchResult) decode,
+  }) async {
     try {
       return await run();
     } on TransportException catch (e) {
-      if (e.sessionExpired) {
-        SessionRefreshService.instance.markInvalid(url, seedUrl: url);
-        rethrow;
-      }
-      // Cloudflare bot check — retry through webview as a last resort.
-      // The first _tryWebView() may have returned null because the
-      // background view hadn't loaded the site yet; by now it has had time
-      // to navigate and solve the challenge.
-      final retry = await _tryWebView(url);
-      if (retry?.body != null || retry?.bytes != null) return decode(retry!);
-      if (e.botChallenge) {
-        // The webview could not solve it either. Escalate to the quick
-        // re-verify flow and surface as session-expired so the reader's
-        // auto-recovery (see reader_providers.dart) runs a visible webview
-        // that passes the challenge and captures cookies for the retry.
+      if (e.sessionExpired || e.botChallenge) {
+        // Try live open browser tab if present
+        final liveResult = await _tryLiveWebView(
+          url,
+          headers: headers,
+          method: method,
+          jsonBody: jsonBody,
+          binary: binary,
+        );
+        if (liveResult != null && (liveResult.body != null || liveResult.bytes != null)) {
+          return decode(liveResult);
+        }
+
+        // Escalate to session refresh
         SessionRefreshService.instance.markInvalid(
           url,
           seedUrl: url,
           verificationProbe: () => _challengeCleared(url),
         );
-        throw TransportException(e.message, cause: e, sessionExpired: true);
+        throw TransportException(
+          e.message,
+          cause: e,
+          sessionExpired: true,
+          botChallenge: e.botChallenge,
+        );
       }
       rethrow;
+    }
+  }
+
+  Future<WebViewFetchResult?> _tryLiveWebView(
+    Uri url, {
+    Map<String, String>? headers,
+    String? method,
+    Object? jsonBody,
+    bool binary = false,
+  }) async {
+    final fetcher = _service.fetcher;
+    if (fetcher == null) return null;
+    try {
+      final result = await fetcher(
+        url,
+        headers: headers,
+        method: method,
+        jsonBody: jsonBody,
+        binary: binary,
+      );
+      if (result == null) return null;
+      if (result.isSessionWall || result.isBotChallenge) return null;
+      return result;
+    } on Object {
+      return null;
     }
   }
 
@@ -192,45 +208,5 @@ class WebViewTransport implements Transport {
     } on Object {
       return false;
     }
-  }
-
-  Future<WebViewFetchResult?> _tryWebView(
-    Uri url, {
-    Map<String, String>? headers,
-    String? method,
-    Object? jsonBody,
-    bool binary = false,
-  }) async {
-    for (final fetcher in [_service.fetcher, _service.fallbackFetcher]) {
-      if (fetcher == null) continue;
-      try {
-        final result = await fetcher(
-          url,
-          headers: headers,
-          method: method,
-          jsonBody: jsonBody,
-          binary: binary,
-        );
-        if (result == null) continue;
-        if (result.body == null && result.bytes == null) continue;
-        if (result.isSessionWall) {
-          SessionRefreshService.instance.markInvalid(url, seedUrl: url);
-          continue;
-        }
-        // A Cloudflare interstitial is *not* a session wall — the webview may
-        // still be waiting out the JS challenge, so serving its HTML as
-        // chapter content would hide the bot check behind an "empty content"
-        // failure and skip the re-verify flow entirely. Skip it; the caller
-        // (WebViewTransport._inner) escalates the bot challenge to the session
-        // refresh flow instead.
-        if (result.isBotChallenge) {
-          continue;
-        }
-        return result;
-      } on Object {
-        // A broken fetcher must not kill the request; try the next layer.
-      }
-    }
-    return null;
   }
 }

@@ -27,9 +27,9 @@ mixin ReaderChromeController<T extends StatefulWidget> on State<T> {
   double? _brightnessDragStartY;
   double? _brightnessDragStartValue;
 
-  bool get isDesktop => MediaQuery.of(context).size.width >= 840;
+  bool get isDesktop => MediaQuery.sizeOf(context).width >= 840;
   bool get isWideDesktop =>
-      isDesktop && MediaQuery.of(context).size.width >= 1200;
+      isDesktop && MediaQuery.sizeOf(context).width >= 1200;
 
   /// Call from initState.
   void initReaderChrome({required bool isDarkTheme}) {

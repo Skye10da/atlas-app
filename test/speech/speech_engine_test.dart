@@ -95,6 +95,20 @@ SpeechSession _session() => SpeechSession(
   settings: const NarrationSettings(),
 );
 
+SpeechSession _sessionLong() => SpeechSession(
+  bookId: 'b1',
+  chapterId: 'c1',
+  queue: SpeechQueue([
+    _item(0, 0),
+    _item(0, 1),
+    _item(1, 0),
+    _item(1, 1),
+    _item(2, 0),
+    _item(2, 1),
+  ]),
+  settings: const NarrationSettings(),
+);
+
 Future<void> _flush() => Future<void>.delayed(Duration.zero);
 
 void main() {
@@ -154,7 +168,7 @@ void main() {
   );
 
   test('checkpoint is flushed after every 5 sentences', () async {
-    await engine.loadSession(_session());
+    await engine.loadSession(_sessionLong());
     await engine.start();
     for (var i = 0; i < 5; i++) {
       driver.complete();

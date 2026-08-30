@@ -7,8 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
@@ -26,6 +28,7 @@ import 'package:atlas_app/reader/presentation/widgets/reader_edge_regions.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
 import 'package:atlas_app/reader/presentation/widgets/now_playing_panel.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_annotations_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_right_panel.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
@@ -44,6 +47,7 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
     required this.onCurrentChapterChanged,
     required this.onScrollDirectionChanged,
     required this.onSettingsTap,
+    this.onSearchTap,
     required this.onChapterSelected,
     required this.isBookmarked,
     required this.onBookmarkToggle,
@@ -55,6 +59,7 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
     this.onSearchWeb,
     this.onListen,
     this.onErase,
+    required void Function() onOpenAnnotations,
   });
 
   final List<ChapterEntity> chapters;
@@ -75,6 +80,7 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
   final void Function(int) onCurrentChapterChanged;
   final void Function(ScrollDirection) onScrollDirectionChanged;
   final VoidCallback onSettingsTap;
+  final VoidCallback? onSearchTap;
   final void Function(int) onChapterSelected;
   final bool isBookmarked;
   final VoidCallback onBookmarkToggle;
@@ -82,8 +88,13 @@ class ContinuousReaderLayout extends ConsumerStatefulWidget {
   final String? coverPath;
 
   /// Context-menu callbacks forwarded to every chapter view.
-  final void Function(String text, Color color, int start, int end)?
-  onHighlight;
+  final void Function(
+    String text,
+    Color color,
+    int start,
+    int end, {
+    HighlightStyleType styleType,
+  })? onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
@@ -201,7 +212,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    final isDesktop = MediaQuery.of(context).size.width >= 840;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 840;
     if (!isDesktop) return KeyEventResult.ignored;
 
     final common = handleCommonReaderKeys(
@@ -216,6 +227,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     );
     if (common != KeyEventResult.ignored) return common;
 
+    final screenHeight = MediaQuery.sizeOf(context).height;
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       if (!_itemScrollController.isAttached) return KeyEventResult.handled;
       resetChromeTimer(
@@ -224,7 +236,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
       );
       unawaited(
         _scrollOffsetController.animateScroll(
-          offset: -MediaQuery.of(context).size.height * 0.4,
+          offset: -screenHeight * 0.4,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
         ),
@@ -239,7 +251,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
       );
       unawaited(
         _scrollOffsetController.animateScroll(
-          offset: MediaQuery.of(context).size.height * 0.4,
+          offset: screenHeight * 0.4,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
         ),
@@ -254,7 +266,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
       );
       unawaited(
         _scrollOffsetController.animateScroll(
-          offset: -MediaQuery.of(context).size.height * 0.85,
+          offset: -screenHeight * 0.85,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
         ),
@@ -269,7 +281,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
       );
       unawaited(
         _scrollOffsetController.animateScroll(
-          offset: MediaQuery.of(context).size.height * 0.85,
+          offset: screenHeight * 0.85,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
         ),
@@ -479,6 +491,15 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
   void _reportPosition(Iterable<ItemPosition> positions) {
     final onPosition = widget.onPositionChanged;
     if (onPosition == null) return;
+    // Suppress position reports while an exact-position restore is pending.
+    // The old guard only checked _pendingRestoreCharOffset, which stays null
+    // until the chapter content loads asynchronously — letting position 0 slip
+    // through and overwrite the saved progress before the restore lands.
+    if (!_restoreApplied &&
+        widget.restorePosition != null &&
+        widget.restorePosition! > 0) {
+      return;
+    }
     final total = widget.chapters.length;
     if (total == 0) return;
     final visible = positions.where(
@@ -492,12 +513,19 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
         .read(readerChapterContentProvider(widget.chapters[top.index]))
         .valueOrNull;
     if (content == null || content.isEmpty) return;
-    final within = (-top.itemLeadingEdge).clamp(0.0, 1.0);
+    final extent = top.itemTrailingEdge - top.itemLeadingEdge;
+    final within = extent > 0
+        ? ((-top.itemLeadingEdge) / extent).clamp(0.0, 1.0)
+        : 0.0;
     final charOffset = (within * content.length).round().clamp(
       0,
       content.length,
     );
-    final resolved = _resolver.resolve(content, charOffset);
+    final resolved = _resolver.resolveFirstWithinRange(
+      content,
+      charOffset,
+      content.length,
+    );
     final last = _lastReportedPosition;
     if (last != null &&
         last.index == resolved.index &&
@@ -579,7 +607,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     if (notification.dragDetails == null) return false;
     if (_snapInFlight) return false;
     if (!_itemScrollController.isAttached) return false;
-    final viewport = MediaQuery.of(context).size.height;
+    final viewport = MediaQuery.sizeOf(context).height;
     final page = (_scrollOffset / viewport).round();
     final correction = page * viewport - _scrollOffset;
     // Already snapped: animating a ~zero distance makes animateTo fall back
@@ -709,7 +737,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     final colorScheme = Theme.of(context).colorScheme;
     final cs = ChapterStyle.forChapter(index, colorScheme);
 
-    return Column(
+    final block = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (showHeaders) ...[
@@ -751,6 +779,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
           onSearchWeb: widget.onSearchWeb,
           onListen: widget.onListen,
           onErase: widget.onErase,
+          onTap: _toggleChrome,
         ),
         if (showHeaders)
           ChapterOrnamentalDivider(
@@ -765,6 +794,25 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
           ),
       ],
     );
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: AppBreakpoints.readerContentMaxWidth,
+        ),
+        child: block,
+      ),
+    );
+  }
+
+  void _toggleChrome() {
+    if (rightPanelVisible || narrationPanelVisible) {
+      hideRightPanel();
+      return;
+    }
+    toggleChrome(
+      isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark,
+    );
   }
 
   @override
@@ -775,8 +823,8 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
     final index = widget.currentChapterIndex;
 
     // Resolve the resume sentence to a character offset once its chapter's
-    // content is available; the target ChapterView reveals it once, then we
-    // clear it so it never re-fires on a later build/navigation.
+    // content is available; the target ChapterView reveals it once with exact
+    // caret offset, then we clear it so it never re-fires on a later build/navigation.
     if (!_restoreApplied && _pendingRestoreCharOffset == null) {
       _pendingRestoreCharOffset = _resolveRestoreCharOffset();
     }
@@ -792,10 +840,8 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
               child: ReaderChromeBar(
                 title: chapters[index].title,
                 textColor: colorScheme.onSurface,
-                showPanelToggle: isDesktop,
-                rightPanelVisible: rightPanelVisible,
-                onTogglePanel: toggleRightPanel,
                 onSettingsTap: widget.onSettingsTap,
+                onSearchTap: widget.onSearchTap,
               ),
             )
           : null,
@@ -814,17 +860,7 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
               return _handleKeyEvent(node, event);
             },
             child: GestureDetector(
-              onTap: () {
-                if (rightPanelVisible || narrationPanelVisible) {
-                  hideRightPanel();
-                  return;
-                }
-                toggleChrome(
-                  isDarkTheme:
-                      Theme.of(context).colorScheme.brightness ==
-                      Brightness.dark,
-                );
-              },
+              onTap: _toggleChrome,
               child: _wrapWithAnimation(
                 ScrollablePositionedList.builder(
                   itemScrollController: _itemScrollController,
@@ -833,6 +869,10 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
                   scrollOffsetListener: _scrollOffsetListener,
                   physics: _scrollPhysics,
                   itemCount: chapters.length,
+                  initialScrollIndex: widget.currentChapterIndex.clamp(
+                    0,
+                    math.max(0, chapters.length - 1),
+                  ),
                   itemBuilder: (context, index) => _buildChapterBlock(
                     chapters[index],
                     index,
@@ -887,12 +927,11 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
                 onPressed: _revealNarration,
               ),
             ),
-          if (isDesktop)
+          if (isDesktop && (rightPanelVisible || narrationPanelVisible))
             DesktopRightPanelRegion(
               visible: rightPanelVisible || narrationPanelVisible,
               chromeVisible: chromeVisible,
               panelWidth: ReaderChromeController.rightPanelWidth,
-              onHoverReveal: showRightPanelOnHover,
               panel: narrationPanelVisible
                   ? NowPlayingPanel(
                       bookTitle: widget.bookTitle,
@@ -930,7 +969,25 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
               onToggleBookmark: widget.onBookmarkToggle,
               isBookmarked: widget.isBookmarked,
               onToggleSettings: widget.onSettingsTap,
-              onTogglePanel: toggleRightPanel,
+              onOpenAnnotations: () {
+                ReaderAnnotationsSheet.show(
+                  context,
+                  bookId: chapters.first.bookId,
+                  chapters: chapters,
+                  currentChapterId: chapters[index].id,
+                  bookTitle: widget.bookTitle,
+                  coverPath: widget.coverPath,
+                  onJumpToChapter: (chId, _) {
+                    final idx = chapters.indexWhere((c) => c.id == chId);
+                    if (idx >= 0) {
+                      widget.onChapterSelected(idx);
+                      WidgetsBinding.instance.addPostFrameCallback(
+                        (_) => _scrollToChapter(idx),
+                      );
+                    }
+                  },
+                );
+              },
               onClose: () => setState(() => commandPaletteVisible = false),
             ),
           if (!narrationPanelVisible)
@@ -955,11 +1012,28 @@ class _ContinuousReaderLayoutState extends ConsumerState<ContinuousReaderLayout>
               child: ReaderBottomNav(
                 textColor: colorScheme.onSurface,
                 onSettingsTap: widget.onSettingsTap,
-                onChapterIndexTap: _useSidePanels
-                    ? toggleRightPanel
-                    : () => _showChapterIndex(context),
+                onChapterIndexTap: () => _showChapterIndex(context),
                 onBookmarkTap: widget.onBookmarkToggle,
                 isBookmarked: widget.isBookmarked,
+                onAnnotationsTap: () {
+                  ReaderAnnotationsSheet.show(
+                    context,
+                    bookId: chapters.first.bookId,
+                    chapters: chapters,
+                    currentChapterId: chapters[index].id,
+                    bookTitle: widget.bookTitle,
+                    coverPath: widget.coverPath,
+                    onJumpToChapter: (chId, _) {
+                      final idx = chapters.indexWhere((c) => c.id == chId);
+                      if (idx >= 0) {
+                        widget.onChapterSelected(idx);
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _scrollToChapter(idx),
+                        );
+                      }
+                    },
+                  );
+                },
                 currentChapterTitle: chapters[index].title,
                 currentChapterNumber: index,
                 totalChapters: chapters.length,

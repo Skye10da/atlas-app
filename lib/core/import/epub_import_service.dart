@@ -12,8 +12,10 @@ import 'package:xml/xml.dart' as xml;
 
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
+import 'package:atlas_app/core/content_acquisition/utils/book_id_normalizer.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/core/import/epub_html_converter.dart';
 
 class EpubImportService {
   const EpubImportService(this._db);
@@ -113,7 +115,22 @@ class EpubImportService {
         await File(coverPath).writeAsBytes(parsed.coverBytes!);
       }
 
-      // Build chapter metadata (text already stripped in isolate)
+      // Write all embedded images concurrently
+      if (parsed.images.isNotEmpty) {
+        await Future.wait([
+          for (final entry in parsed.images.entries)
+            () async {
+              final imgPath = p.join(bookDir.path, entry.key);
+              final parent = Directory(p.dirname(imgPath));
+              if (!await parent.exists()) {
+                await parent.create(recursive: true);
+              }
+              await File(imgPath).writeAsBytes(entry.value);
+            }(),
+        ]);
+      }
+
+      // Build chapter metadata
       final chapterData = <_ChapterData>[];
       for (var i = 0; i < parsed.chapters.length; i++) {
         final ch = parsed.chapters[i];
@@ -195,9 +212,7 @@ class EpubImportService {
     }
   }
 
-  String _normalizeId(String title) {
-    return title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
-  }
+  String _normalizeId(String title) => BookIdNormalizer.normalize(title);
 }
 
 List<EpubChapter> _flattenChapters(List<EpubChapter> chapters) {
@@ -310,7 +325,19 @@ Future<_ParsedEpub> _parseEpubBytes(List<int> bytes) async {
     }
   }
 
-  // Strip HTML for all chapters in the isolate (CPU-heavy regex work)
+  // Extract all images in the isolate
+  final extractedImages = <String, Uint8List>{};
+  final allImages = book.content?.images ?? {};
+  for (final entry in allImages.entries) {
+    final rawBytes = entry.value.content;
+    if (rawBytes != null && rawBytes.isNotEmpty) {
+      final normalizedKey = entry.key.replaceAll(r'\', '/');
+      extractedImages[normalizedKey] = Uint8List.fromList(rawBytes);
+    }
+  }
+
+  // Convert HTML for all chapters in the isolate using EpubHtmlConverter
+  const converter = EpubHtmlConverter();
   final chapters = <_ProcessedChapter>[];
   var idx = 0;
   final flatChapters = _flattenChapters(book.chapters);
@@ -318,9 +345,16 @@ Future<_ParsedEpub> _parseEpubBytes(List<int> bytes) async {
   for (final epubChapter in flatChapters) {
     final html = epubChapter.htmlContent;
     if (html == null) continue;
-    final text = _stripHtml(html).trim();
+    final chapterHref = epubChapter.contentFileName ?? 'ch$idx.xhtml';
+    final text = converter.convert(
+      html,
+      imageResolver: (rawSrc) =>
+          EpubHtmlConverter.normalizeImagePath(chapterHref, rawSrc),
+    ).trim();
     if (text.isEmpty) continue;
-    final chTitle = epubChapter.title ?? 'Chapter ${idx + 1}';
+    final chTitle = epubChapter.title ??
+        converter.extractTitle(html) ??
+        'Chapter ${idx + 1}';
     chapters.add(_ProcessedChapter(title: chTitle, text: text));
     idx++;
   }
@@ -331,11 +365,17 @@ Future<_ParsedEpub> _parseEpubBytes(List<int> bytes) async {
       for (final entry in content.html.entries) {
         final raw = entry.value.content;
         if (raw == null) continue;
-        final text = _stripHtml(raw).trim();
+        final text = converter.convert(
+          raw,
+          imageResolver: (rawSrc) =>
+              EpubHtmlConverter.normalizeImagePath(entry.key, rawSrc),
+        ).trim();
         if (text.isEmpty) continue;
+        final chTitle = converter.extractTitle(raw) ??
+            'Chapter ${chapters.length + 1}';
         chapters.add(
           _ProcessedChapter(
-            title: 'Chapter ${chapters.length + 1}',
+            title: chTitle,
             text: text,
           ),
         );
@@ -353,6 +393,7 @@ Future<_ParsedEpub> _parseEpubBytes(List<int> bytes) async {
     chapters: chapters,
     coverBytes: coverBytes,
     coverExtension: coverExt,
+    images: extractedImages,
   );
 }
 
@@ -381,7 +422,7 @@ EpubBook _readBookFromSpine(List<int> bytes) {
     utf8.decode(containerEntry.content),
   );
   final rootFilePath = containerDoc
-      .findAllElements('rootfile')
+      .findAllElements('rootfile', namespace: '*')
       .firstOrNull
       ?.getAttribute('full-path');
   if (rootFilePath == null || rootFilePath.isEmpty) {
@@ -390,7 +431,7 @@ EpubBook _readBookFromSpine(List<int> bytes) {
   final rootDir = rootFilePath.contains('/')
       ? '${rootFilePath.substring(0, rootFilePath.lastIndexOf('/'))}/'
       : '';
-  final opfEntry = fileMap[rootFilePath];
+  final opfEntry = fileMap[rootFilePath] ?? fileMap[rootDir.isNotEmpty ? rootFilePath.replaceFirst(rootDir, '') : rootFilePath];
   if (opfEntry == null) {
     throw const FormatException('EPUB package document not found');
   }
@@ -399,7 +440,7 @@ EpubBook _readBookFromSpine(List<int> bytes) {
   // Metadata elements are typically dc:-prefixed (dc:title, dc:creator), so
   // match on local name (namespace: '*') rather than the qualified name that
   // findAllElements defaults to.
-  final metaNode = opfDoc.findAllElements('metadata').firstOrNull;
+  final metaNode = opfDoc.findAllElements('metadata', namespace: '*').firstOrNull;
   final title = metaNode
       ?.findAllElements('title', namespace: '*')
       .firstOrNull
@@ -430,7 +471,7 @@ EpubBook _readBookFromSpine(List<int> bytes) {
   final html = <String, EpubTextContentFile>{};
   final images = <String, EpubByteContentFile>{};
 
-  for (final item in opfDoc.findAllElements('item')) {
+  for (final item in opfDoc.findAllElements('item', namespace: '*')) {
     final id = item.getAttribute('id');
     if (id == null) continue;
     final href = item.getAttribute('href') ?? '';
@@ -449,7 +490,11 @@ EpubBook _readBookFromSpine(List<int> bytes) {
       ),
     );
     if (href.isEmpty) continue;
-    final entry = fileMap[rootDir + href];
+    final entry = fileMap[rootDir + href] ??
+        fileMap[href] ??
+        (rootDir.isNotEmpty && href.startsWith(rootDir)
+            ? fileMap[href.substring(rootDir.length)]
+            : null);
     if (entry == null) continue;
     if (mediaType.contains('xhtml')) {
       html[href] = EpubTextContentFile(
@@ -467,7 +512,7 @@ EpubBook _readBookFromSpine(List<int> bytes) {
   }
 
   final spineOrder = <String>[];
-  for (final itemRef in opfDoc.findAllElements('itemref')) {
+  for (final itemRef in opfDoc.findAllElements('itemref', namespace: '*')) {
     final idRef = itemRef.getAttribute('idref');
     if (idRef != null) spineOrder.add(idRef);
   }
@@ -565,6 +610,7 @@ class _ParsedEpub {
     required this.chapters,
     required this.coverBytes,
     required this.coverExtension,
+    this.images = const {},
   });
 
   final String title;
@@ -576,6 +622,7 @@ class _ParsedEpub {
   final List<_ProcessedChapter> chapters;
   final Uint8List? coverBytes;
   final String? coverExtension;
+  final Map<String, Uint8List> images;
 }
 
 class _ChapterData {

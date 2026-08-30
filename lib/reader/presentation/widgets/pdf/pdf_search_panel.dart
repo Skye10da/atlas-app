@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+
 /// Text search panel bound to a [PdfTextSearcher] created by the viewer.
 class PdfSearchPanel extends StatefulWidget {
   const PdfSearchPanel({
-    required this.textSearcher,
-    required this.nightMode,
     super.key,
+    required this.textSearcher,
+    this.nightMode = false,
   });
 
   final PdfTextSearcher textSearcher;
@@ -75,11 +77,11 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final searcher = widget.textSearcher;
     final matches = searcher.matches;
     final isSearching = searcher.isSearching;
     final hasQuery = _searchTextController.text.isNotEmpty;
-    final nightMode = widget.nightMode;
 
     return Column(
       children: [
@@ -92,53 +94,66 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
                 )
               : null,
         ),
-        Row(
-          children: [
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _searchTextController,
-                decoration: const InputDecoration(
-                  hintText: 'Search document',
-                  isDense: true,
-                  border: InputBorder.none,
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchTextController,
+                  decoration: InputDecoration(
+                    hintText: 'Search document…',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
+                      borderSide: BorderSide(
+                        color: colors.outlineVariant.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  textInputAction: TextInputAction.search,
                 ),
-                textInputAction: TextInputAction.search,
               ),
-            ),
-            if (searcher.hasMatches || isSearching)
-              Flexible(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 4),
+              const SizedBox(width: 4),
+              if (searcher.hasMatches || isSearching)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
                     '${(searcher.currentIndex ?? -1) + 1}/${matches.length}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 12,
-                      color: nightMode ? Colors.white70 : Colors.grey.shade600,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
                 ),
-              ),
-            Flexible(
-              child: _CompactIconButton(
-                icon: Icons.arrow_upward,
+              IconButton(
+                icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 20),
                 tooltip: 'Previous match',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
                 onPressed: matches.isEmpty ? null : _goToPrevMatch,
               ),
-            ),
-            Flexible(
-              child: _CompactIconButton(
-                icon: Icons.arrow_downward,
+              IconButton(
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
                 tooltip: 'Next match',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
                 onPressed: matches.isEmpty ? null : _goToNextMatch,
               ),
-            ),
-            Flexible(
-              child: _CompactIconButton(
-                icon: Icons.close,
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 18),
                 tooltip: 'Clear search',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
                 onPressed: hasQuery
                     ? () {
                         _searchTextController.clear();
@@ -146,17 +161,18 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
                       }
                     : null,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const Divider(height: 1),
+        Divider(height: 1, color: colors.outlineVariant.withValues(alpha: 0.3)),
         Expanded(
           child: matches.isEmpty
               ? Center(
                   child: Text(
-                    hasQuery ? 'No results' : 'Search document',
+                    hasQuery ? 'No results found' : 'Type to search document',
                     style: TextStyle(
-                      color: nightMode ? Colors.white70 : Colors.grey,
+                      color: colors.onSurfaceVariant,
+                      fontSize: 13,
                     ),
                   ),
                 )
@@ -167,7 +183,6 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
                   itemBuilder: (context, index) => _ResultTile(
                     match: matches[index],
                     isCurrent: index == searcher.currentIndex,
-                    nightMode: nightMode,
                     onTap: () => _goToMatchAt(index),
                   ),
                 ),
@@ -177,53 +192,33 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
   }
 }
 
-class _CompactIconButton extends StatelessWidget {
-  const _CompactIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(icon, size: 20),
-      tooltip: tooltip,
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      onPressed: onPressed,
-    );
-  }
-}
-
 class _ResultTile extends StatelessWidget {
   const _ResultTile({
     required this.match,
     required this.isCurrent,
-    required this.nightMode,
     required this.onTap,
   });
 
   final PdfPageTextRange match;
   final bool isCurrent;
-  final bool nightMode;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: 6,
+        ),
         decoration: BoxDecoration(
-          color: isCurrent ? Colors.amber.withAlpha(90) : null,
+          color: isCurrent ? colors.primary.withValues(alpha: 0.12) : null,
           border: Border(
             bottom: BorderSide(
-              color: nightMode ? Colors.white12 : Colors.black12,
+              color: colors.outlineVariant.withValues(alpha: 0.3),
               width: 0.5,
             ),
           ),
@@ -236,9 +231,9 @@ class _ResultTile extends StatelessWidget {
                   children: [
                     TextSpan(
                       text: match.text,
-                      style: const TextStyle(
-                        backgroundColor: Colors.yellow,
-                        color: Colors.black,
+                      style: TextStyle(
+                        backgroundColor: Colors.amber.withValues(alpha: 0.35),
+                        color: colors.onSurface,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -248,16 +243,16 @@ class _ResultTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 13,
-                  color: nightMode ? Colors.white : Colors.black87,
+                  color: colors.onSurface,
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Text(
-              'page ${match.pageNumber}',
+              'Page ${match.pageNumber}',
               style: TextStyle(
                 fontSize: 11,
-                color: nightMode ? Colors.black87 : Colors.grey.shade600,
+                color: colors.onSurfaceVariant,
               ),
             ),
           ],

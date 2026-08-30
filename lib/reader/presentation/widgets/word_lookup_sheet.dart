@@ -222,11 +222,26 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  widget.word,
-                  style: textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.word,
+                      style: const TextStyle(
+                        fontFamily: 'Playfair Display',
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (_result?.phonetic != null && _result!.phonetic!.isNotEmpty)
+                      Text(
+                        _result!.phonetic!,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.primary,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                  ],
                 ),
               ),
               _SpeakButton(

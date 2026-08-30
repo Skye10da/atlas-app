@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+
 /// Document outline (a.k.a. table of contents / bookmarks) navigator.
 class PdfOutlinePanel extends StatefulWidget {
   const PdfOutlinePanel({
+    super.key,
     required this.outline,
     required this.onSelected,
-    required this.nightMode,
-    super.key,
+    this.nightMode = false,
   });
 
   final List<PdfOutlineNode> outline;
@@ -23,26 +25,36 @@ class _PdfOutlinePanelState extends State<PdfOutlinePanel> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     if (widget.outline.isEmpty) {
       return Center(
-        child: Text(
-          'This document has no outline',
-          style: TextStyle(
-            color: widget.nightMode ? Colors.white70 : Colors.grey,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Text(
+            'This document has no outline',
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              fontSize: 13,
+            ),
           ),
         ),
       );
     }
+
     final rows = <_OutlineRow>[];
     for (final node in widget.outline) {
       _flatten(node, 0, rows);
     }
+
     return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       itemCount: rows.length,
       itemBuilder: (context, index) {
         final row = rows[index];
         final hasChildren = row.node.children.isNotEmpty;
         final isExpanded = _expanded.contains(row.node);
+
         return InkWell(
           onTap: () {
             if (hasChildren) {
@@ -57,19 +69,25 @@ class _PdfOutlinePanelState extends State<PdfOutlinePanel> {
             widget.onSelected(row.node);
           },
           child: Padding(
-            padding: EdgeInsets.only(left: 12.0 + row.depth * 16, right: 8),
+            padding: EdgeInsets.only(
+              left: AppSpacing.md + row.depth * 16,
+              right: AppSpacing.sm,
+            ),
             child: SizedBox(
-              height: 36,
+              height: 40,
               child: Row(
                 children: [
                   if (hasChildren)
                     Icon(
-                      isExpanded ? Icons.expand_more : Icons.chevron_right,
-                      size: 18,
-                      color: widget.nightMode ? Colors.white70 : Colors.grey,
+                      isExpanded
+                          ? Icons.keyboard_arrow_down_rounded
+                          : Icons.chevron_right_rounded,
+                      size: 20,
+                      color: colors.onSurfaceVariant,
                     )
                   else
-                    const SizedBox(width: 18),
+                    const SizedBox(width: 20),
+                  const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       row.node.title,
@@ -77,7 +95,8 @@ class _PdfOutlinePanelState extends State<PdfOutlinePanel> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
-                        color: widget.nightMode ? Colors.white : Colors.black87,
+                        fontWeight: row.depth == 0 ? FontWeight.w500 : FontWeight.normal,
+                        color: colors.onSurface,
                       ),
                     ),
                   ),
@@ -102,6 +121,7 @@ class _PdfOutlinePanelState extends State<PdfOutlinePanel> {
 
 class _OutlineRow {
   const _OutlineRow(this.node, this.depth);
+
   final PdfOutlineNode node;
   final int depth;
 }

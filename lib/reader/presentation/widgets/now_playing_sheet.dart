@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide WordBoundary;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -74,11 +75,18 @@ class _NowPlayingSheetState extends ConsumerState<NowPlayingSheet> {
     final activeItem = ref.watch(activeSpeechItemProvider);
     final boundary = ref.watch(activeWordBoundaryProvider);
 
-    final title = widget.chapterTitle ?? widget.bookTitle ?? 'Listen';
+    final effectiveCoverPath = widget.coverPath ?? session?.coverPath;
+    final effectiveBookTitle = widget.bookTitle ?? session?.bookTitle;
+    final effectiveChapterTitle = widget.chapterTitle ??
+        (session != null && session.chapterId.startsWith('pdf_page_')
+            ? 'Page ${session.chapterId.replaceFirst('pdf_page_', '')}'
+            : null);
+
+    final title = effectiveChapterTitle ?? effectiveBookTitle ?? 'Listen';
     final subtitle =
-        widget.bookTitle != null && widget.bookTitle != widget.chapterTitle
-        ? widget.bookTitle
-        : null;
+        effectiveBookTitle != null && effectiveBookTitle != effectiveChapterTitle
+            ? effectiveBookTitle
+            : null;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -88,100 +96,123 @@ class _NowPlayingSheetState extends ConsumerState<NowPlayingSheet> {
         final maxWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
-        // Size the cover from the *available* height as well as width so the
-        // sheet fills the side panel / bottom sheet while still fitting on
-        // short windows — without flex or intrinsic tricks that crash layout.
+
+        // Size the cover efficiently so all elements (cover, title, lyrics,
+        // progress, controls) fit without forcing scrollbars when settings are collapsed.
+        final availableForCover = maxHeight - 280.0;
         final coverCap = math.min(
-          math.min(maxWidth * 0.6, 280.0),
-          math.max(120.0, (maxHeight - 260.0) / 1.4),
+          math.min(maxWidth * 0.42, 180.0),
+          math.max(80.0, availableForCover / 1.4),
         );
+
         return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: maxHeight),
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                const SizedBox(height: AppSpacing.sm),
-                _CoverArt(coverPath: widget.coverPath, maxSize: coverCap),
-                const SizedBox(height: AppSpacing.md),
+          physics: _showSettings
+              ? const AlwaysScrollableScrollPhysics()
+              : const ClampingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.xs,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: session != null
+                    ? () {
+                        Navigator.of(context).maybePop();
+                        if (session.chapterId.startsWith('pdf_page_')) {
+                          final page =
+                              session.chapterId.replaceFirst('pdf_page_', '');
+                          context.push('/reader/${session.bookId}?page=$page');
+                        } else {
+                          context.push(
+                            '/reader/${session.bookId}?chapterId=${session.chapterId}',
+                          );
+                        }
+                      }
+                    : null,
+                child: _CoverArt(
+                  coverPath: effectiveCoverPath,
+                  maxSize: coverCap,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
                 Text(
-                  title,
+                  subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onSurface,
+                    fontSize: 13,
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                _Lyrics(
-                  item: activeItem,
-                  boundary: boundary,
-                  status: status,
-                  hasSession: hasSession,
-                ),
-                if (queue != null && queue.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  _QueueProgress(
-                    cursor: queue.cursor,
-                    length: queue.length,
-                    color: colorScheme.onSurface.withValues(alpha: 0.4),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                _TransportControls(
-                  status: status,
-                  queue: queue,
-                  accent: colorScheme.primary,
-                  color: colorScheme.onSurface,
-                  settingsExpanded: _showSettings,
-                  onToggleSettings: () =>
-                      setState(() => _showSettings = !_showSettings),
-                ),
-                if (_showSettings) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Divider(color: colorScheme.onSurface.withValues(alpha: 0.12)),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      Text(
-                        'Narration',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Icon(
-                        Icons.tune,
-                        size: 18,
-                        color: colorScheme.onSurface.withValues(alpha: 0.5),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  const NarrationTab(),
-                ],
-                const SizedBox(height: AppSpacing.sm),
               ],
-            ),
+              const SizedBox(height: AppSpacing.md),
+              _Lyrics(
+                item: activeItem,
+                boundary: boundary,
+                status: status,
+                hasSession: hasSession,
+              ),
+              if (queue != null && queue.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                _QueueProgress(
+                  cursor: queue.cursor,
+                  length: queue.length,
+                  color: colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              _TransportControls(
+                status: status,
+                queue: queue,
+                accent: colorScheme.primary,
+                color: colorScheme.onSurface,
+                settingsExpanded: _showSettings,
+                onToggleSettings: () =>
+                    setState(() => _showSettings = !_showSettings),
+              ),
+              if (_showSettings) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Divider(color: colorScheme.onSurface.withValues(alpha: 0.12)),
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    Text(
+                      'Narration',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Icon(
+                      Icons.tune,
+                      size: 18,
+                      color: colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                const NarrationTab(),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+            ],
           ),
         );
       },
@@ -195,41 +226,58 @@ class _CoverArt extends StatelessWidget {
   const _CoverArt({this.coverPath, required this.maxSize});
 
   final String? coverPath;
-
-  /// Largest allowed cover width (its height is [maxSize] * 1.4), computed
-  /// by the parent from both the available width and height.
   final double maxSize;
 
   @override
   Widget build(BuildContext context) {
     final size = maxSize.isFinite && maxSize > 0 ? maxSize : 160.0;
-    return _build(size);
-  }
+    final colorScheme = Theme.of(context).colorScheme;
 
-  Widget _build(double size) {
-    return Container(
-      width: size,
-      height: size * 1.4,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Ambient soft blur glow behind cover
+        Container(
+          width: size * 0.9,
+          height: size * 1.3,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.primary.withValues(alpha: 0.28),
+                blurRadius: 36,
+                spreadRadius: 4,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        child: coverPath != null
-            ? Image.file(
-                File(coverPath!),
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const _CoverPlaceholder(),
-              )
-            : const _CoverPlaceholder(),
-      ),
+        ),
+        // Primary Cover Image Card
+        Container(
+          width: size,
+          height: size * 1.4,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.28),
+                blurRadius: 28,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+            child: coverPath != null
+                ? Image.file(
+                    File(coverPath!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const _CoverPlaceholder(),
+                  )
+                : const _CoverPlaceholder(),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -253,8 +301,8 @@ class _CoverPlaceholder extends StatelessWidget {
   }
 }
 
-/// The karaoke lyric line: the current sentence with the currently-spoken
-/// word emphasized, exactly as Apple Music highlights the active lyric.
+/// The karaoke lyric line with ShaderMask top/bottom fade: the current sentence
+/// with the currently-spoken word emphasized, exactly as Apple Music highlights.
 class _Lyrics extends StatelessWidget {
   const _Lyrics({
     required this.item,
@@ -292,13 +340,13 @@ class _Lyrics extends StatelessWidget {
     }
 
     final dim = TextStyle(
-      fontSize: 13,
+      fontSize: 14,
       height: 1.5,
       fontWeight: FontWeight.w500,
-      color: colorScheme.onSurface.withValues(alpha: 0.45),
+      color: colorScheme.onSurface.withValues(alpha: 0.55),
     );
     final highlight = TextStyle(
-      fontSize: 14,
+      fontSize: 15,
       fontWeight: FontWeight.w800,
       color: colorScheme.primary,
     );
@@ -319,11 +367,25 @@ class _Lyrics extends StatelessWidget {
       lyricSpan = TextSpan(text: sentence, style: dim);
     }
 
-    return Text.rich(
-      lyricSpan,
-      textAlign: TextAlign.center,
-      maxLines: 3,
-      overflow: TextOverflow.ellipsis,
+    return ShaderMask(
+      shaderCallback: (Rect bounds) {
+        return const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent],
+          stops: [0.0, 0.08, 0.92, 1.0],
+        ).createShader(bounds);
+      },
+      blendMode: BlendMode.dstIn,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: Text.rich(
+          lyricSpan,
+          textAlign: TextAlign.center,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
     );
   }
 }
@@ -433,19 +495,20 @@ class _TransportControls extends ConsumerWidget {
                     onTap: () => unawaited(engine.skipPrevious()),
                   ),
                   const SizedBox(width: AppSpacing.md),
-                  _TransportButton(
-                    icon: switch (status) {
-                      NarrationStatus.playing => Icons.pause_circle_filled,
-                      NarrationStatus.paused => Icons.play_circle_filled,
-                      NarrationStatus.idle => Icons.play_circle_filled,
-                    },
-                    size: 56,
-                    iconColor: accent,
-                    tooltip: status == NarrationStatus.playing
-                        ? 'Pause'
-                        : 'Play',
-                    color: color,
-                    onTap: () => unawaited(_toggle(engine, status)),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
+                    child: _TransportButton(
+                      key: ValueKey(status == NarrationStatus.playing),
+                      icon: status == NarrationStatus.playing
+                          ? Icons.pause_circle_filled
+                          : Icons.play_circle_filled,
+                      size: 58,
+                      iconColor: accent,
+                      tooltip: status == NarrationStatus.playing ? 'Pause' : 'Play',
+                      color: color,
+                      onTap: () => unawaited(_toggle(engine, status)),
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   _TransportButton(
@@ -568,6 +631,7 @@ class _SettingsToggleButton extends StatelessWidget {
 
 class _TransportButton extends StatelessWidget {
   const _TransportButton({
+    super.key,
     required this.icon,
     required this.color,
     required this.onTap,

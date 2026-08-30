@@ -12,9 +12,11 @@ import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/molecules/app_empty_state.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
+import 'package:atlas_app/core/design_system/molecules/app_search_bar.dart';
+import 'package:atlas_app/core/design_system/molecules/confirm_delete_dialog.dart';
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
-import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/file_open_providers.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -37,6 +39,19 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final _searchController = TextEditingController();
+  bool _showSearchBar = false;
+  bool _isSelectionMode = false;
+  final Set<String> _selectedBookIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    final initialQuery = ref.read(librarySearchQueryProvider);
+    if (initialQuery.isNotEmpty) {
+      _searchController.text = initialQuery;
+      _showSearchBar = true;
+    }
+  }
 
   @override
   void dispose() {
@@ -49,54 +64,133 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final libraryAsync = ref.watch(libraryViewModelProvider);
     final libraryState = libraryAsync.valueOrNull ?? const LibraryState();
     final importActions = ref.watch(libraryImportProvider);
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 900;
-    final isBigDesktop = width >= 1200;
-    final isTablet = width >= 600 && !isDesktop;
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= AppBreakpoints.tablet;
+    final isBigDesktop = width >= AppBreakpoints.largeDesktop;
+    final isTablet = width >= AppBreakpoints.mobile && !isDesktop;
+
+    final cs = Theme.of(context).colorScheme;
 
     return AppScaffold(
-      title: 'Library',
-      actions: [
-        if (importActions.isImporting)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Theme.of(context).colorScheme.primary,
+      title: _isSelectionMode
+          ? '${_selectedBookIds.length} Selected'
+          : 'Library',
+      actions: _isSelectionMode
+          ? [
+              IconButton(
+                icon: Icon(
+                  _selectedBookIds.length == libraryState.filteredBooks.length &&
+                          libraryState.filteredBooks.isNotEmpty
+                      ? Icons.deselect_rounded
+                      : Icons.select_all_rounded,
+                ),
+                tooltip: _selectedBookIds.length ==
+                            libraryState.filteredBooks.length &&
+                        libraryState.filteredBooks.isNotEmpty
+                    ? 'Deselect all'
+                    : 'Select all',
+                onPressed: () {
+                  setState(() {
+                    if (_selectedBookIds.length ==
+                        libraryState.filteredBooks.length) {
+                      _selectedBookIds.clear();
+                    } else {
+                      _selectedBookIds
+                          .addAll(libraryState.filteredBooks.map((b) => b.id));
+                    }
+                  });
+                },
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  color: _selectedBookIds.isEmpty ? cs.onSurfaceVariant : cs.error,
+                ),
+                tooltip: 'Delete selected',
+                onPressed:
+                    _selectedBookIds.isEmpty ? null : () => _confirmDeleteSelected(),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Cancel selection',
+                onPressed: () {
+                  setState(() {
+                    _isSelectionMode = false;
+                    _selectedBookIds.clear();
+                  });
+                },
+              ),
+            ]
+          : [
+              if (importActions.isImporting)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: cs.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        importActions.progress.message ?? 'Importing...',
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  importActions.progress.message ?? 'Importing...',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-              ],
-            ),
-          )
-        else
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _showAddSheet(),
-            tooltip: 'Add to library',
-          ),
-        IconButton(
-          icon: libraryState.isCheckingUpdates
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(Icons.sync),
-          tooltip: 'Check ongoing novels for updates',
-          onPressed: libraryState.isCheckingUpdates ? null : () => _checkAllUpdates(),
-        ),
-      ],
+              else ...[
+                IconButton(
+                  icon: Icon(
+                    _showSearchBar || libraryState.searchQuery.isNotEmpty
+                        ? Icons.search_off_rounded
+                        : Icons.search_rounded,
+                  ),
+                  tooltip:
+                      _showSearchBar || libraryState.searchQuery.isNotEmpty
+                          ? 'Close search'
+                          : 'Search library',
+                  onPressed: () {
+                    setState(() {
+                      if (_showSearchBar ||
+                          libraryState.searchQuery.isNotEmpty) {
+                        _showSearchBar = false;
+                        _searchController.clear();
+                        ref
+                            .read(libraryViewModelProvider.notifier)
+                            .setSearchQuery('');
+                      } else {
+                        _showSearchBar = true;
+                      }
+                    });
+                  },
+                ),
+                if (libraryState.filteredBooks.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () => _showAddSheet(),
+                    tooltip: 'Add to library',
+                  ),
+              ],
+              IconButton(
+                icon: libraryState.isCheckingUpdates
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync),
+                tooltip: 'Check ongoing novels for updates',
+                onPressed: libraryState.isCheckingUpdates
+                    ? null
+                    : () => _checkAllUpdates(),
+              ),
+            ],
       child: _buildContent(
         ref,
         libraryAsync,
@@ -137,59 +231,46 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget _buildContent(
     WidgetRef ref,
     AsyncValue<LibraryState> libraryAsync,
-    LibraryState libraryState,
+    LibraryState state,
     bool isImporting,
     bool isDesktop,
     bool isBigDesktop,
     bool isTablet,
   ) {
+    final showSearch = _showSearchBar || state.searchQuery.isNotEmpty;
+
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Filter books...',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              suffixIcon: libraryState.searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, size: 18),
-                      onPressed: () {
-                        _searchController.clear();
-                        ref
-                            .read(libraryViewModelProvider.notifier)
-                            .setSearchQuery('');
-                      },
-                    )
-                  : null,
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 8),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onChanged: (v) =>
-                ref.read(libraryViewModelProvider.notifier).setSearchQuery(v),
-          ),
-        ),
-        if (!isBigDesktop) ...[
+        if (showSearch)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: AppSearchBar(
+              controller: _searchController,
+              hint: 'Search library...',
+              autofocus: _showSearchBar && state.searchQuery.isEmpty,
+              onChanged: (q) =>
+                  ref.read(libraryViewModelProvider.notifier).setSearchQuery(q),
+            ),
+          ),
+        if (!isDesktop && !_isSelectionMode)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: SizedBox(
               width: double.infinity,
               child: SegmentedButton<LibraryCategory>(
                 segments: const [
                   ButtonSegment(
-                    value: LibraryCategory.books,
-                    label: Text('Books'),
-                  ),
-                  ButtonSegment(
                     value: LibraryCategory.novels,
                     label: Text('Novels'),
+                    icon: Icon(Icons.auto_stories_rounded, size: 16),
+                  ),
+                  ButtonSegment(
+                    value: LibraryCategory.books,
+                    label: Text('Books'),
+                    icon: Icon(Icons.menu_book_rounded, size: 16),
                   ),
                 ],
-                selected: {libraryState.category},
+                selected: {state.category},
                 onSelectionChanged: (selected) {
                   ref
                       .read(libraryViewModelProvider.notifier)
@@ -202,27 +283,41 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ),
           ),
-          if (libraryState.genreFilter case final genre?)
-            Padding(
-              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
-              child: Row(
-                children: [
-                  Chip(
-                    label: Text(genre, style: const TextStyle(fontSize: 12)),
-                    deleteIcon: const Icon(Icons.close, size: 16),
-                    onDeleted: () => ref
-                        .read(libraryViewModelProvider.notifier)
-                        .setGenreFilter(null),
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        if (state.category == LibraryCategory.novels &&
+            state.availableGenres.isNotEmpty &&
+            !_isSelectionMode)
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              children: [
+                FilterChip(
+                  label: const Text('All'),
+                  selected: state.genreFilter == null,
+                  onSelected: (_) => ref
+                      .read(libraryViewModelProvider.notifier)
+                      .setGenreFilter(null),
+                ),
+                const SizedBox(width: 8),
+                ...state.availableGenres.map(
+                  (tag) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(tag),
+                      selected: state.genreFilter == tag,
+                      onSelected: (selected) => ref
+                          .read(libraryViewModelProvider.notifier)
+                          .setGenreFilter(selected ? tag : null),
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-        ],
+          ),
         Expanded(
           child: libraryAsync.when(
-            loading: () => const AppLoading(),
+            loading: () => const Center(child: AppLoading()),
             error: (error, _) => AppErrorState(
               message: 'Something went wrong.',
               technicalDetails: error.toString(),
@@ -231,10 +326,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             data: (state) => _BookshelfContent(
               books: state.filteredBooks,
               recentBooks: state.recentBooks,
+              searchQuery: state.searchQuery,
               isDesktop: isDesktop,
               isBigDesktop: isBigDesktop,
               isTablet: isTablet,
+              isSelectionMode: _isSelectionMode,
+              selectedIds: _selectedBookIds,
               onBookTap: (id) {
+                if (_isSelectionMode) {
+                  setState(() {
+                    if (_selectedBookIds.contains(id)) {
+                      _selectedBookIds.remove(id);
+                    } else {
+                      _selectedBookIds.add(id);
+                    }
+                  });
+                  return;
+                }
                 if (isDesktop) {
                   ref.read(libraryViewModelProvider.notifier).selectBook(id);
                 } else {
@@ -248,7 +356,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   }
                 }
               },
-              onBookLongPress: (id, pos) => _showBookContextMenu(id, pos),
+              onBookLongPress: (id, pos) {
+                if (_isSelectionMode) {
+                  setState(() {
+                    if (_selectedBookIds.contains(id)) {
+                      _selectedBookIds.remove(id);
+                    } else {
+                      _selectedBookIds.add(id);
+                    }
+                  });
+                } else {
+                  setState(() {
+                    _isSelectionMode = true;
+                    _selectedBookIds.add(id);
+                  });
+                }
+              },
               onLoadSamples: () => _loadSamples(),
               onImport: () => _showAddSheet(),
               onDeleteBook: (id) => _deleteBook(id),
@@ -259,58 +382,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ),
       ],
     );
-  }
-
-  void _showBookContextMenu(String bookId, Offset globalPosition) {
-    final overlay = Overlay.of(context);
-    late OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (ctx) => Stack(
-        children: [
-          GestureDetector(
-            onTap: () => entry.remove(),
-            behavior: HitTestBehavior.opaque,
-            child: Container(color: Colors.transparent),
-          ),
-          Material(
-            type: MaterialType.transparency,
-            child: AppContextMenu(
-              anchor: globalPosition,
-              quickActions: [
-                AppContextMenuAction(
-                  label: 'Continue',
-                  icon: Icons.play_arrow_rounded,
-                  onPressed: () => context.push('/reader/$bookId'),
-                ),
-                AppContextMenuAction(
-                  label: 'Details',
-                  icon: Icons.info_outline_rounded,
-                  onPressed: () {
-                    final books = ref.read(filteredLibraryProvider);
-                    final book = books.where((b) => b.id == bookId).firstOrNull;
-                    if (book?.isNovel == true) {
-                      context.push('/novel/$bookId');
-                    } else {
-                      context.push('/book/$bookId');
-                    }
-                  },
-                ),
-              ],
-              listActions: [
-                AppContextMenuAction(
-                  label: 'Delete',
-                  icon: Icons.delete_outline_rounded,
-                  onPressed: () => _deleteBook(bookId),
-                  destructive: true,
-                ),
-              ],
-              onDismiss: () => entry.remove(),
-            ),
-          ),
-        ],
-      ),
-    );
-    overlay.insert(entry);
   }
 
   void _loadSamples() {
@@ -324,33 +395,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     actions.importLocal(context).then((result) {
       ref.invalidate(libraryBooksProvider);
       if (result is Success<ImportOutcome> && mounted) {
-        final route = result.value.category == ContentCategory.novel
-            ? '/novel/${result.value.bookId}'
-            : '/book/${result.value.bookId}';
-        context.push(route);
+        if (result.value.bookId.startsWith('batch:')) {
+          final count = result.value.bookId.split(':').last;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Successfully imported $count books.')),
+          );
+        } else {
+          final route = result.value.category == ContentCategory.novel
+              ? '/novel/${result.value.bookId}'
+              : '/book/${result.value.bookId}';
+          context.push(route);
+        }
       }
     });
   }
 
   Future<void> _deleteBook(String bookId) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete book?'),
-        content: const Text(
-          'This will permanently remove the book and all reading progress.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await ConfirmDeleteDialog.show(
+      context,
+      title: 'Delete book?',
+      message: 'This will permanently remove the book and all reading progress.',
+      confirmLabel: 'Delete',
     );
 
     if (confirmed != true || !mounted) return;
@@ -367,26 +432,62 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       );
     }
   }
+
+  Future<void> _confirmDeleteSelected() async {
+    final count = _selectedBookIds.length;
+    if (count == 0) return;
+
+    final confirmed = await ConfirmDeleteDialog.show(
+      context,
+      title: 'Delete $count ${count == 1 ? 'book' : 'books'}?',
+      message:
+          'This will permanently remove $count ${count == 1 ? 'book' : 'books'} and all reading progress from your library.',
+      confirmLabel: 'Delete $count ${count == 1 ? 'Book' : 'Books'}',
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final idsToDelete = _selectedBookIds.toList();
+    final actions = ref.read(libraryDeleteProvider);
+    final result = await actions.deleteMultiple(idsToDelete);
+    ref.invalidate(libraryBooksProvider);
+
+    if (mounted) {
+      setState(() {
+        _isSelectionMode = false;
+        _selectedBookIds.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        result is Success
+            ? SnackBar(content: Text('Deleted $count books'))
+            : SnackBar(content: Text((result as Failure).error.userMessage)),
+      );
+    }
+  }
 }
 
 class _BookshelfContent extends ConsumerStatefulWidget {
   const _BookshelfContent({
     required this.books,
     required this.recentBooks,
-    required this.isTablet,
     required this.isDesktop,
     required this.isBigDesktop,
+    required this.isTablet,
     required this.onBookTap,
     required this.onBookLongPress,
     required this.onLoadSamples,
     required this.onImport,
     required this.onDeleteBook,
+    this.searchQuery = '',
     this.isImporting = false,
     this.selectedBookId,
+    this.isSelectionMode = false,
+    this.selectedIds = const {},
   });
 
   final List<BookEntity> books;
   final List<BookEntity> recentBooks;
+  final String searchQuery;
   final bool isTablet;
   final bool isDesktop;
   final bool isBigDesktop;
@@ -397,6 +498,8 @@ class _BookshelfContent extends ConsumerStatefulWidget {
   final void Function(String id) onDeleteBook;
   final bool isImporting;
   final String? selectedBookId;
+  final bool isSelectionMode;
+  final Set<String> selectedIds;
 
   @override
   ConsumerState<_BookshelfContent> createState() => _BookshelfContentState();
@@ -409,6 +512,7 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
   Widget build(BuildContext context) {
     final books = widget.books;
     final recentBooks = widget.recentBooks;
+    final searchQuery = widget.searchQuery;
     final isTablet = widget.isTablet;
     final isDesktop = widget.isDesktop;
     final onBookTap = widget.onBookTap;
@@ -417,9 +521,36 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
     final onImport = widget.onImport;
     final onDeleteBook = widget.onDeleteBook;
     final isImporting = widget.isImporting;
+    final isSelectionMode = widget.isSelectionMode;
+    final selectedIds = widget.selectedIds;
     final layout = ref.watch(bookshelfLayoutProvider);
 
     if (books.isEmpty) {
+      if (searchQuery.isNotEmpty) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppEmptyState(
+                title: 'No results found',
+                message: 'No books match "$searchQuery".',
+                icon: Icons.search_off_rounded,
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  ref
+                      .read(libraryViewModelProvider.notifier)
+                      .setSearchQuery('');
+                },
+                icon: const Icon(Icons.clear_rounded, size: 18),
+                label: const Text('Clear search'),
+              ),
+            ],
+          ),
+        );
+      }
+
       return DropTarget(
         onDragDone: (details) => _handleFileDrop(details),
         onDragEntered: (_) => setState(() => _dragging = true),
@@ -472,7 +603,7 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
               Expanded(
                 child: ListView(
                   children: [
-                    if (recentBooks.isNotEmpty)
+                    if (recentBooks.isNotEmpty && !isSelectionMode)
                       ContinueReadingStrip(
                         books: recentBooks,
                         onBookTap: onBookTap,
@@ -489,7 +620,9 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Bookshelf',
+                            isSelectionMode
+                                ? 'Select books'
+                                : 'Bookshelf',
                             style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(fontWeight: FontWeight.w600),
                           ),
@@ -532,17 +665,23 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
                         books: books,
                         isDesktop: isDesktop,
                         isTablet: isTablet,
+                        isSelectionMode: isSelectionMode,
+                        selectedIds: selectedIds,
                         onBookTap: onBookTap,
                         onBookLongPress: onBookLongPress,
                         onDeleteBook: onDeleteBook,
                       ),
                       BookshelfLayout.list => BookshelfList(
                         books: books,
+                        isSelectionMode: isSelectionMode,
+                        selectedIds: selectedIds,
                         onBookTap: onBookTap,
                         onDeleteBook: onDeleteBook,
                       ),
                       BookshelfLayout.scattered => BookshelfScattered(
                         books: books,
+                        isSelectionMode: isSelectionMode,
+                        selectedIds: selectedIds,
                         onBookTap: onBookTap,
                         onDeleteBook: onDeleteBook,
                       ),
@@ -550,7 +689,7 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
                   ],
                 ),
               ),
-              if (isDesktop && widget.selectedBookId != null) ...[
+              if (isDesktop && widget.selectedBookId != null && !isSelectionMode) ...[
                 const VerticalDivider(width: 1),
                 SizedBox(
                   width: 400,
@@ -584,7 +723,7 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
             Icon(Icons.add_to_photos, size: 48, color: cs.onPrimaryContainer),
             const SizedBox(height: 12),
             Text(
-              'Drop file to import',
+              'Drop file(s) to import',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(color: cs.onPrimaryContainer),
@@ -597,18 +736,46 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
 
   Future<void> _handleFileDrop(DropDoneDetails details) async {
     setState(() => _dragging = false);
+    if (details.files.isEmpty) return;
+
     final importer = ref.read(openedFileImportServiceProvider);
     final router = GoRouter.of(context);
-    for (final file in details.files) {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (details.files.length == 1) {
+      final file = details.files.first;
       final bytes = await file.readAsBytes();
       final name = file.name;
       final result = await importer.importBytes(bytes.toList(), name);
       ref.invalidate(libraryBooksProvider);
-      if (result is! Success<ImportOutcome> || !mounted) continue;
-      final route = result.value.category == ContentCategory.novel
-          ? '/novel/${result.value.bookId}'
-          : '/book/${result.value.bookId}';
-      unawaited(router.push(route));
+      if (result is Success<ImportOutcome> && mounted) {
+        final route = result.value.category == ContentCategory.novel
+            ? '/novel/${result.value.bookId}'
+            : '/book/${result.value.bookId}';
+        unawaited(router.push(route));
+      }
+      return;
+    }
+
+    messenger.showSnackBar(
+      SnackBar(content: Text('Importing ${details.files.length} books...')),
+    );
+
+    int count = 0;
+    for (final file in details.files) {
+      final bytes = await file.readAsBytes();
+      final name = file.name;
+      final result = await importer.importBytes(bytes.toList(), name);
+      if (result is Success<ImportOutcome>) {
+        count++;
+      }
+    }
+    ref.invalidate(libraryBooksProvider);
+
+    if (mounted) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Successfully imported $count books.')),
+      );
     }
   }
 

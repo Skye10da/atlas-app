@@ -18,6 +18,7 @@ import 'package:atlas_app/core/content_acquisition/services/prefetch_engine.dart
 import 'package:atlas_app/core/content_engine/image/image_pipeline.dart';
 import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/database/database.dart';
+import 'package:atlas_app/core/content_acquisition/utils/book_id_normalizer.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_import_service.dart';
 
 class ImportOutcome {
@@ -263,14 +264,7 @@ class ContentAcquisitionEngine {
     return resumed;
   }
 
-  String _normalizeId(String title) {
-    final id = title
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
-        .replaceAll(RegExp(r'_+'), '_')
-        .replaceAll(RegExp(r'^_|_$'), '');
-    return id.length > 48 ? '${id.substring(0, 48)}_${id.hashCode.abs()}' : id;
-  }
+  String _normalizeId(String title) => BookIdNormalizer.normalize(title);
 
   /// Downloads a cover through the [ImagePipeline] when one is wired in
   /// (content-addressed, deduped), copying the result into the book dir.

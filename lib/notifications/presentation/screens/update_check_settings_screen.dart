@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:atlas_app/core/content_acquisition/application/chapter_update_service.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/notifications/domain/entities/update_check_settings.dart';
 import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
@@ -28,88 +28,163 @@ class _UpdateCheckSettingsScreenState
     final settings =
         ref.watch(updateCheckSettingsProvider).valueOrNull ??
         const UpdateCheckSettings.defaults();
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Novel Updates')),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        children: [
-          const SectionHeader(title: 'UPDATE CHECKING'),
-          SettingsGroup(
+      appBar: AppBar(
+        title: const Text(
+          'Novel Updates',
+          style: TextStyle(
+            fontFamily: 'Playfair Display',
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.formContentMaxWidth,
+          ),
+          child: ListView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
             children: [
-              SwitchTile(
-                title: 'Check ongoing novels',
-                subtitle:
-                    'Periodically look for newly released chapters of novels '
-                    'you track',
-                value: settings.enabled,
-                onChanged: ref
-                    .read(updateCheckSettingsProvider.notifier)
-                    .setEnabled,
-              ),
-              if (settings.enabled)
-                ChoiceTile<int>(
-                  title: 'Check interval',
-                  value: settings.intervalHours,
-                  options: const [
-                    (6, 'Every 6 h'),
-                    (12, 'Every 12 h'),
-                    (24, 'Daily'),
-                  ],
-                  onChanged: ref
-                      .read(updateCheckSettingsProvider.notifier)
-                      .setIntervalHours,
+              // 1. Info Card
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+                  border: Border.all(
+                    color: colors.outlineVariant.withValues(alpha: 0.35),
+                  ),
                 ),
-            ],
-          ),
-          const SectionHeader(title: 'NOTIFICATIONS'),
-          SettingsGroup(
-            children: [
-              SwitchTile(
-                title: 'New-chapter notifications',
-                subtitle:
-                    'Show a system notification when new chapters '
-                    'are found',
-                value: settings.notificationsEnabled,
-                onChanged: ref
-                    .read(updateCheckSettingsProvider.notifier)
-                    .setNotificationsEnabled,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: colors.primaryContainer,
+                      child: Icon(Icons.sync_rounded, color: colors.onPrimaryContainer, size: 22),
+                    ),
+                    const SizedBox(width: AppSpacing.smMd),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Background Chapter Tracker',
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Automatically queries web novel sources for fresh chapter releases',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: AppSpacing.lg),
+
+              // 2. Frequency & Checking Section
+              _CardSection(
+                title: 'Check Schedule',
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Check Ongoing Novels'),
+                      subtitle: const Text('Periodically look for newly released chapters of tracked novels'),
+                      value: settings.enabled,
+                      onChanged: ref.read(updateCheckSettingsProvider.notifier).setEnabled,
+                    ),
+                    if (settings.enabled) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      const Divider(),
+                      const SizedBox(height: AppSpacing.sm),
+                      ChoiceTile<int>(
+                        title: 'Check Interval',
+                        value: settings.intervalHours,
+                        options: const [
+                          (6, 'Every 6 hours'),
+                          (12, 'Every 12 hours'),
+                          (24, 'Once daily'),
+                        ],
+                        onChanged: ref.read(updateCheckSettingsProvider.notifier).setIntervalHours,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // 3. Notifications Section
+              _CardSection(
+                title: 'Notifications',
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Chapter Notifications'),
+                      subtitle: const Text('Show a system notification when newly released chapters are discovered'),
+                      value: settings.notificationsEnabled,
+                      onChanged: ref.read(updateCheckSettingsProvider.notifier).setNotificationsEnabled,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // 4. Actions Section
+              _CardSection(
+                title: 'Actions',
+                child: Column(
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.notifications_active_outlined, color: colors.primary),
+                      title: const Text('Send Test Notification'),
+                      subtitle: const Text('Verify that system alerts and channel sounds are working properly'),
+                      trailing: _testingNotification
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.chevron_right_rounded),
+                      onTap: _testingNotification ? null : () => _sendTestNotification(context),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.refresh_rounded, color: colors.primary),
+                      title: const Text('Check All Tracked Novels Now'),
+                      subtitle: const Text('Run an immediate check across your entire library'),
+                      trailing: _checking
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.chevron_right_rounded),
+                      onTap: _checking ? null : () => _runCheck(context),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xxl),
             ],
           ),
-          const SizedBox(height: AppSpacing.lg),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            child: OutlinedButton.icon(
-              icon: _testingNotification
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.notifications_active_outlined),
-              label: const Text('Send test notification'),
-              onPressed: _testingNotification
-                  ? null
-                  : () => _sendTestNotification(context),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            child: OutlinedButton.icon(
-              icon: _checking
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh),
-              label: const Text('Check all tracked novels now'),
-              onPressed: _checking ? null : () => _runCheck(context),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -130,8 +205,7 @@ class _UpdateCheckSettingsScreenState
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            'Update check failed: '
-            '${ChapterUpdateService.describeFailure(e)}',
+            'Failed to check for updates: $e',
           ),
         ),
       );
@@ -143,32 +217,62 @@ class _UpdateCheckSettingsScreenState
   Future<void> _sendTestNotification(BuildContext context) async {
     setState(() => _testingNotification = true);
     final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Test notification will appear in ~10 seconds '
-          '(grant the notification permission if prompted).',
-        ),
-      ),
-    );
     try {
-      final ok = await UpdateNotificationService.instance
-          .showTestNotification();
-      if (ok) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Test notification not shown — permission denied or '
-            'notifications unavailable.',
-          ),
-        ),
+      final success = await UpdateNotificationService.instance.showTestNotification(
+        delay: Duration.zero,
       );
-    } catch (_) {
+      if (success) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Test notification sent.')),
+        );
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Notifications are not permitted or supported on this device.')),
+        );
+      }
+    } catch (e) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Test notification failed.')),
+        SnackBar(content: Text('Could not send notification: $e')),
       );
     } finally {
       if (mounted) setState(() => _testingNotification = false);
     }
+  }
+}
+
+class _CardSection extends StatelessWidget {
+  const _CardSection({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.smMd),
+          child,
+        ],
+      ),
+    );
   }
 }

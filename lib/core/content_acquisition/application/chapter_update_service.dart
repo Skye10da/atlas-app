@@ -52,7 +52,7 @@ class ChapterUpdateService {
   ChapterUpdateService({
     required this.db,
     required this.registry,
-    this.fetchTimeout = const Duration(seconds: 30),
+    this.fetchTimeout = const Duration(seconds: 15),
   });
 
   final AppDatabase db;
@@ -194,7 +194,7 @@ class ChapterUpdateService {
 
   /// Refreshes every novel that has update tracking enabled and a usable
   /// source. Returns only the books that actually gained new chapters.
-  Future<LibraryUpdateCheckResult> checkTrackedBooks() async {
+  Future<LibraryUpdateCheckResult> checkTrackedBooks({int concurrency = 4}) async {
     final rows =
         await (db.select(db.books)..where(
               (b) =>
@@ -202,16 +202,27 @@ class ChapterUpdateService {
                   b.itemType.equals(ContentCategory.novel.name),
             ))
             .get();
+    final validBooks = rows
+        .where((b) => b.sourceUrl != null && b.sourceUrl!.isNotEmpty)
+        .toList();
     final updates = <BookRefreshOutcome>[];
-    for (final book in rows) {
-      if (book.sourceUrl == null || book.sourceUrl!.isEmpty) continue;
-      final outcome = await refreshBook(book.id);
-      if (outcome.success && outcome.newChapters > 0) {
-        updates.add(outcome);
+
+    for (var i = 0; i < validBooks.length; i += concurrency) {
+      final chunk = validBooks.sublist(
+        i,
+        (i + concurrency).clamp(0, validBooks.length),
+      );
+      final outcomes = await Future.wait(
+        chunk.map((book) => refreshBook(book.id)),
+      );
+      for (final outcome in outcomes) {
+        if (outcome.success && outcome.newChapters > 0) {
+          updates.add(outcome);
+        }
       }
-      // Give the UI isolate a frame between books so a long check-all run
-      // doesn't starve rendering.
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      if (i + concurrency < validBooks.length) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
     }
     return LibraryUpdateCheckResult(updates: updates);
   }

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
+import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/presentation/widgets/library_filter_panel.dart';
+import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.navigationShell});
@@ -18,12 +21,16 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 900;
-    final isBigDesktop = width >= 1200;
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= AppBreakpoints.tablet;
+    final isBigDesktop = width >= AppBreakpoints.largeDesktop;
+    final isTablet = width >= AppBreakpoints.mobile && !isDesktop;
 
     if (isDesktop) {
       return _buildDesktopLayout(isBigDesktop);
+    }
+    if (isTablet) {
+      return _buildTabletLayout();
     }
     return _buildMobileLayout();
   }
@@ -55,7 +62,85 @@ class _AppShellState extends State<AppShell> {
             width: 1,
             color: cs.outlineVariant.withValues(alpha: 0.5),
           ),
-          Expanded(child: widget.navigationShell),
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(child: widget.navigationShell),
+                const Positioned(
+                  left: AppSpacing.md,
+                  right: AppSpacing.md,
+                  bottom: AppSpacing.sm,
+                  child: NarrationMiniPlayer(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabletLayout() {
+    final cs = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: cs.surface,
+      body: Row(
+        children: [
+          NavigationRail(
+            selectedIndex: widget.navigationShell.currentIndex,
+            onDestinationSelected: (index) => widget.navigationShell.goBranch(
+              index,
+              initialLocation: index == widget.navigationShell.currentIndex,
+            ),
+            backgroundColor: cs.surfaceContainerLow,
+            indicatorColor: cs.secondaryContainer,
+            labelType: NavigationRailLabelType.all,
+            destinations: const [
+              NavigationRailDestination(
+                icon: Icon(Icons.explore_outlined),
+                selectedIcon: Icon(Icons.explore_rounded),
+                label: Text('Discover'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.auto_stories_outlined),
+                selectedIcon: Icon(Icons.auto_stories_rounded),
+                label: Text('Library'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.search_rounded),
+                selectedIcon: Icon(Icons.manage_search_rounded),
+                label: Text('Search'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.bookmarks_outlined),
+                selectedIcon: Icon(Icons.bookmarks_rounded),
+                label: Text('Saved'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.tune_outlined),
+                selectedIcon: Icon(Icons.tune_rounded),
+                label: Text('Settings'),
+              ),
+            ],
+          ),
+          VerticalDivider(
+            width: 1,
+            color: cs.outlineVariant.withValues(alpha: 0.5),
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(child: widget.navigationShell),
+                const Positioned(
+                  left: AppSpacing.md,
+                  right: AppSpacing.md,
+                  bottom: AppSpacing.sm,
+                  child: NarrationMiniPlayer(),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -66,32 +151,50 @@ class _AppShellState extends State<AppShell> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      body: widget.navigationShell,
+      body: Column(
+        children: [
+          Expanded(child: widget.navigationShell),
+          // System-wide narration mini player sitting directly above bottom bar
+          const NarrationMiniPlayer(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: widget.navigationShell.currentIndex,
         onDestinationSelected: (index) => widget.navigationShell.goBranch(
           index,
           initialLocation: index == widget.navigationShell.currentIndex,
         ),
-        backgroundColor: cs.surfaceContainer,
+        backgroundColor: cs.surfaceContainerLow,
         indicatorColor: cs.secondaryContainer,
         shadowColor: Colors.transparent,
+        elevation: 0,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.library_books),
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore_rounded),
+            label: 'Discover',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.auto_stories_outlined),
+            selectedIcon: Icon(Icons.auto_stories_rounded),
             label: 'Library',
           ),
-          NavigationDestination(icon: Icon(Icons.public), label: 'Web'),
           NavigationDestination(
-            icon: Icon(Icons.bookmark_border),
-            label: 'Bookmarks',
+            icon: Icon(Icons.search_rounded),
+            selectedIcon: Icon(Icons.manage_search_rounded),
+            label: 'Search',
           ),
-          NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
           NavigationDestination(
-            icon: Icon(Icons.menu_book),
-            label: 'Dictionary',
+            icon: Icon(Icons.bookmarks_outlined),
+            selectedIcon: Icon(Icons.bookmarks_rounded),
+            label: 'Saved',
           ),
-          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
+          NavigationDestination(
+            icon: Icon(Icons.tune_outlined),
+            selectedIcon: Icon(Icons.tune_rounded),
+            label: 'Settings',
+          ),
         ],
       ),
     );
@@ -118,7 +221,6 @@ class _DesktopSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
 
     return Container(
       width: width,
@@ -127,14 +229,21 @@ class _DesktopSidebar extends StatelessWidget {
         children: [
           if (isBigDesktop && !collapsed)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 18, 16, 12),
               child: Row(
                 children: [
-                  Icon(Icons.auto_stories, size: 22, color: cs.primary),
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: const BoxDecoration(shape: BoxShape.circle),
+                    child: Image.asset('assets/icon.png'),
+                  ),
                   const SizedBox(width: 10),
-                  Text(
+                  const Text(
                     'Atlas',
-                    style: textTheme.titleMedium?.copyWith(
+                    style: TextStyle(
+                      fontFamily: 'Playfair Display',
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -151,16 +260,15 @@ class _DesktopSidebar extends StatelessWidget {
             )
           else if (onToggleCollapse != null)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: IconButton(
-                icon: const Icon(Icons.menu, size: 20),
-                onPressed: onToggleCollapse,
-                tooltip: 'Expand sidebar',
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: GestureDetector(
+                onTap: onToggleCollapse,
+                child: Image.asset('assets/icon.png', width: 32, height: 32),
               ),
             ),
           const SizedBox(height: 8),
           ..._buildNavItems(context),
-          if (currentIndex == 0 && !collapsed) ...[
+          if (currentIndex == 1 && !collapsed) ...[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -174,7 +282,7 @@ class _DesktopSidebar extends StatelessWidget {
             ),
           ] else ...[
             const Spacer(),
-            if (currentIndex == 0 && onToggleCollapse != null)
+            if (currentIndex == 1 && onToggleCollapse != null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: IconButton(
@@ -190,13 +298,12 @@ class _DesktopSidebar extends StatelessWidget {
   }
 
   List<Widget> _buildNavItems(BuildContext context) {
-    final items = <(IconData, String)>[
-      (Icons.library_books, 'Library'),
-      (Icons.public, 'Web'),
-      (Icons.bookmark_border, 'Bookmarks'),
-      (Icons.search, 'Search'),
-      (Icons.menu_book, 'Dictionary'),
-      (Icons.settings, 'Settings'),
+    final items = <(IconData, IconData, String)>[
+      (Icons.explore_outlined, Icons.explore_rounded, 'Discover'),
+      (Icons.auto_stories_outlined, Icons.auto_stories_rounded, 'Library'),
+      (Icons.search_rounded, Icons.manage_search_rounded, 'Search'),
+      (Icons.bookmarks_outlined, Icons.bookmarks_rounded, 'Saved'),
+      (Icons.tune_outlined, Icons.tune_rounded, 'Settings'),
     ];
 
     return List.generate(items.length, (i) {
@@ -204,8 +311,8 @@ class _DesktopSidebar extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         child: _SidebarNavItem(
-          icon: items[i].$1,
-          label: items[i].$2,
+          icon: isSelected ? items[i].$2 : items[i].$1,
+          label: items[i].$3,
           isSelected: isSelected,
           collapsed: collapsed,
           onTap: () => onDestinationSelected(i),
@@ -262,6 +369,16 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
+                if (widget.isSelected && !widget.collapsed)
+                  Container(
+                    width: 3,
+                    height: 18,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: cs.primary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 Icon(
                   widget.icon,
                   size: 20,

@@ -9,12 +9,14 @@ class BookCover extends StatelessWidget {
   const BookCover({
     super.key,
     this.coverPath,
+    this.coverUrl,
     this.width = 56,
     this.height = 80,
     this.format = '',
   });
 
   final String? coverPath;
+  final String? coverUrl;
   final double width;
   final double height;
   final String format;
@@ -28,22 +30,44 @@ class BookCover extends StatelessWidget {
         color: AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
       ),
-      child: coverPath != null ? _imageOrPlaceholder() : _placeholder(),
+      child: _hasImage ? _imageOrPlaceholder() : _placeholder(),
     );
   }
 
+  bool get _hasImage =>
+      (coverPath != null && coverPath!.isNotEmpty) ||
+      (coverUrl != null && coverUrl!.isNotEmpty);
+
   Widget _imageOrPlaceholder() {
+    final pathOrUrl = (coverPath != null && coverPath!.isNotEmpty)
+        ? coverPath!
+        : (coverUrl ?? '');
+
+    final isNetwork = pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://');
+    final cacheW = width.isFinite ? (width * 2.5).round().clamp(100, 1200) : 400;
+    final cacheH = height.isFinite ? (height * 2.5).round().clamp(100, 1600) : 600;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
-      child: Image.file(
-        File(coverPath!),
-        width: width,
-        height: height,
-        fit: BoxFit.cover,
-        cacheWidth: (width * 3).round(),
-        cacheHeight: (height * 3).round(),
-        errorBuilder: (_, _, _) => _placeholder(),
-      ),
+      child: isNetwork
+          ? Image.network(
+              pathOrUrl,
+              width: width,
+              height: height,
+              fit: BoxFit.cover,
+              cacheWidth: cacheW,
+              cacheHeight: cacheH,
+              errorBuilder: (_, _, _) => _placeholder(),
+            )
+          : Image.file(
+              File(pathOrUrl),
+              width: width,
+              height: height,
+              fit: BoxFit.cover,
+              cacheWidth: cacheW,
+              cacheHeight: cacheH,
+              errorBuilder: (_, _, _) => _placeholder(),
+            ),
     );
   }
 
@@ -55,9 +79,11 @@ class BookCover extends StatelessWidget {
           switch (format) {
             'epub' => Icons.description,
             'pdf' => Icons.picture_as_pdf,
+            'txt' || 'text' => Icons.article_outlined,
+            'md' || 'markdown' => Icons.code,
             _ => Icons.book,
           },
-          size: width * 0.4,
+          size: width.isFinite ? width * 0.4 : 32,
           color: AppColors.onSurfaceVariant,
         ),
       ],

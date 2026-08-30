@@ -159,7 +159,7 @@ class _SheetScaffold extends StatelessWidget {
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.72,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.72,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

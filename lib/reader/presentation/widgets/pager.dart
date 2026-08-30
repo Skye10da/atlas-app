@@ -13,7 +13,17 @@ class PaginateChunkResult {
 }
 
 class Pager {
-  static final RegExp _whitespace = RegExp(r'\s');
+  static int _findLastWhitespace(String text, int fromIndex) {
+    if (fromIndex < 0 || text.isEmpty) return -1;
+    final limit = fromIndex < text.length ? fromIndex : text.length - 1;
+    for (var i = limit; i >= 0; i--) {
+      final code = text.codeUnitAt(i);
+      if (code == 32 || code == 10 || code == 13 || code == 9) {
+        return i;
+      }
+    }
+    return -1;
+  }
 
   static List<String> paginate({
     required String text,
@@ -74,7 +84,7 @@ class Pager {
       // splits a word — and since the original text (paragraph breaks and
       // indentation included) is kept verbatim, page strings stay
       // paragraph-accurate instead of being collapsed into single spaces.
-      final ws = text.lastIndexOf(_whitespace, end - 1);
+      final ws = _findLastWhitespace(text, end - 1);
       if (ws > start) end = ws + 1;
       pages.add(text.substring(start, end));
       start = end;
@@ -145,7 +155,7 @@ class Pager {
       }
 
       var end = lo > start ? lo : start + 1;
-      final ws = text.lastIndexOf(_whitespace, end - 1);
+      final ws = _findLastWhitespace(text, end - 1);
       if (ws > start) end = ws + 1;
       pages.add(text.substring(start, end));
       start = end;

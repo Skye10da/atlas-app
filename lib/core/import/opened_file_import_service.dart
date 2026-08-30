@@ -7,6 +7,7 @@ import 'package:atlas_app/core/content_acquisition/models/content_category.dart'
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/epub_import_service.dart';
 import 'package:atlas_app/core/import/pdf_import_service.dart';
+import 'package:atlas_app/core/import/text_import_service.dart';
 import 'package:atlas_app/library/application/atlas_source_import_service.dart';
 
 /// Imports a file the OS asked the app to open. Routes by extension onto the
@@ -18,12 +19,14 @@ class OpenedFileImportService {
     required this.pdfService,
     required this.atlasService,
     required this.engine,
+    this.textService,
   });
 
   final EpubImportService epubService;
   final PdfImportService pdfService;
   final AtlasSourceImportService atlasService;
   final ContentAcquisitionEngine engine;
+  final TextImportService? textService;
 
   Future<Result<ImportOutcome>> import(String path) async {
     final file = File(path);
@@ -35,6 +38,7 @@ class OpenedFileImportService {
         '.epub' => await _importEpub(bytes, fileName),
         '.pdf' => await _importPdf(bytes, fileName),
         '.atlas' => await _importAtlas(bytes),
+        '.txt' || '.text' || '.md' || '.markdown' => await _importText(bytes, fileName),
         _ => const Failure(ValidationException('Unsupported file type')),
       };
       await _cleanupTempCopy(path);
@@ -84,7 +88,25 @@ class OpenedFileImportService {
       '.epub' => await _importEpub(bytes, fileName),
       '.pdf' => await _importPdf(bytes, fileName),
       '.atlas' => await _importAtlas(bytes),
+      '.txt' || '.text' || '.md' || '.markdown' => await _importText(bytes, fileName),
       _ => const Failure(ValidationException('Unsupported file type')),
+    };
+  }
+
+  Future<Result<ImportOutcome>> _importText(
+    List<int> bytes,
+    String fileName,
+  ) async {
+    final service = textService;
+    if (service == null) {
+      return const Failure(ValidationException('Text import service not configured'));
+    }
+    final result = await service.importBytes(bytes, fileName);
+    return switch (result) {
+      Success(value: final bookId) => Success(
+        ImportOutcome(bookId: bookId, category: ContentCategory.book),
+      ),
+      Failure(error: final error) => Failure(error),
     };
   }
 

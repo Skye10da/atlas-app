@@ -36,54 +36,30 @@ class BrightnessEdgeGestureRegion extends StatelessWidget {
   }
 }
 
-/// The right-edge hover strip + positioned panel used on desktop. Wraps the
-/// hover-to-reveal `MouseRegion` and the panel's `Positioned` placement,
-/// which were previously duplicated between the two layouts down to the
-/// exact padding-based top/bottom offsets.
+/// The positioned right-docked panel used on desktop.
 class DesktopRightPanelRegion extends StatelessWidget {
   const DesktopRightPanelRegion({
     super.key,
     required this.visible,
     required this.chromeVisible,
     required this.panelWidth,
-    required this.onHoverReveal,
     required this.panel,
   });
 
   final bool visible;
   final bool chromeVisible;
   final double panelWidth;
-  final VoidCallback onHoverReveal;
   final Widget panel;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned(
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: 8,
-          child: MouseRegion(
-            onEnter: (_) {
-              if (!visible) onHoverReveal();
-            },
-            cursor: visible
-                ? SystemMouseCursors.basic
-                : SystemMouseCursors.click,
-            child: Container(color: Colors.transparent),
-          ),
-        ),
-        if (visible)
-          Positioned(
-            right: 0,
-            top: chromeVisible ? MediaQuery.of(context).padding.top : 0,
-            bottom: chromeVisible ? MediaQuery.of(context).padding.bottom : 0,
-            width: panelWidth,
-            child: panel,
-          ),
-      ],
+    if (!visible) return const SizedBox.shrink();
+    return Positioned(
+      right: 0,
+      top: chromeVisible ? MediaQuery.paddingOf(context).top : 0,
+      bottom: chromeVisible ? MediaQuery.paddingOf(context).bottom : 0,
+      width: panelWidth,
+      child: panel,
     );
   }
 }

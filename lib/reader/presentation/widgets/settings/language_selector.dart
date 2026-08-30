@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/providers/translation_providers.dart';
+import 'package:atlas_app/wtr/domain/entities/language_flag_map.dart';
 import 'package:atlas_app/wtr/domain/entities/supported_language.dart';
 
 /// Picks the target language a novel's text is translated into.
@@ -24,6 +25,17 @@ class LanguageSelector extends ConsumerWidget {
 
   /// Invoked when the user picks a *different* language.
   final VoidCallback? onLanguageChanged;
+
+  Widget _buildFlag(String languageCode) {
+    final countryCode = resolveCountryCodeForLanguage(languageCode);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(2),
+      child: CountryFlag.fromCountryCode(
+        countryCode,
+        theme: const ImageTheme(width: 24, height: 16),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,10 +65,7 @@ class LanguageSelector extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              CountryFlag.fromLanguageCode(
-                effectiveSelected.code,
-                theme: const ImageTheme(width: 24, height: 16),
-              ),
+              _buildFlag(effectiveSelected.code),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: languagesAsync.when(
@@ -98,10 +107,7 @@ class LanguageSelector extends ConsumerWidget {
               value: language,
               child: Row(
                 children: [
-                  CountryFlag.fromLanguageCode(
-                    language.code,
-                    theme: const ImageTheme(width: 24, height: 16),
-                  ),
+                  _buildFlag(language.code),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(

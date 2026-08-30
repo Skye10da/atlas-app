@@ -111,19 +111,32 @@ class WtrAiTranslateService {
     }
     final model = settings.activeModel;
 
+    final chunks = chunk(paragraphs);
     final out = List<String>.filled(paragraphs.length, '');
-    for (final chunk in chunk(paragraphs)) {
-      final translated = await _translateChunk(
-        transport,
-        client: client,
-        apiKey: apiKey,
-        model: model,
-        terms: terms,
-        to: to,
-        chunk: chunk,
+    const maxConcurrency = 2;
+
+    for (var i = 0; i < chunks.length; i += maxConcurrency) {
+      final end = (i + maxConcurrency).clamp(0, chunks.length);
+      final batch = chunks.sublist(i, end);
+      final results = await Future.wait(
+        batch.map(
+          (c) => _translateChunk(
+            transport,
+            client: client,
+            apiKey: apiKey,
+            model: model,
+            terms: terms,
+            to: to,
+            chunk: c,
+          ),
+        ),
       );
-      for (var i = 0; i < chunk.paragraphs.length; i++) {
-        out[chunk.offset + i] = translated[i];
+      for (var b = 0; b < batch.length; b++) {
+        final c = batch[b];
+        final translated = results[b];
+        for (var j = 0; j < c.paragraphs.length; j++) {
+          out[c.offset + j] = translated[j];
+        }
       }
     }
     return out;
@@ -272,13 +285,32 @@ class WtrAiTranslateService {
       _parseNumbered(raw, expectedCount: expectedCount, offset: offset);
 
   List<String> _parseNumbered(String raw, {required int expectedCount, int offset = 0}) {
-    final byIndex = <int, String>{};
+    final byIndex = <int, StringBuffer>{};
+    int? activeIndex;
+
     for (final line in raw.split('\n')) {
-      final match = _tagLine.firstMatch(line.trim());
-      if (match == null) continue;
-      final index = int.tryParse(match.group(1)!);
-      if (index == null || index < offset + 1 || index > offset + expectedCount) continue;
-      byIndex[index - 1] = match.group(2)!.trim();
+      final trimmed = line.trim();
+      final match = _tagLine.firstMatch(trimmed);
+      if (match != null) {
+        final index = int.tryParse(match.group(1)!);
+        if (index != null && index >= offset + 1 && index <= offset + expectedCount) {
+          activeIndex = index - 1;
+          final content = match.group(2)!.trim();
+          final buffer = byIndex.putIfAbsent(activeIndex, () => StringBuffer());
+          if (content.isNotEmpty) {
+            if (buffer.isNotEmpty) buffer.write('\n');
+            buffer.write(content);
+          }
+          continue;
+        }
+      }
+
+      // Continuation line for the active tag (multi-line paragraph or dialogue)
+      if (activeIndex != null && trimmed.isNotEmpty) {
+        final buffer = byIndex[activeIndex]!;
+        if (buffer.isNotEmpty) buffer.write('\n');
+        buffer.write(trimmed);
+      }
     }
     // Tags are unique and bounded to [offset+1, offset+count], so a full map
     // means every paragraph came back exactly once.
@@ -288,7 +320,7 @@ class WtrAiTranslateService {
         'AI returned ${byIndex.length} of $expectedCount paragraphs.',
       );
     }
-    return [for (var i = 0; i < expectedCount; i++) byIndex[offset + i]!];
+    return [for (var i = 0; i < expectedCount; i++) byIndex[offset + i]!.toString().trim()];
   }
 
   Future<void> _sleep(Duration duration) async {

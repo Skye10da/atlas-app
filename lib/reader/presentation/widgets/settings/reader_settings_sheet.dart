@@ -119,203 +119,184 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet>
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     final notifier = ref.read(readingSettingsProvider.notifier);
     final fontFamilies =
         ref.watch(availableFontFamiliesProvider).valueOrNull ?? [];
 
-    return Padding(
+    return Container(
       padding: const EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
-        top: AppSpacing.lg,
+        top: AppSpacing.xs,
         bottom: AppSpacing.lg,
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Reading Settings',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TabBar(
-              controller: _tabController,
-              labelColor: colors.primary,
-              unselectedLabelColor: colors.onSurface.withValues(alpha: 0.6),
-              indicatorColor: colors.primary,
-              tabs: [
-                const Tab(
-                  icon: Icon(Icons.palette, size: 20),
-                  text: 'Appearance',
-                ),
-                const Tab(
-                  icon: Icon(Icons.text_fields, size: 20),
-                  text: 'Typography',
-                ),
-                const Tab(
-                  icon: Icon(Icons.view_quilt, size: 20),
-                  text: 'Behavior',
-                ),
-                const Tab(
-                  icon: Icon(Icons.translate, size: 20),
-                  text: 'Translate',
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            SizedBox(
-              height: 360,
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  ThemeTab(
-                    theme: _theme,
-                    marginPreset: _marginPreset,
-                    onThemeChanged: (t) {
-                      setState(() => _theme = t);
-                      notifier.setTheme(t);
-                    },
-                    onMarginPresetChanged: (p) {
-                      setState(() => _marginPreset = p);
-                      notifier.setMarginPreset(p);
-                    },
-                  ),
-                  TextTab(
-                    fontSize: _fontSize,
-                    fontFamily: _fontFamily,
-                    fontWeight: _fontWeight,
-                    textAlignment: _textAlignment,
-                    lineHeight: _lineHeight,
-                    letterSpacing: _letterSpacing,
-                    fontFamilies: fontFamilies,
-                    onDownloadMore: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const FontManagerScreen(),
-                      ),
-                    ),
-                    onFontSizeChanged: (v) {
-                      setState(() => _fontSize = v);
-                      notifier.setFontSize(v);
-                    },
-                    onFontFamilyChanged: (v) {
-                      setState(() => _fontFamily = v);
-                      notifier.setFontFamily(v);
-                    },
-                    onFontWeightChanged: (v) {
-                      setState(() => _fontWeight = v);
-                      notifier.setFontWeight(v);
-                    },
-                    onTextAlignmentChanged: (v) {
-                      setState(() => _textAlignment = v);
-                      notifier.setTextAlignment(v);
-                    },
-                    onLineHeightChanged: (v) {
-                      setState(() => _lineHeight = v);
-                      notifier.setLineHeight(v);
-                    },
-                    onLetterSpacingChanged: (v) {
-                      setState(() => _letterSpacing = v);
-                      notifier.setLetterSpacing(v);
-                    },
-                  ),
-                  LayoutTab(
-                    readingMode: _readingMode,
-                    keepScreenAwake: _keepScreenAwake,
-                    brightness: _brightness,
-                    autoOptimizeBrightness: _autoOptimizeBrightness,
-                    followSystemBrightness: _followSystemBrightness,
-                    pageTurnAnimation: _pageTurnAnimation,
-                    scrollAnimation: _scrollAnimation,
-                    chromeStyle: _chromeStyle,
-                    desktopSheetPresentation: _desktopSheetPresentation,
-                    onReadingModeChanged: (m) {
-                      setState(() => _readingMode = m);
-                      notifier.setReadingMode(m);
-                    },
-                    onPageTurnAnimationChanged: (a) {
-                      setState(() => _pageTurnAnimation = a);
-                      notifier.setPageTurnAnimation(a);
-                    },
-                    onScrollAnimationChanged: (a) {
-                      setState(() => _scrollAnimation = a);
-                      notifier.setScrollAnimation(a);
-                    },
-                    onChromeStyleChanged: (s) {
-                      setState(() => _chromeStyle = s);
-                      notifier.setChromeStyle(s);
-                    },
-                    onDesktopSheetPresentationChanged: (p) {
-                      setState(() => _desktopSheetPresentation = p);
-                      notifier.setDesktopSheetPresentation(p);
-                    },
-                    onKeepScreenAwakeChanged: (v) {
-                      setState(() => _keepScreenAwake = v);
-                      notifier.setKeepScreenAwake(v);
-                    },
-                    onBrightnessChanged: (v) {
-                      setState(() => _brightness = v);
-                      notifier.setBrightness(v);
-                    },
-                    onAutoOptimizeChanged: (v) {
-                      setState(() => _autoOptimizeBrightness = v);
-                      notifier.setAutoOptimizeBrightness(v);
-                    },
-                    onFollowSystemBrightnessChanged: (v) {
-                      setState(() => _followSystemBrightness = v);
-                      notifier.setFollowSystemBrightness(v);
-                    },
-                  ),
-                  SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.sm),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (_hasWtrTab) ...[
-                            WtrTranslationSelector(
-                              rawId: widget.rawId!,
-                              onServiceChanged: _onWtrServiceChanged,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            LanguageSelector(
-                              bookId: widget.bookId,
-                              onLanguageChanged: _onLanguageChanged,
-                            ),
-                          ] else ...[
-                            _TranslationToggle(bookId: widget.bookId),
-                            const SizedBox(height: AppSpacing.sm),
-                            LanguageSelector(
-                              bookId: widget.bookId,
-                              onLanguageChanged: _onLanguageChanged,
-                            ),
-                          ],
-                          const SizedBox(height: AppSpacing.sm),
-                          const Divider(height: 1),
-                          const SizedBox(height: AppSpacing.sm),
-                          GlossaryTab(bookId: widget.bookId),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+      // height: MediaQuery.of(context).size.height * 0.85,
+      child: Column(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          TabBar(
+            controller: _tabController,
+            labelColor: colors.primary,
+            unselectedLabelColor: colors.onSurface.withValues(alpha: 0.6),
+            indicatorColor: colors.primary,
+            tabs: [
+              const Tab(
+                icon: Icon(Icons.palette, size: 20),
+                text: 'Appearance',
               ),
+              const Tab(
+                icon: Icon(Icons.text_fields, size: 20),
+                text: 'Typography',
+              ),
+              const Tab(
+                icon: Icon(Icons.view_quilt, size: 20),
+                text: 'Behavior',
+              ),
+              const Tab(
+                icon: Icon(Icons.translate, size: 20),
+                text: 'Translate',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                ThemeTab(
+                  theme: _theme,
+                  marginPreset: _marginPreset,
+                  onThemeChanged: (t) {
+                    setState(() => _theme = t);
+                    notifier.setTheme(t);
+                  },
+                  onMarginPresetChanged: (p) {
+                    setState(() => _marginPreset = p);
+                    notifier.setMarginPreset(p);
+                  },
+                ),
+                TextTab(
+                  fontSize: _fontSize,
+                  fontFamily: _fontFamily,
+                  fontWeight: _fontWeight,
+                  textAlignment: _textAlignment,
+                  lineHeight: _lineHeight,
+                  letterSpacing: _letterSpacing,
+                  fontFamilies: fontFamilies,
+                  onDownloadMore: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const FontManagerScreen(),
+                    ),
+                  ),
+                  onFontSizeChanged: (v) {
+                    setState(() => _fontSize = v);
+                    notifier.setFontSize(v);
+                  },
+                  onFontFamilyChanged: (v) {
+                    setState(() => _fontFamily = v);
+                    notifier.setFontFamily(v);
+                  },
+                  onFontWeightChanged: (v) {
+                    setState(() => _fontWeight = v);
+                    notifier.setFontWeight(v);
+                  },
+                  onTextAlignmentChanged: (v) {
+                    setState(() => _textAlignment = v);
+                    notifier.setTextAlignment(v);
+                  },
+                  onLineHeightChanged: (v) {
+                    setState(() => _lineHeight = v);
+                    notifier.setLineHeight(v);
+                  },
+                  onLetterSpacingChanged: (v) {
+                    setState(() => _letterSpacing = v);
+                    notifier.setLetterSpacing(v);
+                  },
+                ),
+                LayoutTab(
+                  readingMode: _readingMode,
+                  keepScreenAwake: _keepScreenAwake,
+                  brightness: _brightness,
+                  autoOptimizeBrightness: _autoOptimizeBrightness,
+                  followSystemBrightness: _followSystemBrightness,
+                  pageTurnAnimation: _pageTurnAnimation,
+                  scrollAnimation: _scrollAnimation,
+                  chromeStyle: _chromeStyle,
+                  desktopSheetPresentation: _desktopSheetPresentation,
+                  onReadingModeChanged: (m) {
+                    setState(() => _readingMode = m);
+                    notifier.setReadingMode(m);
+                  },
+                  onPageTurnAnimationChanged: (a) {
+                    setState(() => _pageTurnAnimation = a);
+                    notifier.setPageTurnAnimation(a);
+                  },
+                  onScrollAnimationChanged: (a) {
+                    setState(() => _scrollAnimation = a);
+                    notifier.setScrollAnimation(a);
+                  },
+                  onChromeStyleChanged: (s) {
+                    setState(() => _chromeStyle = s);
+                    notifier.setChromeStyle(s);
+                  },
+                  onDesktopSheetPresentationChanged: (p) {
+                    setState(() => _desktopSheetPresentation = p);
+                    notifier.setDesktopSheetPresentation(p);
+                  },
+                  onKeepScreenAwakeChanged: (v) {
+                    setState(() => _keepScreenAwake = v);
+                    notifier.setKeepScreenAwake(v);
+                  },
+                  onBrightnessChanged: (v) {
+                    setState(() => _brightness = v);
+                    notifier.setBrightness(v);
+                  },
+                  onAutoOptimizeChanged: (v) {
+                    setState(() => _autoOptimizeBrightness = v);
+                    notifier.setAutoOptimizeBrightness(v);
+                  },
+                  onFollowSystemBrightnessChanged: (v) {
+                    setState(() => _followSystemBrightness = v);
+                    notifier.setFollowSystemBrightness(v);
+                  },
+                ),
+                SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_hasWtrTab) ...[
+                          WtrTranslationSelector(
+                            rawId: widget.rawId!,
+                            onServiceChanged: _onWtrServiceChanged,
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          LanguageSelector(
+                            bookId: widget.bookId,
+                            onLanguageChanged: _onLanguageChanged,
+                          ),
+                        ] else ...[
+                          _TranslationToggle(bookId: widget.bookId),
+                          const SizedBox(height: AppSpacing.sm),
+                          LanguageSelector(
+                            bookId: widget.bookId,
+                            onLanguageChanged: _onLanguageChanged,
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.sm),
+                        const Divider(height: 1),
+                        const SizedBox(height: AppSpacing.sm),
+                        GlossaryTab(bookId: widget.bookId),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

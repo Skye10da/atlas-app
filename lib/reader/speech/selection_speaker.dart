@@ -61,6 +61,10 @@ class SelectionSpeaker {
     String? voiceId,
   }) async {
     if (text.trim().isEmpty) return;
+    final engine = ref.read(speechEngineProvider);
+    if (engine.isPlaying) {
+      await engine.pause();
+    }
     final settings =
         ref.read(narrationSettingsProvider).value ?? _defaultSettings;
 

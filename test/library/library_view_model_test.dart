@@ -36,6 +36,13 @@ class FakeLibraryRepository implements LibraryRepositoryInterface {
   }
 
   @override
+  Future<Result<void>> deleteBooks(List<String> ids) async {
+    books.removeWhere((b) => ids.contains(b.id));
+    emit(List.from(books));
+    return const Success(null);
+  }
+
+  @override
   Future<Result<void>> deleteAllBooks() async {
     books.clear();
     emit([]);
@@ -271,6 +278,20 @@ void main() {
       await viewModel.deleteAllBooks();
       await Future<void>.delayed(Duration.zero);
       expect(viewModel.state.value!.books, isEmpty);
+    });
+
+    test('deleteBooks deletes multiple books in repository', () async {
+      final n1 = _createBook(id: '1', title: 'N1');
+      final n2 = _createBook(id: '2', title: 'N2');
+      final n3 = _createBook(id: '3', title: 'N3');
+      repository.emit([n1, n2, n3]);
+      await Future<void>.delayed(Duration.zero);
+      expect(viewModel.state.value!.books.length, 3);
+
+      await viewModel.deleteBooks(['1', '3']);
+      await Future<void>.delayed(Duration.zero);
+      expect(viewModel.state.value!.books.length, 1);
+      expect(viewModel.state.value!.books.single.id, '2');
     });
   });
 }

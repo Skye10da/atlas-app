@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/core/theme/font_catalog_service.dart';
@@ -36,7 +37,13 @@ class _FontManagerScreenState extends ConsumerState<FontManagerScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Font Browser'),
+        title: const Text(
+          'Font Catalog',
+          style: TextStyle(
+            fontFamily: 'Playfair Display',
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         actions: [
           PopupMenuButton<FontSort>(
             icon: const Icon(Icons.sort),
@@ -53,8 +60,13 @@ class _FontManagerScreenState extends ConsumerState<FontManagerScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.formContentMaxWidth,
+          ),
+          child: Column(
+            children: [
           // Search bar
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -67,10 +79,10 @@ class _FontManagerScreenState extends ConsumerState<FontManagerScreen> {
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search fonts…',
-                prefixIcon: const Icon(Icons.search, size: 20),
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
                 suffixIcon: _query.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
+                        icon: const Icon(Icons.clear_rounded, size: 18),
                         onPressed: () {
                           _searchController.clear();
                           setState(() => _query = '');
@@ -78,8 +90,12 @@ class _FontManagerScreenState extends ConsumerState<FontManagerScreen> {
                       )
                     : null,
                 isDense: true,
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                  borderSide: BorderSide.none,
                 ),
               ),
               onChanged: (v) => setState(() => _query = v),
@@ -134,7 +150,9 @@ class _FontManagerScreenState extends ConsumerState<FontManagerScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 }
 
@@ -401,6 +419,33 @@ class _FontTileState extends State<_FontTile> {
         : null;
 
     return ListTile(
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: widget.isDownloaded || widget.isBundled
+              ? colors.primaryContainer.withValues(alpha: 0.6)
+              : colors.surfaceContainerHighest.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: colors.outlineVariant.withValues(alpha: 0.3),
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          'Aa',
+          style: TextStyle(
+            fontFamily: widget.isDownloaded || widget.isBundled
+                ? widget.family
+                : null,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: widget.isDownloaded || widget.isBundled
+                ? colors.onPrimaryContainer
+                : colors.onSurfaceVariant,
+          ),
+        ),
+      ),
       title: Text(
         widget.family,
         style: textTheme.bodyLarge?.copyWith(

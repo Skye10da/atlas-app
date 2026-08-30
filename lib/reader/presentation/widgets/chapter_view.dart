@@ -50,6 +50,7 @@ class ChapterView extends ConsumerStatefulWidget {
     this.onNarrationOutOfSyncChanged,
     this.onRegisterNarrationReveal,
     this.spans,
+    this.onTap,
   });
 
   final String content;
@@ -87,8 +88,13 @@ class ChapterView extends ConsumerStatefulWidget {
   /// Called with the selected text, chosen color and its [content] character
   /// offsets when the reader taps a highlight swatch in the context menu.
   /// Omit to hide highlighting.
-  final void Function(String text, Color color, int start, int end)?
-  onHighlight;
+  final void Function(
+    String text,
+    Color color,
+    int start,
+    int end, {
+    HighlightStyleType styleType,
+  })? onHighlight;
 
   /// Called with the selected text (and surrounding sentence, if available)
   /// when the reader taps "Note". Omit to hide the note action.
@@ -110,6 +116,9 @@ class ChapterView extends ConsumerStatefulWidget {
   /// Called to remove any stored highlight overlapping the selection's
   /// [start, end) character range. Omit to hide the erase action.
   final void Function(int start, int end)? onErase;
+
+  /// Called when the chapter view is single-tapped to toggle the reader chrome.
+  final VoidCallback? onTap;
 
   /// The sentence currently being narrated, if this chapter is narrating.
   /// When set, that sentence is rendered with a background tint. Omit for no
@@ -158,6 +167,16 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   /// (renderStart, renderEnd, contentStart) for one contiguous run of prose
   /// text.
   List<(int, int, int)>? _renderContentMap;
+  List<(int, int)>? _cachedQuotes;
+  String? _lastQuotedContent;
+
+  List<(int, int)> _getQuotes(String content) {
+    if (_lastQuotedContent != content || _cachedQuotes == null) {
+      _lastQuotedContent = content;
+      _cachedQuotes = _spanBuilder.findQuoteRanges(content);
+    }
+    return _cachedQuotes!;
+  }
 
   /// Stored user highlights for this chapter (empty when identity is absent).
   List<HighlightEntry> get _highlights {
@@ -346,6 +365,9 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   /// One-shot exact-position resume: scrolls so the character at
   /// [widget.restoreCharOffset] is in view.
   void _revealRestoreIfNeeded() {
+    if (widget.restoreCharOffset == null || widget.restoreCharOffset! <= 0) {
+      return;
+    }
     if (_didRestoreReveal) return;
     _didRestoreReveal = true;
     _narrationCoordinator.revealRestoreOffset(
@@ -372,9 +394,18 @@ class _ChapterViewState extends ConsumerState<ChapterView>
           : null,
     );
 
-    final content = _buildText(baseStyle);
     if (!widget.scrollable) {
-      return Padding(padding: _padding, child: content);
+      return SelectionArea(
+        contextMenuBuilder: _selectionAreaContextMenuBuilder,
+        child: Builder(builder: (selectionContext) {
+          final content = _buildText(baseStyle, selectionContext);
+          return GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: widget.onTap,
+            child: Padding(padding: _padding, child: content),
+          );
+        }),
+      );
     }
 
     return SelectionArea(
@@ -386,14 +417,20 @@ class _ChapterViewState extends ConsumerState<ChapterView>
         },
         child: SingleChildScrollView(
           controller: _scrollController,
-          padding: _padding,
-          child: content,
+          child: Builder(builder: (selectionContext) {
+            final content = _buildText(baseStyle, selectionContext);
+            return GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: widget.onTap,
+              child: Padding(padding: _padding, child: content),
+            );
+          }),
         ),
       ),
     );
   }
 
-  Widget _buildText(TextStyle baseStyle) {
+  Widget _buildText(TextStyle baseStyle, BuildContext selectionContext) {
     final textStyle = widget.fontFamily != null
         ? baseStyle.copyWith(fontFamily: widget.fontFamily)
         : baseStyle;
@@ -405,9 +442,9 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     final active = widget.activeSpeechItem;
     if (active != null || widget.spans == null) {
       _renderContentMap = null;
-      return _buildFlat(c, textStyle, highlights, ds);
+      return _buildFlat(c, textStyle, highlights, ds, selectionContext);
     }
-    return _buildSegmented(textStyle, highlights, applyDropCap: ds != null);
+    return _buildSegmented(textStyle, highlights, selectionContext, applyDropCap: ds != null);
   }
 
   Widget _buildFlat(
@@ -415,16 +452,25 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     TextStyle textStyle,
     List<HighlightEntry> highlights,
     TextStyle? dropCapStyle,
+    BuildContext selectionContext,
   ) {
     final active = widget.activeSpeechItem;
     if (active != null) {
-      return _narrationHighlighted(c, textStyle);
+      return _narrationHighlighted(c, textStyle, selectionContext);
     }
+
+    final registrar = SelectionContainer.maybeOf(selectionContext);
+    final selectionColor = widget.theme
+        .resolve(Theme.of(context).colorScheme)
+        .accent
+        .withValues(alpha: 0.3);
 
     if (dropCapStyle != null && c.isNotEmpty) {
       return RichText(
         key: _textKey,
         textAlign: widget.textAlignment.flutterTextAlign,
+        selectionRegistrar: registrar,
+        selectionColor: selectionColor,
         text: TextSpan(
           children: [
             TextSpan(text: c.substring(0, 1), style: dropCapStyle),
@@ -443,6 +489,8 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     return RichText(
       key: _textKey,
       textAlign: widget.textAlignment.flutterTextAlign,
+      selectionRegistrar: registrar,
+      selectionColor: selectionColor,
       text: TextSpan(
         children: _spanBuilder.buildQuoteAwareSpans(
           c,
@@ -458,7 +506,8 @@ class _ChapterViewState extends ConsumerState<ChapterView>
   /// Renders the chapter as a single [RichText] with [WidgetSpan] for cards.
   Widget _buildSegmented(
     TextStyle textStyle,
-    List<HighlightEntry> highlights, {
+    List<HighlightEntry> highlights,
+    BuildContext selectionContext, {
     required bool applyDropCap,
   }) {
     final (richSpans, renderMap) = _spanBuilder.buildSegmentedSpans(
@@ -474,27 +523,42 @@ class _ChapterViewState extends ConsumerState<ChapterView>
     );
     _renderContentMap = renderMap;
 
+    final registrar = SelectionContainer.maybeOf(selectionContext);
+    final selectionColor = widget.theme
+        .resolve(Theme.of(context).colorScheme)
+        .accent
+        .withValues(alpha: 0.3);
+
     return RichText(
       key: _textKey,
       textAlign: widget.textAlignment.flutterTextAlign,
+      selectionRegistrar: registrar,
+      selectionColor: selectionColor,
       text: TextSpan(children: richSpans),
     );
   }
 
   /// Renders the whole chapter as a [TextSpan], tinting the currently
   /// narrated sentence's substring.
-  Widget _narrationHighlighted(String content, TextStyle textStyle) {
+  Widget _narrationHighlighted(String content, TextStyle textStyle, BuildContext selectionContext) {
     final item = widget.activeSpeechItem;
     final idx = _narrationCoordinator.resolveActiveSpeechOffset(
       item: item,
       content: content,
     ) ?? -1;
     final highlights = _highlights;
+    final quotes = _getQuotes(content);
+
+    final registrar = SelectionContainer.maybeOf(selectionContext);
+    final accent = widget.theme.resolve(Theme.of(context).colorScheme).accent;
+    final selectionColor = accent.withValues(alpha: 0.3);
 
     if (item == null || idx < 0) {
       return RichText(
         key: _textKey,
         textAlign: widget.textAlignment.flutterTextAlign,
+        selectionRegistrar: registrar,
+        selectionColor: selectionColor,
         text: TextSpan(
           children: _spanBuilder.buildQuoteAwareSpans(
             content,
@@ -502,47 +566,93 @@ class _ChapterViewState extends ConsumerState<ChapterView>
             content.length,
             textStyle,
             highlights: highlights,
+            quoteRanges: quotes,
           ),
         ),
       );
     }
-    final highlightEnd = idx + item.text.length;
+    final paraRange = _narrationCoordinator.resolveActiveParagraphRange(
+      item: item,
+      content: content,
+    );
+
+    final sStart = idx.clamp(0, content.length);
+    final sEnd = (idx + item.text.length).clamp(0, content.length);
+    final pStart = (paraRange?.start ?? sStart).clamp(0, sStart);
+    final pEnd = (paraRange?.end ?? sEnd).clamp(sEnd, content.length);
+
+    final beforeParaSpans = _spanBuilder.buildQuoteAwareSpans(
+      content,
+      0,
+      pStart,
+      textStyle,
+      highlights: highlights,
+      quoteRanges: quotes,
+    );
+    final afterParaSpans = _spanBuilder.buildQuoteAwareSpans(
+      content,
+      pEnd,
+      content.length,
+      textStyle,
+      highlights: highlights,
+      quoteRanges: quotes,
+    );
+    final beforeSentenceInParaSpans = _spanBuilder.buildQuoteAwareSpans(
+      content,
+      pStart,
+      sStart,
+      textStyle,
+      highlights: highlights,
+      quoteRanges: quotes,
+    );
+    final afterSentenceInParaSpans = _spanBuilder.buildQuoteAwareSpans(
+      content,
+      sEnd,
+      pEnd,
+      textStyle,
+      highlights: highlights,
+      quoteRanges: quotes,
+    );
+    final activeSentenceSpans = _spanBuilder.buildQuoteAwareSpans(
+      content,
+      sStart,
+      sEnd,
+      textStyle,
+      highlights: highlights,
+      quoteRanges: quotes,
+    );
+
     return AnimatedBuilder(
       animation: _highlightController,
       builder: (context, _) {
-        final highlightStyle = TextStyle(
-          backgroundColor: widget.theme
-              .resolve(Theme.of(context).colorScheme)
-              .accent
-              .withValues(alpha: 0.25 * _highlightController.value),
-        );
+        final animValue = _highlightController.value;
+        final paraBg = accent.withValues(alpha: 0.10 * animValue);
+        final sentenceBg = accent.withValues(alpha: 0.28 * animValue);
+
+        TextSpan applyBg(TextSpan span, Color bg) {
+          return TextSpan(
+            text: span.text,
+            children: span.children
+                ?.map((c) => c is TextSpan ? applyBg(c, bg) : c)
+                .toList(),
+            style: (span.style ?? textStyle).copyWith(
+              backgroundColor: bg,
+            ),
+          );
+        }
+
         return RichText(
           key: _textKey,
           textAlign: widget.textAlignment.flutterTextAlign,
+          selectionRegistrar: registrar,
+          selectionColor: selectionColor,
           text: TextSpan(
             children: [
-              ..._spanBuilder.buildQuoteAwareSpans(
-                content,
-                0,
-                idx,
-                textStyle,
-                highlights: highlights,
-              ),
-              ..._spanBuilder.buildQuoteAwareSpans(
-                content,
-                idx,
-                highlightEnd,
-                textStyle,
-                extraStyle: highlightStyle,
-                highlights: highlights,
-              ),
-              ..._spanBuilder.buildQuoteAwareSpans(
-                content,
-                highlightEnd,
-                content.length,
-                textStyle,
-                highlights: highlights,
-              ),
+              ...beforeParaSpans,
+              ...beforeSentenceInParaSpans.map((s) => applyBg(s, paraBg)),
+              ...activeSentenceSpans.map((s) => applyBg(s, sentenceBg)),
+              ...afterSentenceInParaSpans.map((s) => applyBg(s, paraBg)),
+              ...afterParaSpans,
             ],
           ),
         );
@@ -574,6 +684,7 @@ class _ChapterViewState extends ConsumerState<ChapterView>
       highlights: highlights,
       renderContentMap: _renderContentMap,
       selectable: selectable,
+      renderParagraph: render,
       onHighlight: widget.onHighlight,
       onAddNote: widget.onAddNote,
       onShare: widget.onShare,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,12 +27,14 @@ class ReaderBottomNav extends ConsumerWidget {
     this.progress,
     this.progressColor,
     this.onListenTap,
+    this.onAnnotationsTap,
   });
 
   final Color textColor;
   final VoidCallback onSettingsTap;
   final VoidCallback onChapterIndexTap;
   final VoidCallback onBookmarkTap;
+  final VoidCallback? onAnnotationsTap;
   final bool isBookmarked;
   final String? currentChapterTitle;
   final int? currentChapterNumber;
@@ -67,7 +70,7 @@ class ReaderBottomNav extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     final batteryAsync = ref.watch(liveBatteryLevelProvider);
     final batteryLevel = batteryAsync.valueOrNull;
     final chargingAsync = ref.watch(liveChargingProvider);
@@ -87,22 +90,24 @@ class ReaderBottomNav extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _NavIconButton(
-                    icon: Icons.settings,
-                    label: 'Settings',
+                    icon: Icons.tune_rounded,
+                    label: 'Tune',
                     textColor: textColor,
                     onTap: onSettingsTap,
                   ),
                   _NavIconButton(
-                    icon: Icons.list,
+                    icon: Icons.format_list_numbered_rounded,
                     label: currentChapterNumber != null
-                        ? '${currentChapterNumber! + 1}/${totalChapters ?? 0}'
+                        ? 'Ch. ${currentChapterNumber! + 1}'
                         : 'Chapters',
                     textColor: textColor,
                     onTap: onChapterIndexTap,
                   ),
                   _NavIconButton(
-                    icon: isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                    label: isBookmarked ? 'Bookmarked' : 'Bookmark',
+                    icon: isBookmarked
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    label: isBookmarked ? 'Saved' : 'Save',
                     textColor: textColor,
                     onTap: () {
                       HapticFeedback.selectionClick();
@@ -112,14 +117,21 @@ class ReaderBottomNav extends ConsumerWidget {
                   if (onAutoScrollToggle != null)
                     _NavIconButton(
                       icon: autoScrollActive
-                          ? Icons.pause_circle_filled
-                          : Icons.play_circle_outline,
-                      label: autoScrollActive ? 'Pause' : 'Auto-scroll',
+                          ? Icons.bolt_rounded
+                          : Icons.bolt_outlined,
+                      label: autoScrollActive ? 'Flowing' : 'Flow',
                       textColor: textColor,
                       onTap: onAutoScrollToggle!,
                     ),
+                  if (onAnnotationsTap != null)
+                    _NavIconButton(
+                      icon: Icons.bookmarks_outlined,
+                      label: 'Notes',
+                      textColor: textColor,
+                      onTap: onAnnotationsTap!,
+                    ),
                   _NavIconButton(
-                    icon: Icons.headphones,
+                    icon: Icons.headphones_rounded,
                     label: 'Listen',
                     textColor: textColor,
                     onTap: () => _openNowPlaying(context),
@@ -129,9 +141,9 @@ class ReaderBottomNav extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.only(
-                left: AppSpacing.sm,
-                right: AppSpacing.sm,
-                bottom: 2,
+                left: AppSpacing.md,
+                right: AppSpacing.md,
+                bottom: 4,
                 top: 4,
               ),
               child: Row(
@@ -142,7 +154,9 @@ class ReaderBottomNav extends ConsumerWidget {
                       color: progressColor ?? textColor,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
+                  const SizedBox(width: AppSpacing.smMd),
+                  _ClockIndicator(textColor: textColor),
+                  const SizedBox(width: AppSpacing.xs),
                   _BatteryIndicator(
                     level: batteryLevel,
                     charging: charging,
@@ -152,6 +166,67 @@ class ReaderBottomNav extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ClockIndicator extends StatefulWidget {
+  const _ClockIndicator({required this.textColor});
+
+  final Color textColor;
+
+  @override
+  State<_ClockIndicator> createState() => _ClockIndicatorState();
+}
+
+class _ClockIndicatorState extends State<_ClockIndicator> {
+  late Timer _timer;
+  late String _timeString;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTime();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _updateTime());
+  }
+
+  void _updateTime() {
+    final now = DateTime.now();
+    final hour = now.hour == 0
+        ? 12
+        : (now.hour > 12 ? now.hour - 12 : now.hour);
+    final minute = now.minute.toString().padLeft(2, '0');
+    final period = now.hour >= 12 ? 'PM' : 'AM';
+    final formatted = '$hour:$minute $period';
+    if (mounted) {
+      setState(() => _timeString = formatted);
+    } else {
+      _timeString = formatted;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: widget.textColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+      ),
+      child: Text(
+        _timeString,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: widget.textColor.withValues(alpha: 0.9),
         ),
       ),
     );
@@ -193,19 +268,25 @@ class _NavIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        constraints: const BoxConstraints(
+          minWidth: AppSpacing.touchTarget,
+          minHeight: AppSpacing.touchTarget,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 22, color: textColor),
             const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
-                color: textColor.withValues(alpha: 0.8),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: textColor.withValues(alpha: 0.85),
               ),
             ),
           ],
@@ -232,21 +313,21 @@ class _BatteryIndicator extends StatelessWidget {
 
     final IconData icon;
     if (charging) {
-      icon = Icons.battery_charging_full;
+      icon = Icons.battery_charging_full_rounded;
     } else {
       icon = switch (pct) {
-        null => Icons.battery_unknown,
-        >= 80 => Icons.battery_full,
-        >= 50 => Icons.battery_5_bar,
-        >= 20 => Icons.battery_3_bar,
-        _ => Icons.battery_alert,
+        null => Icons.battery_unknown_rounded,
+        >= 80 => Icons.battery_full_rounded,
+        >= 50 => Icons.battery_5_bar_rounded,
+        >= 20 => Icons.battery_3_bar_rounded,
+        _ => Icons.battery_alert_rounded,
       };
     }
 
-    final label = pct != null ? '$pct%' : 'Battery';
+    final label = pct != null ? '$pct%' : '100%';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: textColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
@@ -254,8 +335,8 @@ class _BatteryIndicator extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: textColor.withValues(alpha: 0.9)),
-          const SizedBox(width: 4),
+          Icon(icon, size: 13, color: textColor.withValues(alpha: 0.9)),
+          const SizedBox(width: 3),
           Text(
             label,
             style: TextStyle(

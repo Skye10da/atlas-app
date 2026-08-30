@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 
 class BookshelfScattered extends StatefulWidget {
@@ -11,11 +12,15 @@ class BookshelfScattered extends StatefulWidget {
     required this.books,
     required this.onBookTap,
     required this.onDeleteBook,
+    this.isSelectionMode = false,
+    this.selectedIds = const {},
   });
 
   final List<BookEntity> books;
   final void Function(String id) onBookTap;
   final void Function(String id) onDeleteBook;
+  final bool isSelectionMode;
+  final Set<String> selectedIds;
 
   @override
   State<BookshelfScattered> createState() => _BookshelfScatteredState();
@@ -51,7 +56,7 @@ class _BookshelfScatteredState extends State<BookshelfScattered> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDesktop = MediaQuery.of(context).size.width >= 1200;
+    final isDesktop = AppBreakpoints.isLarge(context);
     final coverWidth = isDesktop ? 130.0 : 90.0;
     final coverHeight = isDesktop ? 195.0 : 135.0;
 
@@ -74,6 +79,7 @@ class _BookshelfScatteredState extends State<BookshelfScattered> {
               children: widget.books.asMap().entries.map((entry) {
                 final i = entry.key;
                 final book = entry.value;
+                final isSelected = widget.selectedIds.contains(book.id);
                 final s = _scattered[i];
                 final col = i % cols;
                 final row = i ~/ cols;
@@ -90,8 +96,14 @@ class _BookshelfScatteredState extends State<BookshelfScattered> {
                       child: GestureDetector(
                         onTap: () => widget.onBookTap(book.id),
                         child: Card(
-                          elevation: 4,
-                          shadowColor: Colors.black26,
+                          elevation: isSelected ? 8 : 4,
+                          shadowColor: isSelected ? cs.primary.withValues(alpha: 0.4) : Colors.black26,
+                          shape: widget.isSelectionMode && isSelected
+                              ? RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: BorderSide(color: cs.primary, width: 2),
+                                )
+                              : null,
                           child: Padding(
                             padding: const EdgeInsets.all(8),
                             child: Column(
@@ -105,7 +117,27 @@ class _BookshelfScatteredState extends State<BookshelfScattered> {
                                       width: coverWidth,
                                       height: coverHeight,
                                     ),
-                                    if (book.progress == null)
+                                    if (widget.isSelectionMode)
+                                      Positioned(
+                                        top: 4,
+                                        right: 4,
+                                        child: Container(
+                                          decoration: const BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            isSelected
+                                                ? Icons.check_circle_rounded
+                                                : Icons.radio_button_unchecked_rounded,
+                                            color: isSelected
+                                                ? cs.primary
+                                                : Colors.white70,
+                                            size: 20,
+                                          ),
+                                        ),
+                                      )
+                                    else if (book.progress == null)
                                       Positioned(
                                         top: 2,
                                         right: 2,
@@ -138,8 +170,20 @@ class _BookshelfScatteredState extends State<BookshelfScattered> {
                                   book.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 11),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(fontWeight: FontWeight.w600),
                                 ),
+                                if (book.author != null)
+                                  Text(
+                                    book.author!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.labelSmall
+                                        ?.copyWith(
+                                          color: cs.onSurfaceVariant,
+                                          fontSize: 10,
+                                        ),
+                                  ),
                               ],
                             ),
                           ),

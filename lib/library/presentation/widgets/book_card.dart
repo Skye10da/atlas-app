@@ -1,27 +1,56 @@
 import 'package:flutter/material.dart';
 
+import 'package:atlas_app/core/design_system/atoms/book_badge.dart';
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 
 class BookCard extends StatelessWidget {
-  const BookCard({super.key, required this.book, this.onTap});
+  const BookCard({
+    super.key,
+    required this.book,
+    this.onTap,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+  });
 
   final BookEntity book;
   final VoidCallback? onTap;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final progress = book.progress ?? 0;
 
     return Card(
       clipBehavior: Clip.antiAlias,
+      shape: isSelectionMode && isSelected
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
+              side: BorderSide(color: cs.primary, width: 2),
+            )
+          : null,
+      color: isSelectionMode && isSelected
+          ? cs.primaryContainer.withValues(alpha: 0.25)
+          : null,
       child: InkWell(
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
+              if (isSelectionMode) ...[
+                Icon(
+                  isSelected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: isSelected ? cs.primary : cs.onSurfaceVariant,
+                  size: 24,
+                ),
+                const SizedBox(width: AppSpacing.md),
+              ],
               _BookCoverStack(book: book),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -51,6 +80,8 @@ class BookGridCard extends StatefulWidget {
     this.coverWidth = 115,
     this.coverHeight = 175,
     this.isDesktop = false,
+    this.isSelectionMode = false,
+    this.isSelected = false,
   });
 
   final BookEntity book;
@@ -59,6 +90,8 @@ class BookGridCard extends StatefulWidget {
   final double coverWidth;
   final double coverHeight;
   final bool isDesktop;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   @override
   State<BookGridCard> createState() => _BookGridCardState();
@@ -82,11 +115,20 @@ class _BookGridCardState extends State<BookGridCard> {
             : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          transform: _hovered && widget.isDesktop
+          transform: _hovered && widget.isDesktop && !widget.isSelectionMode
               ? (Matrix4.identity()..translateByDouble(0.0, -4.0, 0.0, 1.0))
               : Matrix4.identity(),
           child: Card(
             clipBehavior: Clip.antiAlias,
+            shape: widget.isSelectionMode && widget.isSelected
+                ? RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
+                    side: BorderSide(color: cs.primary, width: 2),
+                  )
+                : null,
+            color: widget.isSelectionMode && widget.isSelected
+                ? cs.primaryContainer.withValues(alpha: 0.25)
+                : null,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -112,7 +154,28 @@ class _BookGridCardState extends State<BookGridCard> {
                           ),
                         )
                       : null,
-                  hoverOverlay: _hovered && widget.isDesktop
+                  selectionOverlay: widget.isSelectionMode
+                      ? Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              widget.isSelected
+                                  ? Icons.check_circle_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              color: widget.isSelected
+                                  ? cs.primary
+                                  : Colors.white70,
+                              size: 24,
+                            ),
+                          ),
+                        )
+                      : null,
+                  hoverOverlay: _hovered && widget.isDesktop && !widget.isSelectionMode
                       ? Positioned(
                           left: 0,
                           right: 0,
@@ -134,19 +197,10 @@ class _BookGridCardState extends State<BookGridCard> {
                                   bottom: Radius.circular(4),
                                 ),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8,
-                                horizontal: 8,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _QuickActionChip(
-                                    icon: Icons.play_arrow,
-                                    label: 'Read',
-                                    onTap: widget.onTap,
-                                  ),
-                                ],
+                              padding: const EdgeInsets.all(AppSpacing.sm),
+                              child: _BookInfoSection(
+                                book: widget.book,
+                                compact: true,
                               ),
                             ),
                           ),
@@ -154,58 +208,11 @@ class _BookGridCardState extends State<BookGridCard> {
                       : null,
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.sm,
-                    AppSpacing.xs,
-                    AppSpacing.sm,
-                    0,
-                  ),
+                  padding: const EdgeInsets.all(AppSpacing.sm),
                   child: _BookInfoSection(book: widget.book, compact: true),
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickActionChip extends StatelessWidget {
-  const _QuickActionChip({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.2),
-      borderRadius: BorderRadius.circular(6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: Colors.white),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -254,22 +261,9 @@ class _NewBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: cs.primary,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        'New',
-        style: TextStyle(
-          color: cs.onPrimary,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-      ),
+    return const BookBadge.primary(
+      label: 'NEW',
+      isCompact: true,
     );
   }
 }
@@ -283,29 +277,11 @@ class _UpdateBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final label = count > 0 ? '+$count' : 'NEW';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.green.shade700,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.auto_stories, size: 10, color: Colors.white),
-          const SizedBox(width: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: cs.onPrimary,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
+    return BookBadge.tertiary(
+      label: label,
+      icon: Icons.auto_stories_rounded,
+      isCompact: true,
     );
   }
 }
@@ -317,6 +293,7 @@ class _BookCoverStack extends StatelessWidget {
     this.coverHeight,
     this.overlay,
     this.hoverOverlay,
+    this.selectionOverlay,
   });
 
   final BookEntity book;
@@ -324,6 +301,7 @@ class _BookCoverStack extends StatelessWidget {
   final double? coverHeight;
   final Widget? overlay;
   final Widget? hoverOverlay;
+  final Widget? selectionOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -338,7 +316,9 @@ class _BookCoverStack extends StatelessWidget {
             height: coverHeight ?? 100,
           ),
         ),
-        if (book.hasUpdate)
+        if (selectionOverlay != null)
+          selectionOverlay!
+        else if (book.hasUpdate)
           Positioned(
             top: 6,
             right: 6,

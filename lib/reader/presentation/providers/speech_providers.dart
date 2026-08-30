@@ -132,8 +132,13 @@ final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.atlas.app.audio_service',
         androidNotificationChannelName: 'Narration',
+        androidNotificationChannelDescription:
+            'Background novel narration and text-to-speech',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
+        androidNotificationClickStartsActivity: true,
+        fastForwardInterval: Duration(seconds: 15),
+        rewindInterval: Duration(seconds: 15),
       ),
     );
   } catch (_) {

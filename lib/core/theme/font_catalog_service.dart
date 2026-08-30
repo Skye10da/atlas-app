@@ -116,7 +116,7 @@ class FontCatalogService {
     FontCatalogCategory? category,
     required FontSort sort,
   }) {
-    var result = entries;
+    var result = List<FontCatalogEntry>.from(entries);
 
     if (query != null && query.isNotEmpty) {
       final q = query.toLowerCase();

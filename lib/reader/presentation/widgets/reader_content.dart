@@ -12,15 +12,20 @@ import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/domain/entities/reading_progress_snapshot.dart';
 import 'package:atlas_app/reader/domain/repository_interfaces/reader_repository_interface.dart';
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
+import 'package:atlas_app/reader/presentation/widgets/book_search_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/continuous_reader_layout.dart';
+import 'package:atlas_app/reader/presentation/widgets/note_editor_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/paged_reader_layout.dart';
+import 'package:atlas_app/reader/presentation/widgets/quote_share_card_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_annotations_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/reader_settings_sheet.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
 import 'package:atlas_app/reader/speech/speech_events.dart';
@@ -190,32 +195,50 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   Future<void> _loadChapters() async {
     final result = await widget.repo.getChapters(widget.bookId);
     if (!mounted) return;
-    setState(() {
-      _loading = false;
-      if (result is Failure<List<ChapterEntity>>) {
-        _errorMessage = (result).error.userMessage;
-        return;
-      }
-      final loaded = (result as Success<List<ChapterEntity>>).value;
-      if (loaded.isEmpty) {
+    if (result is Failure<List<ChapterEntity>>) {
+      setState(() {
+        _loading = false;
+        _errorMessage = result.error.userMessage;
+      });
+      return;
+    }
+    final loaded = (result as Success<List<ChapterEntity>>).value;
+    if (loaded.isEmpty) {
+      setState(() {
+        _loading = false;
         _errorMessage = 'No chapters found.';
-        return;
-      }
-      _chapters = loaded;
-      final initialIndex = _initialChapterId != null
-          ? loaded.indexWhere((c) => c.id == _initialChapterId)
-          : -1;
-      if (_currentChapter == null) {
-        _currentChapterIndex = initialIndex >= 0 ? initialIndex : 0;
-        _currentChapter = loaded[_currentChapterIndex];
-      }
-      _initialChapterId = null;
-    });
+      });
+      return;
+    }
+
+    final progressResult = await widget.repo.getReadingProgress(widget.bookId);
+    ReadingProgressSnapshot? progressSnap;
+    if (progressResult is Success<ReadingProgressSnapshot?>) {
+      progressSnap = progressResult.value;
+    }
+
+    final targetChapterId = _initialChapterId ?? progressSnap?.chapterId;
+    final initialIndex = targetChapterId != null
+        ? loaded.indexWhere((c) => c.id == targetChapterId)
+        : -1;
+    final resolvedIndex = initialIndex >= 0 ? initialIndex : 0;
+
+    _chapters = loaded;
+    _currentChapterIndex = resolvedIndex;
+    _currentChapter = loaded[resolvedIndex];
+    _initialPosition = progressSnap?.position;
+    _currentSentenceIndex = progressSnap?.position ?? 0;
+    _initialChapterId = null;
+
     await Future.wait([
       _loadBookmarks(),
       _loadNarrationContext(),
-      _loadReadingProgress(),
     ]);
+
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+    });
   }
 
   Future<void> _loadNarrationContext() async {
@@ -244,15 +267,6 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
           ? checkpoint
           : null;
     });
-  }
-
-  Future<void> _loadReadingProgress() async {
-    final result = await widget.repo.getReadingProgress(widget.bookId);
-    if (!mounted) return;
-    if (result is Success<ReadingProgressSnapshot?>) {
-      final snap = result.value;
-      setState(() => _initialPosition = snap?.position);
-    }
   }
 
   Future<void> _loadBookmarks() async {
@@ -438,6 +452,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
         onCurrentChapterChanged: _onContinuousChapterChanged,
         onScrollDirectionChanged: _onScrollDirectionChanged,
         onSettingsTap: _showSettingsDrawer,
+        onSearchTap: _showSearchSheet,
         onChapterSelected: (idx) {
           _resetPosition();
           setState(() {
@@ -449,8 +464,10 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
         onBookmarkToggle: _toggleBookmark,
         bookTitle: _bookTitle,
         coverPath: _bookCoverPath,
+        onOpenAnnotations: _showAnnotationsSheet,
         onHighlight: _handleHighlight,
         onAddNote: _handleAddNote,
+        onShare: _handleShare,
         onListen: _handleListen,
         onErase: _handleErase,
       );
@@ -468,14 +485,35 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
       onProgressChanged: _onPagedProgressChanged,
       onChapterSelected: _goToPagedChapter,
       onSettingsTap: _showSettingsDrawer,
+      onSearchTap: _showSearchSheet,
       isBookmarked: isBookmarked,
       onBookmarkToggle: _toggleBookmark,
       bookTitle: _bookTitle,
       coverPath: _bookCoverPath,
+      onOpenAnnotations: _showAnnotationsSheet,
       onHighlight: _handleHighlight,
       onAddNote: _handleAddNote,
+      onShare: _handleShare,
       onListen: _handleListen,
       onErase: _handleErase,
+    );
+  }
+
+  void _showSearchSheet() {
+    BookSearchSheet.show(
+      context,
+      bookId: widget.bookId,
+      onResultSelected: (chapterIndex, charOffset) {
+        if (widget.settings.readingMode == ReadingMode.continuous) {
+          _resetPosition();
+          setState(() {
+            _currentChapter = _chapters[chapterIndex];
+            _currentChapterIndex = chapterIndex;
+          });
+        } else {
+          _goToPagedChapter(chapterIndex);
+        }
+      },
     );
   }
 
@@ -485,7 +523,6 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
 
   void _onContinuousChapterChanged(int index) {
     if (_currentChapter?.id != _chapters[index].id) {
-      _resetPosition();
       setState(() {
         _currentChapter = _chapters[index];
         _currentChapterIndex = index;
@@ -556,6 +593,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     AppSheet.show(
       context: context,
       id: 'reader_settings',
+      title: 'Reading Settings',
       initialHeight: 0.8,
       snapPoints: const [0.6, 0.8],
       child: ReaderSettingsSheet(
@@ -570,7 +608,13 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
 
   final _selectionSpeaker = const SelectionSpeaker();
 
-  void _handleHighlight(String text, Color color, int start, int end) {
+  void _handleHighlight(
+    String text,
+    Color color,
+    int start,
+    int end, {
+    HighlightStyleType styleType = HighlightStyleType.solid,
+  }) {
     final chapter = _currentChapter;
     if (chapter == null) return;
     ref
@@ -581,6 +625,7 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
           end: end,
           text: text,
           colorValue: color.toARGB32(),
+          styleType: styleType,
         );
   }
 
@@ -595,18 +640,45 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
   void _handleAddNote(String text, String? sentence) {
     final chapter = _currentChapter;
     if (chapter == null) return;
-    _showNoteEditorDialog(
-      title: 'Add note',
-      initialText: '',
-      onSave: (noteText) {
-        if (noteText.trim().isEmpty) return;
-        ref
-            .read(annotationsProvider(widget.bookId).notifier)
-            .addNote(
-              chapterId: chapter.id,
-              text: noteText,
-              sentence: sentence ?? text,
-            );
+    NoteEditorSheet.show(
+      context,
+      bookId: widget.bookId,
+      chapterId: chapter.id,
+      selectedText: text,
+      sentence: sentence,
+      chapterTitle: chapter.title,
+    );
+  }
+
+  void _handleShare(String text) {
+    QuoteShareCardSheet.show(
+      context,
+      quoteText: text,
+      bookTitle: _bookTitle,
+      author: _bookAuthor,
+      chapterTitle: _currentChapter?.title,
+      coverPath: _bookCoverPath,
+    );
+  }
+
+  void _showAnnotationsSheet() {
+    ReaderAnnotationsSheet.show(
+      context,
+      bookId: widget.bookId,
+      chapters: _chapters,
+      currentChapterId: _currentChapter?.id,
+      bookTitle: _bookTitle,
+      author: _bookAuthor,
+      coverPath: _bookCoverPath,
+      onJumpToChapter: (chapterId, startOffset) {
+        final idx = _chapters.indexWhere((c) => c.id == chapterId);
+        if (idx >= 0) {
+          _resetPosition();
+          setState(() {
+            _currentChapter = _chapters[idx];
+            _currentChapterIndex = idx;
+          });
+        }
       },
     );
   }
@@ -615,50 +687,14 @@ class _ReaderContentState extends ConsumerState<ReaderContent> {
     final chapter = _currentChapter;
     final language = _bookLanguage ?? 'en';
     if (chapter == null) return;
+    final snippet = text.trim();
+    if (snippet.isEmpty) return;
     _selectionSpeaker.speak(
       ref: ref,
       bookId: widget.bookId,
       chapterId: chapter.id,
-      text: sentence != null && sentence.isNotEmpty ? sentence : text,
+      text: snippet,
       language: language,
     );
-  }
-
-  Future<void> _showNoteEditorDialog({
-    required String title,
-    required String initialText,
-    required void Function(String text) onSave,
-  }) async {
-    final controller = TextEditingController(text: initialText);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: SizedBox(
-          width: 420,
-          child: TextField(
-            controller: controller,
-            autofocus: true,
-            maxLines: 5,
-            decoration: const InputDecoration(
-              hintText: 'Write your note…',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (result != null) onSave(result);
   }
 }

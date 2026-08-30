@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
@@ -197,6 +197,10 @@ class _LibraryDeleteActions {
 
   Future<Result<void>> delete(String bookId) {
     return _ref.read(libraryViewModelProvider.notifier).deleteBook(bookId);
+  }
+
+  Future<Result<void>> deleteMultiple(List<String> bookIds) {
+    return _ref.read(libraryViewModelProvider.notifier).deleteBooks(bookIds);
   }
 
   Future<Result<void>> deleteAll() {

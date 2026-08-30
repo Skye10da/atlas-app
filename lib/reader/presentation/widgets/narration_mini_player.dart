@@ -4,19 +4,24 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' hide WordBoundary;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/services/cover_palette_service.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_speed_control.dart';
 import 'package:atlas_app/reader/presentation/widgets/now_playing_sheet.dart';
 import 'package:atlas_app/reader/speech/speech_engine.dart';
 import 'package:atlas_app/reader/speech/speech_events.dart';
 import 'package:atlas_app/reader/speech/speech_models.dart';
+import 'package:atlas_app/reader/speech/speech_session.dart';
 
 /// Persistent mini player shown at the bottom of the reader whenever
 /// narration is active (playing or paused). Unlike the chrome bars it is not
 /// tied to [chromeVisible], so it stays on screen while the user scrolls and
-/// only disappears once narration is stopped. Tapping the body reopens the
+/// only disappears once narration is stopped. Tapping the cover navigates directly
+/// to the reader at the current narration location; tapping the body reopens the
 /// full Now Playing sheet.
 class NarrationMiniPlayer extends ConsumerWidget {
   const NarrationMiniPlayer({
@@ -50,8 +55,18 @@ class NarrationMiniPlayer extends ConsumerWidget {
         ref.watch(narrationStatusProvider).valueOrNull ?? NarrationStatus.idle;
     if (status == NarrationStatus.idle) return const SizedBox.shrink();
 
+    final effectiveCoverPath = coverPath ?? session.coverPath;
+    final effectiveBookTitle = bookTitle ?? session.bookTitle;
+    final effectiveChapterTitle = chapterTitle ??
+        (session.chapterId.startsWith('pdf_page_')
+            ? 'Page ${session.chapterId.replaceFirst('pdf_page_', '')}'
+            : null);
+
     final colorScheme = Theme.of(context).colorScheme;
-    final tint = accent ?? colorScheme.primary;
+    final paletteAsync = ref.watch(coverPaletteProvider(effectiveCoverPath));
+    final palette = paletteAsync.valueOrNull ?? CoverPalette.fallback;
+    final tint = accent ??
+        (effectiveCoverPath != null ? palette.accent : colorScheme.primary);
     final queue = session.queue;
     final activeItem = ref.watch(activeSpeechItemProvider);
     final boundary = ref.watch(activeWordBoundaryProvider);
@@ -64,103 +79,147 @@ class NarrationMiniPlayer extends ConsumerWidget {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 0, AppSpacing.sm, 6),
-        child: Material(
-          elevation: 6,
-          borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-          color: colorScheme.surfaceContainerHigh,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () {
-              final expand = onExpand;
-              if (expand != null) {
-                expand();
-                return;
-              }
-              NowPlayingSheet.show(
-                context,
-                chapterTitle: chapterTitle,
-                bookTitle: bookTitle,
-                coverPath: coverPath,
-              );
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(
-                  minHeight: 2,
-                  value: sentenceProgress,
-                  color: tint,
-                  backgroundColor: tint.withValues(alpha: 0.15),
-                ),
-                SizedBox(
-                  height: 50,
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: () => unawaited(_toggle(engine, status)),
-                        icon: Icon(
-                          switch (status) {
-                            NarrationStatus.playing =>
-                              Icons.pause_circle_filled,
-                            NarrationStatus.paused => Icons.play_circle_filled,
-                            NarrationStatus.idle => Icons.play_circle_filled,
-                          },
-                          size: 30,
-                          color: tint,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 40,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _MiniLyric(
-                          item: activeItem,
-                          boundary: boundary,
-                          playing: status == NarrationStatus.playing,
-                          fallback: chapterTitle ?? bookTitle ?? 'Narrating',
-                          dimColor: colorScheme.onSurface.withValues(
-                            alpha: 0.65,
-                          ),
-                          accent: tint,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      NarrationSpeedControl(
-                        accent: tint,
-                        color: colorScheme.onSurface,
-                      ),
-                      const SizedBox(width: 2),
-                      IconButton(
-                        onPressed: () => unawaited(engine.skipNext()),
-                        icon: const Icon(Icons.skip_next_rounded),
-                        iconSize: 22,
-                        color: colorScheme.onSurface.withValues(alpha: 0.75),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 40,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => unawaited(engine.stop()),
-                        icon: const Icon(Icons.close),
-                        iconSize: 20,
-                        color: colorScheme.onSurface.withValues(alpha: 0.55),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 40,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                    ],
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+            boxShadow: [
+              BoxShadow(
+                color: tint.withValues(alpha: 0.2),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+            color: colorScheme.surfaceContainerHigh,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                final expand = onExpand;
+                if (expand != null) {
+                  expand();
+                  return;
+                }
+                NowPlayingSheet.show(
+                  context,
+                  chapterTitle: effectiveChapterTitle,
+                  bookTitle: effectiveBookTitle,
+                  coverPath: effectiveCoverPath,
+                );
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(
+                    minHeight: 2,
+                    value: sentenceProgress,
+                    color: tint,
+                    backgroundColor: tint.withValues(alpha: 0.15),
                   ),
-                ),
-              ],
+                  SizedBox(
+                    height: 52,
+                    child: Row(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8, right: 4),
+                          child: Tooltip(
+                            message: 'Go to ${effectiveBookTitle ?? 'reader'}',
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: () => _navigateToReader(context, session),
+                                child: Container(
+                                  width: 32,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: colorScheme.outlineVariant
+                                          .withValues(alpha: 0.3),
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: BookCover(
+                                    coverPath: effectiveCoverPath,
+                                    width: 32,
+                                    height: 38,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => unawaited(_toggle(engine, status)),
+                          icon: Icon(
+                            switch (status) {
+                              NarrationStatus.playing =>
+                                Icons.pause_circle_filled,
+                              NarrationStatus.paused =>
+                                Icons.play_circle_filled,
+                              NarrationStatus.idle => Icons.play_circle_filled,
+                            },
+                            size: 28,
+                            color: tint,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: _MiniLyric(
+                            item: activeItem,
+                            boundary: boundary,
+                            playing: status == NarrationStatus.playing,
+                            fallback: effectiveChapterTitle ??
+                                effectiveBookTitle ??
+                                'Narrating',
+                            dimColor: colorScheme.onSurface.withValues(
+                              alpha: 0.65,
+                            ),
+                            accent: tint,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        NarrationSpeedControl(
+                          accent: tint,
+                          color: colorScheme.onSurface,
+                        ),
+                        IconButton(
+                          onPressed: () => unawaited(engine.skipNext()),
+                          icon: const Icon(Icons.skip_next_rounded),
+                          iconSize: 22,
+                          color: colorScheme.onSurface.withValues(alpha: 0.75),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => unawaited(engine.stop()),
+                          icon: const Icon(Icons.close),
+                          iconSize: 18,
+                          color: colorScheme.onSurface.withValues(alpha: 0.55),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -168,14 +227,22 @@ class NarrationMiniPlayer extends ConsumerWidget {
     );
   }
 
+  void _navigateToReader(BuildContext context, SpeechSession session) {
+    if (session.chapterId.startsWith('pdf_page_')) {
+      final page = session.chapterId.replaceFirst('pdf_page_', '');
+      context.push('/reader/${session.bookId}?page=$page');
+    } else {
+      context.push('/reader/${session.bookId}?chapterId=${session.chapterId}');
+    }
+  }
+
   Future<void> _toggle(SpeechEngine engine, NarrationStatus status) async {
     switch (status) {
       case NarrationStatus.playing:
-        return engine.pause();
+        await engine.pause();
       case NarrationStatus.paused:
-        return engine.resume();
       case NarrationStatus.idle:
-        return engine.start();
+        await engine.resume();
     }
   }
 }
@@ -218,26 +285,25 @@ class _MiniLyricState extends State<_MiniLyric>
   static const int _maxMs = 900;
 
   late final AnimationController _controller;
-  late String _sentence;
-  TextPainter? _painter;
+  String _sentence = '';
   final List<_WordRange> _words = [];
+  int _activeWord = -1;
   double _startX = 0;
   double _endX = 0;
   double _renderedX = 0;
-  int _activeWord = -1;
+  TextPainter? _painter;
   Timer? _fallbackTimer;
   Timer? _stallTimer;
   bool _boundariesStalled = false;
 
   // Platform & word boundary detection
-  bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-  bool get _wordBoundariesAvailable => widget.boundary != null && widget.boundary!.word.isNotEmpty;
-  bool get _useWordBoundaries => _isMobile && _wordBoundariesAvailable;
+  bool get _isDesktop =>
+      !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+  bool get _useWordBoundaries => !_isDesktop;
 
   @override
   void initState() {
     super.initState();
-    _sentence = _lineOf(widget.item);
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
@@ -246,16 +312,19 @@ class _MiniLyricState extends State<_MiniLyric>
   }
 
   @override
-  void didUpdateWidget(covariant _MiniLyric oldWidget) {
+  void didUpdateWidget(_MiniLyric oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final next = _lineOf(widget.item);
-    if (next != _sentence) {
+    if (oldWidget.item?.text != widget.item?.text ||
+        oldWidget.fallback != widget.fallback) {
       _resetLine();
       return;
     }
-    // Re-anchor to the real spoken word when a boundary event arrives.
-    _syncFromProvider();
-    if (widget.playing != oldWidget.playing) {
+
+    if (oldWidget.boundary != widget.boundary) {
+      _syncFromProvider();
+    }
+
+    if (oldWidget.playing != widget.playing) {
       if (widget.playing) {
         _scheduleNext(_activeWord);
       } else {

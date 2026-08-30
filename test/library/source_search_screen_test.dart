@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,5 +90,56 @@ void main() {
     // Pump to process future completion - must not throw FlutterError
     await tester.pumpAndSettle();
     expect(find.text('Done'), findsOneWidget);
+  });
+
+  testWidgets('SourceSearchScreen uses SliverGridDelegateWithMaxCrossAxisExtent for responsive grid', (
+    tester,
+  ) async {
+    final completer = Completer<SourceSearchResponse>();
+    final fakeSource = _FakeSearchableSource(completer);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          searchableSourcesProvider.overrideWithValue([fakeSource]),
+        ],
+        child: const MaterialApp(
+          home: SourceSearchScreen(sourceName: 'FakeSource'),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'Fantasy');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+
+    completer.complete(
+      const SourceSearchResponse(
+        results: [
+          SourceSearchResult(
+            id: '1',
+            title: 'Fantasy Book 1',
+            importUrl: 'https://example.com/1',
+          ),
+          SourceSearchResult(
+            id: '2',
+            title: 'Fantasy Book 2',
+            importUrl: 'https://example.com/2',
+          ),
+        ],
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final gridView = tester.widget<GridView>(find.byType(GridView));
+    final delegate = gridView.gridDelegate;
+    expect(delegate, isA<SliverGridDelegateWithMaxCrossAxisExtent>());
+    final extentDelegate = delegate as SliverGridDelegateWithMaxCrossAxisExtent;
+    expect(extentDelegate.maxCrossAxisExtent, equals(170));
+    expect(extentDelegate.childAspectRatio, equals(0.6));
+    expect(find.text('Fantasy Book 1'), findsOneWidget);
+    expect(find.text('Fantasy Book 2'), findsOneWidget);
   });
 }

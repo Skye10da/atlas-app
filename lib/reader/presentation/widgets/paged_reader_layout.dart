@@ -16,11 +16,13 @@ import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controll
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
 import 'package:atlas_app/reader/presentation/utils/pager_boundary.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_narration_coordinator.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_pager.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
@@ -35,6 +37,7 @@ import 'package:atlas_app/reader/presentation/widgets/reader_command_palette.dar
 import 'package:atlas_app/reader/presentation/widgets/reader_edge_regions.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
 import 'package:atlas_app/reader/presentation/widgets/now_playing_panel.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_annotations_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_right_panel.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 
@@ -50,10 +53,12 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
     required this.onProgressChanged,
     required this.onChapterSelected,
     required this.onSettingsTap,
+    this.onSearchTap,
     required this.isBookmarked,
     required this.onBookmarkToggle,
     this.bookTitle,
     this.coverPath,
+    this.onOpenAnnotations,
     this.onHighlight,
     this.onAddNote,
     this.onShare,
@@ -73,10 +78,12 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
   final void Function(double progress) onProgressChanged;
   final void Function(int chapterIndex) onChapterSelected;
   final VoidCallback onSettingsTap;
+  final VoidCallback? onSearchTap;
   final bool isBookmarked;
   final VoidCallback onBookmarkToggle;
   final String? bookTitle;
   final String? coverPath;
+  final VoidCallback? onOpenAnnotations;
 
   /// A flat sentence index (from [onPositionChanged]) to resume at on open.
   /// `null` or `0` means "resume at the top of the current chapter".
@@ -89,8 +96,13 @@ class PagedReaderLayout extends ConsumerStatefulWidget {
 
   /// Called with the selected text and chosen color when the reader taps a
   /// highlight swatch in the context menu. Omit to hide highlighting.
-  final void Function(String text, Color color, int start, int end)?
-  onHighlight;
+  final void Function(
+    String text,
+    Color color,
+    int start,
+    int end, {
+    HighlightStyleType styleType,
+  })? onHighlight;
 
   /// Called with the selected text (and surrounding sentence, if available)
   /// when the reader taps "Note". Omit to hide the note action.
@@ -243,7 +255,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    final isDesktop = MediaQuery.of(context).size.width >= 840;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 840;
     if (!isDesktop) return KeyEventResult.ignored;
 
     final common = handleCommonReaderKeys(
@@ -380,8 +392,14 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     final content = _contentCache[_chapterIndex];
     if (content == null || content.isEmpty) return;
     final localPage = _currentLocalPage(_chapterIndex);
-    final offset = _pageStartOffset(_chapterIndex, localPage);
-    final resolved = _resolver.resolve(content, offset);
+    final startOffset = _pageStartOffset(_chapterIndex, localPage);
+    final pageLength = _pageCache[_chapterIndex]?[localPage].length ?? 0;
+    final endOffset = startOffset + pageLength;
+    final resolved = _resolver.resolveFirstWithinRange(
+      content,
+      startOffset,
+      endOffset,
+    );
     onPosition(resolved.index, resolved.total);
   }
 
@@ -713,7 +731,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     };
     final rawHeight = _layoutHeight > 0
         ? _layoutHeight
-        : MediaQuery.of(context).size.height;
+        : MediaQuery.sizeOf(context).height;
     final width = _pageWidthForCurrentMode();
     final pageWidth = width - horizontalMargin * 2;
     final pageHeight = rawHeight - verticalMargin * 2;
@@ -745,6 +763,7 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       _paginationInFlight.remove(index);
       _pageCache[index] = _chunkedAccumulator.remove(index) ?? [''];
       _chunkedOffset.remove(index);
+      _evictDistantCaches();
       ref
               .read(chapterLoadPhaseProvider(widget.chapters[index]).notifier)
               .state =
@@ -755,7 +774,9 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
         _clampInnerAfterRepagination(index);
         if (index == _chapterIndex) {
           _updateProgress();
-          _reportPositionFromCurrentPage();
+          if (!_restorePending) {
+            _reportPositionFromCurrentPage();
+          }
         }
         setState(() {});
       }
@@ -783,6 +804,23 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     if (page > count - 1) {
       controller.jumpToPage(count - 1);
       _lastPanelIndex[chapterIdx] = count - 1;
+    }
+  }
+
+  void _evictDistantCaches() {
+    if (_pageCache.length <= 15) return;
+    final distantKeys = _pageCache.keys
+        .where((k) => (k - _chapterIndex).abs() > 5)
+        .toList()
+      ..sort((a, b) => (b - _chapterIndex).abs().compareTo((a - _chapterIndex).abs()));
+
+    for (final key in distantKeys) {
+      if (_pageCache.length <= 12) break;
+      _pageCache.remove(key);
+      _contentCache.remove(key);
+      _loadedChapters.remove(key);
+      final ctrl = _innerControllers.remove(key);
+      ctrl?.dispose();
     }
   }
 
@@ -898,6 +936,40 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       }
     }
 
+    final activeItem = ref.watch(activeSpeechItemProvider);
+    if (activeItem != null &&
+        currentIndex >= 0 &&
+        currentIndex < widget.chapters.length &&
+        activeItem.chapterId == widget.chapters[currentIndex].id) {
+      final currentContent = _contentCache[currentIndex];
+      if (currentContent != null && currentContent.isNotEmpty) {
+        final charOffset = const ChapterNarrationCoordinator().resolveActiveSpeechOffset(
+          item: activeItem,
+          content: currentContent,
+        );
+        if (charOffset != null) {
+          final targetLocalPage = _localPageForCharOffset(currentIndex, charOffset);
+          final targetPanel = isWideDesktop ? targetLocalPage ~/ 2 : targetLocalPage;
+          final controller = _innerControllers[currentIndex];
+          if (controller != null &&
+              controller.hasClients &&
+              (controller.page?.round() ?? _lastPanelIndex[currentIndex] ?? 0) != targetPanel) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted &&
+                  controller.hasClients &&
+                  (controller.page?.round() ?? _lastPanelIndex[currentIndex] ?? 0) != targetPanel) {
+                controller.animateToPage(
+                  targetPanel,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                );
+              }
+            });
+          }
+        }
+      }
+    }
+
     // Display-only refresh of the progress notifier; parent notifications
     // flow exclusively through the page-change handlers below.
     _progress.value = _computedProgress;
@@ -955,10 +1027,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
               child: ReaderChromeBar(
                 title: chapters[currentIndex].title,
                 textColor: colorScheme.onSurface,
-                showPanelToggle: isDesktop,
-                rightPanelVisible: rightPanelVisible,
-                onTogglePanel: toggleRightPanel,
                 onSettingsTap: widget.onSettingsTap,
+                onSearchTap: widget.onSearchTap,
               ),
             )
           : null,
@@ -969,11 +1039,25 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
               child: ReaderBottomNav(
                 textColor: colorScheme.onSurface,
                 onSettingsTap: widget.onSettingsTap,
-                onChapterIndexTap: _useSidePanels
-                    ? toggleRightPanel
-                    : () => _showChapterIndex(context),
+                onChapterIndexTap: () => _showChapterIndex(context),
                 onBookmarkTap: widget.onBookmarkToggle,
                 isBookmarked: widget.isBookmarked,
+                onAnnotationsTap: () {
+                  ReaderAnnotationsSheet.show(
+                    context,
+                    bookId: chapters.first.bookId,
+                    chapters: chapters,
+                    currentChapterId: chapters[currentIndex].id,
+                    bookTitle: widget.bookTitle,
+                    coverPath: widget.coverPath,
+                    onJumpToChapter: (chId, _) {
+                      final idx = chapters.indexWhere((c) => c.id == chId);
+                      if (idx >= 0) {
+                        _selectChapterExplicitly(idx);
+                      }
+                    },
+                  );
+                },
                 currentChapterTitle: chapters[currentIndex].title,
                 currentChapterNumber: currentIndex,
                 totalChapters: chapters.length,
@@ -1057,7 +1141,6 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                   visible: rightPanelVisible || narrationPanelVisible,
                   chromeVisible: chromeVisible,
                   panelWidth: ReaderChromeController.rightPanelWidth,
-                  onHoverReveal: showRightPanelOnHover,
                   panel: narrationPanelVisible
                       ? NowPlayingPanel(
                           bookTitle: widget.bookTitle,
@@ -1091,7 +1174,22 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
                   onToggleBookmark: widget.onBookmarkToggle,
                   isBookmarked: widget.isBookmarked,
                   onToggleSettings: widget.onSettingsTap,
-                  onTogglePanel: toggleRightPanel,
+                  onOpenAnnotations: () {
+                    ReaderAnnotationsSheet.show(
+                      context,
+                      bookId: chapters.first.bookId,
+                      chapters: chapters,
+                      currentChapterId: chapters[currentIndex].id,
+                      bookTitle: widget.bookTitle,
+                      coverPath: widget.coverPath,
+                      onJumpToChapter: (chId, _) {
+                        final idx = chapters.indexWhere((c) => c.id == chId);
+                        if (idx >= 0) {
+                          _selectChapterExplicitly(idx);
+                        }
+                      },
+                    );
+                  },
                   onClose: () => setState(() => commandPaletteVisible = false),
                 ),
               if (!narrationPanelVisible)
@@ -1327,6 +1425,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
     final isLastOfChapter = clampedPage == pages.length - 1;
     final chapter = chapters[chIdx];
 
+    final activeItem = ref.watch(activeSpeechItemProvider);
+
     return PagedPageView(
       content: content,
       chapterTitle: chapter.title,
@@ -1335,6 +1435,8 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       chapterId: chapter.id,
       pageStartOffset: _pageStartOffset(chIdx, clampedPage),
       highlights: _highlightsFor(chapter, _contentCache[chIdx] ?? ''),
+      activeSpeechItem: activeItem != null && activeItem.chapterId == chapter.id ? activeItem : null,
+      fullChapterContent: _contentCache[chIdx],
       isFirstPageOfChapter: isFirstOfChapter,
       isLastPageOfChapter: isLastOfChapter,
       textStyle: TextStyle(
@@ -1359,6 +1461,17 @@ class _PagedReaderLayoutState extends ConsumerState<PagedReaderLayout>
       onListen: widget.onListen,
       onErase: widget.onErase,
       onSetGlossaryTerm: (term) => _openGlossaryTerm(chapter.bookId, term),
+      onTap: _handlePageTextTap,
+    );
+  }
+
+  void _handlePageTextTap() {
+    if (rightPanelVisible || narrationPanelVisible) {
+      hideRightPanel();
+      return;
+    }
+    toggleChrome(
+      isDarkTheme: Theme.of(context).colorScheme.brightness == Brightness.dark,
     );
   }
 

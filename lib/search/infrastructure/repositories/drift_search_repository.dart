@@ -14,7 +14,10 @@ final class DriftSearchRepository implements SearchRepositoryInterface {
   @override
   Future<Result<List<SearchResultEntity>>> search(String query) async {
     try {
-      final pattern = '%$query%';
+      final trimmed = query.trim();
+      if (trimmed.isEmpty) return const Success([]);
+
+      final pattern = '%$trimmed%';
       final results = <SearchResultEntity>[];
 
       final books =
@@ -23,9 +26,11 @@ final class DriftSearchRepository implements SearchRepositoryInterface {
                   _db.readingProgress,
                   _db.readingProgress.bookId.equalsExp(_db.books.id),
                 ),
-              ])..where(
-                _db.books.title.like(pattern) | _db.books.author.like(pattern),
-              ))
+              ])
+                ..where(
+                  _db.books.title.like(pattern) | _db.books.author.like(pattern),
+                )
+                ..limit(50))
               .get();
 
       for (final row in books) {
@@ -48,7 +53,10 @@ final class DriftSearchRepository implements SearchRepositoryInterface {
 
       final chapters = await (_db.select(_db.chapters).join([
         innerJoin(_db.books, _db.books.id.equalsExp(_db.chapters.bookId)),
-      ])..where(_db.chapters.title.like(pattern))).get();
+      ])
+        ..where(_db.chapters.title.like(pattern))
+        ..limit(100))
+        .get();
 
       for (final row in chapters) {
         final chapter = row.readTable(_db.chapters);

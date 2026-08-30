@@ -11,7 +11,9 @@ import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
 import 'package:atlas_app/core/design_system/tokens/animation.dart';
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/import/file_open_providers.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart'
     show ProgressPainter;
@@ -61,7 +63,7 @@ Future<ImportOutcome?> showImportUrlSheet(
   )?
   onImport,
 }) {
-  final isWide = MediaQuery.of(context).size.width >= 900;
+  final isWide = AppBreakpoints.isWide(context);
 
   return showGeneralDialog<ImportOutcome>(
     context: context,
@@ -237,7 +239,8 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['epub', 'pdf', 'atlas'],
+        allowedExtensions: ['epub', 'pdf', 'atlas', 'txt', 'text', 'md', 'markdown'],
+        allowMultiple: true,
         withData: true,
       );
       if (!mounted) return;
@@ -245,6 +248,46 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
         setState(() => _loading = false);
         return;
       }
+
+      if (result.files.length > 1) {
+        final importer = ref.read(openedFileImportServiceProvider);
+        setState(() {
+          _stage = _SheetStage.progress;
+          _progress.value = 0;
+          _progressDone = false;
+        });
+
+        int importedCount = 0;
+        final total = result.files.length;
+        for (int i = 0; i < total; i++) {
+          final file = result.files[i];
+          final bytes = file.bytes;
+          if (bytes != null) {
+            _progress.value = (i / total);
+            await importer.importBytes(bytes, file.name);
+            importedCount++;
+          }
+        }
+        _progress.value = 1.0;
+        ref.invalidate(libraryBooksProvider);
+
+        if (!mounted) return;
+        setState(() {
+          _progressDone = true;
+          _outcome = ImportOutcome(
+            bookId: 'batch:$importedCount',
+            category: ContentCategory.book,
+          );
+          _stage = _SheetStage.done;
+        });
+        _autoDismissTimer = Timer(const Duration(seconds: 3), () {
+          if (mounted && _stage == _SheetStage.done) {
+            Navigator.of(context).pop(_outcome);
+          }
+        });
+        return;
+      }
+
       final file = result.files.first;
       final bytes = file.bytes;
       if (bytes == null) {
@@ -264,6 +307,12 @@ class _ImportUrlSheetState extends ConsumerState<_ImportUrlSheet>
         model = await service.extractMetadata(bytes, file.name);
       } else if (ext.endsWith('.pdf')) {
         final service = ref.read(pdfImportServiceProvider);
+        model = await service.extractMetadata(bytes, file.name);
+      } else if (ext.endsWith('.txt') ||
+          ext.endsWith('.text') ||
+          ext.endsWith('.md') ||
+          ext.endsWith('.markdown')) {
+        final service = ref.read(textImportServiceProvider);
         model = await service.extractMetadata(bytes, file.name);
       } else {
         final service = ref.read(libraryImportServiceProvider);

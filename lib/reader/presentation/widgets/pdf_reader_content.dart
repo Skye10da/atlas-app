@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide WordBoundary;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,23 +12,41 @@ import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
+import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/domain/entities/reading_progress_snapshot.dart';
 import 'package:atlas_app/reader/infrastructure/repositories/drift_reader_repository.dart';
+import 'package:atlas_app/reader/presentation/controllers/reader_chrome_controller.dart';
+import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
+import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
+import 'package:atlas_app/reader/presentation/widgets/note_editor_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/now_playing_panel.dart';
+import 'package:atlas_app/reader/presentation/widgets/now_playing_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_bottom_nav.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_password_dialog.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_reader_panel.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_settings_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_viewer_models.dart';
+import 'package:atlas_app/reader/presentation/widgets/quote_share_card_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_annotations_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_bar_surface.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_chrome_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
+import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
+import 'package:atlas_app/reader/speech/speech_events.dart';
+import 'package:atlas_app/reader/speech/speech_session_builder.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 
 /// Renders an imported PDF (format == 'pdf') using pdfrx's [PdfViewer].
 ///
-/// Unlike the chapter-based reader, PDFs keep their original pages and render
-/// through PDFium. Progress is stored as page / total pages (position = page)
-/// so the library's progress bar and "Continue Reading" keep working.
+/// Fully unified with the core Atlas reader chrome architecture:
+/// auto-hides chrome on idle, tap-to-toggle immersion, theme-matched surfaces,
+/// persistent highlights with formatting styles, passage notes, quote cards,
+/// unified top/bottom navigation bars, responsive right side panel, and TTS narration.
 class PdfReaderContent extends ConsumerStatefulWidget {
   const PdfReaderContent({
     super.key,
@@ -72,7 +91,8 @@ const _invertFilter = ColorFilter.matrix([
 
 const _identityFilter = ColorFilter.mode(Colors.white, BlendMode.dst);
 
-class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
+class _PdfReaderContentState extends ConsumerState<PdfReaderContent>
+    with ReaderChromeController {
   final _controller = PdfViewerController();
   Timer? _saveDebounce;
 
@@ -85,102 +105,202 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
   int _currentPage = 0;
   int _totalPages = 0;
 
-  bool _showPanel = false;
-  PdfReaderLayoutMode _layoutMode = PdfReaderLayoutMode.facing;
+  PdfReaderLayoutMode _layoutMode = PdfReaderLayoutMode.single;
 
-  final _markers = <int, List<PdfMarker>>{};
-  final _notes = <int, List<PdfNoteEntry>>{};
+  final _bookmarkedPages = <int>{};
   List<PdfPageTextRange> _selection = const [];
 
   String? _bookLanguage;
   String? _bookTitle;
+  String? _bookCoverPath;
 
   final _selectionSpeaker = const SelectionSpeaker();
-
+  final _sessionBuilder = const SpeechSessionBuilder();
+  StreamSubscription<SpeechEvent>? _speechSub;
   bool _controllerListenerAdded = false;
 
   @override
   void initState() {
     super.initState();
+    _speechSub = ref.read(speechEngineProvider).events.listen(_onSpeechEvent);
     _loadBookMeta();
     _loadStartPage();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final isDark =
+          Theme.of(context).colorScheme.brightness == Brightness.dark;
+      initReaderChrome(isDarkTheme: isDark);
+    });
   }
 
   @override
   void dispose() {
+    _speechSub?.cancel();
     _saveDebounce?.cancel();
     _textSearcher?.dispose();
     if (_controllerListenerAdded) {
       _controller.removeListener(_onControllerChanged);
     }
+    disposeReaderChrome();
     super.dispose();
+  }
+
+  void _onSpeechEvent(SpeechEvent event) {
+    switch (event) {
+      case ChapterFinished(:final chapterId):
+        _advanceFromNarration(chapterId);
+      case SentenceStarted(:final item):
+        ref.read(activeWordBoundaryProvider.notifier).state = null;
+        if (item.bookId == widget.bookId) {
+          ref.read(activeSpeechItemProvider.notifier).state = item;
+        }
+      case WordBoundary(:final item, :final start, :final end, :final word):
+        ref.read(activeWordBoundaryProvider.notifier).state = WordBoundary(
+          item,
+          start,
+          end,
+          word,
+        );
+      case SpeechStopped() || SpeechCompleted():
+        ref.read(activeSpeechItemProvider.notifier).state = null;
+        ref.read(activeWordBoundaryProvider.notifier).state = null;
+      default:
+        break;
+    }
+  }
+
+  void _advanceFromNarration(String finishedChapterId) {
+    if (!mounted) return;
+    final autoAdvance =
+        ref.read(narrationSettingsProvider).value?.autoAdvanceChapter ?? true;
+    if (!autoAdvance) return;
+    if (_currentPage < _totalPages) {
+      final next = _currentPage + 1;
+      _goToPage(next);
+      _syncSpeechSession(next, autoPlay: true);
+    }
+  }
+
+  Future<String> _loadPageText(int pageNumber) async {
+    final doc = _document;
+    if (doc == null || pageNumber < 1 || pageNumber > doc.pages.length) {
+      return '';
+    }
+    try {
+      final page = doc.pages[pageNumber - 1];
+      final pageText = await page.loadText();
+      return pageText?.fullText ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<void> _syncSpeechSession(int pageNumber, {bool autoPlay = false}) async {
+    if (_document == null || pageNumber < 1 || pageNumber > _totalPages) return;
+    final chapterId = 'pdf_page_$pageNumber';
+    final engine = ref.read(speechEngineProvider);
+    if (engine.session?.bookId == widget.bookId &&
+        engine.session?.chapterId == chapterId) {
+      if (autoPlay) unawaited(engine.start());
+      return;
+    }
+
+    final content = await _loadPageText(pageNumber);
+    if (content.trim().isEmpty) return;
+
+    final settings =
+        ref.read(narrationSettingsProvider).value ?? const NarrationSettings();
+    final chapter = ChapterEntity(
+      id: chapterId,
+      bookId: widget.bookId,
+      title: 'Page $pageNumber of $_totalPages',
+      index: pageNumber - 1,
+      contentPath: '',
+    );
+
+    final session = _sessionBuilder.build(
+      bookId: widget.bookId,
+      chapter: chapter,
+      content: content,
+      language: _bookLanguage ?? 'en',
+      settings: settings,
+      sentenceIndex: 0,
+      coverPath: _bookCoverPath,
+      bookTitle: _bookTitle,
+      author: null,
+    );
+
+    await engine.loadSession(session);
+    if (autoPlay) {
+      unawaited(engine.start());
+    }
   }
 
   Future<void> _loadBookMeta() async {
     final repo = DriftReaderRepository(ref.read(databaseProvider));
     final bookResult = await repo.getBookById(widget.bookId);
     if (bookResult is Success<BookEntity>) {
-      _bookLanguage = bookResult.value.language;
-      _bookTitle = bookResult.value.title;
+      if (mounted) {
+        setState(() {
+          _bookLanguage = bookResult.value.language;
+          _bookTitle = bookResult.value.title;
+          _bookCoverPath = bookResult.value.coverPath;
+        });
+      }
     }
   }
 
   Future<void> _loadStartPage() async {
     if (widget.initialPageNumber != null && widget.initialPageNumber! > 0) {
-      _startPage = widget.initialPageNumber!;
-    } else {
-      final repo = DriftReaderRepository(ref.read(databaseProvider));
-      try {
-        final progressResult = await repo.getReadingProgress(widget.bookId);
-        if (progressResult is Success<ReadingProgressSnapshot?> &&
-            progressResult.value != null &&
-            progressResult.value!.position > 0) {
-          _startPage = progressResult.value!.position;
-        }
-      } catch (_) {
-        _startPage = 1;
+      if (mounted) {
+        setState(() {
+          _startPage = widget.initialPageNumber!;
+          _progressLoaded = true;
+        });
+      }
+      return;
+    }
+    final repo = DriftReaderRepository(ref.read(databaseProvider));
+    final result = await repo.getReadingProgress(widget.bookId);
+    if (result is Success<ReadingProgressSnapshot?> && result.value != null) {
+      final savedPos = result.value!.position;
+      if (savedPos > 0 && mounted) {
+        setState(() {
+          _startPage = savedPos;
+          _progressLoaded = true;
+        });
+        return;
       }
     }
-    if (!mounted) return;
-    setState(() => _progressLoaded = true);
+    if (mounted) {
+      setState(() => _progressLoaded = true);
+    }
   }
 
-  // ------------------------------------------------------------ viewer io
-
-  Future<void> _onViewerReady(
-    PdfDocument document,
-    PdfViewerController controller,
-  ) async {
-    var pageCount = 0;
-    try {
-      pageCount = document.pages.length;
-    } catch (_) {}
-
-    _textSearcher?.dispose();
-    final searcher = PdfTextSearcher(controller)..addListener(_onSearchChanged);
-    _textSearcher = searcher;
+  Future<void> _onViewerReady(PdfDocument document, PdfViewerController controller) async {
     if (!_controllerListenerAdded) {
       _controller.addListener(_onControllerChanged);
       _controllerListenerAdded = true;
     }
+    _textSearcher?.dispose();
+    final searcher = PdfTextSearcher(controller);
+    searcher.addListener(_onSearchChanged);
 
-    List<PdfOutlineNode>? outline;
-    try {
-      outline = await document.loadOutline();
-    } catch (_) {
-      outline = null;
-    }
+    final outline = await document.loadOutline();
 
     if (!mounted) return;
     setState(() {
       _document = document;
+      _textSearcher = searcher;
       _outline = outline;
-      _totalPages = pageCount;
+      _totalPages = document.pages.length;
       if (_startPage > _totalPages && _totalPages > 0) {
         _startPage = _totalPages;
       }
       _currentPage = _totalPages > 0 ? _startPage : 0;
     });
+    if (_currentPage > 0) {
+      unawaited(_syncSpeechSession(_currentPage));
+    }
   }
 
   void _onDocumentChanged(PdfDocument? document) {
@@ -189,8 +309,7 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
       _textSearcher = null;
       _outline = null;
       _document = null;
-      _markers.clear();
-      _notes.clear();
+      _bookmarkedPages.clear();
       _selection = const [];
     }
   }
@@ -213,6 +332,7 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     setState(() => _currentPage = target);
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 400), _saveProgress);
+    unawaited(_syncSpeechSession(target));
   }
 
   // ------------------------------------------------------------- actions
@@ -243,21 +363,32 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     _controller.invalidate();
   }
 
-  void _deleteMarker(PdfMarker marker) {
+  void _toggleBookmarkForCurrentPage() {
+    if (_currentPage <= 0) return;
     setState(() {
-      final list = _markers[marker.range.pageNumber];
-      list?.remove(marker);
-      if (list?.isEmpty ?? false) {
-        _markers.remove(marker.range.pageNumber);
+      if (_bookmarkedPages.contains(_currentPage)) {
+        _bookmarkedPages.remove(_currentPage);
+      } else {
+        _bookmarkedPages.add(_currentPage);
       }
     });
+  }
+
+  void _deleteMarker(PdfMarker marker) {
+    final chapterId = 'pdf_page_${marker.pageNumber}';
+    ref.read(annotationsProvider(widget.bookId).notifier).eraseOverlapping(
+      chapterId,
+      marker.start,
+      marker.end,
+    );
+    _controller.invalidate();
   }
 
   void _goToMarker(PdfMarker marker) {
     if (!_controller.isReady) return;
     final rect = _controller.calcRectForRectInsidePage(
-      pageNumber: marker.range.pageNumber,
-      rect: marker.range.bounds,
+      pageNumber: marker.pageNumber,
+      rect: marker.bounds,
     );
     _controller.ensureVisible(rect);
   }
@@ -267,13 +398,11 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
   }
 
   void _deleteNote(PdfNoteEntry note) {
-    setState(() {
-      final list = _notes[note.pageNumber];
-      list?.remove(note);
-      if (list?.isEmpty ?? false) {
-        _notes.remove(note.pageNumber);
-      }
-    });
+    final chapterId = 'pdf_page_${note.pageNumber}';
+    ref.read(annotationsProvider(widget.bookId).notifier).deleteNote(
+      chapterId,
+      note.id,
+    );
   }
 
   void _goToOutlineNode(PdfOutlineNode node) {
@@ -288,11 +417,42 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
   }
 
   static const _highlightPalette = [
-    AppContextMenuHighlightOption(color: Color(0xFFFFF176), label: 'Yellow'),
-    AppContextMenuHighlightOption(color: Color(0xFFA5D6A7), label: 'Green'),
-    AppContextMenuHighlightOption(color: Color(0xFF90CAF9), label: 'Blue'),
-    AppContextMenuHighlightOption(color: Color(0xFFF48FB1), label: 'Pink'),
-    AppContextMenuHighlightOption(color: Color(0xFFCE93D8), label: 'Purple'),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFFFD54F),
+      label: 'Sunset Gold',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFF81C784),
+      label: 'Emerald Mint',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFF64B5F6),
+      label: 'Sky Blue',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFFF8A65),
+      label: 'Coral Orange',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFF06292),
+      label: 'Rose Pink',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFBA68C8),
+      label: 'Electric Violet',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFAEEA00),
+      label: 'Neon Lime',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFFFB74D),
+      label: 'Warm Amber',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFF90A4AE),
+      label: 'Slate Graphite',
+    ),
   ];
 
   Widget? _buildContextMenu(
@@ -303,11 +463,18 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     final delegate = params.textSelectionDelegate;
     if (!delegate.hasSelectedText) return null;
 
+    final overlappingHighlight = _findOverlappingHighlight(_selection);
+    final hasOverlapping = overlappingHighlight != null ||
+        _selection.any(_hasOverlappingMarker);
+
     return AppContextMenu(
       externallyPositioned: true,
       anchor: Offset.zero,
       highlightColors: _highlightPalette,
-      onHighlightSelected: _applyHighlightForSelection,
+      initialStyle:
+          overlappingHighlight?.styleType ?? HighlightStyleType.solid,
+      onHighlightWithStyle: (color, style) =>
+          _applyHighlightForSelectionWithStyle(params, color, style),
       quickActions: [
         AppContextMenuAction(
           label: 'Copy',
@@ -317,7 +484,12 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
         AppContextMenuAction(
           label: 'Note',
           icon: Icons.edit_note_rounded,
-          onPressed: _addNoteForSelection,
+          onPressed: () => _addNoteForSelection(params),
+        ),
+        AppContextMenuAction(
+          label: 'Share',
+          icon: Icons.share_rounded,
+          onPressed: () => _shareSelection(params),
         ),
         AppContextMenuAction(
           label: 'Listen',
@@ -331,12 +503,12 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
           icon: Icons.translate_rounded,
           onPressed: () => _lookupSelection(params),
         ),
-        if (_selection.any(_hasOverlappingMarker))
+        if (hasOverlapping)
           AppContextMenuAction(
             label: 'Erase highlight',
             icon: Icons.format_color_reset_rounded,
             destructive: true,
-            onPressed: _eraseSelection,
+            onPressed: () => _eraseSelection(params),
           ),
         AppContextMenuAction(
           label: 'Select all',
@@ -348,122 +520,141 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     );
   }
 
+  HighlightEntry? _findOverlappingHighlight(List<PdfPageTextRange> ranges) {
+    if (ranges.isEmpty) return null;
+    final annotations = ref.read(annotationsProvider(widget.bookId));
+    for (final range in ranges) {
+      final chapterId = 'pdf_page_${range.pageNumber}';
+      final highlights = annotations.highlights[chapterId];
+      if (highlights != null) {
+        for (final h in highlights) {
+          if (h.overlaps(range.start, range.end)) return h;
+        }
+      }
+    }
+    return null;
+  }
+
   bool _hasOverlappingMarker(PdfPageTextRange range) {
-    final markers = _markers[range.pageNumber];
-    if (markers == null) return false;
-    return markers.any(
-      (m) =>
-          m.range.pageNumber == range.pageNumber &&
-          m.range.start < range.end &&
-          m.range.end > range.start,
-    );
+    final chapterId = 'pdf_page_${range.pageNumber}';
+    final highlights =
+        ref.read(annotationsProvider(widget.bookId)).highlights[chapterId];
+    if (highlights == null) return false;
+    return highlights.any((h) => h.overlaps(range.start, range.end));
+  }
+
+  Future<List<PdfPageTextRange>> _resolveSelection(
+    PdfViewerContextMenuBuilderParams params,
+  ) async {
+    if (_selection.isNotEmpty) return _selection;
+    try {
+      final ranges = await params.textSelectionDelegate.getSelectedTextRanges();
+      if (ranges.isNotEmpty) {
+        if (mounted) setState(() => _selection = ranges);
+        return ranges;
+      }
+    } catch (_) {}
+    return const [];
   }
 
   Future<String> _selectedText(PdfViewerContextMenuBuilderParams params) async {
     try {
-      return await params.textSelectionDelegate.getSelectedText();
-    } catch (_) {
+      final text = await params.textSelectionDelegate.getSelectedText();
+      if (text.isNotEmpty) return text;
+    } catch (_) {}
+    if (_selection.isNotEmpty) {
       return _selection.map((r) => r.text).join();
     }
+    final ranges = await _resolveSelection(params);
+    return ranges.map((r) => r.text).join();
   }
 
-  void _applyHighlightForSelection(Color color) {
-    if (!mounted) return;
-    setState(() {
-      for (final range in _selection) {
-        _markers
-            .putIfAbsent(range.pageNumber, () => [])
-            .add(PdfMarker(range, color));
-      }
-      _selection = const [];
-    });
-  }
-
-  void _eraseSelection() {
-    setState(() {
-      for (final range in _selection) {
-        final markers = _markers[range.pageNumber];
-        if (markers == null) continue;
-        markers.removeWhere(
-          (m) => m.range.start < range.end && m.range.end > range.start,
-        );
-        if (markers.isEmpty) _markers.remove(range.pageNumber);
-      }
-      _selection = const [];
-    });
-  }
-
-  Future<void> _addNoteForSelection() async {
-    if (_selection.isEmpty || !mounted) return;
-    final first = _selection.first;
-    final snippet = _selection.map((r) => r.text).join().trim();
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add note'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                snippet,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  hintText: 'Write your note…',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('Save'),
-          ),
+  Future<void> _applyHighlightForSelectionWithStyle(
+    PdfViewerContextMenuBuilderParams params,
+    Color color, [
+    HighlightStyleType styleType = HighlightStyleType.solid,
+  ]) async {
+    final ranges = await _resolveSelection(params);
+    if (ranges.isEmpty || !mounted) return;
+    final notifier = ref.read(annotationsProvider(widget.bookId).notifier);
+    for (final range in ranges) {
+      notifier.addHighlight(
+        chapterId: 'pdf_page_${range.pageNumber}',
+        start: range.start,
+        end: range.end,
+        text: range.text,
+        colorValue: color.toARGB32(),
+        styleType: styleType,
+        bounds: [
+          range.bounds.left,
+          range.bounds.top,
+          range.bounds.right,
+          range.bounds.bottom,
         ],
-      ),
+      );
+    }
+    params.dismissContextMenu();
+    _controller.invalidate();
+  }
+
+  Future<void> _eraseSelection(PdfViewerContextMenuBuilderParams params) async {
+    final ranges = await _resolveSelection(params);
+    if (ranges.isEmpty || !mounted) return;
+    final notifier = ref.read(annotationsProvider(widget.bookId).notifier);
+    for (final range in ranges) {
+      notifier.eraseOverlapping(
+        'pdf_page_${range.pageNumber}',
+        range.start,
+        range.end,
+      );
+    }
+    params.dismissContextMenu();
+    _controller.invalidate();
+  }
+
+  Future<void> _addNoteForSelection(
+    PdfViewerContextMenuBuilderParams params,
+  ) async {
+    final ranges = await _resolveSelection(params);
+    if (ranges.isEmpty || !mounted) return;
+    final first = ranges.first;
+    final snippet = ranges.map((r) => r.text).join().trim();
+    params.dismissContextMenu();
+    await NoteEditorSheet.show(
+      context,
+      bookId: widget.bookId,
+      chapterId: 'pdf_page_${first.pageNumber}',
+      selectedText: snippet,
+      sentence: snippet,
+      chapterTitle: 'Page ${first.pageNumber}',
+      highlightStart: first.start,
+      highlightEnd: first.end,
     );
-    controller.dispose();
-    if (result == null || result.trim().isEmpty || !mounted) return;
-    final page = first.pageNumber;
-    setState(() {
-      _notes
-          .putIfAbsent(page, () => [])
-          .add(
-            PdfNoteEntry(
-              pageNumber: page,
-              snippet: snippet,
-              text: result.trim(),
-              createdAt: DateTime.now(),
-            ),
-          );
-    });
+  }
+
+  Future<void> _shareSelection(
+    PdfViewerContextMenuBuilderParams params,
+  ) async {
+    final ranges = await _resolveSelection(params);
+    if (ranges.isEmpty || !mounted) return;
+    final first = ranges.first;
+    final snippet = ranges.map((r) => r.text).join().trim();
+    params.dismissContextMenu();
+    await QuoteShareCardSheet.show(
+      context,
+      quoteText: snippet,
+      bookTitle: _bookTitle,
+      coverPath: _bookCoverPath,
+      chapterTitle: 'Page ${first.pageNumber}',
+    );
   }
 
   Future<void> _listenToSelection(
     PdfViewerContextMenuBuilderParams params,
   ) async {
-    final text = await _selectedText(params);
+    final text = (await _selectedText(params)).trim();
     if (text.isEmpty || !mounted) return;
+    params.dismissContextMenu();
     await _selectionSpeaker.speak(
       ref: ref,
       bookId: widget.bookId,
@@ -471,9 +662,6 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
       text: text,
       language: _bookLanguage ?? 'en',
     );
-    if (_selection.isNotEmpty) {
-      setState(() => _selection = const []);
-    }
   }
 
   Future<void> _lookupSelection(
@@ -483,6 +671,7 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     if (!mounted) return;
     final word = raw.split(RegExp(r'\s+')).join(' ').trim();
     if (word.isEmpty) return;
+    params.dismissContextMenu();
     await AppSheet.show(
       context: context,
       id: 'word_lookup',
@@ -544,6 +733,89 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     );
   }
 
+  List<ChapterEntity> _buildPdfPseudoChapters() {
+    if (_totalPages <= 0) return const [];
+    return List.generate(
+      _totalPages,
+      (i) => ChapterEntity(
+        id: 'pdf_page_${i + 1}',
+        bookId: widget.bookId,
+        title: 'Page ${i + 1}',
+        index: i,
+        contentPath: '',
+      ),
+    );
+  }
+
+  void _openAnnotationsSheet() {
+    ReaderAnnotationsSheet.show(
+      context,
+      bookId: widget.bookId,
+      chapters: _buildPdfPseudoChapters(),
+      currentChapterId: 'pdf_page_$_currentPage',
+      bookTitle: _bookTitle,
+      coverPath: _bookCoverPath,
+      onJumpToChapter: (chapterId, offset) {
+        final pageStr = chapterId.replaceFirst('pdf_page_', '');
+        final pageNum = int.tryParse(pageStr);
+        if (pageNum != null) {
+          _goToPage(pageNum);
+        }
+      },
+    );
+  }
+
+  List<PdfMarker> _getMarkersList(ReaderAnnotationsState annotations) {
+    final result = <PdfMarker>[];
+    for (final entry in annotations.highlights.entries) {
+      final pageStr = entry.key.replaceFirst('pdf_page_', '');
+      final pageNumber = int.tryParse(pageStr) ?? 1;
+      for (final h in entry.value) {
+        final bounds = (h.bounds != null && h.bounds!.length >= 4)
+            ? PdfRect(h.bounds![0], h.bounds![1], h.bounds![2], h.bounds![3])
+            : const PdfRect(0, 0, 0, 0);
+        result.add(
+          PdfMarker(
+            pageNumber: pageNumber,
+            start: h.start,
+            end: h.end,
+            text: h.text,
+            bounds: bounds,
+            color: h.color,
+            styleType: h.styleType,
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
+  List<PdfNoteEntry> _getNotesList(ReaderAnnotationsState annotations) {
+    final result = <PdfNoteEntry>[];
+    for (final entry in annotations.notes.entries) {
+      final pageStr = entry.key.replaceFirst('pdf_page_', '');
+      final pageNumber = int.tryParse(pageStr) ?? 1;
+      for (final n in entry.value) {
+        result.add(
+          PdfNoteEntry(
+            id: n.id,
+            pageNumber: pageNumber,
+            snippet: n.sentence,
+            text: n.text,
+            createdAt: n.createdAt,
+            updatedAt: n.updatedAt,
+            colorValue: n.colorValue,
+            tags: n.tags,
+            styleType: n.styleType,
+            highlightStart: n.highlightStart,
+            highlightEnd: n.highlightEnd,
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
   // ---------------------------------------------------------------- build
 
   @override
@@ -551,9 +823,17 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     final settings =
         ref.watch(readingSettingsProvider).valueOrNull ??
         const ReadingSettingsEntity();
+    final annotations = ref.watch(annotationsProvider(widget.bookId));
+    final allMarkers = _getMarkersList(annotations);
+    final allNotes = _getNotesList(annotations);
+
     final colorScheme = Theme.of(context).colorScheme;
-    final nightMode = colorScheme.brightness == Brightness.dark;
+    final isNight =
+        colorScheme.brightness == Brightness.dark ||
+        settings.theme == ReadingViewTheme.midnight ||
+        settings.theme == ReadingViewTheme.charcoal;
     final background = settings.theme.resolve(colorScheme).background;
+    final accent = settings.theme.resolve(colorScheme).accent;
 
     if (!_progressLoaded) {
       return Scaffold(
@@ -562,79 +842,214 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
       );
     }
 
+    final titleText = _bookTitle != null && _bookTitle!.isNotEmpty
+        ? '$_bookTitle ($_currentPage/$_totalPages)'
+        : (_totalPages == 0 ? 'Loading PDF…' : 'Page $_currentPage of $_totalPages');
+
     return Scaffold(
       backgroundColor: background,
-      appBar: AppBar(
-        leading: BackButton(onPressed: () => Navigator.of(context).maybePop()),
-        backgroundColor: background,
-        foregroundColor: nightMode ? Colors.white : Colors.black87,
-        toolbarHeight: kToolbarHeight,
-        title: Text(
-          _totalPages == 0
-              ? 'Loading PDF…'
-              : 'Page $_currentPage of $_totalPages',
-          style: const TextStyle(fontSize: 15),
-        ),
-        actions: [
-          if (_totalPages > 0) ...[
-            IconButton(
-              icon: const Icon(Icons.zoom_out),
-              tooltip: 'Zoom out',
-              onPressed: _zoomOut,
-            ),
-            IconButton(
-              icon: const Icon(Icons.zoom_in),
-              tooltip: 'Zoom in',
-              onPressed: _zoomIn,
-            ),
-            IconButton(
-              icon: const Icon(Icons.pages),
-              tooltip: 'Layout: ${_layoutMode.label}',
-              onPressed: _toggleLayoutMode,
-            ),
-            IconButton(
-              icon: const Icon(Icons.menu_book_outlined),
-              tooltip: 'Search, outline, pages & markers',
-              onPressed: () => setState(() => _showPanel = !_showPanel),
-            ),
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Reading settings',
-              onPressed: _showSettingsSheet,
-            ),
-          ],
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            width: _showPanel ? 300 : 0,
-            child: _showPanel
-                ? ClipRect(
-                    child: OverflowBox(
-                      alignment: Alignment.centerLeft,
-                      maxWidth: 300,
-                      child: SizedBox(
-                        width: 300,
-                        child: _buildPanel(nightMode),
-                      ),
+      appBar: chromeVisible
+          ? ReaderBarSurface(
+              style: settings.chromeStyle,
+              color: colorScheme.surfaceContainerHigh,
+              child: ReaderChromeBar(
+                title: titleText,
+                textColor: colorScheme.onSurface,
+                onSettingsTap: _showSettingsSheet,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                  tooltip: 'Back to Library',
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+                actions: [
+                  if (_totalPages > 0) ...[
+                    IconButton(
+                      icon: const Icon(Icons.zoom_out_rounded, size: 18),
+                      tooltip: 'Zoom out',
+                      onPressed: _zoomOut,
                     ),
-                  )
-                : null,
-          ),
-          Expanded(
-            child: ColorFiltered(
-              colorFilter: nightMode ? _invertFilter : _identityFilter,
-              child: _buildViewer(background, nightMode),
+                    IconButton(
+                      icon: const Icon(Icons.zoom_in_rounded, size: 18),
+                      tooltip: 'Zoom in',
+                      onPressed: _zoomIn,
+                    ),
+                    if (isDesktop) ...[
+                      IconButton(
+                        icon: Icon(
+                          rightPanelVisible
+                              ? Icons.view_sidebar_rounded
+                              : Icons.view_sidebar_outlined,
+                          size: 18,
+                          color: colorScheme.onSurface,
+                        ),
+                        tooltip: 'Toggle outline & panels',
+                        onPressed: toggleRightPanel,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ],
+                  IconButton(
+                    icon: const Icon(Icons.tune_rounded, size: 18),
+                    tooltip: 'Reading settings',
+                    onPressed: _showSettingsSheet,
+                  ),
+                ],
+              ),
+            )
+          : null,
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            if (rightPanelVisible || narrationPanelVisible) {
+              hideRightPanel();
+              return KeyEventResult.handled;
+            }
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Stack(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: ColorFiltered(
+                    colorFilter: isNight ? _invertFilter : _identityFilter,
+                    child: _buildViewer(background, isNight),
+                  ),
+                ),
+                if (isDesktop && (rightPanelVisible || narrationPanelVisible))
+                  SizedBox(
+                    width: ReaderChromeController.rightPanelWidth,
+                    child: narrationPanelVisible
+                        ? NowPlayingPanel(
+                            bookTitle: _bookTitle,
+                            coverPath: _bookCoverPath,
+                            chapterTitle: 'Page $_currentPage of $_totalPages',
+                            accent: accent,
+                            onClose: closeNarrationPanel,
+                          )
+                        : PdfReaderPanel(
+                            controller: _controller,
+                            document: _document,
+                            outline: _outline,
+                            textSearcher: _textSearcher,
+                            currentPage: _currentPage,
+                            markers: allMarkers,
+                            notes: allNotes,
+                            onOutlineSelected: _goToOutlineNode,
+                            onPageSelected: _goToPage,
+                            onMarkerSelected: _goToMarker,
+                            onMarkerDeleted: _deleteMarker,
+                            onNoteSelected: _goToNote,
+                            onNoteDeleted: _deleteNote,
+                            onClose: hideRightPanel,
+                          ),
+                  ),
+              ],
             ),
-          ),
-        ],
+            if (!narrationPanelVisible)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: NarrationMiniPlayer(
+                  bookTitle: _bookTitle,
+                  coverPath: _bookCoverPath,
+                  chapterTitle: 'Page $_currentPage of $_totalPages',
+                  accent: accent,
+                  onExpand: isDesktop ? toggleNarrationPanel : null,
+                ),
+              ),
+          ],
+        ),
       ),
-      bottomNavigationBar: _totalPages > 0 ? _buildBottomBar(nightMode) : null,
+      bottomNavigationBar: chromeVisible && _totalPages > 0
+          ? ReaderBarSurface(
+              style: settings.chromeStyle,
+              color: colorScheme.surfaceContainerHigh,
+              child: PdfBottomNav(
+                textColor: colorScheme.onSurface,
+                currentPage: _currentPage,
+                totalPages: _totalPages,
+                onPageSelected: _goToPage,
+                onSettingsTap: _showSettingsSheet,
+                onOutlineTap: _onOutlineNavTap,
+                onBookmarkTap: _toggleBookmarkForCurrentPage,
+                isBookmarked: _bookmarkedPages.contains(_currentPage),
+                layoutMode: _layoutMode,
+                onToggleLayoutMode: _toggleLayoutMode,
+                onListenTap: _onListenNavTap,
+                onAnnotationsTap: _openAnnotationsSheet,
+                progressColor: accent,
+              ),
+            )
+          : null,
     );
+  }
+
+  void _onOutlineNavTap() {
+    final annotations = ref.read(annotationsProvider(widget.bookId));
+    final allMarkers = _getMarkersList(annotations);
+    final allNotes = _getNotesList(annotations);
+
+    if (isDesktop) {
+      toggleRightPanel();
+    } else {
+      AppSheet.show(
+        context: context,
+        id: 'pdf_reader_panel_sheet',
+        initialHeight: 0.75,
+        snapPoints: const [0.5, 0.75, 0.95],
+        child: PdfReaderPanel(
+          controller: _controller,
+          document: _document,
+          outline: _outline,
+          textSearcher: _textSearcher,
+          currentPage: _currentPage,
+          markers: allMarkers,
+          notes: allNotes,
+          onOutlineSelected: (node) {
+            _goToOutlineNode(node);
+            Navigator.of(context).maybePop();
+          },
+          onPageSelected: (page) {
+            _goToPage(page);
+            Navigator.of(context).maybePop();
+          },
+          onMarkerSelected: (marker) {
+            _goToMarker(marker);
+            Navigator.of(context).maybePop();
+          },
+          onMarkerDeleted: _deleteMarker,
+          onNoteSelected: (note) {
+            _goToNote(note);
+            Navigator.of(context).maybePop();
+          },
+          onNoteDeleted: _deleteNote,
+          onClose: () => Navigator.of(context).maybePop(),
+        ),
+      );
+    }
+  }
+
+  Future<void> _onListenNavTap() async {
+    await _syncSpeechSession(_currentPage);
+    if (!mounted) return;
+    if (isDesktop) {
+      toggleNarrationPanel();
+    } else {
+      unawaited(
+        NowPlayingSheet.show(
+          context,
+          chapterTitle: 'Page $_currentPage of $_totalPages',
+          bookTitle: _bookTitle,
+          coverPath: _bookCoverPath,
+        ),
+      );
+    }
   }
 
   void _showSettingsSheet() {
@@ -646,32 +1061,7 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
     );
   }
 
-  Widget _buildPanel(bool nightMode) {
-    return PdfReaderPanel(
-      controller: _controller,
-      document: _document,
-      outline: _outline,
-      textSearcher: _textSearcher,
-      currentPage: _currentPage,
-      markers: _allMarkers,
-      notes: _allNotes,
-      onOutlineSelected: _goToOutlineNode,
-      onPageSelected: _goToPage,
-      onMarkerSelected: _goToMarker,
-      onMarkerDeleted: _deleteMarker,
-      onNoteSelected: _goToNote,
-      onNoteDeleted: _deleteNote,
-      nightMode: nightMode,
-    );
-  }
-
-  List<PdfMarker> get _allMarkers =>
-      _markers.values.expand((list) => list).toList();
-
-  List<PdfNoteEntry> get _allNotes =>
-      _notes.values.expand((list) => list).toList();
-
-  Widget _buildViewer(Color background, bool nightMode) {
+  Widget _buildViewer(Color background, bool isNight) {
     final horizontal = _layoutMode == PdfReaderLayoutMode.continuous;
     return PdfViewer.file(
       widget.pdfPath,
@@ -693,14 +1083,34 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
           GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTapUp: (details) {
-              handleLinkTap(details.localPosition);
+              final handled = handleLinkTap(details.localPosition);
+              if (!handled) {
+                if (_controller.isReady &&
+                    _controller.textSelectionDelegate.hasSelectedText) {
+                  _controller.textSelectionDelegate.clearTextSelection();
+                  if (_selection.isNotEmpty) {
+                    setState(() => _selection = const []);
+                  }
+                  ContextMenuController.removeAny();
+                  return;
+                }
+                if (_selection.isNotEmpty) {
+                  setState(() => _selection = const []);
+                  ContextMenuController.removeAny();
+                  _controller.invalidate();
+                  return;
+                }
+                if (rightPanelVisible || narrationPanelVisible) {
+                  hideRightPanel();
+                } else {
+                  toggleChrome(isDarkTheme: isNight);
+                }
+              }
             },
             onDoubleTap: () {
               if (_controller.isReady) _controller.zoomUp(loop: true);
             },
-            child: IgnorePointer(
-              child: SizedBox(width: size.width, height: size.height),
-            ),
+            child: SizedBox(width: size.width, height: size.height),
           ),
           PdfViewerScrollThumb(
             controller: _controller,
@@ -710,13 +1120,17 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
             thumbSize: const Size(40, 25),
             thumbBuilder: (context, thumbSize, pageNumber, controller) =>
                 Container(
-                  color: nightMode ? Colors.white : Colors.black,
+                  decoration: BoxDecoration(
+                    color: isNight ? Colors.white : Colors.black87,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                   child: Center(
                     child: Text(
                       pageNumber?.toString() ?? '',
                       style: TextStyle(
-                        color: nightMode ? Colors.black : Colors.white,
+                        color: isNight ? Colors.black : Colors.white,
                         fontSize: 11,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -736,9 +1150,12 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, size: 40),
+                const Icon(Icons.error_outline_rounded, size: 40),
                 const SizedBox(height: 12),
-                const Text('Failed to open this PDF document.'),
+                const Text(
+                  'Failed to open this PDF document.',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   '$error',
@@ -820,56 +1237,102 @@ class _PdfReaderContentState extends ConsumerState<PdfReaderContent> {
   }
 
   void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
-    final markers = _markers[page.pageNumber];
-    if (markers == null || markers.isEmpty) return;
-    for (final marker in markers) {
-      final paint = Paint()
-        ..color = marker.color.withAlpha(90)
-        ..style = PaintingStyle.fill;
-      canvas.drawRect(
-        marker.range.bounds
-            .toRect(page: page, scaledPageSize: pageRect.size)
-            .translate(pageRect.left, pageRect.top),
-        paint,
-      );
-    }
-  }
+    final annotations = ref.read(annotationsProvider(widget.bookId));
+    final chapterId = 'pdf_page_${page.pageNumber}';
+    final highlights = annotations.highlights[chapterId];
+    if (highlights == null || highlights.isEmpty) return;
 
-  Widget _buildBottomBar(bool nightMode) {
-    final color = nightMode ? Colors.white : Colors.black87;
-    return BottomAppBar(
-      color: nightMode ? const Color(0xFF121212) : Colors.white,
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(Icons.chevron_left, color: color),
-            onPressed: _currentPage > 1
-                ? () => _goToPage(_currentPage - 1)
-                : null,
-          ),
-          Expanded(
-            child: Slider(
-              value: _currentPage.toDouble(),
-              min: 1,
-              max: math.max(1, _totalPages).toDouble(),
-              activeColor: color,
-              inactiveColor: color.withAlpha(96),
-              onChanged: _totalPages > 1
-                  ? (value) => setState(
-                      () => _currentPage = value.round().clamp(1, _totalPages),
-                    )
-                  : null,
-              onChangeEnd: (value) => _goToPage(value.round()),
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.chevron_right, color: color),
-            onPressed: _currentPage < _totalPages
-                ? () => _goToPage(_currentPage + 1)
-                : null,
-          ),
-        ],
-      ),
-    );
+    for (final h in highlights) {
+      if (h.bounds == null || h.bounds!.length < 4) continue;
+      final pdfRect = PdfRect(
+        h.bounds![0],
+        h.bounds![1],
+        h.bounds![2],
+        h.bounds![3],
+      );
+      final rect = pdfRect
+          .toRect(page: page, scaledPageSize: pageRect.size)
+          .translate(pageRect.left, pageRect.top);
+
+      switch (h.styleType) {
+        case HighlightStyleType.solid:
+          final paint = Paint()
+            ..color = h.color.withValues(alpha: 0.35)
+            ..style = PaintingStyle.fill;
+          canvas.drawRect(rect, paint);
+        case HighlightStyleType.underline:
+          final paint = Paint()
+            ..color = h.color
+            ..strokeWidth = 2.5
+            ..style = PaintingStyle.stroke;
+          canvas.drawLine(
+            Offset(rect.left, rect.bottom - 1),
+            Offset(rect.right, rect.bottom - 1),
+            paint,
+          );
+        case HighlightStyleType.wavy:
+          final paint = Paint()
+            ..color = h.color
+            ..strokeWidth = 2.0
+            ..style = PaintingStyle.stroke;
+          final path = Path();
+          var x = rect.left;
+          final y = rect.bottom - 2;
+          path.moveTo(x, y);
+          const waveLength = 6.0;
+          const waveHeight = 2.0;
+          var toggle = true;
+          while (x < rect.right) {
+            final nextX = math.min(x + waveLength, rect.right);
+            final midX = (x + nextX) / 2;
+            final controlY = toggle ? y - waveHeight : y + waveHeight;
+            path.quadraticBezierTo(midX, controlY, nextX, y);
+            x = nextX;
+            toggle = !toggle;
+          }
+          canvas.drawPath(path, paint);
+        case HighlightStyleType.strikethrough:
+          final paint = Paint()
+            ..color = h.color
+            ..strokeWidth = 2.0
+            ..style = PaintingStyle.stroke;
+          final midY = (rect.top + rect.bottom) / 2;
+          canvas.drawLine(
+            Offset(rect.left, midY),
+            Offset(rect.right, midY),
+            paint,
+          );
+        case HighlightStyleType.bold:
+          final paint = Paint()
+            ..color = h.color.withValues(alpha: 0.38)
+            ..style = PaintingStyle.fill;
+          canvas.drawRect(rect, paint);
+          final barPaint = Paint()
+            ..color = h.color
+            ..strokeWidth = 3.0
+            ..style = PaintingStyle.stroke;
+          canvas.drawLine(
+            Offset(rect.left, rect.bottom - 1.5),
+            Offset(rect.right, rect.bottom - 1.5),
+            barPaint,
+          );
+        case HighlightStyleType.italic:
+          final paint = Paint()
+            ..color = h.color.withValues(alpha: 0.28)
+            ..style = PaintingStyle.fill;
+          final path = Path()
+            ..moveTo(rect.left + 3, rect.top)
+            ..lineTo(rect.right + 3, rect.top)
+            ..lineTo(rect.right - 3, rect.bottom)
+            ..lineTo(rect.left - 3, rect.bottom)
+            ..close();
+          canvas.drawPath(path, paint);
+          final slantBorder = Paint()
+            ..color = h.color.withValues(alpha: 0.6)
+            ..strokeWidth = 1.0
+            ..style = PaintingStyle.stroke;
+          canvas.drawPath(path, slantBorder);
+      }
+    }
   }
 }

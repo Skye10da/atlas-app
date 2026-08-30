@@ -65,7 +65,11 @@ class FileOpenController {
     final lower = arg.toLowerCase();
     if (lower.endsWith('.epub') ||
         lower.endsWith('.pdf') ||
-        lower.endsWith('.atlas')) {
+        lower.endsWith('.atlas') ||
+        lower.endsWith('.txt') ||
+        lower.endsWith('.text') ||
+        lower.endsWith('.md') ||
+        lower.endsWith('.markdown')) {
       return arg;
     }
     return null;

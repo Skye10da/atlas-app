@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
+
 /// How PDF pages are laid out in the reader.
 enum PdfReaderLayoutMode {
   /// One page (or page spread) at a time, scrolled vertically.
@@ -23,23 +25,74 @@ extension PdfReaderLayoutModeX on PdfReaderLayoutMode {
 
 /// A highlighted text selection kept on a page.
 class PdfMarker {
-  const PdfMarker(this.range, this.color);
+  const PdfMarker({
+    required this.pageNumber,
+    required this.start,
+    required this.end,
+    required this.text,
+    required this.bounds,
+    required this.color,
+    this.styleType = HighlightStyleType.solid,
+  });
 
-  final PdfPageTextRange range;
+  final int pageNumber;
+  final int start;
+  final int end;
+  final String text;
+  final PdfRect bounds;
   final Color color;
+  final HighlightStyleType styleType;
+
+  PdfMarkerRange get range => PdfMarkerRange(
+        pageNumber: pageNumber,
+        start: start,
+        end: end,
+        text: text,
+        bounds: bounds,
+      );
 }
 
-/// An in-memory note anchored to a page.
+class PdfMarkerRange {
+  const PdfMarkerRange({
+    required this.pageNumber,
+    required this.start,
+    required this.end,
+    required this.text,
+    required this.bounds,
+  });
+
+  final int pageNumber;
+  final int start;
+  final int end;
+  final String text;
+  final PdfRect bounds;
+}
+
+/// A user note anchored to a page or passage in a PDF.
 class PdfNoteEntry {
   const PdfNoteEntry({
+    this.id = '',
     required this.pageNumber,
     required this.snippet,
     required this.text,
     required this.createdAt,
+    this.updatedAt,
+    this.colorValue,
+    this.tags = const [],
+    this.styleType = HighlightStyleType.solid,
+    this.highlightStart,
+    this.highlightEnd,
   });
 
+  final String id;
   final int pageNumber;
   final String snippet;
   final String text;
   final DateTime createdAt;
+  final DateTime? updatedAt;
+  final int? colorValue;
+  final List<String> tags;
+  final HighlightStyleType styleType;
+  final int? highlightStart;
+  final int? highlightEnd;
 }

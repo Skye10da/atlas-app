@@ -1,16 +1,16 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:atlas_app/browser/presentation/screens/browser_screen.dart';
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
+import 'package:atlas_app/core/presentation/screens/splash_screen.dart';
 import 'package:atlas_app/core/router/transitions.dart';
+import 'package:atlas_app/discover/presentation/screens/discover_screen.dart';
 import 'package:atlas_app/library/presentation/screens/book_details_screen.dart';
 import 'package:atlas_app/library/presentation/screens/library_screen.dart';
 import 'package:atlas_app/library/presentation/screens/novel_details_screen.dart';
 import 'package:atlas_app/library/presentation/screens/source_search_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/bookmarks_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/reader_screen.dart';
-import 'package:atlas_app/dictionary/presentation/screens/dictionary_screen.dart';
 import 'package:atlas_app/search/presentation/screens/search_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/settings_screen.dart';
 
@@ -23,8 +23,15 @@ abstract final class AppRouter {
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/library',
+    initialLocation: '/splash',
     routes: [
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            buildPageTransition(child: const SplashScreen(), key: state.pageKey),
+      ),
       GoRoute(
         path: '/reader/:bookId',
         name: 'reader',
@@ -38,7 +45,7 @@ abstract final class AppRouter {
         path: '/sources',
         name: 'sources',
         parentNavigatorKey: _rootNavigatorKey,
-        redirect: (context, state) => '/web',
+        redirect: (context, state) => '/discover',
       ),
       GoRoute(
         path: '/sources/:name',
@@ -53,18 +60,33 @@ abstract final class AppRouter {
         path: '/browser',
         name: 'browser',
         parentNavigatorKey: _rootNavigatorKey,
-        redirect: (context, state) {
-          final url = state.uri.queryParameters['url'];
-          final suffix = url != null && url.isNotEmpty
-              ? '?url=${Uri.encodeQueryComponent(url)}'
-              : '';
-          return '/web$suffix';
-        },
+        redirect: (context, state) => '/discover',
+      ),
+      GoRoute(
+        path: '/web',
+        name: 'web',
+        parentNavigatorKey: _rootNavigatorKey,
+        redirect: (context, state) => '/discover',
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
         branches: [
+          // 0. Discover Home (Default)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/discover',
+                name: 'discover',
+                pageBuilder: (context, state) => buildPageTransition(
+                  child: const DiscoverScreen(),
+                  key: state.pageKey,
+                ),
+              ),
+            ],
+          ),
+
+          // 1. Library Shelf
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -97,32 +119,8 @@ abstract final class AppRouter {
               ),
             ],
           ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/web',
-                name: 'web',
-                pageBuilder: (context, state) => buildPageTransition(
-                  child: BrowserScreen(
-                    initialUrl: state.uri.queryParameters['url'],
-                  ),
-                  key: state.pageKey,
-                ),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/bookmarks',
-                name: 'bookmarks',
-                pageBuilder: (context, state) => buildPageTransition(
-                  child: const BookmarksScreen(),
-                  key: state.pageKey,
-                ),
-              ),
-            ],
-          ),
+
+          // 2. Search & Lookup (Middle Position)
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -135,18 +133,22 @@ abstract final class AppRouter {
               ),
             ],
           ),
+
+          // 3. Saved Bookmarks
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/dictionary',
-                name: 'dictionary',
+                path: '/bookmarks',
+                name: 'bookmarks',
                 pageBuilder: (context, state) => buildPageTransition(
-                  child: const DictionaryScreen(),
+                  child: const BookmarksScreen(),
                   key: state.pageKey,
                 ),
               ),
             ],
           ),
+
+          // 4. Settings
           StatefulShellBranch(
             routes: [
               GoRoute(

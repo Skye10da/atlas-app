@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/browser/presentation/widgets/app_session_refresh_bridge.dart';
-import 'package:atlas_app/browser/presentation/widgets/silent_web_view_host.dart';
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
@@ -60,22 +59,10 @@ class AtlasApp extends ConsumerWidget {
       themeMode: settings.themeMode,
       routerConfig: AppRouter.router,
       builder: (context, child) {
-        // A 1x1 off-screen background web view that survives for the whole app
-        // lifetime, so plugin fetches (reader chapter downloads, imports) can
-        // re-establish a browser session for bot-protected sites even when the
-        // in-app browser is closed. IgnorePointer + no-focus keep it from
-        // stealing input.
         return Stack(
           fit: StackFit.expand,
           children: [
             child!,
-            const Positioned(
-              right: 0,
-              bottom: 0,
-              width: 1,
-              height: 1,
-              child: SilentWebViewHost(),
-            ),
             // Installs the session re-verify driver (see
             // `app_session_refresh_bridge.dart`); renders nothing itself.
             const AppSessionRefreshBridge(),

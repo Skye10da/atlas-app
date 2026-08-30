@@ -222,6 +222,70 @@ void main() {
       expect(controller.state.notes, isEmpty);
     });
 
+    test('addHighlight with styleType stores and preserves style', () {
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 10,
+        end: 25,
+        text: 'wavy words',
+        colorValue: 0xFF00FF00,
+        styleType: HighlightStyleType.wavy,
+      );
+
+      final hl = controller.state.highlights['c1']!.single;
+      expect(hl.styleType, HighlightStyleType.wavy);
+      expect(controller.totalHighlightsCount, 1);
+    });
+
+    test('updateHighlight updates color, and styleType', () {
+      controller.addHighlight(
+        chapterId: 'c1',
+        start: 10,
+        end: 20,
+        text: 'original',
+        colorValue: 0xFF112233,
+        styleType: HighlightStyleType.solid,
+      );
+
+      controller.updateHighlight(
+        chapterId: 'c1',
+        start: 10,
+        end: 20,
+        colorValue: 0xFFAABBCC,
+        styleType: HighlightStyleType.underline,
+      );
+
+      final updated = controller.state.highlights['c1']!.single;
+      expect(updated.colorValue, 0xFFAABBCC);
+      expect(updated.styleType, HighlightStyleType.underline);
+    });
+
+    test('addNote with tags and colorValue, and updateNote', () {
+      controller.addNote(
+        chapterId: 'c1',
+        text: 'My tag note',
+        sentence: 'Sample context',
+        colorValue: 0xFFFF5500,
+        tags: ['Quote', 'Favorite'],
+      );
+
+      final note = controller.state.notes['c1']!.single;
+      expect(note.tags, ['Quote', 'Favorite']);
+      expect(note.colorValue, 0xFFFF5500);
+      expect(controller.totalNotesCount, 1);
+
+      controller.updateNote(
+        chapterId: 'c1',
+        noteId: note.id,
+        text: 'Updated note text',
+        tags: ['Idea'],
+      );
+
+      final updated = controller.state.notes['c1']!.single;
+      expect(updated.text, 'Updated note text');
+      expect(updated.tags, ['Idea']);
+    });
+
     test('NoteEntry overlap semantics', () {
       const h = HighlightEntry(
         chapterId: 'c1',
@@ -234,6 +298,77 @@ void main() {
       expect(h.overlaps(0, 5), isFalse);
       expect(h.overlaps(20, 30), isFalse);
       expect(h.overlaps(25, 25), isFalse);
+    });
+
+    test('HighlightEntry and NoteEntry JSON serialization round-trip', () {
+      const highlight = HighlightEntry(
+        chapterId: 'pdf_page_3',
+        start: 120,
+        end: 180,
+        text: 'Important PDF paragraph',
+        colorValue: 0xFFFFD54F,
+        styleType: HighlightStyleType.wavy,
+        bounds: [10.0, 20.0, 300.0, 220.0],
+      );
+
+      final hlJson = highlight.toJson();
+      final hlRestored = HighlightEntry.fromJson(hlJson);
+
+      expect(hlRestored.chapterId, 'pdf_page_3');
+      expect(hlRestored.start, 120);
+      expect(hlRestored.end, 180);
+      expect(hlRestored.text, 'Important PDF paragraph');
+      expect(hlRestored.colorValue, 0xFFFFD54F);
+      expect(hlRestored.styleType, HighlightStyleType.wavy);
+      expect(hlRestored.bounds, [10.0, 20.0, 300.0, 220.0]);
+
+      final note = NoteEntry(
+        id: 'note_1',
+        chapterId: 'pdf_page_3',
+        text: 'Crucial observation',
+        sentence: 'Important PDF paragraph',
+        createdAt: DateTime(2026, 8, 29, 10, 0),
+        colorValue: 0xFF81C784,
+        tags: const ['Research', 'Key'],
+        styleType: HighlightStyleType.bold,
+      );
+
+      final noteJson = note.toJson();
+      final noteRestored = NoteEntry.fromJson(noteJson);
+
+      expect(noteRestored.id, 'note_1');
+      expect(noteRestored.chapterId, 'pdf_page_3');
+      expect(noteRestored.text, 'Crucial observation');
+      expect(noteRestored.sentence, 'Important PDF paragraph');
+      expect(noteRestored.colorValue, 0xFF81C784);
+      expect(noteRestored.tags, ['Research', 'Key']);
+      expect(noteRestored.styleType, HighlightStyleType.bold);
+    });
+
+    test('PDF highlights and notes stored with page keys', () {
+      controller.addHighlight(
+        chapterId: 'pdf_page_1',
+        start: 0,
+        end: 50,
+        text: 'PDF Page 1 Header text',
+        colorValue: 0xFF64B5F6,
+        styleType: HighlightStyleType.underline,
+        bounds: [50.0, 100.0, 400.0, 120.0],
+      );
+
+      controller.addNote(
+        chapterId: 'pdf_page_1',
+        text: 'Page 1 marginalia',
+        sentence: 'PDF Page 1 Header text',
+        tags: ['Intro'],
+      );
+
+      expect(controller.state.highlights['pdf_page_1'], hasLength(1));
+      expect(controller.state.notes['pdf_page_1'], hasLength(1));
+
+      final marker = controller.state.highlights['pdf_page_1']!.first;
+      expect(marker.bounds, [50.0, 100.0, 400.0, 120.0]);
+      expect(marker.styleType, HighlightStyleType.underline);
     });
   });
 }

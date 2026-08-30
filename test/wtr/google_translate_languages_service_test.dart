@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
+import 'package:atlas_app/wtr/domain/entities/language_flag_map.dart';
 import 'package:atlas_app/wtr/domain/entities/supported_language.dart';
 import 'package:atlas_app/wtr/domain/services/google_translate_languages_service.dart';
 
@@ -132,6 +133,23 @@ void main() {
         await service.fetchSupportedLanguages(_ThrowingTransport()),
         SupportedLanguage.defaults,
       );
+    });
+
+    test('resolveCountryCodeForLanguage correctly maps multilingual countries', () {
+      expect(resolveCountryCodeForLanguage('hi'), 'IN');
+      expect(resolveCountryCodeForLanguage('ta'), 'IN');
+      expect(resolveCountryCodeForLanguage('te'), 'IN');
+      expect(resolveCountryCodeForLanguage('kn'), 'IN');
+      expect(resolveCountryCodeForLanguage('ml'), 'IN');
+      expect(resolveCountryCodeForLanguage('yo'), 'NG');
+      expect(resolveCountryCodeForLanguage('ha'), 'NG');
+      expect(resolveCountryCodeForLanguage('ig'), 'NG');
+      expect(resolveCountryCodeForLanguage('zu'), 'ZA');
+      expect(resolveCountryCodeForLanguage('af'), 'ZA');
+      expect(resolveCountryCodeForLanguage('xh'), 'ZA');
+      expect(resolveCountryCodeForLanguage('zh-TW'), 'TW');
+      expect(resolveCountryCodeForLanguage('zh-CN'), 'CN');
+      expect(resolveCountryCodeForLanguage('fr-CA'), 'CA');
     });
   });
 }

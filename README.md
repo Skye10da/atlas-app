@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Atlas Banner](https://raw.githubusercontent.com/Skye10da/atlas-app/main/assets/banner.png)
+![Atlas Banner](https://github.com/Skye10da/atlas-app/blob/53ccda60ef8e595134b09fefcb2fa04a0827fc35/assets/icon.png)
 
 **An AI-native, offline-first reading platform and web novel ecosystem built with Flutter.**
 

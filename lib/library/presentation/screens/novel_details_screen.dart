@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:atlas_app/library/presentation/widgets/batch_download_sheet.dart';
 import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/continue_reading_card.dart';
 import 'package:file_picker/file_picker.dart';
@@ -11,6 +12,10 @@ import 'package:go_router/go_router.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
+import 'package:atlas_app/core/design_system/atoms/book_badge.dart';
+import 'package:atlas_app/core/design_system/molecules/confirm_delete_dialog.dart';
+import 'package:atlas_app/core/design_system/molecules/milestone_celebration_dialog.dart';
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -160,7 +165,7 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
         final wtrRawId = isWtrLab
             ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl)
             : null;
-        final isDesktop = MediaQuery.of(context).size.width >= 900;
+        final isDesktop = AppBreakpoints.isDesktop(context);
 
         final scrollView = CustomScrollView(
           slivers: [
@@ -230,6 +235,8 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                   if (wtrRawId != null) const SizedBox(height: AppSpacing.sm),
                   ContinueReadingCard(book: book, onReturn: _refreshBook),
                   const SizedBox(height: AppSpacing.sm),
+                  _ReadingTriviaCard(book: book),
+                  const SizedBox(height: AppSpacing.sm),
                   GenreTagRow(book: book),
                   const SizedBox(height: AppSpacing.lg),
                   SynopsisCard(book: book),
@@ -237,7 +244,7 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                   SourceAttribution(book: book),
                   const SizedBox(height: AppSpacing.lg),
                   _ChapterSectionHeader(
-                    bookId: widget.bookId,
+                    book: book,
                     totalChapters: book.totalChapters,
                   ),
                   const SizedBox(height: AppSpacing.sm),
@@ -270,29 +277,16 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete novel?'),
-        content: const Text(
-          'This will permanently remove the novel and all reading progress.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _deleteNovel();
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await ConfirmDeleteDialog.show(
+      context,
+      title: 'Delete novel?',
+      message: 'This will permanently remove the novel and all reading progress.',
+      confirmLabel: 'Delete',
     );
+    if (confirmed == true && mounted) {
+      unawaited(_deleteNovel());
+    }
   }
 
   Future<void> _deleteNovel() async {
@@ -435,16 +429,16 @@ class _ExportFormatSheet extends StatelessWidget {
 
 class _ChapterSectionHeader extends ConsumerWidget {
   const _ChapterSectionHeader({
-    required this.bookId,
+    required this.book,
     required this.totalChapters,
   });
 
-  final String bookId;
+  final BookEntity book;
   final int totalChapters;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chapters = ref.watch(novelChaptersProvider(bookId));
+    final chapters = ref.watch(novelChaptersProvider(book.id));
     final downloadingSet = ref.watch(chapterDownloadingSetProvider);
     final isDownloadingAll = chapters.maybeWhen(
       data: (list) => list.any((ch) => downloadingSet.contains(ch.id)),
@@ -482,7 +476,14 @@ class _ChapterSectionHeader extends ConsumerWidget {
               child: TextButton.icon(
                 onPressed: isDownloadingAll
                     ? null
-                    : () => _downloadAll(ref, bookId),
+                    : () {
+                        final list = chapters.valueOrNull ?? [];
+                        BatchDownloadSheet.show(
+                          context,
+                          book: book,
+                          chapters: list,
+                        );
+                      },
                 icon: isDownloadingAll
                     ? const SizedBox(
                         width: 14,
@@ -491,7 +492,7 @@ class _ChapterSectionHeader extends ConsumerWidget {
                       )
                     : const Icon(Icons.download_rounded, size: 16),
                 label: Text(
-                  isDownloadingAll ? 'Downloading...' : 'All',
+                  isDownloadingAll ? 'Downloading...' : 'Download',
                   style: const TextStyle(fontSize: 12),
                 ),
                 style: TextButton.styleFrom(
@@ -504,27 +505,6 @@ class _ChapterSectionHeader extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _downloadAll(WidgetRef ref, String bookId) async {
-    final service = ref.read(chapterDownloadServiceProvider);
-    final downloadingSet = ref.read(chapterDownloadingSetProvider.notifier);
-    final chapters = await ref.read(novelChaptersProvider(bookId).future);
-    final notDownloaded = chapters
-        .where((ch) => ch.contentState != ContentState.availableOffline.index)
-        .toList();
-
-    for (final ch in notDownloaded) {
-      downloadingSet.update((set) => set..add(ch.id));
-    }
-
-    await service.downloadAllChapters(bookId);
-
-    for (final ch in notDownloaded) {
-      downloadingSet.update((set) => set..remove(ch.id));
-    }
-
-    ref.invalidate(novelChaptersProvider(bookId));
   }
 }
 
@@ -556,14 +536,27 @@ class _ChapterPanelState extends ConsumerState<_ChapterPanel> {
         final groups = _groupChapters(totalChapters);
         final colors = Theme.of(context).colorScheme;
 
+        final groupMap = <_ChapterGroupInfo, List<ChapterEntity>>{
+          for (final g in groups) g: <ChapterEntity>[],
+        };
+        var currentGroupIdx = 0;
+        for (final ch in chapters) {
+          while (currentGroupIdx < groups.length &&
+              ch.index > groups[currentGroupIdx].end) {
+            currentGroupIdx++;
+          }
+          if (currentGroupIdx < groups.length &&
+              ch.index >= groups[currentGroupIdx].start) {
+            groupMap[groups[currentGroupIdx]]!.add(ch);
+          }
+        }
+
         return Column(
           children: groups.map((group) {
             final isFirst = group == groups.first;
             return _ChapterGroup(
               title: group.title,
-              chapters: chapters
-                  .where((c) => c.index >= group.start && c.index <= group.end)
-                  .toList(),
+              chapters: groupMap[group] ?? const [],
               isFirst: isFirst,
               isLast: group == groups.last,
               colors: colors,
@@ -709,16 +702,22 @@ class _ChapterGroupState extends State<_ChapterGroup> {
             ),
           ),
           if (_expanded)
-            ...widget.chapters.map(
-              (ch) => _ChapterTile(
-                chapter: ch,
-                isDownloading: widget.downloadingSet.contains(ch.id),
-                onTap: () => widget.onTap(ch.id),
-                onDownload:
-                    ch.contentState != ContentState.availableOffline.index
-                    ? () => widget.onDownload(ch.id)
-                    : null,
-              ),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: widget.chapters.length,
+              itemBuilder: (context, index) {
+                final ch = widget.chapters[index];
+                return _ChapterTile(
+                  chapter: ch,
+                  isDownloading: widget.downloadingSet.contains(ch.id),
+                  onTap: () => widget.onTap(ch.id),
+                  onDownload:
+                      ch.contentState != ContentState.availableOffline.index
+                          ? () => widget.onDownload(ch.id)
+                          : null,
+                );
+              },
             ),
         ],
       ),
@@ -837,3 +836,128 @@ class _ChapterTile extends StatelessWidget {
     return '${(count / 1000).toStringAsFixed(1)}kw';
   }
 }
+
+class _ReadingTriviaCard extends StatelessWidget {
+  const _ReadingTriviaCard({required this.book});
+
+  final BookEntity book;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final progressPct = ((book.progress ?? 0.0) * 100).toInt().clamp(0, 100);
+    final totalCh = book.totalChapters;
+    final readCh = (totalCh * (progressPct / 100)).round();
+    final remainingCh = (totalCh - readCh).clamp(0, totalCh);
+    final estMinutes = remainingCh * 3;
+    final estHours = (estMinutes / 60).toStringAsFixed(1);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+        onTap: () {
+          if (progressPct >= 100) {
+            MilestoneCelebrationDialog.show(
+              context,
+              milestone: MilestoneType.firstBookFinished,
+              customMessage: 'You finished reading ${book.title}! Outstanding journey.',
+            );
+          } else if (progressPct >= 50) {
+            MilestoneCelebrationDialog.show(
+              context,
+              milestone: MilestoneType.hundredChapters,
+              customMessage: 'Over half-way through ${book.title} ($progressPct%). Keep pushing forward!',
+            );
+          } else {
+            MilestoneCelebrationDialog.show(
+              context,
+              milestone: MilestoneType.streakThreeDays,
+              customMessage: 'Reading ${book.title} ($readCh / $totalCh chapters). Great momentum!',
+            );
+          }
+        },
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+            border: Border.all(
+              color: cs.outlineVariant.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.insights_rounded, size: 16, color: cs.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Reading Insights',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: cs.primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  BookBadge(
+                    label: progressPct >= 100 ? 'Completed' : (progressPct > 0 ? 'Reading' : 'Unread'),
+                    variant: progressPct >= 100
+                        ? BookBadgeVariant.tertiary
+                        : (progressPct > 0 ? BookBadgeVariant.primary : BookBadgeVariant.neutral),
+                    isCompact: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.smMd),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _TriviaCol(label: 'Progress', value: '$progressPct%'),
+                  _TriviaCol(label: 'Read', value: '$readCh / $totalCh'),
+                  _TriviaCol(label: 'Est. Left', value: '${estHours}h'),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TriviaCol extends StatelessWidget {
+  const _TriviaCol({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Column(
+      children: [
+        Text(
+          value,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: cs.onSurfaceVariant,
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+}
+

@@ -14,6 +14,8 @@ class BookshelfGrid extends StatelessWidget {
     required this.onBookTap,
     required this.onBookLongPress,
     required this.onDeleteBook,
+    this.isSelectionMode = false,
+    this.selectedIds = const {},
   });
 
   final List<BookEntity> books;
@@ -22,6 +24,8 @@ class BookshelfGrid extends StatelessWidget {
   final void Function(String id) onBookTap;
   final void Function(String id, Offset globalPosition) onBookLongPress;
   final void Function(String id) onDeleteBook;
+  final bool isSelectionMode;
+  final Set<String> selectedIds;
 
   @override
   Widget build(BuildContext context) {
@@ -70,11 +74,14 @@ class BookshelfGrid extends StatelessWidget {
                 itemCount: books.length,
                 itemBuilder: (context, index) {
                   final book = books[index];
+                  final isSelected = selectedIds.contains(book.id);
                   return BookGridCard(
                     book: book,
                     coverWidth: coverWidth,
                     coverHeight: coverHeight,
                     isDesktop: isDesktop,
+                    isSelectionMode: isSelectionMode,
+                    isSelected: isSelected,
                     onTap: () => onBookTap(book.id),
                     onLongPress: (pos) => onBookLongPress(book.id, pos),
                   );

@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
@@ -12,11 +13,15 @@ class ChapterSelectionMenuBuilder {
   const ChapterSelectionMenuBuilder();
 
   static const List<AppContextMenuHighlightOption> highlightPalette = [
-    AppContextMenuHighlightOption(color: Color(0xFFFFF176), label: 'Yellow'),
-    AppContextMenuHighlightOption(color: Color(0xFFA5D6A7), label: 'Green'),
-    AppContextMenuHighlightOption(color: Color(0xFF90CAF9), label: 'Blue'),
-    AppContextMenuHighlightOption(color: Color(0xFFF48FB1), label: 'Pink'),
-    AppContextMenuHighlightOption(color: Color(0xFFCE93D8), label: 'Purple'),
+    AppContextMenuHighlightOption(color: Color(0xFFFFD54F), label: 'Sunset Gold'),
+    AppContextMenuHighlightOption(color: Color(0xFF69F0AE), label: 'Emerald Mint'),
+    AppContextMenuHighlightOption(color: Color(0xFF40C4FF), label: 'Sky Blue'),
+    AppContextMenuHighlightOption(color: Color(0xFFFF8A80), label: 'Coral Orange'),
+    AppContextMenuHighlightOption(color: Color(0xFFFF80AB), label: 'Rose Pink'),
+    AppContextMenuHighlightOption(color: Color(0xFFB388FF), label: 'Electric Violet'),
+    AppContextMenuHighlightOption(color: Color(0xFFEEFF41), label: 'Neon Lime'),
+    AppContextMenuHighlightOption(color: Color(0xFFFFA726), label: 'Warm Amber'),
+    AppContextMenuHighlightOption(color: Color(0xFF90A4AE), label: 'Slate Graphite'),
   ];
 
   /// Converts an offset from [SelectionHandler.getSelection] (relative to
@@ -41,14 +46,19 @@ class ChapterSelectionMenuBuilder {
 
   /// Extracts the complete sentence encompassing the given text selection.
   static String sentenceAround(String fullText, TextSelection sel) {
-    if (!sel.isValid || sel.isCollapsed) return '';
+    if (fullText.isEmpty || !sel.isValid || sel.isCollapsed || sel.start < 0) {
+      return '';
+    }
+    final safeStart = sel.start.clamp(0, fullText.length);
+    final safeEnd = sel.end.clamp(0, fullText.length);
+    if (safeStart >= safeEnd) return '';
     const punctuation = '.!?\n';
-    int start = sel.start;
+    int start = safeStart;
     while (start > 0) {
       if (punctuation.contains(fullText[start - 1])) break;
       start--;
     }
-    int end = sel.end;
+    int end = safeEnd;
     while (end < fullText.length) {
       if (punctuation.contains(fullText[end])) break;
       end++;
@@ -67,21 +77,73 @@ class ChapterSelectionMenuBuilder {
     required List<HighlightEntry> highlights,
     required List<(int, int, int)>? renderContentMap,
     Selectable? selectable,
-    void Function(String text, Color color, int start, int end)? onHighlight,
+    RenderParagraph? renderParagraph,
+    void Function(
+      String text,
+      Color color,
+      int start,
+      int end, {
+      HighlightStyleType styleType,
+    })?
+    onHighlight,
     void Function(String text, String? sentence)? onAddNote,
     void Function(String text)? onShare,
     void Function(String text)? onSearchWeb,
     void Function(String text, String? sentence, int start, int end)? onListen,
     void Function(int start, int end)? onErase,
   }) {
+    int? globalStart;
+    int? globalEnd;
+
     final range = selectable?.getSelection();
-    final globalStart = range != null
-        ? contentOffsetFromRenderOffset(range.startOffset, renderContentMap)
-        : null;
-    final globalEnd = range != null
-        ? contentOffsetFromRenderOffset(range.endOffset, renderContentMap)
-        : null;
-    final hasOffsets = globalStart != null && globalEnd != null;
+    if (range != null) {
+      globalStart = contentOffsetFromRenderOffset(
+        range.startOffset,
+        renderContentMap,
+      );
+      globalEnd = contentOffsetFromRenderOffset(
+        range.endOffset,
+        renderContentMap,
+      );
+    } else if (renderParagraph != null &&
+        renderParagraph.hasSize &&
+        renderParagraph.attached) {
+      try {
+        final anchors = selectableRegionState.contextMenuAnchors;
+        final p1 = renderParagraph.globalToLocal(anchors.primaryAnchor);
+        final pos1 = renderParagraph.getPositionForOffset(p1).offset;
+        int startRender = pos1;
+        int endRender = pos1;
+        final sec = anchors.secondaryAnchor;
+        if (sec != null && sec != anchors.primaryAnchor) {
+          final p2 = renderParagraph.globalToLocal(sec);
+          final pos2 = renderParagraph.getPositionForOffset(p2).offset;
+          startRender = math.min(pos1, pos2);
+          endRender = math.max(pos1, pos2);
+        } else {
+          final wordRange =
+              renderParagraph.getWordBoundary(TextPosition(offset: pos1));
+          if (wordRange.isValid && !wordRange.isCollapsed) {
+            startRender = wordRange.start;
+            endRender = wordRange.end;
+          }
+        }
+        globalStart = contentOffsetFromRenderOffset(
+          startRender,
+          renderContentMap,
+        );
+        globalEnd = contentOffsetFromRenderOffset(
+          endRender,
+          renderContentMap,
+        );
+      } catch (_) {}
+    }
+
+    final hasOffsets = globalStart != null &&
+        globalEnd != null &&
+        globalStart >= 0 &&
+        globalEnd <= content.length &&
+        globalStart < globalEnd;
     final word = hasOffsets
         ? content.substring(globalStart, globalEnd).trim()
         : '';
@@ -93,22 +155,35 @@ class ChapterSelectionMenuBuilder {
             TextSelection(baseOffset: globalStart, extentOffset: globalEnd),
           )
         : null;
-    final hasOverlappingHighlight = hasOffsets &&
-        highlights.any((h) => h.overlaps(globalStart, globalEnd));
+    final overlappingHighlight = hasOffsets
+        ? highlights.where((h) => h.overlaps(globalStart!, globalEnd!)).firstOrNull
+        : null;
+    final hasOverlappingHighlight = overlappingHighlight != null;
     final eraseEnabled =
         hasOffsets && hasOverlappingHighlight && onErase != null;
 
     return AppContextMenu(
       anchor: selectableRegionState.contextMenuAnchors.primaryAnchor,
       highlightColors: hasOffsets ? highlightPalette : const [],
-      onHighlightSelected: hasOffsets && onHighlight != null
-          ? (color) => onHighlight(word, color, globalStart, globalEnd)
+      initialStyle: overlappingHighlight?.styleType ?? HighlightStyleType.solid,
+      onHighlightWithStyle: hasOffsets && onHighlight != null
+          ? (color, style) => onHighlight(
+              word,
+              color,
+              globalStart!,
+              globalEnd!,
+              styleType: style,
+            )
           : null,
       quickActions: [
         AppContextMenuAction(
           label: 'Copy',
           icon: Icons.content_copy_rounded,
-          onPressed: () => Clipboard.setData(ClipboardData(text: word)),
+          onPressed: () {
+            if (word.isNotEmpty) {
+              Clipboard.setData(ClipboardData(text: word));
+            }
+          },
         ),
         if (showSelectionActions && onAddNote != null)
           AppContextMenuAction(
@@ -121,7 +196,7 @@ class ChapterSelectionMenuBuilder {
             label: 'Listen',
             icon: Icons.play_circle_outline_rounded,
             onPressed: () =>
-                onListen(word, sentence, globalStart, globalEnd),
+                onListen(word, sentence, globalStart!, globalEnd!),
           ),
         if (showSelectionActions && onShare != null)
           AppContextMenuAction(
@@ -166,7 +241,7 @@ class ChapterSelectionMenuBuilder {
             label: 'Erase highlight',
             icon: Icons.format_color_reset_rounded,
             destructive: true,
-            onPressed: () => onErase(globalStart, globalEnd),
+            onPressed: () => onErase(globalStart!, globalEnd!),
           ),
         if (showSelectionActions && onSearchWeb != null)
           AppContextMenuAction(

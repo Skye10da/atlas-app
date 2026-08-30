@@ -1,13 +1,14 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/services/cover_palette_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/novel_metadata_bar.dart';
 
-class NovelHeroHeader extends StatelessWidget {
+class NovelHeroHeader extends ConsumerWidget {
   const NovelHeroHeader({
     super.key,
     required this.book,
@@ -18,14 +19,17 @@ class NovelHeroHeader extends StatelessWidget {
   final bool isEmbedded;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final paletteAsync = ref.watch(coverPaletteProvider(book.coverPath));
+    final palette = paletteAsync.valueOrNull ?? CoverPalette.fallback;
 
     return SizedBox(
       height: 360,
       child: Stack(
         children: [
+          // Ambient blurred cover backdrop
           if (book.coverPath != null)
             Positioned.fill(
               child: Image.file(
@@ -37,6 +41,8 @@ class NovelHeroHeader extends StatelessWidget {
             )
           else
             Container(color: colors.surfaceContainerHigh),
+
+          // Dynamic Palette Gradient Blend
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
@@ -44,13 +50,17 @@ class NovelHeroHeader extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.transparent,
-                    colors.surface.withValues(alpha: 0.95),
+                    palette.dark.withValues(alpha: 0.75),
+                    palette.dark.withValues(alpha: 0.90),
+                    colors.surface,
                   ],
+                  stops: const [0.0, 0.45, 1.0],
                 ),
               ),
             ),
           ),
+
+          // Content Row
           Positioned(
             left: AppSpacing.md,
             right: AppSpacing.md,
@@ -58,20 +68,33 @@ class NovelHeroHeader extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                isEmbedded
-                    ? BookCover(
-                        coverPath: book.coverPath,
-                        width: 110,
-                        height: 165,
-                      )
-                    : Hero(
-                        tag: 'book-cover-${book.id}',
-                        child: BookCover(
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
+                    boxShadow: [
+                      BoxShadow(
+                        color: palette.dominant.withValues(alpha: 0.35),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: isEmbedded
+                      ? BookCover(
                           coverPath: book.coverPath,
                           width: 110,
                           height: 165,
+                        )
+                      : Hero(
+                          tag: 'book-cover-${book.id}',
+                          child: BookCover(
+                            coverPath: book.coverPath,
+                            width: 110,
+                            height: 165,
+                          ),
                         ),
-                      ),
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
@@ -81,6 +104,7 @@ class NovelHeroHeader extends StatelessWidget {
                       Text(
                         book.title,
                         style: textTheme.titleLarge?.copyWith(
+                          fontFamily: 'Playfair Display',
                           fontWeight: FontWeight.bold,
                         ),
                         maxLines: 3,

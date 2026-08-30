@@ -29,4 +29,10 @@ abstract final class AppColors {
   static const readerSepia = Color(0xFFF5F0E8);
   static const readerText = Color(0xFF1C1B1F);
   static const readerTextDark = Color(0xFFE3E3E3);
+
+  // Semantic App Accent & Atmosphere Tokens
+  static const parchment = Color(0xFFF7F3E9);
+  static const aiViolet = Color(0xFF7C3AED);
+  static const aiIndigo = Color(0xFF4F46E5);
+  static const successSurface = Color(0xFFE8F5E9);
 }

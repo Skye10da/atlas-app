@@ -130,36 +130,55 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
         _db.chapters,
       )..where((c) => c.bookId.equals(bookId))).get();
 
-      for (final row in rows) {
-        if (row.contentState != ContentState.availableOffline.index) continue;
+      final toReset = rows
+          .where((r) => r.contentState == ContentState.availableOffline.index)
+          .toList();
 
-        final file = File(row.contentPath);
-        if (file.existsSync()) {
-          await file.delete();
+      if (toReset.isNotEmpty) {
+        final prefixes = <String>{};
+        final filesToDelete = <File>[];
+
+        for (final row in toReset) {
+          final file = File(row.contentPath);
+          filesToDelete.add(file);
+          prefixes.add('${file.uri.pathSegments.last}.v');
         }
-        // Drop superseded versions too; they were captured under an older
-        // translation service and would otherwise resurface stale text.
-        final dir = file.parent;
+
+        // Delete primary chapter files
+        for (final file in filesToDelete) {
+          if (file.existsSync()) {
+            await file.delete();
+          }
+        }
+
+        // Single pass over directory to delete all versioned files (.v1, .v2, etc.)
+        final dir = filesToDelete.first.parent;
         if (dir.existsSync()) {
-          final prefix = '${file.uri.pathSegments.last}.v';
           await for (final entity in dir.list()) {
-            if (entity is File &&
-                entity.uri.pathSegments.last.startsWith(prefix)) {
-              await entity.delete();
+            if (entity is File) {
+              final name = entity.uri.pathSegments.last;
+              if (prefixes.any(name.startsWith)) {
+                await entity.delete();
+              }
             }
           }
         }
 
-        await (_db.update(
-          _db.chapters,
-        )..where((c) => c.id.equals(row.id))).write(
-          ChaptersCompanion(
-            contentState: Value(ContentState.discovered.index),
-            version: const Value(1),
-            checksum: const Value(null),
-            previousVersionRef: const Value(null),
-          ),
-        );
+        // Batch update all chapter rows in a single operation
+        await _db.batch((batch) {
+          for (final row in toReset) {
+            batch.update(
+              _db.chapters,
+              ChaptersCompanion(
+                contentState: Value(ContentState.discovered.index),
+                version: const Value(1),
+                checksum: const Value(null),
+                previousVersionRef: const Value(null),
+              ),
+              where: (c) => c.id.equals(row.id),
+            );
+          }
+        });
       }
 
       return const Success(null);

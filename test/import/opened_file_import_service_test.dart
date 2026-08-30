@@ -12,6 +12,7 @@ import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/epub_import_service.dart';
 import 'package:atlas_app/core/import/opened_file_import_service.dart';
 import 'package:atlas_app/core/import/pdf_import_service.dart';
+import 'package:atlas_app/core/import/text_import_service.dart';
 import 'package:atlas_app/library/application/atlas_source_import_service.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
@@ -34,6 +35,7 @@ class _SimulatedMobileImporter extends OpenedFileImportService {
     required super.pdfService,
     required super.atlasService,
     required super.engine,
+    super.textService,
   });
 
   @override
@@ -143,6 +145,7 @@ void main() {
       pdfService: PdfImportService(db),
       atlasService: const AtlasSourceImportService(),
       engine: ContentAcquisitionEngine(registry: SourceRegistry(), db: db),
+      textService: TextImportService(db),
     );
   });
 
@@ -208,4 +211,55 @@ void main() {
       );
     },
   );
+
+  test('imports a TXT file opened on desktop and splits into chapters', () async {
+    const textContent = '''
+Chapter 1: The First Step
+The hero set out into the wilderness.
+
+Chapter 2: The Dark Cave
+They entered a dark and mysterious cavern.
+''';
+    final opened = writeTempFile('adventure.txt', textContent.codeUnits);
+    final result = await importer.import(opened.path);
+    expect(result, isA<Success<ImportOutcome>>());
+    final bookId = (result as Success<ImportOutcome>).value.bookId;
+    expect(bookId, 'adventure');
+
+    final row = await (db.select(
+      db.books,
+    )..where((b) => b.id.equals(bookId))).getSingleOrNull();
+    expect(row, isNotNull);
+    expect(row!.format, 'txt');
+    expect(row.totalChapters, 2);
+
+    final chapters = await (db.select(
+      db.chapters,
+    )..where((c) => c.bookId.equals(bookId))).get();
+    expect(chapters.length, 2);
+    expect(chapters[0].title, 'Chapter 1: The First Step');
+    expect(chapters[1].title, 'Chapter 2: The Dark Cave');
+  });
+
+  test('imports a Markdown file opened on desktop', () async {
+    const mdContent = '''
+# Section A
+Introductory paragraph.
+
+# Section B
+Conclusion paragraph.
+''';
+    final opened = writeTempFile('notes.md', mdContent.codeUnits);
+    final result = await importer.import(opened.path);
+    expect(result, isA<Success<ImportOutcome>>());
+    final bookId = (result as Success<ImportOutcome>).value.bookId;
+    expect(bookId, 'notes');
+
+    final row = await (db.select(
+      db.books,
+    )..where((b) => b.id.equals(bookId))).getSingleOrNull();
+    expect(row, isNotNull);
+    expect(row!.format, 'md');
+    expect(row.totalChapters, 2);
+  });
 }

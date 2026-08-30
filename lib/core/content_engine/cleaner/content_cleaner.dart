@@ -88,31 +88,48 @@ class ContentCleaner {
     }
   }
 
+  static const _targetNoiseTags = {
+    'p',
+    'div',
+    'span',
+    'section',
+    'article',
+    'em',
+    'strong',
+    'b',
+    'i',
+    'u',
+    'blockquote',
+    'li',
+  };
+
   /// Removes empty elements that add no reading value but inflate the DOM
   /// (e.g. `<p>`, `<div>`, `<span>` wrappers that became empty — or
   /// whitespace-only — after the strip pass).
+  ///
+  /// Uses a single post-order bottom-up pass so nested empty elements
+  /// (e.g. `<div><p><span></span></p></div>`) are pruned in one pass without
+  /// looping or repeated CSS queries.
   void _removeEmptyNoise(Element root) {
-    bool removed = true;
-    while (removed) {
-      removed = false;
-      for (final el in root.querySelectorAll(
-        'p,div,span,section,article,em,strong,b,i,u,blockquote,li',
-      )) {
-        if (!_isEffectivelyEmpty(el)) continue;
+    _cleanPostOrder(root);
+  }
 
-        if (el.attributes.isNotEmpty) {
-          // Keep elements with meaningful attributes (ids, classes, data
-          // attrs) so selector-based extraction still has anchors. Only
-          // pure presentation attrs (style) don't count.
-          final meaningful = el.attributes.keys
-              .where((k) => k != 'style')
-              .isNotEmpty;
-          if (meaningful) continue;
-        }
-
-        el.remove();
-        removed = true;
+  void _cleanPostOrder(Element el) {
+    for (final child in List<Node>.from(el.nodes)) {
+      if (child is Element) {
+        _cleanPostOrder(child);
       }
+    }
+
+    if (_targetNoiseTags.contains(el.localName)) {
+      if (!_isEffectivelyEmpty(el)) return;
+
+      if (el.attributes.isNotEmpty) {
+        final meaningful = el.attributes.keys.any((k) => k != 'style');
+        if (meaningful) return;
+      }
+
+      el.remove();
     }
   }
 

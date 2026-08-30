@@ -44,15 +44,27 @@ class HttpTransport implements Transport {
   }
 
   /// Cloudflare bot protection answers clients it fingerprints as non-browser
-  /// (Dart's own HTTP stack is one) with a 403 "Just a moment..." JS challenge
-  /// or an "Attention Required!" block page. Prefer the response headers, which
-  /// are more reliable than sniffing the body, and fall back to the title only
-  /// for otherwise-ambiguous 403s.
+  /// with a 403 or 503 "Just a moment..." JS challenge, Turnstile, or block page.
   bool _isBotChallenge(http.Response response) {
-    final server = response.headers['server'] ?? '';
-    if (server.toLowerCase().contains('cloudflare')) return true;
-    if ((response.headers['cf-mitigated'] ?? '').isNotEmpty) return true;
-    if (response.statusCode != 403) return false;
+    final status = response.statusCode;
+    if (status != 403 && status != 503 && status != 429) return false;
+
+    final cfMitigated = response.headers['cf-mitigated'] ?? '';
+    if (cfMitigated.isNotEmpty && cfMitigated.toLowerCase().contains('challenge')) {
+      return true;
+    }
+
+    final lowerBody = response.body.toLowerCase();
+    if (lowerBody.contains('just a moment') ||
+        lowerBody.contains('attention required') ||
+        lowerBody.contains('challenge-platform') ||
+        lowerBody.contains('cf_chl_opt') ||
+        lowerBody.contains('cf-turnstile') ||
+        lowerBody.contains('ddos-guard') ||
+        lowerBody.contains('cf-chl-widget')) {
+      return true;
+    }
+
     final title = RegExp(
       r'<title>\s*([^<]*)',
       caseSensitive: false,

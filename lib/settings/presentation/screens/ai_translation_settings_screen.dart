@@ -4,18 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_ai_provider.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_ai_settings.dart';
 import 'package:atlas_app/wtr/infrastructure/services/ai_chat_clients.dart';
 import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
 
-/// Configures the AI providers behind the WTR-Lab "AI+" translation mode:
-/// which provider is active, its API key, and the model to use.
-///
-/// Keys and models are stored *per provider*, so trying another provider
-/// never loses the previous one's credentials. Keys live in SharedPreferences
-/// on this device and are sent only to the configured provider.
 class AiTranslationSettingsScreen extends ConsumerStatefulWidget {
   const AiTranslationSettingsScreen({super.key});
 
@@ -31,15 +26,13 @@ class _AiTranslationSettingsScreenState
 
   var _selectedProvider = WtrAiProviderId.gemini;
   var _obscureKey = true;
-
-  /// Guards the one-time adoption of persisted settings into local state.
   var _synced = false;
 
-  /// Live `/models` results for [_selectedProvider]; null until fetched or
-  /// when the fetch failed (the curated fallback is offered instead).
   List<String>? _fetchedModels;
   var _fetchingModels = false;
   Object? _fetchError;
+  bool? _testSuccess;
+  String? _testMessage;
 
   @override
   void dispose() {
@@ -92,7 +85,7 @@ class _AiTranslationSettingsScreenState
     ref.invalidate(wtrAiSettingsProvider);
     if (!mounted) return;
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
+      const SnackBar(content: Text('Settings saved'), duration: Duration(seconds: 1)),
     );
   }
 
@@ -102,8 +95,6 @@ class _AiTranslationSettingsScreenState
     final current = _current;
     if (current == null) return;
     await _persist(
-      // Pin the selected provider too: the pipeline reads `provider`, and a
-      // key saved for the wrong active provider would silently never be used.
       current
           .withProvider(_selectedProvider)
           .withApiKey(_selectedProvider, _keyController.text.trim()),
@@ -118,6 +109,8 @@ class _AiTranslationSettingsScreenState
       _keyController.clear();
       _fetchedModels = null;
       _fetchError = null;
+      _testSuccess = null;
+      _testMessage = null;
     });
     await _persist(current.withApiKey(_selectedProvider, null));
   }
@@ -136,255 +129,343 @@ class _AiTranslationSettingsScreenState
 
   Future<void> _testConfiguration() async {
     final apiKey = _keyController.text.trim();
-    final model = _modelController.text.trim();
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (apiKey.isEmpty || model.isEmpty) {
-      messenger?.showSnackBar(
-        const SnackBar(content: Text('Enter an API key and a model first')),
-      );
+    if (apiKey.isEmpty) {
+      setState(() {
+        _testSuccess = false;
+        _testMessage = 'Please enter an API key first.';
+      });
       return;
     }
+    setState(() {
+      _testSuccess = null;
+      _testMessage = 'Testing connection...';
+    });
     try {
-      await wtrAiClients[_selectedProvider]!.complete(
+      final client = wtrAiClients[_selectedProvider]!;
+      final models = await client.listModels(
         HttpTransport(),
         apiKey: apiKey,
-        model: model,
-        system: 'Reply with exactly: ok',
-        prompt: 'Say ok.',
       );
-      messenger?.showSnackBar(
-        SnackBar(content: Text('$model answered — configuration works.')),
-      );
-    } on Object catch (e) {
-      messenger?.showSnackBar(SnackBar(content: Text('Test failed: $e')));
+      if (!mounted) return;
+      setState(() {
+        _testSuccess = true;
+        _testMessage = 'Connected successfully! ${models.length} model(s) available.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _testSuccess = false;
+        _testMessage = 'Connection failed: $e';
+      });
     }
+  }
+
+  List<String> _candidateModels() {
+    final fetched = _fetchedModels;
+    if (fetched != null && fetched.isNotEmpty) return fetched;
+    return _selectedProvider.fallbackModels;
   }
 
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(wtrAiSettingsProvider);
-
-    return settingsAsync.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (error, _) => Scaffold(
-        appBar: AppBar(title: const Text('AI Translation')),
-        body: Center(child: Text('Could not load settings: $error')),
-      ),
-      data: (settings) {
-        if (!_synced) {
-          _synced = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() => _adoptStored(settings));
-            }
-          });
-        }
-        return _buildBody(context, settings);
-      },
-    );
-  }
-
-  Widget _buildBody(BuildContext context, WtrAiSettings settings) {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final storedKey = settings.apiKeyFor(_selectedProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('AI Translation')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.md),
+      appBar: AppBar(
+        title: const Text(
+          'AI Translation ✨',
+          style: TextStyle(
+            fontFamily: 'Playfair Display',
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      body: settingsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Failed to load settings: $e')),
+        data: (settings) {
+          if (!_synced) {
+            _synced = true;
+            _adoptStored(settings);
+          }
+
+          final storedKey = settings.apiKeyFor(_selectedProvider);
+
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppBreakpoints.formContentMaxWidth,
+              ),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                children: [
+                  // 1. Branded Info Banner
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: colors.primaryContainer.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+                      border: Border.all(
+                        color: colors.primary.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, color: colors.primary, size: 22),
+                        const SizedBox(width: AppSpacing.smMd),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'AI+ Translation Engine',
+                                style: textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colors.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Translates chapters with high fidelity, maintaining character name glossaries. Keys are stored locally on your device.',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // 2. Provider Selection
+                  _SectionCard(
+                    title: 'Active Provider',
+                    child: DropdownMenu<WtrAiProviderId>(
+                      expandedInsets: EdgeInsets.zero,
+                      initialSelection: _selectedProvider,
+                      dropdownMenuEntries: [
+                        for (final provider in WtrAiProviderId.values)
+                          DropdownMenuEntry(value: provider, label: provider.label),
+                      ],
+                      onSelected: (p) {
+                        if (p == null || p == _selectedProvider) return;
+                        setState(() {
+                          _selectedProvider = p;
+                          _fetchedModels = null;
+                          _fetchError = null;
+                          _testSuccess = null;
+                          _testMessage = null;
+                          _keyController.text = settings.apiKeyFor(p) ?? '';
+                          _modelController.text = settings.modelFor(p);
+                        });
+                        unawaited(_persist(settings.withProvider(p)));
+                        if ((settings.apiKeyFor(p) ?? '').isNotEmpty) {
+                          unawaited(_fetchModels());
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // 3. API Key & Model Configuration
+                  _SectionCard(
+                    title: '${_selectedProvider.label} Configuration',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: _keyController,
+                          obscureText: _obscureKey,
+                          decoration: InputDecoration(
+                            labelText: 'API Key',
+                            hintText: '${_selectedProvider.label} API key',
+                            filled: true,
+                            fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.4),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureKey ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              ),
+                              onPressed: () => setState(() => _obscureKey = !_obscureKey),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Row(
+                          children: [
+                            FilledButton.tonal(
+                              onPressed: _saveKey,
+                              child: const Text('Save key'),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            if (storedKey != null && storedKey.isNotEmpty)
+                              OutlinedButton(
+                                onPressed: _clearKey,
+                                child: const Text('Clear'),
+                              ),
+                            const Spacer(),
+                            FilledButton.icon(
+                              onPressed: _testConfiguration,
+                              icon: const Icon(Icons.bolt_rounded, size: 16),
+                              label: const Text('Test'),
+                            ),
+                          ],
+                        ),
+                        if (_testMessage != null) ...[
+                          const SizedBox(height: AppSpacing.smMd),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _testSuccess == true
+                                  ? colors.tertiaryContainer
+                                  : (_testSuccess == false ? colors.errorContainer : colors.surfaceContainerHighest),
+                              borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _testSuccess == true
+                                      ? Icons.check_circle_rounded
+                                      : (_testSuccess == false ? Icons.error_outline_rounded : Icons.sync_rounded),
+                                  size: 16,
+                                  color: _testSuccess == true
+                                      ? colors.onTertiaryContainer
+                                      : (_testSuccess == false ? colors.onErrorContainer : colors.onSurfaceVariant),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _testMessage!,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _testSuccess == true
+                                          ? colors.onTertiaryContainer
+                                          : (_testSuccess == false ? colors.onErrorContainer : colors.onSurfaceVariant),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.lg),
+                        const Divider(),
+                        const SizedBox(height: AppSpacing.sm),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _modelController,
+                                decoration: InputDecoration(
+                                  labelText: 'Model Name',
+                                  filled: true,
+                                  fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.4),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+                                  ),
+                                ),
+                                onSubmitted: _saveModel,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.tune_rounded),
+                              tooltip: 'Preset Models',
+                              itemBuilder: (_) => [
+                                for (final m in _candidateModels())
+                                  PopupMenuItem(value: m, child: Text(m)),
+                              ],
+                              onSelected: (m) {
+                                setState(() => _modelController.text = m);
+                                _saveModel(m);
+                              },
+                            ),
+                          ],
+                        ),
+                        if (_fetchError != null) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'Could not fetch remote models: $_fetchError (showing curated fallback)',
+                            style: TextStyle(fontSize: 11, color: colors.error),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // 4. Getting an API Key Guide
+                  _SectionCard(
+                    title: 'How to get a key',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '1. Visit the provider console (e.g. Google AI Studio, OpenAI Platform).\n'
+                          '2. Generate a personal API key.\n'
+                          '3. Paste the key above and tap "Save Key" followed by "Test".',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+        border: Border.all(
+          color: cs.outlineVariant.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Used by the AI+ translation option on WTR-Lab novels. Chapters '
-            'are translated with your chosen provider, guided by the '
-            'novel\u2019s glossary so names stay consistent.',
-            style: textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text('PROVIDER', style: _sectionStyle(context, colors)),
-          const SizedBox(height: AppSpacing.xs),
-          DropdownMenu<WtrAiProviderId>(
-            expandedInsets: EdgeInsets.zero,
-            initialSelection: _selectedProvider,
-            dropdownMenuEntries: [
-              for (final provider in WtrAiProviderId.values)
-                DropdownMenuEntry(value: provider, label: provider.label),
-            ],
-            onSelected: (provider) {
-              if (provider == null || provider == _selectedProvider) return;
-              setState(() {
-                _selectedProvider = provider;
-                _fetchedModels = null;
-                _fetchError = null;
-                _keyController.text = settings.apiKeyFor(provider) ?? '';
-                _modelController.text = settings.modelFor(provider);
-              });
-              // The selection itself must reach storage: the translation
-              // pipeline reads `settings.provider`, not this screen's state.
-              unawaited(_persist(settings.withProvider(provider)));
-              if ((settings.apiKeyFor(provider) ?? '').isNotEmpty) {
-                unawaited(_fetchModels());
-              }
-            },
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text('API KEY', style: _sectionStyle(context, colors)),
-          const SizedBox(height: AppSpacing.xs),
-          TextField(
-            controller: _keyController,
-            obscureText: _obscureKey,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: InputDecoration(
-              hintText: '${_selectedProvider.label} API key',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                tooltip: _obscureKey ? 'Show key' : 'Hide key',
-                icon: Icon(
-                  _obscureKey
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                ),
-                onPressed: () => setState(() => _obscureKey = !_obscureKey),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              FilledButton.tonal(
-                onPressed: _saveKey,
-                child: const Text('Save key'),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              TextButton(
-                onPressed: storedKey == null ? null : _clearKey,
-                child: const Text('Clear'),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: _testConfiguration,
-                icon: const Icon(Icons.bolt_outlined),
-                label: const Text('Test'),
-              ),
-            ],
-          ),
-          if (storedKey == null || storedKey.isEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'No ${_selectedProvider.label} key yet — AI+ falls back to Web '
-              'translation until one is saved.',
-              style: textTheme.bodySmall?.copyWith(color: colors.error),
-            ),
-          ],
-          const SizedBox(height: AppSpacing.lg),
-          Text('MODEL', style: _sectionStyle(context, colors)),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _modelController,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  decoration: const InputDecoration(
-                    hintText: 'Model ID',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: _saveModel,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              PopupMenuButton<String>(
-                tooltip: 'Suggested models',
-                icon: const Icon(Icons.list_outlined),
-                itemBuilder: (context) => [
-                  for (final id in _candidateModels())
-                    PopupMenuItem(value: id, child: Text(id)),
-                ],
-                onSelected: (id) {
-                  setState(() => _modelController.text = id);
-                  _saveModel(id);
-                },
-              ),
-              IconButton(
-                tooltip: 'Refresh model list',
-                onPressed: _fetchingModels
-                    ? null
-                    : () => _fetchModels(force: true),
-                icon: _fetchingModels
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            _modelStatusLine(),
-            style: textTheme.bodySmall?.copyWith(
-              color: _fetchError == null
-                  ? colors.onSurfaceVariant
-                  : colors.error,
+            title,
+            style: textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          OutlinedButton(
-            onPressed: () => _saveModel(_modelController.text),
-            child: const Text('Use this model'),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            'API keys are stored only on this device and are sent solely to '
-            'the selected provider.',
-            style: textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
+          child,
         ],
       ),
     );
   }
-
-  /// What the picker offers: live results when available, otherwise the
-  /// curated fallback — always including whatever is currently entered so
-  /// the user's own choice never disappears from the list.
-  List<String> _candidateModels() {
-    final current = _modelController.text.trim();
-    return {
-      ...(_fetchedModels ?? _selectedProvider.fallbackModels),
-      _selectedProvider.defaultModel,
-      if (current.isNotEmpty) current,
-    }.toList()..sort();
-  }
-
-  String _modelStatusLine() {
-    if (_fetchingModels) return 'Fetching available models…';
-    if (_fetchError != null) {
-      return 'Could not fetch the model list (${_shortError()}) — showing '
-          'built-in suggestions. A custom ID can still be entered.';
-    }
-    if (_fetchedModels == null) {
-      return 'Built-in suggestions shown; save an API key to fetch the live '
-          'model list.';
-    }
-    return '${_fetchedModels!.length} models available.';
-  }
-
-  String _shortError() {
-    final message = '$_fetchError';
-    return message.length > 80 ? '${message.substring(0, 80)}…' : message;
-  }
-
-  TextStyle? _sectionStyle(BuildContext context, ColorScheme colors) =>
-      Theme.of(context).textTheme.labelSmall?.copyWith(
-        color: colors.onSurfaceVariant,
-        letterSpacing: 1.2,
-      );
 }

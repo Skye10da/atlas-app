@@ -68,9 +68,9 @@ class AtlasPlaybackController extends BaseAudioHandler
 
   void _startPositionTimer() {
     _positionTimer?.cancel();
-    _positionTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    _positionTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (playbackState.value.playing) {
-        _currentPosition += const Duration(milliseconds: 500) * _playbackSpeed;
+        _currentPosition += const Duration(seconds: 2) * _playbackSpeed;
         _updatePlaybackStatePosition();
       }
     });
@@ -80,13 +80,22 @@ class AtlasPlaybackController extends BaseAudioHandler
     final current = playbackState.value;
     switch (event) {
       case SentenceStarted():
+        _updatePositionFromSentence(event.item);
         playbackState.add(
           current.copyWith(
             controls: _controlsFor(playing: true),
+            androidCompactActionIndices: const [0, 1, 3],
             processingState: AudioProcessingState.ready,
             playing: true,
+            updatePosition: _currentPosition,
+            bufferedPosition: _totalSessionDuration ?? Duration.zero,
             speed: _playbackSpeed,
-            systemActions: {MediaAction.setSpeed},
+            systemActions: const {
+              MediaAction.seek,
+              MediaAction.setSpeed,
+              MediaAction.fastForward,
+              MediaAction.rewind,
+            },
           ),
         );
       case SpeechPaused():
@@ -95,9 +104,15 @@ class AtlasPlaybackController extends BaseAudioHandler
         playbackState.add(
           current.copyWith(
             controls: _controlsFor(playing: false),
+            androidCompactActionIndices: const [0, 1, 3],
             playing: false,
             speed: _playbackSpeed,
-            systemActions: {MediaAction.setSpeed},
+            systemActions: const {
+              MediaAction.seek,
+              MediaAction.setSpeed,
+              MediaAction.fastForward,
+              MediaAction.rewind,
+            },
           ),
         );
       case SpeechStopped():
@@ -107,11 +122,17 @@ class AtlasPlaybackController extends BaseAudioHandler
         playbackState.add(
           current.copyWith(
             controls: _controlsFor(playing: false),
+            androidCompactActionIndices: const [0, 1, 3],
             playing: false,
             processingState: AudioProcessingState.idle,
             updatePosition: Duration.zero,
             speed: _playbackSpeed,
-            systemActions: {MediaAction.setSpeed},
+            systemActions: const {
+              MediaAction.seek,
+              MediaAction.setSpeed,
+              MediaAction.fastForward,
+              MediaAction.rewind,
+            },
           ),
         );
       case SpeechCompleted():
@@ -120,11 +141,18 @@ class AtlasPlaybackController extends BaseAudioHandler
         _currentPosition = Duration.zero;
         playbackState.add(
           current.copyWith(
+            controls: _controlsFor(playing: false),
+            androidCompactActionIndices: const [0, 1, 3],
             playing: false,
             processingState: AudioProcessingState.completed,
             updatePosition: _totalSessionDuration ?? Duration.zero,
             speed: _playbackSpeed,
-            systemActions: {MediaAction.setSpeed},
+            systemActions: const {
+              MediaAction.seek,
+              MediaAction.setSpeed,
+              MediaAction.fastForward,
+              MediaAction.rewind,
+            },
           ),
         );
       case SpeechError():
@@ -132,10 +160,17 @@ class AtlasPlaybackController extends BaseAudioHandler
         _positionTimer = null;
         playbackState.add(
           current.copyWith(
+            controls: _controlsFor(playing: false),
+            androidCompactActionIndices: const [0, 1, 3],
             playing: false,
             processingState: AudioProcessingState.error,
             speed: _playbackSpeed,
-            systemActions: {MediaAction.setSpeed},
+            systemActions: const {
+              MediaAction.seek,
+              MediaAction.setSpeed,
+              MediaAction.fastForward,
+              MediaAction.rewind,
+            },
           ),
         );
       case ChapterStarted(
@@ -160,6 +195,22 @@ class AtlasPlaybackController extends BaseAudioHandler
       default:
         break;
     }
+  }
+
+  void _updatePositionFromSentence(SpeechItem item) {
+    final session = _engine.session;
+    if (session == null || _totalSessionDuration == null) return;
+    final queue = session.queue;
+    if (queue.isEmpty) return;
+
+    Duration position = Duration.zero;
+    for (int i = 0; i < queue.cursor; i++) {
+      final qItem = queue.itemAt(i);
+      if (qItem?.estimatedDuration != null) {
+        position += qItem!.estimatedDuration!;
+      }
+    }
+    _currentPosition = position;
   }
 
   void _updatePositionFromWordBoundary(SpeechItem item, int start, int end) {
@@ -283,11 +334,18 @@ class AtlasPlaybackController extends BaseAudioHandler
       artUri = Uri.file(coverPath);
     }
 
+    final bookTitle = _currentBookTitle ?? 'Atlas';
+    final author = _currentAuthor ?? 'Atlas';
+
     final newMediaItem = MediaItem(
       id: 'tts_$_currentBookId',
-      title: chapterTitle, // Chapter title
-      artist: _currentBookTitle ?? 'Atlas', // Book title as artist (subtitle)
-      album: _currentAuthor ?? 'Atlas', // Author as album
+      title: chapterTitle,
+      artist: author,
+      album: bookTitle,
+      genre: 'Audiobook',
+      displayTitle: chapterTitle,
+      displaySubtitle: bookTitle,
+      displayDescription: author,
       artUri: artUri,
       duration: _totalSessionDuration,
       extras: {
@@ -321,6 +379,16 @@ class AtlasPlaybackController extends BaseAudioHandler
 
   @override
   Future<void> skipToPrevious() async {
+    await _engine.skipPrevious();
+  }
+
+  @override
+  Future<void> fastForward() async {
+    await _engine.skipNext();
+  }
+
+  @override
+  Future<void> rewind() async {
     await _engine.skipPrevious();
   }
 

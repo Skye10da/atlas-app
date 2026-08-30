@@ -137,22 +137,54 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
       final query = _db.select(_db.books)..where((b) => b.id.equals(id));
       final book = await query.getSingleOrNull();
 
-      if (book?.filePath != null) {
-        final dir = Directory(book!.filePath);
+      if (book?.filePath != null && book!.filePath.isNotEmpty) {
+        final dir = Directory(book.filePath);
         if (await dir.exists()) {
           await dir.delete(recursive: true);
         }
       }
 
-      await (_db.delete(
-        _db.readingProgress,
-      )..where((p) => p.bookId.equals(id))).go();
-      await (_db.delete(_db.chapters)..where((c) => c.bookId.equals(id))).go();
-      await (_db.delete(_db.books)..where((b) => b.id.equals(id))).go();
+      await _db.transaction(() async {
+        await (_db.delete(_db.readingProgress)..where((p) => p.bookId.equals(id))).go();
+        await (_db.delete(_db.chapters)..where((c) => c.bookId.equals(id))).go();
+        await (_db.delete(_db.bookmarks)..where((b) => b.bookId.equals(id))).go();
+        await (_db.delete(_db.characters)..where((c) => c.bookId.equals(id))).go();
+        await (_db.delete(_db.books)..where((b) => b.id.equals(id))).go();
+      });
 
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to delete book', e), st);
+    }
+  }
+
+  @override
+  Future<Result<void>> deleteBooks(List<String> ids) async {
+    if (ids.isEmpty) return const Success(null);
+    try {
+      final query = _db.select(_db.books)..where((b) => b.id.isIn(ids));
+      final books = await query.get();
+
+      for (final book in books) {
+        if (book.filePath.isNotEmpty) {
+          final dir = Directory(book.filePath);
+          if (await dir.exists()) {
+            await dir.delete(recursive: true);
+          }
+        }
+      }
+
+      await _db.transaction(() async {
+        await (_db.delete(_db.readingProgress)..where((p) => p.bookId.isIn(ids))).go();
+        await (_db.delete(_db.chapters)..where((c) => c.bookId.isIn(ids))).go();
+        await (_db.delete(_db.bookmarks)..where((b) => b.bookId.isIn(ids))).go();
+        await (_db.delete(_db.characters)..where((c) => c.bookId.isIn(ids))).go();
+        await (_db.delete(_db.books)..where((b) => b.id.isIn(ids))).go();
+      });
+
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to delete selected books', e), st);
     }
   }
 
@@ -168,10 +200,13 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
           }
         }
       }
-      await _db.delete(_db.readingProgress).go();
-      await _db.delete(_db.chapters).go();
-      await _db.delete(_db.bookmarks).go();
-      await _db.delete(_db.books).go();
+      await _db.transaction(() async {
+        await _db.delete(_db.readingProgress).go();
+        await _db.delete(_db.chapters).go();
+        await _db.delete(_db.bookmarks).go();
+        await _db.delete(_db.characters).go();
+        await _db.delete(_db.books).go();
+      });
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to delete all books', e), st);

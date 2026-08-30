@@ -16,6 +16,7 @@ void main() {
     // Blur relies on BackdropFilter, which is a no-op in the test canvas.
     AppSheet.enableBackdropBlur = false;
     AppSheet.rememberedHeights.clear();
+    AppSheet.rememberedDockStates.clear();
   });
 
   tearDown(() => AppSheet.enableBackdropBlur = originalBlur);
@@ -85,8 +86,51 @@ void main() {
     final material = tester.widget<Material>(sheetSurface);
     final shape = material.shape! as RoundedRectangleBorder;
     expect(shape.borderRadius, BorderRadius.circular(28));
-    // No drag handle in dialog presentation.
-    expect(sheetHandle, findsNothing);
+    expect(sheetHandle, findsOneWidget);
+  });
+
+  testWidgets('desktop dialog can be docked at bottom and floated back', (
+    tester,
+  ) async {
+    await pumpHost(tester, size: const Size(1200, 800));
+    await openSheet(tester);
+
+    // Initial state: centered
+    var rect = tester.getRect(sheetSurface);
+    expect(rect.center.dy, closeTo(400, 0.5));
+
+    // Tap dock button to dock at bottom
+    await tester.tap(find.byTooltip('Dock at bottom'));
+    await tester.pumpAndSettle();
+
+    rect = tester.getRect(sheetSurface);
+    expect(rect.bottom, closeTo(800, 0.5));
+
+    // Tap float button to restore to center
+    await tester.tap(find.byTooltip('Float to center'));
+    await tester.pumpAndSettle();
+
+    rect = tester.getRect(sheetSurface);
+    expect(rect.center.dy, closeTo(400, 0.5));
+  });
+
+  testWidgets('remembers dock position across reopening', (tester) async {
+    await pumpHost(tester, size: const Size(1200, 800));
+    await openSheet(tester);
+
+    // Dock at bottom
+    await tester.tap(find.byTooltip('Dock at bottom'));
+    await tester.pumpAndSettle();
+
+    // Dismiss sheet
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Test sheet'), findsNothing);
+
+    // Reopen sheet — should open docked at bottom directly
+    await openSheet(tester);
+    final rect = tester.getRect(sheetSurface);
+    expect(rect.bottom, closeTo(800, 0.5));
   });
 
   testWidgets('caps width on wide phones and tablets', (tester) async {
@@ -153,5 +197,105 @@ void main() {
 
     final reopened = tester.getRect(sheetSurface).height;
     expect(reopened, closeTo(grown, 2));
+  });
+
+  testWidgets('fitToContent auto-sizes to compact child content', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => AppSheet.show<void>(
+                  context: context,
+                  id: 'fit_sheet',
+                  fitToContent: true,
+                  title: 'Compact Note',
+                  child: const SizedBox(height: 150),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final rect = tester.getRect(sheetSurface);
+    // Height should be ~150 plus handle and header, well below 300px
+    expect(rect.height, lessThan(300));
+    expect(rect.height, greaterThan(150));
+  });
+
+  testWidgets('AppSheetMode.sideSheet positions sheet on the right edge', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => AppSheet.show<void>(
+                  context: context,
+                  id: 'side_sheet',
+                  mode: AppSheetMode.sideSheet,
+                  title: 'Side Panel',
+                  child: const SizedBox.expand(),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final rect = tester.getRect(sheetSurface);
+    expect(rect.right, closeTo(1200, 0.5));
+    expect(rect.height, closeTo(800, 0.5));
+  });
+
+  testWidgets('SheetNavigator pushes and pops sub-views in sheet', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SheetNavigator(
+            initialPage: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => SheetNavigator.of(context).push(
+                  const Text('Sub Page Content'),
+                ),
+                child: const Text('Go to Sub Page'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Go to Sub Page'), findsOneWidget);
+    await tester.tap(find.text('Go to Sub Page'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sub Page Content'), findsOneWidget);
   });
 }

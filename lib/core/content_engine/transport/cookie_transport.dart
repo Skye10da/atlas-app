@@ -36,31 +36,56 @@ class CookieTransport implements Transport {
   /// constructed per plugin/run. Only available where the plugin implements
   /// `getDefaultUserAgent` (Android/iOS/macOS); on Windows, Linux, and Web it
   /// stays null and requests pass through without a UA fill.
+  static const _kWindowsUserAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
+  static const _kMacUserAgent =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
+  static const _kLinuxUserAgent =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
+  static const _kAndroidUserAgent =
+      'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Mobile Safari/537.36';
+  static const _kIosUserAgent =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
   static String? _cachedUserAgent;
   static Future<String?>? _userAgentLookup;
 
-  Future<String?> _userAgent() {
+  Future<String> _userAgent() {
     final cached = _cachedUserAgent;
     if (cached != null) return Future.value(cached);
-    return _userAgentLookup ??= _fetchDefaultUserAgent();
+    return (_userAgentLookup ??= _fetchDefaultUserAgent()).then((ua) => ua ?? _fallbackUserAgent);
+  }
+
+  static String get _fallbackUserAgent {
+    if (kIsWeb) return _kWindowsUserAgent;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.windows:
+        return _kWindowsUserAgent;
+      case TargetPlatform.macOS:
+        return _kMacUserAgent;
+      case TargetPlatform.linux:
+        return _kLinuxUserAgent;
+      case TargetPlatform.android:
+        return _kAndroidUserAgent;
+      case TargetPlatform.iOS:
+        return _kIosUserAgent;
+      default:
+        return _kWindowsUserAgent;
+    }
   }
 
   static Future<String?> _fetchDefaultUserAgent() async {
-    // `InAppWebViewController.getDefaultUserAgent` is only implemented by the
-    // Android/iOS/macOS plugin packages. On Windows the native manager answers
-    // `NotImplemented`, which the Dart MethodChannel surfaces as a
-    // MissingPluginException; on Web and Linux the call is unsupported too.
-    // Skip it entirely so those builds never throw (and never trip a
-    // debugger's exception breakpoint) — the UA fill is a best-effort replay
-    // nicety, not a requirement.
-    if (!_supportsDefaultUserAgent) return null;
+    if (!_supportsDefaultUserAgent) return _fallbackUserAgent;
     try {
       final ua = await InAppWebViewController.getDefaultUserAgent();
-      _cachedUserAgent = ua;
-      return ua;
+      if (ua.isNotEmpty) {
+        _cachedUserAgent = ua;
+        return ua;
+      }
     } on Object {
-      return null;
+      // Fallback below
     }
+    return _fallbackUserAgent;
   }
 
   static bool get _supportsDefaultUserAgent {
@@ -68,7 +93,6 @@ class CookieTransport implements Transport {
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
       case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
         return true;
       default:
         return false;
@@ -95,7 +119,14 @@ class CookieTransport implements Transport {
     }
     if (!result.containsKey('User-Agent')) {
       final ua = await _userAgent();
-      if (ua != null) result['User-Agent'] = ua;
+      result['User-Agent'] = ua;
+    }
+    if (!result.containsKey('Accept')) {
+      result['Accept'] =
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8';
+    }
+    if (!result.containsKey('Accept-Language')) {
+      result['Accept-Language'] = 'en-US,en;q=0.9';
     }
     return result;
   }

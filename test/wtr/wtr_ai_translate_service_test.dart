@@ -314,6 +314,21 @@ void main() {
         );
       },
     );
+
+    test('parseNumbered preserves multi-line paragraphs and continuation lines', () {
+      final service = WtrAiTranslateService();
+      const raw = '''
+<1> This is line 1 of paragraph 1.
+And this is continuation line 2 of paragraph 1.
+<2> Paragraph 2 line 1.
+Paragraph 2 line 2.
+''';
+      final result = service.parseNumbered(raw, expectedCount: 2);
+      expect(result, [
+        'This is line 1 of paragraph 1.\nAnd this is continuation line 2 of paragraph 1.',
+        'Paragraph 2 line 1.\nParagraph 2 line 2.',
+      ]);
+    });
   });
 }
 

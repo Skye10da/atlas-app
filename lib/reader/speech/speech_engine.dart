@@ -37,11 +37,13 @@ class SpeechEngine {
 
   bool _retriedCurrentItem = false;
   bool _restartedForCurrentItem = false;
+  bool _isPlaying = false;
 
   final _eventsController = StreamController<SpeechEvent>.broadcast();
   Stream<SpeechEvent> get events => _eventsController.stream;
 
   SpeechSession? get session => _session;
+  bool get isPlaying => _isPlaying;
 
   /// Loads a new session (e.g. a chapter's SpeechQueue) and applies its
   /// settings to the driver. Does not start playback — call [start]
@@ -49,6 +51,7 @@ class SpeechEngine {
   /// narration actually begins (ASA §8).
   Future<void> loadSession(SpeechSession session) async {
     _session = session;
+    _isPlaying = false;
     _retriedCurrentItem = false;
     _restartedForCurrentItem = false;
     setSleepTimer(session.settings.sleepTimer);
@@ -85,19 +88,25 @@ class SpeechEngine {
   Future<void> start() async {
     final item = _session?.currentItem;
     if (item == null) return;
+    _isPlaying = true;
     _eventsController.add(SentenceStarted(item));
     await _driver.speak(item);
   }
 
-  Future<void> pause() => _driver.pause();
+  Future<void> pause() {
+    _isPlaying = false;
+    return _driver.pause();
+  }
 
   Future<void> resume() async {
     final item = _session?.currentItem;
     if (item == null) return;
+    _isPlaying = true;
     await _driver.resume(item);
   }
 
   Future<void> stop() async {
+    _isPlaying = false;
     await _driver.stop();
     _eventsController.add(const SpeechStopped());
   }
@@ -109,6 +118,7 @@ class SpeechEngine {
     if (session == null) return;
     final next = session.queue.next();
     if (next == null) return;
+    _isPlaying = true;
     await _driver.stop();
     _eventsController.add(SentenceStarted(next));
     await _driver.speak(next);
@@ -121,6 +131,7 @@ class SpeechEngine {
     if (session == null) return;
     final prev = session.queue.previous();
     if (prev == null) return;
+    _isPlaying = true;
     await _driver.stop();
     _eventsController.add(SentenceStarted(prev));
     await _driver.speak(prev);
@@ -144,13 +155,19 @@ class SpeechEngine {
       case DriverStarted():
         break; // SentenceStarted already emitted in start()/advance
       case DriverPaused():
+        _isPlaying = false;
         _eventsController.add(const SpeechPaused());
       case DriverResumed():
+        _isPlaying = true;
         break;
       case DriverCompleted():
-        unawaited(_onItemComplete());
+        if (_isPlaying) {
+          unawaited(_onItemComplete());
+        }
       case DriverError(:final message):
-        unawaited(_onDriverError(message));
+        if (_isPlaying) {
+          unawaited(_onDriverError(message));
+        }
       case DriverWordBoundary(:final start, :final end, :final word):
         final item = _session?.currentItem;
         if (item != null) {
@@ -160,6 +177,7 @@ class SpeechEngine {
   }
 
   Future<void> _onItemComplete() async {
+    if (!_isPlaying) return;
     final session = _session;
     if (session == null) return;
     final finishedItem = session.currentItem;
@@ -188,6 +206,8 @@ class SpeechEngine {
       _eventsController.add(SentenceStarted(next));
       await _driver.speak(next);
     } else {
+      _isPlaying = false;
+      await _recoveryStore.save(session.toCheckpoint());
       if (_stopAtBoundary == SleepTimerBoundary.endOfChapter) {
         await stop();
       }

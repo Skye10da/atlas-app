@@ -9,11 +9,15 @@ class BookshelfList extends StatelessWidget {
     required this.books,
     required this.onBookTap,
     required this.onDeleteBook,
+    this.isSelectionMode = false,
+    this.selectedIds = const {},
   });
 
   final List<BookEntity> books;
   final void Function(String id) onBookTap;
   final void Function(String id) onDeleteBook;
+  final bool isSelectionMode;
+  final Set<String> selectedIds;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +29,19 @@ class BookshelfList extends StatelessWidget {
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final book = books[index];
+        final isSelected = selectedIds.contains(book.id);
+
+        final card = BookCard(
+          book: book,
+          isSelectionMode: isSelectionMode,
+          isSelected: isSelected,
+          onTap: () => onBookTap(book.id),
+        );
+
+        if (isSelectionMode) {
+          return card;
+        }
+
         return Dismissible(
           key: ValueKey(book.id),
           direction: DismissDirection.endToStart,
@@ -38,7 +55,7 @@ class BookshelfList extends StatelessWidget {
             color: Theme.of(context).colorScheme.error,
             child: const Icon(Icons.delete_outline, color: Colors.white),
           ),
-          child: BookCard(book: book, onTap: () => onBookTap(book.id)),
+          child: card,
         );
       },
     );

@@ -35,7 +35,6 @@ final class SharedPrefsSettingsRepository
   @override
   Future<ReadingSettingsEntity> load() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('theme_mode');
     return ReadingSettingsEntity(
       systemFontFamily: prefs.getString(_keySystemFont),
       brand: switch (prefs.getString(_keyBrand)) {

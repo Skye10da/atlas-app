@@ -230,4 +230,112 @@ void main() {
     expect(bookRow.tags, 'Sci-fi,Drama');
     expect(bookRow.sourceUrl, 'https://example.com/source');
   });
+
+  test('extracts chapter images and preserves paragraph breaks', () async {
+    const epub = EpubBook(
+      title: 'Illustrated Book',
+      author: 'Illustrator',
+      schema: EpubSchema(
+        package: EpubPackage(
+          version: EpubVersion.epub3,
+          metadata: EpubMetadata(
+            titles: ['Illustrated Book'],
+            creators: [EpubMetadataCreator(creator: 'Illustrator', role: 'aut')],
+          ),
+          manifest: EpubManifest(
+            items: [
+              EpubManifestItem(
+                id: 'ch_1',
+                href: 'ch_1.xhtml',
+                mediaType: 'application/xhtml+xml',
+              ),
+              EpubManifestItem(
+                id: 'img_1',
+                href: 'images/illustration.png',
+                mediaType: 'image/png',
+              ),
+            ],
+          ),
+          spine: EpubSpine(
+            tableOfContents: 'nav',
+            items: [EpubSpineItemRef(idRef: 'ch_1', isLinear: true)],
+            ltr: true,
+          ),
+          guide: EpubGuide(),
+        ),
+        navigation: EpubNavigation(
+          docTitle: EpubNavigationDocTitle(titles: ['Illustrated Book']),
+          navMap: EpubNavigationMap(
+            points: [
+              EpubNavigationPoint(
+                navigationLabels: [EpubNavigationLabel(text: 'Chapter 1')],
+                content: EpubNavigationContent(source: 'ch_1.xhtml'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      content: EpubContent(
+        html: {
+          'ch_1.xhtml': EpubTextContentFile(
+            fileName: 'ch_1.xhtml',
+            contentMimeType: 'application/xhtml+xml',
+            content:
+                '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+                '<head><title>Chapter 1</title></head><body>'
+                '<h1>Chapter 1: The Mountain</h1>'
+                '<p>First paragraph.</p>'
+                '<img src="images/illustration.png" alt="A mountain landscape"/>'
+                '<p>Second paragraph.</p>'
+                '</body></html>',
+          ),
+        },
+        images: {
+          'images/illustration.png': EpubByteContentFile(
+            fileName: 'images/illustration.png',
+            contentMimeType: 'image/png',
+            content: [137, 80, 78, 71, 13, 10, 26, 10], // PNG magic bytes
+          ),
+        },
+        allFiles: {
+          'ch_1.xhtml': EpubTextContentFile(
+            fileName: 'ch_1.xhtml',
+            contentMimeType: 'application/xhtml+xml',
+            content:
+                '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+                '<head><title>Chapter 1</title></head><body>'
+                '<h1>Chapter 1: The Mountain</h1>'
+                '<p>First paragraph.</p>'
+                '<img src="images/illustration.png" alt="A mountain landscape"/>'
+                '<p>Second paragraph.</p>'
+                '</body></html>',
+          ),
+          'images/illustration.png': EpubByteContentFile(
+            fileName: 'images/illustration.png',
+            contentMimeType: 'image/png',
+            content: [137, 80, 78, 71, 13, 10, 26, 10],
+          ),
+        },
+      ),
+    );
+
+    final bytes = EpubWriter.writeBook(epub)!;
+    final result = await service.importBytes(bytes, 'illustrated.epub');
+    expect(result, isA<Success<String>>());
+    final bookId = (result as Success<String>).value;
+
+    final chapterRow = await db.select(db.chapters).getSingle();
+    final chapterText = await File(chapterRow.contentPath).readAsString();
+
+    // Verify paragraph breaks and markdown image tags are preserved
+    expect(
+      chapterText,
+      contains('# Chapter 1: The Mountain\n\nFirst paragraph.\n\n![A mountain landscape](images/illustration.png)\n\nSecond paragraph.'),
+    );
+
+    // Verify image file is extracted to disk
+    final imageFile = File('${tempDir.path}/books/$bookId/images/illustration.png');
+    expect(await imageFile.exists(), isTrue);
+    expect(await imageFile.readAsBytes(), [137, 80, 78, 71, 13, 10, 26, 10]);
+  });
 }

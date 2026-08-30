@@ -11,6 +11,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
+import 'package:atlas_app/core/content_acquisition/utils/book_id_normalizer.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 
@@ -299,9 +300,7 @@ class PdfImportService {
     return chapters;
   }
 
-  String _normalizeId(String title) {
-    return title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
-  }
+  String _normalizeId(String title) => BookIdNormalizer.normalize(title);
 }
 
 /// Lightweight chapter record derived from a PDF outline (or page ranges).

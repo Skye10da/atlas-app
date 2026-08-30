@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:atlas_app/core/design_system/atoms/book_badge.dart';
 import 'package:atlas_app/core/design_system/molecules/app_search_bar.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
@@ -167,6 +168,8 @@ class _ChapterIndexSheetState extends State<ChapterIndexSheet> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         ListTile(
+                          selected: isCurrent,
+                          selectedTileColor: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
                           leading: CircleAvatar(
                             radius: 14,
                             backgroundColor: isCurrent
@@ -177,7 +180,8 @@ class _ChapterIndexSheetState extends State<ChapterIndexSheet> {
                             child: Text(
                               '${originalIdx + 1}',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
                                 color: isCurrent
                                     ? Theme.of(context).colorScheme.onPrimary
                                     : null,
@@ -189,14 +193,16 @@ class _ChapterIndexSheetState extends State<ChapterIndexSheet> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontWeight: isCurrent ? FontWeight.w600 : null,
+                              fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                              color: isCurrent
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
                             ),
                           ),
                           trailing: isCurrent
-                              ? Icon(
-                                  Icons.check,
-                                  size: 18,
-                                  color: Theme.of(context).colorScheme.primary,
+                              ? const BookBadge.primary(
+                                  label: 'Reading',
+                                  isCompact: true,
                                 )
                               : null,
                           onTap: () {

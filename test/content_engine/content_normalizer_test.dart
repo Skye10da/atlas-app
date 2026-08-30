@@ -155,5 +155,17 @@ void main() {
 
       expect(doc.renderToText(), 'Title\n\nFirst.\n\nSecond.');
     });
+
+    test('preserves whitespace and prevents word-squashing across <br> elements', () {
+      final doc = normalizer.normalizeFromHtml('''
+        <html><body>
+          <p>Line One<br>Line Two<br/>Line Three</p>
+        </body></html>
+      ''');
+
+      expect(doc.blocks, hasLength(1));
+      expect(doc.blocks.first, isA<ParagraphBlock>());
+      expect((doc.blocks.first as ParagraphBlock).text, 'Line One Line Two Line Three');
+    });
   });
 }

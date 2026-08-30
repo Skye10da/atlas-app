@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
@@ -10,22 +10,24 @@ class ChapterNarrationCoordinator {
 
   /// Finds the chapter's single [RenderParagraph] keyed by [textKey].
   RenderParagraph? findRenderParagraph(GlobalKey textKey) {
-    final context = textKey.currentContext;
-    if (context == null) return null;
-
-    RenderParagraph? found;
-    void visitor(Element element) {
-      if (found != null) return;
-      final renderObject = element.renderObject;
-      if (renderObject is RenderParagraph) {
-        found = renderObject;
-        return;
-      }
-      element.visitChildElements(visitor);
+    final renderObject = textKey.currentContext?.findRenderObject();
+    if (renderObject is RenderParagraph) {
+      return renderObject;
     }
-
-    context.visitChildElements(visitor);
-    return found;
+    if (renderObject is RenderObject) {
+      RenderParagraph? found;
+      void visitor(RenderObject child) {
+        if (found != null) return;
+        if (child is RenderParagraph) {
+          found = child;
+          return;
+        }
+        child.visitChildren(visitor);
+      }
+      renderObject.visitChildren(visitor);
+      return found;
+    }
+    return null;
   }
 
   /// Resolves the character offset in [content] where [item] begins.
@@ -53,6 +55,40 @@ class ChapterNarrationCoordinator {
     if (inParagraph >= 0) return para.offset + paraOffsetInSeg + inParagraph;
     final anywhere = content.indexOf(item.text);
     return anywhere >= 0 ? anywhere : null;
+  }
+
+  /// Resolves the character range `(start, end)` of the whole paragraph containing [item].
+  ({int start, int end})? resolveActiveParagraphRange({
+    required SpeechItem? item,
+    required String content,
+  }) {
+    if (item == null || content.isEmpty) return null;
+
+    final segments = const ChapterPositionResolver().paragraphsOf(content);
+    if (item.paragraphIndex >= 0 && item.paragraphIndex < segments.length) {
+      final para = segments[item.paragraphIndex];
+      final paraTrim = para.text.trim();
+      if (paraTrim.isNotEmpty) {
+        final start = para.offset + para.text.indexOf(paraTrim);
+        return (start: start, end: start + paraTrim.length);
+      }
+    }
+
+    final speechOffset = resolveActiveSpeechOffset(item: item, content: content);
+    if (speechOffset != null) {
+      final before = content.substring(0, speechOffset);
+      final prevBreak = before.lastIndexOf(RegExp(r'\n\s*\n'));
+      final rawStart = prevBreak >= 0 ? prevBreak : 0;
+      final paraPart = content.substring(rawStart, speechOffset);
+      final trimOffset = paraPart.indexOf(RegExp(r'\S'));
+      final start = trimOffset >= 0 ? rawStart + trimOffset : rawStart;
+
+      final after = content.substring(speechOffset);
+      final nextBreak = after.indexOf(RegExp(r'\n\s*\n'));
+      final end = nextBreak >= 0 ? speechOffset + nextBreak : content.length;
+      return (start: start, end: end);
+    }
+    return null;
   }
 
   /// Returns true if the currently narrated sentence is within the scrollable

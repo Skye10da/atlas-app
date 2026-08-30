@@ -58,6 +58,7 @@ class TextTab extends StatelessWidget {
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.max,
         children: [
           const AppSectionHeader(title: 'Font Size'),
           Slider(
@@ -65,62 +66,48 @@ class TextTab extends StatelessWidget {
             min: 12,
             max: 28,
             divisions: 16,
-            label: '${fontSize.round()}',
+            label: '${fontSize.round()} pt',
             onChanged: onFontSizeChanged,
           ),
           const SizedBox(height: AppSpacing.sm),
-          const AppSectionHeader(title: 'Font Family'),
-          const SizedBox(height: AppSpacing.xs),
           _buildFontFamilySection(context),
-          const SizedBox(height: AppSpacing.xs),
-          // Download more button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            child: TextButton.icon(
-              onPressed: onDownloadMore,
-              icon: const Icon(Icons.download_outlined, size: 18),
-              label: const Text('Download more fonts…'),
-            ),
-          ),
           const SizedBox(height: AppSpacing.sm),
           const AppSectionHeader(title: 'Font Weight'),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
-            spacing: 6,
-            runSpacing: 4,
+            spacing: 8,
             children: [
-              for (final w in const <int?>[null, 400, 500, 600, 700])
-                AppChip(
-                  label: switch (w) {
-                    null => 'Regular',
-                    500 => 'Medium',
-                    600 => 'SemiBold',
-                    700 => 'Bold',
-                    _ => '$w',
-                  },
-                  selected: fontWeight == w,
-                  onPressed: () => onFontWeightChanged(w),
-                ),
-            ],
+              (300, 'Regular'),
+              (500, 'Medium'),
+              (600, 'Semi-Bold'),
+              (700, 'Bold'),
+            ].map((entry) {
+              final isSelected = fontWeight == entry.$1;
+              return AppChip(
+                label: entry.$2,
+                selected: isSelected,
+                onPressed: () => onFontWeightChanged(entry.$1),
+              );
+            }).toList(),
           ),
           const SizedBox(height: AppSpacing.sm),
           const AppSectionHeader(title: 'Line Height'),
           Slider(
             value: lineHeight,
             min: 1.0,
-            max: 2.0,
-            divisions: 10,
-            label: lineHeight.toStringAsFixed(1),
+            max: 2.5,
+            divisions: 15,
+            label: '${lineHeight.toStringAsFixed(1)}x',
             onChanged: onLineHeightChanged,
           ),
           const SizedBox(height: AppSpacing.sm),
           const AppSectionHeader(title: 'Letter Spacing'),
           Slider(
             value: letterSpacing,
-            min: 0.0,
-            max: 5.0,
+            min: -1.0,
+            max: 3.0,
             divisions: 20,
-            label: letterSpacing.toStringAsFixed(1),
+            label: '${letterSpacing.toStringAsFixed(1)} pt',
             onChanged: onLetterSpacingChanged,
           ),
           const SizedBox(height: AppSpacing.sm),

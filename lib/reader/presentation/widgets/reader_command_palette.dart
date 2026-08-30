@@ -13,7 +13,7 @@ class ReaderCommandPalette extends StatefulWidget {
     required this.onToggleBookmark,
     required this.isBookmarked,
     required this.onToggleSettings,
-    required this.onTogglePanel,
+    this.onOpenAnnotations,
     required this.onClose,
   });
 
@@ -23,7 +23,7 @@ class ReaderCommandPalette extends StatefulWidget {
   final VoidCallback onToggleBookmark;
   final bool isBookmarked;
   final VoidCallback onToggleSettings;
-  final VoidCallback onTogglePanel;
+  final VoidCallback? onOpenAnnotations;
   final VoidCallback onClose;
 
   @override
@@ -90,17 +90,18 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
       subtitle: 'Toggle bookmark for this chapter',
       action: (_) => widget.onToggleBookmark(),
     ),
+    if (widget.onOpenAnnotations != null)
+      _CommandItem(
+        icon: Icons.bookmarks_outlined,
+        title: 'Annotations & Notes',
+        subtitle: 'View saved notes, quotes, and highlights',
+        action: (_) => widget.onOpenAnnotations!(),
+      ),
     _CommandItem(
       icon: Icons.text_fields,
       title: 'Reading settings',
       subtitle: 'Font size, theme, layout',
       action: (_) => widget.onToggleSettings(),
-    ),
-    _CommandItem(
-      icon: Icons.view_sidebar_outlined,
-      title: 'Toggle side panel',
-      subtitle: 'Show or hide the reader panel',
-      action: (_) => widget.onTogglePanel(),
     ),
   ];
 

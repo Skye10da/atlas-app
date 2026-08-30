@@ -44,6 +44,11 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    beforeOpen: (details) async {
+      await customStatement('PRAGMA journal_mode=WAL;');
+      await customStatement('PRAGMA busy_timeout=5000;');
+      await customStatement('PRAGMA synchronous=NORMAL;');
+    },
     onUpgrade: (migrator, from, to) async {
       if (from == 1) {
         await migrator.createTable(dictionaryWords);

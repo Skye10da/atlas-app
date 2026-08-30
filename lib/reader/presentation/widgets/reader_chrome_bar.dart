@@ -9,18 +9,18 @@ class ReaderChromeBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     required this.title,
     required this.textColor,
-    required this.showPanelToggle,
-    required this.rightPanelVisible,
-    required this.onTogglePanel,
     required this.onSettingsTap,
+    this.onSearchTap,
+    this.leading,
+    this.actions,
   });
 
   final String title;
   final Color textColor;
-  final bool showPanelToggle;
-  final bool rightPanelVisible;
-  final VoidCallback onTogglePanel;
   final VoidCallback onSettingsTap;
+  final VoidCallback? onSearchTap;
+  final Widget? leading;
+  final List<Widget>? actions;
 
   @override
   Size get preferredSize => const Size.fromHeight(40);
@@ -34,29 +34,23 @@ class ReaderChromeBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       toolbarHeight: 40,
+      leading: leading,
       title: Text(
         title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 14),
       ),
-      actions: [
-        if (showPanelToggle) ...[
+      actions: actions ?? [
+        if (onSearchTap != null)
           IconButton(
-            icon: Icon(
-              rightPanelVisible
-                  ? Icons.view_sidebar
-                  : Icons.view_sidebar_outlined,
-              size: 18,
-              color: textColor,
-            ),
-            tooltip: 'Toggle panel',
-            onPressed: onTogglePanel,
+            icon: Icon(Icons.search_rounded, size: 18, color: textColor),
+            tooltip: 'Search in book',
+            onPressed: onSearchTap,
           ),
-          const SizedBox(width: 4),
-        ],
         IconButton(
           icon: Icon(Icons.text_fields, size: 18, color: textColor),
+          tooltip: 'Reader settings',
           onPressed: onSettingsTap,
         ),
       ],

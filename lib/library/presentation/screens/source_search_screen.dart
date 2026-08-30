@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
+import 'package:atlas_app/core/design_system/atoms/book_badge.dart';
+import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
+import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/presentation/providers/source_browser_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
@@ -20,7 +24,7 @@ class SourceSearchScreen extends ConsumerStatefulWidget {
 
 class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
     with SingleTickerProviderStateMixin {
-  late final SearchableSource _source;
+  SearchableSource? _source;
   final _searchController = TextEditingController();
   String _term = '';
   int _page = 1;
@@ -36,7 +40,8 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
     super.initState();
     _source = ref
         .read(searchableSourcesProvider)
-        .firstWhere((s) => s.sourceName == widget.sourceName);
+        .where((s) => s.sourceName == widget.sourceName)
+        .firstOrNull;
     _searchAnimCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -64,8 +69,11 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
       _isLoadingMore = loadMore;
     });
 
+    final source = _source;
+    if (source == null) return;
+
     try {
-      final response = await _source.search(
+      final response = await source.search(
         SourceSearchQuery(term: term, page: _page),
       );
       if (!mounted) return;
@@ -85,6 +93,8 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
   }
 
   Future<void> _import(SourceSearchResult result) async {
+    final source = _source;
+    if (source == null) return;
     if (_isImporting) return;
     setState(() => _isImporting = true);
 
@@ -96,9 +106,9 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
         description: result.description,
         coverUrl: result.coverUrl,
         language: result.language,
-        source: _source.sourceName,
+        source: source.sourceName,
         sourceUrl: result.importUrl,
-        category: _source.contentCategory,
+        category: source.contentCategory,
       );
 
       final outcome = await showImportUrlSheet(
@@ -120,136 +130,222 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final source = _source;
+
+    if (source == null) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => popOrGoToLibrary(context),
+          ),
+          title: Text(
+            widget.sourceName,
+            style: const TextStyle(
+              fontFamily: 'Playfair Display',
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.extension_off_rounded,
+                  size: 48,
+                  color: cs.onSurfaceVariant,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'Source "${widget.sourceName}" is unavailable.',
+                  style: theme.textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'This source plugin may not be installed or enabled.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                FilledButton(
+                  onPressed: () => popOrGoToLibrary(context),
+                  child: const Text('Back to Library'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => popOrGoToLibrary(context),
         ),
-        title: Text(_source.sourceName),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search ${_source.sourceName}...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _term = '';
-                            _results = [];
-                            _lastResponse = null;
-                          });
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
+        title: Row(
+          children: [
+            Text(
+              source.sourceName,
+              style: const TextStyle(
+                fontFamily: 'Playfair Display',
+                fontWeight: FontWeight.w700,
               ),
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _search(),
             ),
+            const SizedBox(width: AppSpacing.sm),
+            const BookBadge.primary(label: 'Source', isCompact: true),
+          ],
+        ),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.formContentMaxWidth,
           ),
-          Expanded(
-            child: _results.isEmpty
-                ? _isSearching
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              AnimatedBuilder(
-                                animation: _searchAnimCtrl,
-                                builder: (_, _) => SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: CustomPaint(
-                                    painter: _ArcPainter(
-                                      progress: _searchAnimCtrl.value,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              Text(
-                                'Searching...',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.search,
-                                size: 48,
-                                color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.4),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _term.isEmpty
-                                    ? 'Search for books to import'
-                                    : 'No results found',
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                : NotificationListener<ScrollNotification>(
-                    onNotification: (notification) {
-                      if (notification is ScrollEndNotification &&
-                          !_isLoadingMore &&
-                          _lastResponse?.nextPage != null &&
-                          notification.metrics.pixels >=
-                              notification.metrics.maxScrollExtent - 200) {
-                        _page = _lastResponse!.nextPage!;
-                        _search(loadMore: true);
-                      }
-                      return false;
-                    },
-                    child: GridView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            childAspectRatio: 0.6,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                      itemCount: _results.length + (_isLoadingMore ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == _results.length) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        final result = _results[index];
-                        return _SearchResultCard(
-                          result: result,
-                          onTap: _isImporting ? null : () => _import(result),
-                        );
-                      },
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.xs,
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search catalog on ${source.sourceName}…',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _term = '';
+                                _results = [];
+                                _lastResponse = null;
+                              });
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
                     ),
                   ),
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _search(),
+                ),
+              ),
+              Expanded(
+                child: _results.isEmpty
+                    ? _isSearching
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  AnimatedBuilder(
+                                    animation: _searchAnimCtrl,
+                                    builder: (_, _) => SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: CustomPaint(
+                                        painter: _ArcPainter(
+                                          progress: _searchAnimCtrl.value,
+                                          color: cs.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.md),
+                                  Text(
+                                    'Searching...',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.travel_explore_rounded,
+                                    size: 56,
+                                    color: cs.onSurfaceVariant.withValues(alpha: 0.35),
+                                  ),
+                                  const SizedBox(height: AppSpacing.md),
+                                  Text(
+                                    _term.isEmpty
+                                        ? 'Search for novels across ${source.sourceName}'
+                                        : 'No results found on ${source.sourceName}',
+                                    style: theme.textTheme.bodyLarge?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                    : NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification is ScrollEndNotification &&
+                              !_isLoadingMore &&
+                              _lastResponse?.nextPage != null &&
+                              notification.metrics.pixels >=
+                                  notification.metrics.maxScrollExtent - 200) {
+                            _page = _lastResponse!.nextPage!;
+                            _search(loadMore: true);
+                          }
+                          return false;
+                        },
+                        child: GridView.builder(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.xs,
+                          ),
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 170,
+                                childAspectRatio: 0.6,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 14,
+                              ),
+                          itemCount: _results.length + (_isLoadingMore ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (index == _results.length) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            final result = _results[index];
+                            return _SearchResultCard(
+                              result: result,
+                              onTap: _isImporting ? null : () => _import(result),
+                            );
+                          },
+                        ),
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -264,59 +360,60 @@ class _SearchResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final disabled = onTap == null;
 
-    return GestureDetector(
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
       onTap: onTap,
       child: Opacity(
         opacity: disabled ? 0.5 : 1.0,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: result.coverUrl != null
-                    ? Image.network(
-                        result.coverUrl!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        errorBuilder: (_, _, _) => _placeholder(theme),
-                      )
-                    : _placeholder(theme),
-              ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+            border: Border.all(
+              color: cs.outlineVariant.withValues(alpha: 0.3),
             ),
-            const SizedBox(height: 6),
-            Text(
-              result.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (result.author != null)
-              Text(
-                result.author!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+          ),
+          padding: const EdgeInsets.all(AppSpacing.xs),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
+                  child: BookCover(
+                    coverUrl: result.coverUrl,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
                 ),
               ),
-          ],
+              const SizedBox(height: 6),
+              Text(
+                result.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
+                ),
+              ),
+              if (result.author != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  result.author!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _placeholder(ThemeData theme) {
-    return Container(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Icon(
-        Icons.auto_stories,
-        size: 40,
-        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
       ),
     );
   }

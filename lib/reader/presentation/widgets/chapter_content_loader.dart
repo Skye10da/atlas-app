@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/session/session_refresh_service.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
@@ -34,6 +35,7 @@ class ChapterContentLoader extends ConsumerWidget {
     this.onSearchWeb,
     this.onListen,
     this.onErase,
+    this.onTap,
   });
 
   final ChapterEntity chapter;
@@ -67,14 +69,20 @@ class ChapterContentLoader extends ConsumerWidget {
   final void Function(void Function() reveal)? onRegisterNarrationReveal;
 
   /// Context-menu callbacks forwarded to [ChapterView].
-  final void Function(String text, Color color, int start, int end)?
-  onHighlight;
+  final void Function(
+    String text,
+    Color color,
+    int start,
+    int end, {
+    HighlightStyleType styleType,
+  })? onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
   final void Function(String text, String? sentence, int start, int end)?
   onListen;
   final void Function(int start, int end)? onErase;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -143,6 +151,7 @@ class ChapterContentLoader extends ConsumerWidget {
             onSearchWeb: onSearchWeb,
             onListen: onListen,
             onErase: onErase,
+            onTap: onTap,
             spans: blockCardSpans,
           ),
         );

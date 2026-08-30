@@ -201,6 +201,10 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
     return _repository.deleteBook(bookId);
   }
 
+  Future<Result<void>> deleteBooks(List<String> bookIds) {
+    return _repository.deleteBooks(bookIds);
+  }
+
   Future<Result<void>> deleteAllBooks() {
     return _repository.deleteAllBooks();
   }

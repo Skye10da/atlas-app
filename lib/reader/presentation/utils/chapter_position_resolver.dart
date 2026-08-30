@@ -103,4 +103,24 @@ class ChapterPositionResolver {
     }
     return 0;
   }
+
+  /// Resolves the first sentence that begins within [startOffset, endOffset),
+  /// or falls back to the sentence spanning [startOffset] if no sentence begins
+  /// inside the range. This ensures a page reports a sentence that starts on
+  /// that page (and thus restores back to that page), rather than a spanning
+  /// sentence that began on the previous page.
+  ({int index, int total}) resolveFirstWithinRange(
+    String content,
+    int startOffset,
+    int endOffset,
+  ) {
+    final offsets = sentenceStartOffsets(content);
+    if (offsets.isEmpty) return (index: 0, total: 0);
+    for (var i = 0; i < offsets.length; i++) {
+      if (offsets[i] >= startOffset && offsets[i] < endOffset) {
+        return (index: i, total: offsets.length);
+      }
+    }
+    return resolve(content, startOffset);
+  }
 }
