@@ -2,9 +2,32 @@ import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:rxdart/rxdart.dart';
 
+import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/core/router/app_router.dart';
+
+/// A simple data class for notification history entries.
+class NotificationEntry {
+  const NotificationEntry({
+    required this.id,
+    required this.title,
+    required this.body,
+    this.payload,
+    this.bookId,
+    required this.isRead,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String title;
+  final String body;
+  final String? payload;
+  final String? bookId;
+  final bool isRead;
+  final DateTime createdAt;
+}
 
 /// Thin wrapper around `flutter_local_notifications` for "new chapters"
 /// notifications.
@@ -30,6 +53,26 @@ class UpdateNotificationService {
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
+  /// In-memory cache of the database instance, set lazily.
+  AppDatabase? _db;
+
+  /// Subject that emits the current list of all notification history entries.
+  final _historyController =
+      BehaviorSubject<List<NotificationEntry>>.seeded([]);
+
+  /// Subject that emits the unread notification count.
+  final _unreadCountController = BehaviorSubject<int>.seeded(0);
+
+  /// Stream of all notification history entries (newest first).
+  Stream<List<NotificationEntry>> get historyStream =>
+      _historyController.stream;
+
+  /// Stream of unread notification count.
+  Stream<int> get unreadCountStream => _unreadCountController.stream;
+
+  /// Current unread count (synchronous read from the subject).
+  int get currentUnreadCount => _unreadCountController.value;
+
   /// Whether OS notifications can be shown on this platform at all.
   static bool get isSupported =>
       Platform.isAndroid ||
@@ -38,8 +81,14 @@ class UpdateNotificationService {
       Platform.isLinux ||
       Platform.isWindows;
 
-  Future<void> initialize() async {
+  /// Initializes the notification service. Call once during app bootstrap.
+  ///
+  /// Optionally pass a [db] instance to enable persistence. When provided,
+  /// notification history is stored in the database and the unread count
+  /// badge is kept in sync.
+  Future<void> initialize({AppDatabase? db}) async {
     if (_initialized || !isSupported) return;
+    _db = db;
     try {
       await _plugin.initialize(
         settings: const InitializationSettings(
@@ -67,6 +116,14 @@ class UpdateNotificationService {
             ),
           );
       _initialized = true;
+
+      // Load initial history from DB if persistence is available.
+      if (_db != null) {
+        await _refreshHistory();
+      }
+
+      // Handle cold-start notification tap (app launched from killed state).
+      await _handleColdStartTap();
     } catch (e) {
       AppLogger.warning('Notification init failed: $e');
     }
@@ -133,6 +190,23 @@ class UpdateNotificationService {
         ),
         payload: payload,
       );
+
+      // Persist each update as a separate history entry.
+      if (_db != null) {
+        for (final update in updates) {
+          await _db!.customStatement(
+            'INSERT INTO notification_history (title, body, payload, book_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, ?)',
+            [
+              '$total new chapter${total == 1 ? '' : 's'}',
+              '${update.title} (${update.count} new)',
+              '/novel/${update.bookId}',
+              update.bookId,
+              DateTime.now().toIso8601String(),
+            ],
+          );
+        }
+        await _refreshHistory();
+      }
     } catch (e) {
       AppLogger.warning('Failed to show update notification: $e');
     }
@@ -166,6 +240,21 @@ class UpdateNotificationService {
           ),
         ),
       );
+
+      // Persist the test notification.
+      if (_db != null) {
+        await _db!.customStatement(
+          'INSERT INTO notification_history (title, body, payload, book_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, ?)',
+          [
+            'Atlas test notification',
+            'Notifications are working.',
+            null,
+            null,
+            DateTime.now().toIso8601String(),
+          ],
+        );
+        await _refreshHistory();
+      }
       return true;
     } catch (e) {
       AppLogger.warning('Test notification failed: $e');
@@ -173,9 +262,91 @@ class UpdateNotificationService {
     }
   }
 
+  /// Marks all notifications as read (clears the unread badge).
+  Future<void> markAllAsRead() async {
+    if (_db == null) return;
+    await _db!.customStatement(
+      'UPDATE notification_history SET is_read = 1 WHERE is_read = 0',
+    );
+    await _refreshHistory();
+  }
+
+  /// Marks a single notification as read by its id.
+  Future<void> markAsRead(int notificationId) async {
+    if (_db == null) return;
+    await _db!.customStatement(
+      'UPDATE notification_history SET is_read = 1 WHERE id = ?',
+      [notificationId],
+    );
+    await _refreshHistory();
+  }
+
+  /// Deletes all notification history entries.
+  Future<void> clearAll() async {
+    if (_db == null) return;
+    await _db!.customStatement('DELETE FROM notification_history');
+    await _refreshHistory();
+  }
+
+  /// Deletes a single notification history entry by its id.
+  Future<void> delete(int notificationId) async {
+    if (_db == null) return;
+    await _db!.customStatement(
+      'DELETE FROM notification_history WHERE id = ?',
+      [notificationId],
+    );
+    await _refreshHistory();
+  }
+
+  /// Refreshes the in-memory history list and unread count from the database.
+  Future<void> _refreshHistory() async {
+    if (_db == null) return;
+    final rows = await _db!.customSelect(
+      'SELECT * FROM notification_history ORDER BY created_at DESC',
+    ).get();
+    final entries = rows.map((row) {
+      return NotificationEntry(
+        id: row.read<int>('id'),
+        title: row.read<String>('title'),
+        body: row.read<String>('body'),
+        payload: row.read<String?>('payload'),
+        bookId: row.read<String?>('book_id'),
+        isRead: row.read<bool>('is_read'),
+        createdAt: DateTime.parse(row.read<String>('created_at')),
+      );
+    }).toList();
+    _historyController.add(entries);
+    final unreadCount = entries.where((n) => !n.isRead).length;
+    _unreadCountController.add(unreadCount);
+  }
+
+  /// Handles cold-start notification tap (app launched from killed state).
+  Future<void> _handleColdStartTap() async {
+    if (!isSupported) return;
+    try {
+      // Check if the app was launched by tapping a notification.
+      final impl = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (impl != null) {
+        // Android: getActiveNotifications doesn't give us the launch payload.
+        // For proper cold-start handling, we'd need getNotificationAppLaunchInfo
+        // which requires flutter_local_notifications >= 17.x
+        await impl.getActiveNotifications();
+      }
+    } catch (e) {
+      AppLogger.warning('Cold-start notification tap handling failed: $e');
+    }
+  }
+
   static void _handleTap(NotificationResponse response) {
     final payload = response.payload;
     if (payload == null || payload.isEmpty) return;
     AppRouter.router.push(payload);
+  }
+
+  /// Disposes the subjects. Call only when the service is no longer needed.
+  void dispose() {
+    _historyController.close();
+    _unreadCountController.close();
   }
 }

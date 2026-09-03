@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 
@@ -32,7 +33,7 @@ final class AppContextMenuHighlightOption {
 ///   2. Highlight color swatches
 ///   3. Icon-only quick actions (e.g. Copy, Note, Share)
 ///   4. Full-width labeled list actions (e.g. Define, Search, Select all)
-class AppContextMenu extends StatefulWidget {
+class AppContextMenu extends HookWidget {
   const AppContextMenu({
     super.key,
     required this.anchor,
@@ -91,31 +92,19 @@ class AppContextMenu extends StatefulWidget {
         build(context, editable, editable.contextMenuAnchors.primaryAnchor);
   }
 
-  @override
-  State<AppContextMenu> createState() => _AppContextMenuState();
-}
-
-class _AppContextMenuState extends State<AppContextMenu> {
-  late HighlightStyleType _selectedStyle;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedStyle = widget.initialStyle;
-  }
-
   void _dismiss() {
-    widget.onDismiss?.call();
+    onDismiss?.call();
     ContextMenuController.removeAny();
   }
 
   @override
   Widget build(BuildContext context) {
+    final selectedStyle = useState(initialStyle);
     final colors = Theme.of(context).colorScheme;
 
-    final hasHighlights = widget.highlightColors.isNotEmpty;
-    final hasQuickActions = widget.quickActions.isNotEmpty;
-    final hasListActions = widget.listActions.isNotEmpty;
+    final hasHighlights = highlightColors.isNotEmpty;
+    final hasQuickActions = quickActions.isNotEmpty;
+    final hasListActions = listActions.isNotEmpty;
 
     final divider = Divider(
       height: 1,
@@ -148,19 +137,19 @@ class _AppContextMenuState extends State<AppContextMenu> {
         children: [
           if (hasHighlights) ...[
             _StyleSelectorRow(
-              selectedStyle: _selectedStyle,
+              selectedStyle: selectedStyle.value,
               onStyleSelected: (style) {
-                setState(() => _selectedStyle = style);
+                selectedStyle.value = style;
               },
             ),
             _HighlightRow(
-              options: widget.highlightColors,
-              selectedStyle: _selectedStyle,
+              options: highlightColors,
+              selectedStyle: selectedStyle.value,
               onSelected: (color) {
-                if (widget.onHighlightWithStyle != null) {
-                  widget.onHighlightWithStyle!(color, _selectedStyle);
+                if (onHighlightWithStyle != null) {
+                  onHighlightWithStyle!(color, selectedStyle.value);
                 } else {
-                  widget.onHighlightSelected?.call(color);
+                  onHighlightSelected?.call(color);
                 }
                 _dismiss();
               },
@@ -169,14 +158,14 @@ class _AppContextMenuState extends State<AppContextMenu> {
           if (hasHighlights && hasQuickActions) divider,
           if (hasQuickActions)
             _QuickActionRow(
-              actions: widget.quickActions,
+              actions: quickActions,
               onTapAction: (action) {
                 action.onPressed();
                 _dismiss();
               },
             ),
           if ((hasHighlights || hasQuickActions) && hasListActions) divider,
-          for (final action in widget.listActions)
+          for (final action in listActions)
             _AppContextMenuListItem(
               action: action,
               onTap: () {
@@ -188,7 +177,7 @@ class _AppContextMenuState extends State<AppContextMenu> {
       ),
     );
 
-    final decoratedSurface = widget.useBackdropFilter
+    final decoratedSurface = useBackdropFilter
         ? BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
             child: menuSurface,
@@ -215,10 +204,10 @@ class _AppContextMenuState extends State<AppContextMenu> {
       ),
     );
 
-    if (widget.externallyPositioned) return panel;
+    if (externallyPositioned) return panel;
     return CustomSingleChildLayout(
       delegate: _MenuPositionDelegate(
-        anchor: widget.anchor,
+        anchor: anchor,
         safePadding:
             MediaQuery.paddingOf(context) + const EdgeInsets.all(8),
       ),
@@ -352,7 +341,7 @@ class _HighlightRow extends StatelessWidget {
   }
 }
 
-class _HighlightSwatch extends StatefulWidget {
+class _HighlightSwatch extends HookWidget {
   const _HighlightSwatch({
     required this.option,
     required this.style,
@@ -364,42 +353,37 @@ class _HighlightSwatch extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_HighlightSwatch> createState() => _HighlightSwatchState();
-}
-
-class _HighlightSwatchState extends State<_HighlightSwatch> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
+    final pressed = useState(false);
+
     return Semantics(
       button: true,
-      label: '${widget.style.label} ${widget.option.label ?? 'Highlight'}',
+      label: '${style.label} ${option.label ?? 'Highlight'}',
       child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTap: widget.onTap,
+        onTapDown: (_) => pressed.value = true,
+        onTapCancel: () => pressed.value = false,
+        onTapUp: (_) => pressed.value = false,
+        onTap: onTap,
         child: AnimatedScale(
-          scale: _pressed ? 0.85 : 1.0,
+          scale: pressed.value ? 0.85 : 1.0,
           duration: const Duration(milliseconds: 100),
           curve: Curves.easeOut,
           child: Container(
             width: 26,
             height: 26,
             decoration: BoxDecoration(
-              color: widget.option.color,
+              color: option.color,
               shape: BoxShape.circle,
               border: Border.all(color: Colors.black.withValues(alpha: 0.12)),
               boxShadow: [
                 BoxShadow(
-                  color: widget.option.color.withValues(alpha: 0.4),
+                  color: option.color.withValues(alpha: 0.4),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
               ],
             ),
-            child: switch (widget.style) {
+            child: switch (style) {
               HighlightStyleType.solid => null,
               HighlightStyleType.underline => Center(
                   child: Container(
@@ -483,34 +467,28 @@ class _QuickActionRow extends StatelessWidget {
   }
 }
 
-class _QuickActionButton extends StatefulWidget {
+class _QuickActionButton extends HookWidget {
   const _QuickActionButton({required this.action, required this.onTap});
 
   final AppContextMenuAction action;
   final VoidCallback onTap;
 
   @override
-  State<_QuickActionButton> createState() => _QuickActionButtonState();
-}
-
-class _QuickActionButtonState extends State<_QuickActionButton> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
+    final pressed = useState(false);
     final colors = Theme.of(context).colorScheme;
-    final iconColor = widget.action.destructive
+    final iconColor = action.destructive
         ? colors.error
         : colors.onSurface.withValues(alpha: 0.85);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTap: widget.onTap,
+      onTapDown: (_) => pressed.value = true,
+      onTapCancel: () => pressed.value = false,
+      onTapUp: (_) => pressed.value = false,
+      onTap: onTap,
       child: AnimatedScale(
-        scale: _pressed ? 0.88 : 1.0,
+        scale: pressed.value ? 0.88 : 1.0,
         duration: const Duration(milliseconds: 90),
         curve: Curves.easeOut,
         child: Padding(
@@ -518,10 +496,10 @@ class _QuickActionButtonState extends State<_QuickActionButton> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(widget.action.icon, size: 20, color: iconColor),
+              Icon(action.icon, size: 20, color: iconColor),
               const SizedBox(height: 3),
               Text(
-                widget.action.label,
+                action.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -538,45 +516,38 @@ class _QuickActionButtonState extends State<_QuickActionButton> {
   }
 }
 
-class _AppContextMenuListItem extends StatefulWidget {
+class _AppContextMenuListItem extends HookWidget {
   const _AppContextMenuListItem({required this.action, required this.onTap});
 
   final AppContextMenuAction action;
   final VoidCallback onTap;
 
   @override
-  State<_AppContextMenuListItem> createState() =>
-      _AppContextMenuListItemState();
-}
-
-class _AppContextMenuListItemState extends State<_AppContextMenuListItem> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
+    final hovered = useState(false);
     final colors = Theme.of(context).colorScheme;
-    final itemColor = widget.action.destructive
+    final itemColor = action.destructive
         ? colors.error
         : colors.onSurface;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) => hovered.value = true,
+      onExit: (_) => hovered.value = false,
       child: Material(
-        color: _hovered
+        color: hovered.value
             ? colors.surfaceContainerHighest.withValues(alpha: 0.6)
             : Colors.transparent,
         child: InkWell(
-          onTap: widget.onTap,
+          onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
-                Icon(widget.action.icon, size: 18, color: itemColor),
+                Icon(action.icon, size: 18, color: itemColor),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    widget.action.label,
+                    action.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

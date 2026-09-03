@@ -2,8 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
-class ImportProgressDialog extends StatefulWidget {
+class ImportProgressDialog extends HookWidget {
   const ImportProgressDialog({
     super.key,
     required this.future,
@@ -21,59 +22,41 @@ class ImportProgressDialog extends StatefulWidget {
   final String label;
 
   @override
-  State<ImportProgressDialog> createState() => _ImportProgressDialogState();
-}
-
-class _ImportProgressDialogState extends State<ImportProgressDialog>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  bool _done = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
+  Widget build(BuildContext context) {
+    final controller = useAnimationController(
       duration: const Duration(milliseconds: 1200),
-    )..repeat();
-    widget.progress?.addListener(_onProgress);
-    widget.future
-        .then((_) {
-          if (!mounted) return;
-          _controller.stop();
-          _controller.duration = const Duration(milliseconds: 600);
-          _controller.forward(from: 0).then((_) {
-            if (!mounted) return;
-            setState(() => _done = true);
-            _controller.duration = const Duration(milliseconds: 400);
-            _controller.forward(from: 0).then((_) {
-              Future.delayed(const Duration(milliseconds: 400), () {
-                if (!mounted) return;
-                Navigator.of(context).pop(true);
-              });
+    );
+    final done = useState(false);
+    if (progress != null) useListenable(progress!);
+
+    useEffect(() {
+      controller.repeat();
+
+      future.then((_) {
+        if (!context.mounted) return;
+        controller.stop();
+        controller.duration = const Duration(milliseconds: 600);
+        controller.forward(from: 0).then((_) {
+          if (!context.mounted) return;
+          done.value = true;
+          controller.duration = const Duration(milliseconds: 400);
+          controller.forward(from: 0).then((_) {
+            Future.delayed(const Duration(milliseconds: 400), () {
+              if (!context.mounted) return;
+              Navigator.of(context).pop(true);
             });
           });
-        })
-        .catchError((_) {
-          if (!mounted) return;
-          Navigator.of(context).pop(false);
         });
-  }
+      }).catchError((_) {
+        if (!context.mounted) return;
+        Navigator.of(context).pop(false);
+      });
 
-  void _onProgress() {
-    if (mounted) setState(() {});
-  }
+      return null;
+    }, const []);
 
-  @override
-  void dispose() {
-    widget.progress?.removeListener(_onProgress);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     return AlertDialog(
       backgroundColor: cs.surfaceContainerHigh,
       elevation: 0,
@@ -85,11 +68,11 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedBuilder(
-              animation: _controller,
+              animation: controller,
               builder: (ctx, _) {
-                final real = widget.progress?.value;
+                final real = progress?.value;
                 final percent =
-                    (real ?? _controller.value).clamp(0.0, 1.0) * 100;
+                    (real ?? controller.value).clamp(0.0, 1.0) * 100;
                 return SizedBox(
                   width: 96,
                   height: 96,
@@ -97,15 +80,15 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
                     alignment: Alignment.center,
                     children: [
                       ProgressPainter(
-                        progress: _controller.value,
-                        done: _done,
-                        color: _done ? const Color(0xFF34C759) : cs.primary,
+                        progress: controller.value,
+                        done: done.value,
+                        color: done.value ? const Color(0xFF34C759) : cs.primary,
                         size: 72,
                       ),
                       Text(
-                        _done ? '100%' : '${percent.round()}%',
+                        done.value ? '100%' : '${percent.round()}%',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: _done ? const Color(0xFF34C759) : cs.primary,
+                          color: done.value ? const Color(0xFF34C759) : cs.primary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -116,7 +99,7 @@ class _ImportProgressDialogState extends State<ImportProgressDialog>
             ),
             const SizedBox(height: 20),
             Text(
-              _done ? 'Done' : widget.label,
+              done.value ? 'Done' : label,
               style: Theme.of(
                 context,
               ).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),

@@ -1,66 +1,60 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/dictionary/domain/entities/dictionary_word_entity.dart';
 import 'package:atlas_app/dictionary/presentation/providers/dictionary_providers.dart';
 import 'package:atlas_app/dictionary/presentation/screens/review_scheduler.dart';
 
-class WordReviewScreen extends ConsumerStatefulWidget {
+class WordReviewScreen extends HookConsumerWidget {
   const WordReviewScreen({super.key, required this.dueWords});
 
   final List<DictionaryWordEntity> dueWords;
 
   @override
-  ConsumerState<WordReviewScreen> createState() => _WordReviewScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final queue = useMemoized(() => [...dueWords], [dueWords]);
+    final index = useState(0);
+    final revealed = useState(false);
+    final correctCount = useState(0);
 
-class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
-  late final List<DictionaryWordEntity> _queue = [...widget.dueWords];
-  int _index = 0;
-  bool _revealed = false;
-  int _correctCount = 0;
+    final isDone = index.value >= queue.length;
+    final current = !isDone ? queue[index.value] : null;
 
-  bool get _isDone => _index >= _queue.length;
-  DictionaryWordEntity get _current => _queue[_index];
+    Future<void> answer(bool correct) async {
+      if (current == null) return;
+      final nextLevel = ReviewScheduler.nextLevel(
+        current.reviewLevel,
+        correct: correct,
+      );
+      final updated = current.copyWith(
+        reviewLevel: nextLevel,
+        reviewCount: current.reviewCount + 1,
+        lastReviewedAt: DateTime.now(),
+        nextReviewAt: ReviewScheduler.nextReviewDate(nextLevel),
+      );
+      await ref.read(dictionaryRepositoryProvider).save(updated);
+      ref.invalidate(savedWordsProvider);
 
-  Future<void> _answer(bool correct) async {
-    final word = _current;
-    final nextLevel = ReviewScheduler.nextLevel(
-      word.reviewLevel,
-      correct: correct,
-    );
-    final updated = word.copyWith(
-      reviewLevel: nextLevel,
-      reviewCount: word.reviewCount + 1,
-      lastReviewedAt: DateTime.now(),
-      nextReviewAt: ReviewScheduler.nextReviewDate(nextLevel),
-    );
-    await ref.read(dictionaryRepositoryProvider).save(updated);
-    ref.invalidate(savedWordsProvider);
+      if (!context.mounted) return;
+      if (correct) correctCount.value++;
+      index.value++;
+      revealed.value = false;
+    }
 
-    if (!mounted) return;
-    setState(() {
-      if (correct) _correctCount++;
-      _index++;
-      _revealed = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isDone ? 'Session complete' : 'Review')),
+      appBar: AppBar(title: Text(isDone ? 'Session complete' : 'Review')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          child: _isDone
+          child: isDone
               ? _SessionSummary(
-                  total: _queue.length,
-                  correct: _correctCount,
+                  total: queue.length,
+                  correct: correctCount.value,
                   colorScheme: colorScheme,
                   textTheme: textTheme,
                 )
@@ -69,13 +63,13 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(3),
                       child: LinearProgressIndicator(
-                        value: _index / _queue.length,
+                        value: queue.isNotEmpty ? index.value / queue.length : 0,
                         minHeight: 6,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      '${_index + 1} of ${_queue.length}',
+                      '${index.value + 1} of ${queue.length}',
                       style: textTheme.labelMedium?.copyWith(
                         color: colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
@@ -83,31 +77,31 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
                     Expanded(
                       child: Center(
                         child: GestureDetector(
-                          onTap: () => setState(() => _revealed = !_revealed),
+                          onTap: () => revealed.value = !revealed.value,
                           onHorizontalDragEnd: (details) {
                             final velocity = details.primaryVelocity ?? 0;
-                            if (!_revealed) return;
+                            if (!revealed.value) return;
                             if (velocity < -200) {
-                              _answer(true);
+                              answer(true);
                             } else if (velocity > 200) {
-                              _answer(false);
+                              answer(false);
                             }
                           },
                           child: _FlashCard(
-                            word: _current,
-                            revealed: _revealed,
+                            word: current!,
+                            revealed: revealed.value,
                             colorScheme: colorScheme,
                             textTheme: textTheme,
                           ),
                         ),
                       ),
                     ),
-                    if (_revealed)
+                    if (revealed.value)
                       Row(
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => _answer(false),
+                              onPressed: () => answer(false),
                               icon: const Icon(Icons.refresh_rounded),
                               label: const Text('Still learning'),
                             ),
@@ -115,7 +109,7 @@ class _WordReviewScreenState extends ConsumerState<WordReviewScreen> {
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: FilledButton.icon(
-                              onPressed: () => _answer(true),
+                              onPressed: () => answer(true),
                               icon: const Icon(Icons.check_rounded),
                               label: const Text('Got it'),
                             ),

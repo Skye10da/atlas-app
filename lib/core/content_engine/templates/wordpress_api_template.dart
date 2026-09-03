@@ -152,6 +152,10 @@ class WordPressApiTemplate implements Template {
   Future<List<SearchResult>> search(PluginContext context, String query) =>
       _fallback.search(context, query);
 
+  @override
+  Future<List<TrendingResult>> trending(PluginContext context) =>
+      _fallback.trending(context);
+
   DateTime? _tryParseDate(String? raw) =>
       raw == null ? null : DateTime.tryParse(raw);
 }

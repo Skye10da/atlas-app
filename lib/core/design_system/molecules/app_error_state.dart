@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 
-class AppErrorState extends StatefulWidget {
+class AppErrorState extends HookWidget {
   const AppErrorState({
     super.key,
     required this.message,
@@ -15,14 +16,8 @@ class AppErrorState extends StatefulWidget {
   final String? technicalDetails;
 
   @override
-  State<AppErrorState> createState() => _AppErrorStateState();
-}
-
-class _AppErrorStateState extends State<AppErrorState> {
-  var _showDetails = false;
-
-  @override
   Widget build(BuildContext context) {
+    final showDetails = useState(false);
     final theme = Theme.of(context);
 
     return Center(
@@ -34,21 +29,21 @@ class _AppErrorStateState extends State<AppErrorState> {
             Icon(Icons.error_outline, size: 64, color: theme.colorScheme.error),
             const SizedBox(height: AppSpacing.md),
             Text(
-              widget.message,
+              message,
               style: theme.textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
-            if (widget.technicalDetails != null) ...[
+            if (technicalDetails != null) ...[
               const SizedBox(height: AppSpacing.sm),
               TextButton.icon(
-                onPressed: () => setState(() => _showDetails = !_showDetails),
+                onPressed: () => showDetails.value = !showDetails.value,
                 icon: Icon(
-                  _showDetails ? Icons.expand_less : Icons.expand_more,
+                  showDetails.value ? Icons.expand_less : Icons.expand_more,
                   size: 18,
                 ),
-                label: Text(_showDetails ? 'Hide details' : 'Show details'),
+                label: Text(showDetails.value ? 'Hide details' : 'Show details'),
               ),
-              if (_showDetails)
+              if (showDetails.value)
                 Container(
                   width: double.infinity,
                   margin: const EdgeInsets.only(top: AppSpacing.sm),
@@ -60,7 +55,7 @@ class _AppErrorStateState extends State<AppErrorState> {
                     ),
                   ),
                   child: SelectableText(
-                    widget.technicalDetails!,
+                    technicalDetails!,
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontFamily: 'monospace',
                       fontSize: 11,
@@ -68,10 +63,10 @@ class _AppErrorStateState extends State<AppErrorState> {
                   ),
                 ),
             ],
-            if (widget.onRetry != null) ...[
+            if (onRetry != null) ...[
               const SizedBox(height: AppSpacing.lg),
               ElevatedButton.icon(
-                onPressed: widget.onRetry,
+                onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
                 label: const Text('Retry'),
               ),

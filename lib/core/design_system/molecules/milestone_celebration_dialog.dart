@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 
@@ -66,7 +67,7 @@ enum MilestoneType {
   final Color accentColor;
 }
 
-class MilestoneCelebrationDialog extends StatefulWidget {
+class MilestoneCelebrationDialog extends HookWidget {
   const MilestoneCelebrationDialog({
     super.key,
     required this.milestone,
@@ -92,47 +93,34 @@ class MilestoneCelebrationDialog extends StatefulWidget {
   }
 
   @override
-  State<MilestoneCelebrationDialog> createState() =>
-      _MilestoneCelebrationDialogState();
-}
-
-class _MilestoneCelebrationDialogState
-    extends State<MilestoneCelebrationDialog>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animController;
-  late final Animation<double> _scaleAnimation;
-  late final Animation<double> _fadeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..forward();
-
-    _scaleAnimation = CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.0, 0.45, curve: Curves.easeOutBack),
-    );
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.0, 0.3, curve: Curves.easeIn),
-    );
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final animController = useAnimationController(
+      duration: const Duration(milliseconds: 1600),
+    );
+
+    final scaleAnimation = useMemoized(
+      () => CurvedAnimation(
+        parent: animController,
+        curve: const Interval(0.0, 0.45, curve: Curves.easeOutBack),
+      ),
+      [animController],
+    );
+
+    final fadeAnimation = useMemoized(
+      () => CurvedAnimation(
+        parent: animController,
+        curve: const Interval(0.0, 0.3, curve: Curves.easeIn),
+      ),
+      [animController],
+    );
+
+    useEffect(() {
+      animController.forward();
+      return null;
+    }, const []);
+
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final milestone = widget.milestone;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -145,10 +133,10 @@ class _MilestoneCelebrationDialogState
           // 1. Confetti & Particle Burst
           Positioned.fill(
             child: AnimatedBuilder(
-              animation: _animController,
+              animation: animController,
               builder: (_, _) => CustomPaint(
                 painter: _ConfettiPainter(
-                  progress: _animController.value,
+                  progress: animController.value,
                   baseColor: milestone.accentColor,
                 ),
               ),
@@ -157,9 +145,9 @@ class _MilestoneCelebrationDialogState
 
           // 2. Main Celebration Card
           ScaleTransition(
-            scale: _scaleAnimation,
+            scale: scaleAnimation,
             child: FadeTransition(
-              opacity: _fadeAnimation,
+              opacity: fadeAnimation,
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 380),
                 padding: const EdgeInsets.all(AppSpacing.xl),
@@ -230,7 +218,7 @@ class _MilestoneCelebrationDialogState
 
                     // Subtitle / Achievement Message
                     Text(
-                      widget.customMessage ?? milestone.subtitle,
+                      customMessage ?? milestone.subtitle,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: cs.onSurfaceVariant,

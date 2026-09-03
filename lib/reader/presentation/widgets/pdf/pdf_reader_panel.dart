@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -11,7 +12,7 @@ import 'package:atlas_app/reader/presentation/widgets/pdf/pdf_viewer_models.dart
 
 /// Right-hand side panel (or sheet) for PDF navigation with Outline / Pages /
 /// Markers / Notes / Search tabs, matching the [ReaderRightPanel] visual styling.
-class PdfReaderPanel extends StatefulWidget {
+class PdfReaderPanel extends HookWidget {
   const PdfReaderPanel({
     super.key,
     required this.controller,
@@ -48,31 +49,11 @@ class PdfReaderPanel extends StatefulWidget {
   final int initialTabIndex;
 
   @override
-  State<PdfReaderPanel> createState() => _PdfReaderPanelState();
-}
-
-class _PdfReaderPanelState extends State<PdfReaderPanel>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(
-      length: 5,
-      vsync: this,
-      initialIndex: widget.initialTabIndex.clamp(0, 4),
-    );
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final tabController = useTabController(
+      initialLength: 5,
+      initialIndex: initialTabIndex.clamp(0, 4),
+    );
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -95,14 +76,14 @@ class _PdfReaderPanelState extends State<PdfReaderPanel>
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close, size: 18),
-                  onPressed: widget.onClose,
+                  onPressed: onClose,
                   tooltip: 'Close panel',
                 ),
               ],
             ),
           ),
           TabBar(
-            controller: _tabController,
+            controller: tabController,
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             labelColor: colors.primary,
@@ -122,13 +103,13 @@ class _PdfReaderPanelState extends State<PdfReaderPanel>
           ),
           Expanded(
             child: TabBarView(
-              controller: _tabController,
+              controller: tabController,
               children: [
-                _buildOutline(),
+                _buildOutline(context),
                 _buildThumbnails(),
                 _buildMarkers(),
                 _buildNotes(),
-                _buildSearch(),
+                _buildSearch(context),
               ],
             ),
           ),
@@ -137,8 +118,7 @@ class _PdfReaderPanelState extends State<PdfReaderPanel>
     );
   }
 
-  Widget _buildOutline() {
-    final outline = widget.outline;
+  Widget _buildOutline(BuildContext context) {
     if (outline == null) {
       return Center(
         child: Text(
@@ -150,42 +130,41 @@ class _PdfReaderPanelState extends State<PdfReaderPanel>
       );
     }
     return PdfOutlinePanel(
-      outline: outline,
-      onSelected: widget.onOutlineSelected,
+      outline: outline!,
+      onSelected: onOutlineSelected,
       nightMode: false,
     );
   }
 
   Widget _buildThumbnails() {
     return PdfThumbnailsPanel(
-      document: widget.document,
-      currentPage: widget.currentPage,
-      onPageSelected: widget.onPageSelected,
+      document: document,
+      currentPage: currentPage,
+      onPageSelected: onPageSelected,
       nightMode: false,
     );
   }
 
   Widget _buildMarkers() {
     return PdfMarkersPanel(
-      markers: widget.markers,
-      onSelected: widget.onMarkerSelected,
-      onDelete: widget.onMarkerDeleted,
+      markers: markers,
+      onSelected: onMarkerSelected,
+      onDelete: onMarkerDeleted,
       nightMode: false,
     );
   }
 
   Widget _buildNotes() {
     return PdfNotesPanel(
-      notes: widget.notes,
-      onSelected: widget.onNoteSelected,
-      onDelete: widget.onNoteDeleted,
+      notes: notes,
+      onSelected: onNoteSelected,
+      onDelete: onNoteDeleted,
       nightMode: false,
     );
   }
 
-  Widget _buildSearch() {
-    final searcher = widget.textSearcher;
-    if (searcher == null) {
+  Widget _buildSearch(BuildContext context) {
+    if (textSearcher == null) {
       return Center(
         child: Text(
           'Open document to search',
@@ -195,6 +174,6 @@ class _PdfReaderPanelState extends State<PdfReaderPanel>
         ),
       );
     }
-    return PdfSearchPanel(textSearcher: searcher, nightMode: false);
+    return PdfSearchPanel(textSearcher: textSearcher!, nightMode: false);
   }
 }

@@ -210,6 +210,79 @@ class ChapterContentSelectors {
   final String? title;
 }
 
+/// Selectors for extracting trending/popular books from a site's trending page.
+class TrendingSelectors {
+  const TrendingSelectors({
+    required this.path,
+    required this.resultItem,
+    this.title = '@text',
+    this.coverUrl,
+    this.detailUrl,
+    this.author,
+    this.rating,
+    this.popularity,
+    this.genre,
+    this.description,
+  });
+
+  factory TrendingSelectors.fromJson(Map<String, Object?> json) =>
+      TrendingSelectors(
+        path: (json['path'] as String?) ?? '/',
+        resultItem: (json['resultItem'] as String?) ?? '',
+        title: (json['title'] as String?) ?? '@text',
+        coverUrl: json['coverUrl'] as String?,
+        detailUrl: json['detailUrl'] as String?,
+        author: json['author'] as String?,
+        rating: json['rating'] as String?,
+        popularity: json['popularity'] as String?,
+        genre: json['genre'] as String?,
+        description: json['description'] as String?,
+      );
+
+  /// Path to the trending/popular page relative to baseUrl.
+  final String path;
+
+  /// CSS selector for each trending item container.
+  final String resultItem;
+
+  /// CSS selector for the title within each item.
+  final String title;
+
+  /// CSS selector for the cover image URL.
+  final String? coverUrl;
+
+  /// CSS selector for the detail page URL.
+  final String? detailUrl;
+
+  /// CSS selector for the author name.
+  final String? author;
+
+  /// CSS selector for the rating value.
+  final String? rating;
+
+  /// CSS selector for popularity metric (views, follows, etc.).
+  final String? popularity;
+
+  /// CSS selector for genre/category tag.
+  final String? genre;
+
+  /// CSS selector for description/synopsis snippet.
+  final String? description;
+
+  Map<String, Object?> toJson() => {
+    'path': path,
+    'resultItem': resultItem,
+    'title': title,
+    if (coverUrl != null) 'coverUrl': coverUrl,
+    if (detailUrl != null) 'detailUrl': detailUrl,
+    if (author != null) 'author': author,
+    if (rating != null) 'rating': rating,
+    if (popularity != null) 'popularity': popularity,
+    if (genre != null) 'genre': genre,
+    if (description != null) 'description': description,
+  };
+}
+
 /// One extractable novel-metadata field. Either a plain CSS spec (string, e.g.
 /// `.desc-text p` or `img@src`) or a labeled info-row extraction (object) for
 /// sites whose info panel can't be expressed as a single CSS query.
@@ -314,6 +387,7 @@ class SelectorSet {
     this.chapterList,
     this.chapterContent,
     this.metadata,
+    this.trending,
   });
 
   factory SelectorSet.fromJson(Map<String, Object?> json) {
@@ -321,6 +395,7 @@ class SelectorSet {
     final chapterList = json['chapterList'];
     final chapterContent = json['chapterContent'];
     final metadata = json['metadata'];
+    final trending = json['trending'];
     return SelectorSet(
       search: search is Map
           ? SearchSelectors.fromJson(Map<String, Object?>.from(search))
@@ -338,6 +413,9 @@ class SelectorSet {
       metadata: metadata is Map
           ? MetadataSelectors.fromJson(Map<String, Object?>.from(metadata))
           : null,
+      trending: trending is Map
+          ? TrendingSelectors.fromJson(Map<String, Object?>.from(trending))
+          : null,
     );
   }
 
@@ -345,6 +423,7 @@ class SelectorSet {
   final ChapterListSelectors? chapterList;
   final ChapterContentSelectors? chapterContent;
   final MetadataSelectors? metadata;
+  final TrendingSelectors? trending;
 
   List<SearchResult> applySearch(Document doc, {required String baseUrl}) {
     final selectors = search;
@@ -387,6 +466,64 @@ class SelectorSet {
       refs.add(ChapterRef(title: title, url: url));
     }
     return refs;
+  }
+
+  /// Extracts trending books from the document using [TrendingSelectors].
+  List<TrendingResult> applyTrending(Document doc, {required String baseUrl}) {
+    final selectors = trending;
+    if (selectors == null) return const [];
+    final results = <TrendingResult>[];
+    for (final item in doc.querySelectorAll(selectors.resultItem)) {
+      final title = extract(item, selectors.title);
+      if (title == null || title.isEmpty) continue;
+      String? detailUrl;
+      if (selectors.detailUrl != null) {
+        final raw = extract(item, selectors.detailUrl!);
+        if (raw != null && raw.isNotEmpty) {
+          detailUrl = _resolveUrl(raw, baseUrl);
+        }
+      }
+      String? coverUrl;
+      if (selectors.coverUrl != null) {
+        final raw = extract(item, selectors.coverUrl!);
+        if (raw != null && raw.isNotEmpty) {
+          coverUrl = _resolveUrl(raw, baseUrl);
+        }
+      }
+      String? author;
+      if (selectors.author != null) {
+        author = extract(item, selectors.author!);
+      }
+      String? rating;
+      if (selectors.rating != null) {
+        rating = extract(item, selectors.rating!);
+      }
+      String? popularity;
+      if (selectors.popularity != null) {
+        popularity = extract(item, selectors.popularity!);
+      }
+      String? genre;
+      if (selectors.genre != null) {
+        genre = extract(item, selectors.genre!);
+      }
+      String? description;
+      if (selectors.description != null) {
+        description = extract(item, selectors.description!);
+      }
+      results.add(
+        TrendingResult(
+          title: title,
+          url: detailUrl ?? '',
+          coverUrl: coverUrl,
+          author: author,
+          rating: rating,
+          popularity: popularity,
+          genre: genre,
+          description: description,
+        ),
+      );
+    }
+    return results;
   }
 
   /// The element holding the chapter body. Falls back to the document body

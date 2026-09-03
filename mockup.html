@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atlas Discover Page - Redesign Proposal</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f8f6f3;
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .phone-frame {
+      width: 390px;
+      min-height: 844px;
+      background: #FFFBFE;
+      border-radius: 40px;
+      overflow: hidden;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+      position: relative;
+    }
+
+    .status-bar {
+      height: 54px;
+      background: #FFFBFE;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: 0 30px 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #1C1B1F;
+    }
+
+    .status-bar-right {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .scroll-content {
+      height: calc(844px - 54px - 80px);
+      overflow-y: auto;
+      padding: 0 20px 20px;
+      scrollbar-width: none;
+    }
+
+    .scroll-content::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* ===== SECTION 1: HEADER ===== */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 8px 0 16px;
+    }
+
+    .greeting-date {
+      font-size: 13px;
+      color: #79747E;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+
+    .greeting-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: #1C1B1F;
+      margin-top: 2px;
+      line-height: 1.2;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .streak-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #E65100;
+      box-shadow: 0 2px 8px rgba(230, 81, 0, 0.15);
+    }
+
+    .streak-fire {
+      font-size: 16px;
+    }
+
+    .notification-dot {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: #F3EDF7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .notification-dot::after {
+      content: '';
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 8px;
+      height: 8px;
+      background: #B3261E;
+      border-radius: 50%;
+      border: 2px solid #FFFBFE;
+    }
+
+    /* ===== SECTION 2: CONTINUE READING ===== */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #79747E;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .continue-card {
+      background: linear-gradient(145deg, #1A1A2E 0%, #16213E 50%, #0F3460 100%);
+      border-radius: 20px;
+      padding: 18px;
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(26, 26, 46, 0.3);
+    }
+
+    .continue-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -30%;
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(124, 58, 237, 0.15), transparent);
+      border-radius: 50%;
+    }
+
+    .continue-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .continue-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .progress-ring {
+      width: 48px;
+      height: 48px;
+      position: relative;
+    }
+
+    .progress-ring svg {
+      transform: rotate(-90deg);
+      width: 48px;
+      height: 48px;
+    }
+
+    .progress-ring .bg {
+      stroke: rgba(255, 255, 255, 0.12);
+    }
+
+    .progress-ring .fg {
+      stroke: #A78BFA;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.5s;
+    }
+
+    .progress-ring-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .continue-body {
+      display: flex;
+      gap: 14px;
+      position: relative;
+    }
+
+    .book-cover-hero {
+      width: 80px;
+      height: 114px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .book-cover-hero::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .book-cover-hero .book-icon {
+      font-size: 32px;
+      opacity: 0.8;
+    }
+
+    .book-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .book-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: white;
+      line-height: 1.25;
+      margin-bottom: 3px;
+    }
+
+    .book-author {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.55);
+      margin-bottom: 10px;
+    }
+
+    .book-quote {
+      font-size: 12.5px;
+      font-style: italic;
+      color: rgba(255, 255, 255, 0.65);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .continue-btn {
+      width: 100%;
+      margin-top: 16px;
+      padding: 13px;
+      background: white;
+      color: #1A1A2E;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      position: relative;
+      box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+    }
+
+    /* ===== SECTION 3: QUICK STATS ROW ===== */
+    .quick-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: #F3EDF7;
+      border-radius: 16px;
+      padding: 14px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .stat-card .stat-icon {
+      font-size: 20px;
+      margin-bottom: 6px;
+    }
+
+    .stat-card .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1C1B1F;
+      line-height: 1.1;
+    }
+
+    .stat-card .stat-label {
+      font-size: 11px;
+      color: #79747E;
+      margin-top: 2px;
+      font-weight: 500;
+    }
+
+    /* ===== SECTION 4: WEEKLY GOAL ===== */
+    .weekly-goal-card {
+      background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .goal-ring {
+      width: 52px;
+      height: 52px;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .goal-ring svg {
+      transform: rotate(-90deg);
+      width: 52px;
+      height: 52px;
+    }
+
+    .goal-ring .bg {
+      stroke: rgba(27, 94, 32, 0.15);
+    }
+
+    .goal-ring .fg {
+      stroke: #2E7D32;
+      stroke-linecap: round;
+    }
+
+    .goal-ring-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #2E7D32;
+    }
+
+    .goal-info {
+      flex: 1;
+    }
+
+    .goal-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1B5E20;
+    }
+
+    .goal-subtitle {
+      font-size: 12px;
+      color: #388E3C;
+      margin-top: 2px;
+    }
+
+    .goal-streak-badge {
+      background: #2E7D32;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* ===== SECTION 5: ACTIVITY CHART ===== */
+    .activity-card {
+      background: #F3EDF7;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .activity-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .activity-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1C1B1F;
+    }
+
+    .activity-count {
+      font-size: 13px;
+      font-weight: 600;
+      color: #7C3AED;
+    }
+
+    .chart-bars {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      height: 80px;
+      gap: 8px;
+    }
+
+    .bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .bar {
+      width: 100%;
+      border-radius: 6px;
+      min-height: 6px;
+    }
+
+    .bar.active {
+      background: linear-gradient(180deg, #7C3AED, #5B21B6);
+    }
+
+    .bar.inactive {
+      background: #D1C4E9;
+    }
+
+    .bar.today {
+      background: linear-gradient(180deg, #7C3AED, #5B21B6);
+      box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+    }
+
+    .bar-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #79747E;
+    }
+
+    .bar-label.today-label {
+      font-weight: 700;
+      color: #7C3AED;
+    }
+
+    /* ===== SECTION 6: TRENDING NOW (OPDS) ===== */
+    .trending-section {
+      margin-bottom: 24px;
+    }
+
+    .trending-source-pills {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .trending-source-pills::-webkit-scrollbar {
+      display: none;
+    }
+
+    .source-pill-filter {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      border: 1.5px solid #E7E0EC;
+      background: transparent;
+      color: #79747E;
+      transition: all 0.15s;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .source-pill-filter.active {
+      background: #7C3AED;
+      color: white;
+      border-color: #7C3AED;
+    }
+
+    .source-pill-filter:hover:not(.active) {
+      border-color: #7C3AED;
+      color: #7C3AED;
+    }
+
+    .trending-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .trending-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .trending-card {
+      min-width: 140px;
+      max-width: 140px;
+      cursor: pointer;
+      transition: transform 0.15s;
+      position: relative;
+    }
+
+    .trending-card:hover {
+      transform: translateY(-3px);
+    }
+
+    .trending-cover {
+      width: 140px;
+      height: 190px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    .trending-cover .rank-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #FFD700;
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 215, 0, 0.3);
+    }
+
+    .trending-cover .trending-fire {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(220, 38, 38, 0.85);
+      color: white;
+      padding: 3px 7px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .trending-cover .source-badge {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      background: rgba(124, 58, 237, 0.9);
+      color: white;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 9px;
+      font-weight: 700;
+      backdrop-filter: blur(4px);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .trending-cover .genre-tag {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 3px 7px;
+      border-radius: 6px;
+      font-size: 9px;
+      font-weight: 600;
+      backdrop-filter: blur(4px);
+    }
+
+    .trending-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1C1B1F;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .trending-author {
+      font-size: 11px;
+      color: #79747E;
+      margin-top: 2px;
+    }
+
+    .trending-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .trending-meta .readers {
+      font-size: 10px;
+      color: #7C3AED;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .trending-meta .opds-tag {
+      font-size: 9px;
+      color: #79747E;
+      background: #F3EDF7;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    /* ===== SECTION 7: PERSONALIZED FOR YOU ===== */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: #1C1B1F;
+    }
+
+    .section-action {
+      font-size: 13px;
+      font-weight: 600;
+      color: #7C3AED;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .for-you-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-bottom: 24px;
+      scrollbar-width: none;
+    }
+
+    .for-you-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .for-you-card {
+      min-width: 150px;
+      max-width: 150px;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    .for-you-card:hover {
+      transform: translateY(-3px);
+    }
+
+    .for-you-cover {
+      width: 150px;
+      height: 200px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    .for-you-cover .match-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(124, 58, 237, 0.9);
+      color: white;
+      padding: 3px 8px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      backdrop-filter: blur(4px);
+    }
+
+    .for-you-cover .genre-tag {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      backdrop-filter: blur(4px);
+    }
+
+    .for-you-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1C1B1F;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .for-you-author {
+      font-size: 11px;
+      color: #79747E;
+      margin-top: 2px;
+    }
+
+    /* ===== SECTION 8: CURATED COLLECTIONS ===== */
+    .collections-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .collection-card {
+      border-radius: 16px;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+      min-height: 110px;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    .collection-card:hover {
+      transform: scale(1.02);
+    }
+
+    .collection-card .collection-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+      opacity: 0.9;
+    }
+
+    .collection-card .collection-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .collection-card .collection-count {
+      font-size: 11px;
+      font-weight: 600;
+      opacity: 0.75;
+      margin-top: 3px;
+    }
+
+    .collection-card.wuxia {
+      background: linear-gradient(135deg, #FDD8D8, #FBCFE8);
+      color: #9D174D;
+    }
+
+    .collection-card.romance {
+      background: linear-gradient(135deg, #E8D8FD, #DDD6FE);
+      color: #5B21B6;
+    }
+
+    .collection-card.scifi {
+      background: linear-gradient(135deg, #D8ECFD, #BFDBFE);
+      color: #1E40AF;
+    }
+
+    .collection-card.fantasy {
+      background: linear-gradient(135deg, #D1FAE5, #A7F3D0);
+      color: #065F46;
+    }
+
+    .collection-card.mystery {
+      background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+      color: #92400E;
+    }
+
+    .collection-card.classic {
+      background: linear-gradient(135deg, #FEE2E2, #FECACA);
+      color: #991B1B;
+    }
+
+    /* ===== SECTION 9: CONTENT SOURCES ===== */
+    .sources-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .source-pill {
+      background: #F3EDF7;
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border: 1px solid transparent;
+    }
+
+    .source-pill:hover {
+      background: #EDE7F6;
+      border-color: #D1C4E9;
+    }
+
+    .source-icon-box {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .source-icon-box.gutenberg {
+      background: #E8F5E9;
+    }
+
+    .source-icon-box.openlib {
+      background: #E3F2FD;
+    }
+
+    .source-icon-box.publicdomain {
+      background: #FFF3E0;
+    }
+
+    .source-icon-box.standard {
+      background: #F3E5F5;
+    }
+
+    .source-icon-box.feedbooks {
+      background: #E0F2F1;
+    }
+
+    .source-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1C1B1F;
+      line-height: 1.2;
+    }
+
+    .source-type {
+      font-size: 10px;
+      color: #79747E;
+      font-weight: 500;
+    }
+
+    /* ===== SECTION 10: RECENTLY ADDED ===== */
+    .recent-scroll {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-bottom: 24px;
+      scrollbar-width: none;
+    }
+
+    .recent-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .recent-cover {
+      min-width: 88px;
+      height: 126px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+      transition: transform 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .recent-cover:hover {
+      transform: scale(1.05);
+    }
+
+    .recent-cover .new-dot {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 8px;
+      height: 8px;
+      background: #7C3AED;
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+
+    /* ===== BOTTOM NAV ===== */
+    .bottom-nav {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 80px;
+      background: #FFFBFE;
+      border-top: 1px solid #E7E0EC;
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-start;
+      padding-top: 10px;
+      padding-bottom: 20px;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      min-width: 56px;
+    }
+
+    .nav-icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      color: #79747E;
+    }
+
+    .nav-item.active .nav-icon {
+      background: #F3EDF7;
+      border-radius: 12px;
+      width: 56px;
+      color: #7C3AED;
+    }
+
+    .nav-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #79747E;
+    }
+
+    .nav-item.active .nav-label {
+      font-weight: 700;
+      color: #7C3AED;
+    }
+
+    /* ===== DESIGN NOTES OVERLAY ===== */
+    .design-notes {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 360px;
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+      font-size: 13px;
+      line-height: 1.6;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+    }
+
+    .design-notes h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #1C1B1F;
+    }
+
+    .design-notes h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #7C3AED;
+      margin: 16px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .design-notes ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .design-notes li {
+      padding: 4px 0;
+      padding-left: 18px;
+      position: relative;
+      color: #49454F;
+    }
+
+    .design-notes li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #7C3AED;
+      font-weight: 700;
+    }
+
+    .design-notes .badge {
+      display: inline-block;
+      background: #F3EDF7;
+      color: #7C3AED;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      margin: 2px 2px;
+    }
+
+    .design-notes .badge.new {
+      background: #E8F5E9;
+      color: #2E7D32;
+    }
+
+    .design-notes .badge.improved {
+      background: #FFF3E0;
+      color: #E65100;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- PHONE MOCKUP -->
+  <div class="phone-frame">
+    <div class="status-bar">
+      <span>9:41</span>
+      <div class="status-bar-right">
+        <span>📶</span>
+        <span>🔋</span>
+      </div>
+    </div>
+
+    <div class="scroll-content">
+
+      <!-- 1. HEADER -->
+      <div class="header">
+        <div>
+          <div class="greeting-date">Tuesday evening</div>
+          <div class="greeting-name">Welcome back, Reader</div>
+        </div>
+        <div class="header-actions">
+          <div class="streak-pill">
+            <span class="streak-fire">🔥</span>
+            <span>12</span>
+          </div>
+          <div class="notification-dot">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#49454F" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. CONTINUE READING -->
+      <div class="section-label">Continue Reading</div>
+      <div class="continue-card">
+        <div class="continue-top">
+          <div class="continue-label">NOW READING</div>
+          <div class="progress-ring">
+            <svg viewBox="0 0 48 48">
+              <circle class="bg" cx="24" cy="24" r="20" fill="none" stroke-width="3.5" />
+              <circle class="fg" cx="24" cy="24" r="20" fill="none" stroke-width="3.5" stroke-dasharray="125.6"
+                stroke-dashoffset="33.9" />
+            </svg>
+            <div class="progress-ring-text">73%</div>
+          </div>
+        </div>
+        <div class="continue-body">
+          <div class="book-cover-hero">
+            <span class="book-icon">📖</span>
+          </div>
+          <div class="book-info">
+            <div class="book-title">A Study in Scarlet</div>
+            <div class="book-author">Arthur Conan Doyle</div>
+            <div class="book-quote">"Strength is not given. It is carved from everything that tried to break you."</div>
+          </div>
+        </div>
+        <button class="continue-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+          </svg>
+          Continue Reading
+        </button>
+      </div>
+
+      <!-- 3. QUICK STATS -->
+      <div class="quick-stats">
+        <div class="stat-card">
+          <div class="stat-icon">📚</div>
+          <div class="stat-value">78</div>
+          <div class="stat-label">Books</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📖</div>
+          <div class="stat-value">4.1K</div>
+          <div class="stat-label">Chapters</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏱️</div>
+          <div class="stat-value">96h</div>
+          <div class="stat-label">Reading</div>
+        </div>
+      </div>
+
+      <!-- 4. WEEKLY GOAL -->
+      <div class="weekly-goal-card">
+        <div class="goal-ring">
+          <svg viewBox="0 0 52 52">
+            <circle class="bg" cx="26" cy="26" r="22" fill="none" stroke-width="4" />
+            <circle class="fg" cx="26" cy="26" r="22" fill="none" stroke-width="4" stroke-dasharray="138.2"
+              stroke-dashoffset="34.6" />
+          </svg>
+          <div class="goal-ring-text">75%</div>
+        </div>
+        <div class="goal-info">
+          <div class="goal-title">Weekly Reading Goal</div>
+          <div class="goal-subtitle">15 of 20 chapters completed</div>
+        </div>
+        <div class="goal-streak-badge">🔥 12 days</div>
+      </div>
+
+      <!-- 5. ACTIVITY CHART -->
+      <div class="activity-card">
+        <div class="activity-header">
+          <div class="activity-title">This Week's Activity</div>
+          <div class="activity-count">15 chapters</div>
+        </div>
+        <div class="chart-bars">
+          <div class="bar-col">
+            <div class="bar active" style="height: 42px;"></div>
+            <div class="bar-label">M</div>
+          </div>
+          <div class="bar-col">
+            <div class="bar active" style="height: 56px;"></div>
+            <div class="bar-label">T</div>
+          </div>
+          <div class="bar-col">
+            <div class="bar active" style="height: 28px;"></div>
+            <div class="bar-label">W</div>
+          </div>
+          <div class="bar-col">
+            <div class="bar today" style="height: 72px;"></div>
+            <div class="bar-label today-label">T</div>
+          </div>
+          <div class="bar-col">
+            <div class="bar active" style="height: 48px;"></div>
+            <div class="bar-label">F</div>
+          </div>
+          <div class="bar-col">
+            <div class="bar inactive" style="height: 14px;"></div>
+            <div class="bar-label">S</div>
+          </div>
+          <div class="bar-col">
+            <div class="bar inactive" style="height: 8px;"></div>
+            <div class="bar-label">S</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. TRENDING NOW (OPDS) -->
+      <div class="trending-section">
+        <div class="section-header">
+          <div class="section-title">🔥 OPDS Trending Now</div>
+          <a class="section-action">Refresh</a>
+        </div>
+        <div class="trending-source-pills">
+          <button class="source-pill-filter active">All</button>
+          <button class="source-pill-filter">Gutenberg</button>
+          <button class="source-pill-filter">Standard Ebooks</button>
+          <button class="source-pill-filter">Feedbooks</button>
+          <button class="source-pill-filter">Open Library</button>
+        </div>
+        <div class="trending-scroll">
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #1a1a2e, #16213e);">
+              <div class="rank-badge">#1</div>
+              <div class="trending-fire">🔥 Hot</div>
+              <div class="source-badge">Gutenberg</div>
+              <div class="genre-tag">Classic</div>
+            </div>
+            <div class="trending-title">Pride and Prejudice</div>
+            <div class="trending-author">Jane Austen</div>
+            <div class="trending-meta">
+              <span class="readers">👁 2.4K this week</span>
+            </div>
+          </div>
+
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #2d1b69, #11998e);">
+              <div class="rank-badge">#2</div>
+              <div class="source-badge">Std Ebooks</div>
+              <div class="genre-tag">Sci-fi</div>
+            </div>
+            <div class="trending-title">The Time Machine</div>
+            <div class="trending-author">H.G. Wells</div>
+            <div class="trending-meta">
+              <span class="readers">👁 1.8K this week</span>
+            </div>
+          </div>
+
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #c94b4b, #4b134f);">
+              <div class="rank-badge">#3</div>
+              <div class="trending-fire">🔥 Hot</div>
+              <div class="source-badge">Feedbooks</div>
+              <div class="genre-tag">Horror</div>
+            </div>
+            <div class="trending-title">Dracula</div>
+            <div class="trending-author">Bram Stoker</div>
+            <div class="trending-meta">
+              <span class="readers">👁 1.5K this week</span>
+            </div>
+          </div>
+
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #0f0c29, #302b63);">
+              <div class="rank-badge">#4</div>
+              <div class="source-badge">Gutenberg</div>
+              <div class="genre-tag">Adventure</div>
+            </div>
+            <div class="trending-title">The Odyssey</div>
+            <div class="trending-author">Homer</div>
+            <div class="trending-meta">
+              <span class="readers">👁 1.2K this week</span>
+            </div>
+          </div>
+
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #373b44, #4286f4);">
+              <div class="rank-badge">#5</div>
+              <div class="source-badge">Open Library</div>
+              <div class="genre-tag">Fantasy</div>
+            </div>
+            <div class="trending-title">The Lord of the Rings</div>
+            <div class="trending-author">J.R.R. Tolkien</div>
+            <div class="trending-meta">
+              <span class="readers">👁 980 this week</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. TRENDING NOW (LIVE FROM PLUGINS) -->
+      <div class="trending-section">
+        <div class="section-header">
+          <div class="section-title">🔥Web Novel Trending Now</div>
+          <a class="section-action">Refresh</a>
+        </div>
+
+        <!-- Source filter pills — matches TrendingSection widget -->
+        <div class="trending-source-pills">
+          <button class="source-pill active">All</button>
+          <button class="source-pill-filter">Royal Road</button>
+          <button class="source-pill-filter">ReadNovelFull</button>
+          <button class="source-pill-filter">NovelDrama</button>
+          <button class="source-pill-filter">Novel Hub</button>
+          <button class="source-pill-filter">MVLEMPYR</button>
+          <button class="source-pill-filter">WTR-LAB</button>
+        </div>
+
+        <!-- Horizontal scroll — matches TrendingSection _TrendingBookCard -->
+        <div class="trending-scroll">
+
+          <!-- Royal Road: The Gift of Loot -->
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #1a1a2e, #16213e);">
+              <div class="source-badge">Royal Road</div>
+              <div class="genre-tag">LitRPG</div>
+            </div>
+            <div class="trending-title">The Gift of Loot</div>
+            <div class="trending-author">ActiveThreads</div>
+          </div>
+
+          <!-- Royal Road: No One Truly Dies in My Dungeon -->
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #2d1b69, #11998e);">
+              <div class="source-badge">Royal Road</div>
+              <div class="genre-tag">Dungeon</div>
+            </div>
+            <div class="trending-title">No One Truly Dies in My Dungeon</div>
+            <div class="trending-author">LitRPG_Fan</div>
+          </div>
+
+          <!-- ReadNovelFull: Archean Eon Art -->
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #c94b4b, #4b134f);">
+              <div class="source-badge">ReadNovelFull</div>
+              <div class="genre-tag">Xianxia</div>
+            </div>
+            <div class="trending-title">Archean Eon Art</div>
+            <div class="trending-author">I Eat Tomatoes</div>
+          </div>
+
+          <!-- ReadNovelFull: Dark Magus Returns -->
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #0f0c29, #302b63);">
+              <div class="source-badge">ReadNovelFull</div>
+              <div class="genre-tag">Fantasy</div>
+            </div>
+            <div class="trending-title">Dark Magus Returns</div>
+            <div class="trending-author">Shadow Knight</div>
+          </div>
+
+          <!-- NovelDrama: The Luna Choosing Game -->
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #373b44, #4286f4);">
+              <div class="source-badge">NovelDrama</div>
+              <div class="genre-tag">Werewolf</div>
+            </div>
+            <div class="trending-title">The Luna Choosing Game</div>
+            <div class="trending-author">Rina Young</div>
+          </div>
+
+          <!-- Novel Hub: Invincible Connoisseur -->
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #56ab2f, #a8e063);">
+              <div class="source-badge">Novel Hub</div>
+              <div class="genre-tag">Action</div>
+            </div>
+            <div class="trending-title">Invincible Connoisseur</div>
+            <div class="trending-author">Martial King</div>
+          </div>
+
+          <!-- MVLEMPYR: Reborn as the Genius Son -->
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #e44d26, #f16529);">
+              <div class="source-badge">MVLEMPYR</div>
+              <div class="genre-tag">Rebirth</div>
+            </div>
+            <div class="trending-title">Reborn as the Genius Son of the Richest Family</div>
+            <div class="trending-author">Broccoli</div>
+          </div>
+
+          <!-- WTR-LAB: Naruto: From Leaving Konoha -->
+          <div class="trending-card">
+            <div class="trending-cover" style="background: linear-gradient(135deg, #f7971e, #ffd200);">
+              <div class="source-badge">WTR-LAB</div>
+              <div class="genre-tag">Fanfic</div>
+            </div>
+            <div class="trending-title">Naruto: From Leaving Konoha</div>
+            <div class="trending-author">AI Translated</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 7. PERSONALIZED FOR YOU -->
+      <div class="section-header">
+        <div class="section-title">For You</div>
+        <a class="section-action">See all</a>
+      </div>
+      <div class="for-you-scroll">
+        <div class="for-you-card">
+          <div class="for-you-cover" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+            <div class="match-badge">98% match</div>
+            <div class="genre-tag">Wuxia</div>
+          </div>
+          <div class="for-you-title">Martial God Asura</div>
+          <div class="for-you-author">Yu Feng</div>
+        </div>
+        <div class="for-you-card">
+          <div class="for-you-cover" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+            <div class="match-badge">94% match</div>
+            <div class="genre-tag">Romance</div>
+          </div>
+          <div class="for-you-title">Rebirth of the Thief</div>
+          <div class="for-you-author">Mad Snail</div>
+        </div>
+        <div class="for-you-card">
+          <div class="for-you-cover" style="background: linear-gradient(135deg, #4facfe, #00f2fe);">
+            <div class="match-badge">91% match</div>
+            <div class="genre-tag">Sci-fi</div>
+          </div>
+          <div class="for-you-title">The Novel's Extra</div>
+          <div class="for-you-author">Jeho</div>
+        </div>
+        <div class="for-you-card">
+          <div class="for-you-cover" style="background: linear-gradient(135deg, #43e97b, #38f9d7);">
+            <div class="match-badge">87% match</div>
+            <div class="genre-tag">Fantasy</div>
+          </div>
+          <div class="for-you-title">Omniscient Reader</div>
+          <div class="for-you-author">Sing Shong</div>
+        </div>
+      </div>
+
+      <!-- 8. CURATED COLLECTIONS -->
+      <div class="section-header">
+        <div class="section-title">Browse by Genre</div>
+        <a class="section-action">All genres</a>
+      </div>
+      <div class="collections-grid">
+        <div class="collection-card wuxia">
+          <div class="collection-icon">⚔️</div>
+          <div class="collection-name">Wuxia</div>
+          <div class="collection-count">18 books</div>
+        </div>
+        <div class="collection-card romance">
+          <div class="collection-icon">💕</div>
+          <div class="collection-name">Romance</div>
+          <div class="collection-count">9 books</div>
+        </div>
+        <div class="collection-card scifi">
+          <div class="collection-icon">🚀</div>
+          <div class="collection-name">Sci-fi</div>
+          <div class="collection-count">14 books</div>
+        </div>
+        <div class="collection-card fantasy">
+          <div class="collection-icon">✨</div>
+          <div class="collection-name">Fantasy</div>
+          <div class="collection-count">24 books</div>
+        </div>
+        <div class="collection-card mystery">
+          <div class="collection-icon">🔍</div>
+          <div class="collection-name">Mystery</div>
+          <div class="collection-count">11 books</div>
+        </div>
+        <div class="collection-card classic">
+          <div class="collection-icon">📜</div>
+          <div class="collection-name">Classics</div>
+          <div class="collection-count">32 from OPDS</div>
+        </div>
+      </div>
+
+      <!-- 9. CONTENT SOURCES -->
+      <div class="section-header">
+        <div class="section-title">Content Sources</div>
+        <a class="section-action">5 sources</a>
+      </div>
+      <div class="sources-grid">
+        <div class="source-pill">
+          <div class="source-icon-box gutenberg">📗</div>
+          <div>
+            <div class="source-name">Gutenberg</div>
+            <div class="source-type">70K+ free books</div>
+          </div>
+        </div>
+        <div class="source-pill">
+          <div class="source-icon-box standard">📘</div>
+          <div>
+            <div class="source-name">Standard Ebooks</div>
+            <div class="source-type">Curated classics</div>
+          </div>
+        </div>
+        <div class="source-pill">
+          <div class="source-icon-box feedbooks">📙</div>
+          <div>
+            <div class="source-name">Feedbooks</div>
+            <div class="source-type">Public domain</div>
+          </div>
+        </div>
+        <div class="source-pill">
+          <div class="source-icon-box openlib">📕</div>
+          <div>
+            <div class="source-name">Open Library</div>
+            <div class="source-type">20M+ records</div>
+          </div>
+        </div>
+        <div class="source-pill">
+          <div class="source-icon-box publicdomain">📒</div>
+          <div>
+            <div class="source-name">Public Domain</div>
+            <div class="source-type">Free library</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 10. RECENTLY ADDED -->
+      <div class="section-header">
+        <div class="section-title">Recently Added</div>
+        <a class="section-action">See all</a>
+      </div>
+      <div class="recent-scroll">
+        <div class="recent-cover" style="background: linear-gradient(135deg, #ff9a9e, #fecfef);">
+          <div class="new-dot"></div>
+        </div>
+        <div class="recent-cover" style="background: linear-gradient(135deg, #a18cd1, #fbc2eb);">
+          <div class="new-dot"></div>
+        </div>
+        <div class="recent-cover" style="background: linear-gradient(135deg, #fad0c4, #ffd1ff);"></div>
+        <div class="recent-cover" style="background: linear-gradient(135deg, #a1c4fd, #c2e9fb);"></div>
+        <div class="recent-cover" style="background: linear-gradient(135deg, #d4fc79, #96e6a1);"></div>
+        <div class="recent-cover" style="background: linear-gradient(135deg, #84fab0, #8fd3f4);"></div>
+      </div>
+
+      <div style="height: 20px;"></div>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <div class="bottom-nav">
+      <div class="nav-item active">
+        <div class="nav-icon">🏠</div>
+        <div class="nav-label">Discover</div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">📚</div>
+        <div class="nav-label">Library</div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">🔍</div>
+        <div class="nav-label">Search</div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">🔖</div>
+        <div class="nav-label">Saved</div>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">⚙️</div>
+        <div class="nav-label">Settings</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESIGN NOTES -->
+  <div class="design-notes">
+    <h2>Discover Page Redesign</h2>
+    <p style="color: #79747E; margin-bottom: 12px;">Proposed redesign for the Atlas App discover/home screen —
+      transforming it from a static mock-data page into the <strong>dynamic heart of the app ecosystem</strong>.</p>
+
+
+    <h3>Key Changes</h3>
+    <ul>
+      <li><strong>Real data everywhere</strong> — Streak, stats, activity chart, and quotes now pull from the Drift
+        database instead of hardcoded values</li>
+      <li><strong>Weekly Reading Goal card</strong> <span class="badge new">New</span> — Progress ring with daily streak
+        badge, replaces the flat activity chart as the motivational anchor</li>
+      <li><strong>Trending Now (OPDS)</strong> <span class="badge new">New</span> — Pulls popular books from legal
+        public OPDS catalogs (Gutenberg, Standard Ebooks, Feedbooks, Open Library) with source filters, rank badges, and
+        download counts</li>
+      <li><strong>Personalized "For You" recommendations</strong> <span class="badge new">New</span> — ML-free
+        genre-matching based on reading history with match percentages</li>
+      <li><strong>Curated genre collections</strong> <span class="badge improved">Improved</span> — 2-column grid with
+        gradient cards, expanded to include Classics from OPDS</li>
+      <li><strong>Compact source pills</strong> <span class="badge improved">Improved</span> — Grid layout replaces
+        vertical cards, saving vertical space</li>
+      <li><strong>Notification bell</strong> <span class="badge new">New</span> — Entry point for update alerts and
+        milestone nudges</li>
+      <li><strong>Quick stats row</strong> <span class="badge improved">Improved</span> — Icon-rich cards with real data
+        replace the plain text trio</li>
+      <li><strong>Responsive layout</strong> <span class="badge new">New</span> — Uses AppResponsiveLayout for
+        tablet/desktop grid adaptation</li>
+    </ul>
+
+    <h3>Trending Now — OPDS Integration</h3>
+    <ul>
+      <li><strong>Data source:</strong> Public OPDS catalogs (Open Publication Distribution System)</li>
+      <li><strong>Catalogs:</strong> Gutenberg, Standard Ebooks, Feedbooks, Open Library</li>
+      <li><strong>Caching:</strong> Trending feeds cached locally with 24h TTL, refreshed on pull-to-refresh</li>
+      <li><strong>Ranking:</strong> Sorted by recent download/popularity from OPDS feed metadata</li>
+      <li><strong>Offline:</strong> Falls back to cached trending list when offline</li>
+      <li><strong>Filter pills:</strong> Filter by source catalog, "All" shows merged results</li>
+      <li><strong>Quick add:</strong> Tap card → book details → import to library in one step</li>
+    </ul>
+
+    <h3>Accessible Sources (6)</h3>
+    <div class="source-grid">
+      <div class="source-item">
+        <div class="source-name">Royal Road <span class="badge ok">OK</span></div>
+        <div class="source-url">/fictions/trending</div>
+      </div>
+      <div class="source-item">
+        <div class="source-name">ReadNovelFull <span class="badge ok">OK</span></div>
+        <div class="source-url">/novel-list/hot-novel</div>
+      </div>
+      <div class="source-item">
+        <div class="source-name">NovelDrama <span class="badge ok">OK</span></div>
+        <div class="source-url">/sort/noveldrama-hot</div>
+      </div>
+      <div class="source-item">
+        <div class="source-name">Novel Hub <span class="badge ok">OK</span></div>
+        <div class="source-url">/ranking/</div>
+      </div>
+      <div class="source-item">
+        <div class="source-name">MVLEMPYR <span class="badge ok">OK</span></div>
+        <div class="source-url">/rankings?rank=weekly</div>
+      </div>
+      <div class="source-item">
+        <div class="source-name">WTR-LAB <span class="badge ok">OK</span></div>
+        <div class="source-url">/en/ranking/daily</div>
+      </div>
+    </div>
+
+    <h3>Blocked by Cloudflare (3)</h3>
+    <div class="source-grid">
+      <div class="source-item">
+        <div class="source-name">allnovelfull <span class="badge cf">CF</span></div>
+        <div class="source-url">novgo.net — 403</div>
+      </div>
+      <div class="source-item">
+        <div class="source-name">freewebnovel <span class="badge cf">CF</span></div>
+        <div class="source-url">freewebnovel.com — 403</div>
+      </div>
+      <div class="source-item">
+        <div class="source-name">novelfull <span class="badge cf">CF</span></div>
+        <div class="source-url">novelfull.net — 403</div>
+      </div>
+    </div>
+
+    <h3>Architecture</h3>
+    <ul>
+      <li><code>TrendingService</code> fetches all 6 plugins in parallel via <code>Future.wait</code></li>
+      <li><code>TrendingSelectors</code> in each <code>selectors.json</code> define CSS extraction rules</li>
+      <li><code>PluginCapability.trending</code> added to capability enum</li>
+      <li><code>SelectorSet.applyTrending()</code> extracts title, cover, author, genre, rating, popularity</li>
+      <li><code>TrendingSection</code> widget: horizontal scroll + source filter pills + book cards</li>
+      <li>Wired into <code>DiscoverDashboardData.trendingBooks</code> map (sourceId → books)</li>
+      <li>Failed sources silently skipped via <code>AppLogger.warning</code></li>
+      <li>Refreshed on pull-to-refresh in Discover screen</li>
+    </ul>
+
+    <h3>Architecture Additions</h3>
+    <ul>
+      <li><code>discover/domain/</code> — ReadingGoal, Recommendation, TrendingBook entities</li>
+      <li><code>discover/infrastructure/</code> — RecommendationEngine, ReadingGoalRepository,
+        <strong>OpdsTrendingService</strong></li>
+      <li><code>discover/application/</code> — DiscoverAggregator service (combines book stats + goals + recs +
+        trending)</li>
+      <li><code>discover/presentation/providers/</code> — discoverDataProvider, recommendationProvider,
+        weeklyGoalProvider, <strong>trendingProvider</strong></li>
+      <li>New Drift tables: <code>reading_goals</code>, <code>reading_sessions</code>,
+        <strong><code>trending_cache</code></strong></li>
+      <li><strong>OPDS feeds:</strong> <code>https://www.gutenberg.org/ebooks/opds</code>,
+        <code>https://standardebooks.org/opds</code>, <code>https://www.feedbooks.com/catalog.atom</code></li>
+    </ul>
+
+    <h3>Sections (top → bottom)</h3>
+    <ul>
+      <li>1. Header — Greeting + streak pill + notification bell</li>
+      <li>2. Continue Reading — Dark hero card with real progress + quote</li>
+      <li>3. Quick Stats — 3-column icon cards (Books / Chapters / Time)</li>
+      <li>4. Weekly Goal — Green progress ring + streak badge</li>
+      <li>5. Activity Chart — Real weekly data from reading_sessions</li>
+      <li>6. <strong>Trending Now</strong> — OPDS-sourced popular books with source filters</li>
+      <li>7. For You — Personalized horizontal scroll with match %</li>
+      <li>8. Browse by Genre — 2×3 gradient collection grid</li>
+      <li>9. Content Sources — Compact pill grid</li>
+      <li>10. Recently Added — Horizontal cover carousel with "new" dots</li>
+    </ul>
+  </div>
+
+</body>
+
+</html>

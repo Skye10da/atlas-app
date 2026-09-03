@@ -54,6 +54,15 @@ class FakeLibraryRepository implements LibraryRepositoryInterface {
       Success(books.firstWhere((b) => b.id == id));
 
   @override
+  Stream<Result<BookEntity>> watchBookById(String id) =>
+      _controller.stream.map((res) {
+        if (res is Success<List<BookEntity>>) {
+          return Success(res.value.firstWhere((b) => b.id == id));
+        }
+        return const Failure(NotFoundException('Book not found'));
+      });
+
+  @override
   Future<Result<void>> updateBook(
     String id, {
     String? title,

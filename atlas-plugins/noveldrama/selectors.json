@@ -30,5 +30,14 @@
     "status": {
       "label": "Status:"
     }
+  },
+  "trending": {
+    "path": "/sort/noveldrama-hot",
+    "resultItem": ".list-novel .row",
+    "title": ".novel-title a@text",
+    "coverUrl": ".novel-img img@data-src|.novel-img img@src",
+    "detailUrl": ".novel-title a@href",
+    "author": ".author@text",
+    "genre": ".genre-item@text"
   }
 }

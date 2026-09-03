@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
@@ -7,7 +8,7 @@ import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 
-class ReaderRightPanel extends ConsumerStatefulWidget {
+class ReaderRightPanel extends HookConsumerWidget {
   const ReaderRightPanel({
     super.key,
     required this.chapters,
@@ -30,27 +31,8 @@ class ReaderRightPanel extends ConsumerStatefulWidget {
   final ReadingSettingsEntity? settings;
 
   @override
-  ConsumerState<ReaderRightPanel> createState() => _ReaderRightPanelState();
-}
-
-class _ReaderRightPanelState extends ConsumerState<ReaderRightPanel>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tabController = useTabController(initialLength: 3);
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -73,14 +55,14 @@ class _ReaderRightPanelState extends ConsumerState<ReaderRightPanel>
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close, size: 18),
-                  onPressed: widget.onClose,
+                  onPressed: onClose,
                   tooltip: 'Close panel',
                 ),
               ],
             ),
           ),
           TabBar(
-            controller: _tabController,
+            controller: tabController,
             labelColor: colors.primary,
             unselectedLabelColor: colors.onSurface.withValues(alpha: 0.6),
             indicatorColor: colors.primary,
@@ -93,21 +75,21 @@ class _ReaderRightPanelState extends ConsumerState<ReaderRightPanel>
           ),
           Expanded(
             child: TabBarView(
-              controller: _tabController,
+              controller: tabController,
               children: [
                 _ChaptersTab(
-                  chapters: widget.chapters,
-                  currentChapterIndex: widget.currentChapterIndex,
-                  onChapterSelected: widget.onChapterSelected,
+                  chapters: chapters,
+                  currentChapterIndex: currentChapterIndex,
+                  onChapterSelected: onChapterSelected,
                 ),
                 _BookmarksTab(
-                  chapters: widget.chapters,
-                  bookmarkedChapterIds: widget.bookmarkedChapterIds,
-                  onChapterSelected: widget.onChapterSelected,
-                  onBookmarkToggle: widget.onBookmarkToggle,
-                  isBookmarked: widget.isBookmarked,
+                  chapters: chapters,
+                  bookmarkedChapterIds: bookmarkedChapterIds,
+                  onChapterSelected: onChapterSelected,
+                  onBookmarkToggle: onBookmarkToggle,
+                  isBookmarked: isBookmarked,
                 ),
-                _SettingsTab(settings: widget.settings),
+                _SettingsTab(settings: settings),
               ],
             ),
           ),
@@ -310,18 +292,13 @@ class _BookmarksTab extends ConsumerWidget {
   }
 }
 
-class _SettingsTab extends ConsumerStatefulWidget {
+class _SettingsTab extends ConsumerWidget {
   const _SettingsTab({this.settings});
 
   final ReadingSettingsEntity? settings;
 
   @override
-  ConsumerState<_SettingsTab> createState() => _SettingsTabState();
-}
-
-class _SettingsTabState extends ConsumerState<_SettingsTab> {
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(readingSettingsProvider);
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;

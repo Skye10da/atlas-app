@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -9,7 +10,7 @@ import 'package:atlas_app/reader/presentation/providers/annotations_provider.dar
 import 'package:atlas_app/reader/presentation/widgets/note_editor_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/quote_share_card_sheet.dart';
 
-class ReaderAnnotationsSheet extends ConsumerStatefulWidget {
+class ReaderAnnotationsSheet extends HookConsumerWidget {
   const ReaderAnnotationsSheet({
     super.key,
     required this.bookId,
@@ -57,43 +58,36 @@ class ReaderAnnotationsSheet extends ConsumerStatefulWidget {
     );
   }
 
-  @override
-  ConsumerState<ReaderAnnotationsSheet> createState() =>
-      _ReaderAnnotationsSheetState();
-}
-
-class _ReaderAnnotationsSheetState
-    extends ConsumerState<ReaderAnnotationsSheet> {
-  String _filterQuery = '';
-  int _selectedTabIndex = 0; // 0 = All, 1 = Notes, 2 = Highlights
-  bool _currentChapterOnly = false;
-
   ChapterEntity? _chapterFor(String chapterId) {
-    for (final c in widget.chapters) {
+    for (final c in chapters) {
       if (c.id == chapterId) return c;
     }
     return null;
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filterQuery = useState('');
+    final selectedTabIndex = useState(0); // 0 = All, 1 = Notes, 2 = Highlights
+    final currentChapterOnly = useState(false);
+
     final colors = Theme.of(context).colorScheme;
-    final state = ref.watch(annotationsProvider(widget.bookId));
+    final state = ref.watch(annotationsProvider(bookId));
 
     final notes = <NoteEntry>[];
     final highlights = <HighlightEntry>[];
 
     state.notes.forEach((chapId, list) {
-      if (_currentChapterOnly && chapId != widget.currentChapterId) return;
+      if (currentChapterOnly.value && chapId != currentChapterId) return;
       notes.addAll(list);
     });
 
     state.highlights.forEach((chapId, list) {
-      if (_currentChapterOnly && chapId != widget.currentChapterId) return;
+      if (currentChapterOnly.value && chapId != currentChapterId) return;
       highlights.addAll(list);
     });
 
-    final query = _filterQuery.trim().toLowerCase();
+    final query = filterQuery.value.trim().toLowerCase();
 
     final filteredNotes = notes.where((n) {
       if (query.isEmpty) return true;
@@ -107,9 +101,9 @@ class _ReaderAnnotationsSheetState
       return h.text.toLowerCase().contains(query);
     }).toList();
 
-    final totalCount = (_selectedTabIndex == 1)
+    final totalCount = (selectedTabIndex.value == 1)
         ? filteredNotes.length
-        : (_selectedTabIndex == 2)
+        : (selectedTabIndex.value == 2)
             ? filteredHighlights.length
             : (filteredNotes.length + filteredHighlights.length);
 
@@ -124,98 +118,95 @@ class _ReaderAnnotationsSheetState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Search Bar & Scope Toggle
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 38,
-                      child: TextField(
-                        onChanged: (v) => setState(() => _filterQuery = v),
-                        style: const TextStyle(fontSize: 13),
-                        decoration: InputDecoration(
-                          hintText: 'Search notes & highlights…',
-                          hintStyle: TextStyle(
-                            fontSize: 13,
-                            color:
-                                colors.onSurfaceVariant.withValues(alpha: 0.6),
-                          ),
-                          prefixIcon: const Icon(Icons.search_rounded, size: 18),
-                          filled: true,
-                          fillColor: colors.surface,
-                          contentPadding: EdgeInsets.zero,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 38,
+                  child: TextField(
+                    onChanged: (v) => filterQuery.value = v,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Search notes & highlights…',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                      ),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                      filled: true,
+                      fillColor: colors.surface,
+                      contentPadding: EdgeInsets.zero,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  FilterChip(
-                    label: const Text('Current Chapter',
-                        style: TextStyle(fontSize: 11)),
-                    selected: _currentChapterOnly,
-                    onSelected: (sel) =>
-                        setState(() => _currentChapterOnly = sel),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // Segmented Tab bar
-              SegmentedButton<int>(
-                segments: const [
-                  ButtonSegment(
-                    value: 0,
-                    label: Text('All'),
-                    icon: Icon(Icons.list_alt_rounded, size: 16),
-                  ),
-                  ButtonSegment(
-                    value: 1,
-                    label: Text('Notes'),
-                    icon: Icon(Icons.edit_note_rounded, size: 16),
-                  ),
-                  ButtonSegment(
-                    value: 2,
-                    label: Text('Highlights'),
-                    icon: Icon(Icons.highlight_rounded, size: 16),
-                  ),
-                ],
-                selected: {_selectedTabIndex},
-                onSelectionChanged: (set) {
-                  setState(() => _selectedTabIndex = set.first);
-                },
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
                 ),
               ),
-              const SizedBox(height: 12),
-
-              // List Content
-              Expanded(
-                child: totalCount == 0
-                    ? _buildEmptyState(colors)
-                    : ListView(
-                        children: [
-                          if (_selectedTabIndex == 0 ||
-                              _selectedTabIndex == 1)
-                            for (final note in filteredNotes)
-                              _buildNoteCard(note, colors),
-                          if (_selectedTabIndex == 0 ||
-                              _selectedTabIndex == 2)
-                            for (final hl in filteredHighlights)
-                              _buildHighlightCard(hl, colors),
-                        ],
-                      ),
+              const SizedBox(width: 8),
+              FilterChip(
+                label: const Text('Current Chapter', style: TextStyle(fontSize: 11)),
+                selected: currentChapterOnly.value,
+                onSelected: (sel) => currentChapterOnly.value = sel,
+                visualDensity: VisualDensity.compact,
               ),
             ],
           ),
-        );
+          const SizedBox(height: 10),
+
+          // Segmented Tab bar
+          SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(
+                value: 0,
+                label: Text('All'),
+                icon: Icon(Icons.list_alt_rounded, size: 16),
+              ),
+              ButtonSegment(
+                value: 1,
+                label: Text('Notes'),
+                icon: Icon(Icons.edit_note_rounded, size: 16),
+              ),
+              ButtonSegment(
+                value: 2,
+                label: Text('Highlights'),
+                icon: Icon(Icons.highlight_rounded, size: 16),
+              ),
+            ],
+            selected: {selectedTabIndex.value},
+            onSelectionChanged: (set) {
+              selectedTabIndex.value = set.first;
+            },
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // List Content
+          Expanded(
+            child: totalCount == 0
+                ? _buildEmptyState(colors, filterQuery.value)
+                : ListView(
+                    children: [
+                      if (selectedTabIndex.value == 0 ||
+                          selectedTabIndex.value == 1)
+                        for (final note in filteredNotes)
+                          _buildNoteCard(context, note, colors),
+                      if (selectedTabIndex.value == 0 ||
+                          selectedTabIndex.value == 2)
+                        for (final hl in filteredHighlights)
+                          _buildHighlightCard(context, hl, colors),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _buildEmptyState(ColorScheme colors) {
+  Widget _buildEmptyState(ColorScheme colors, String query) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -227,7 +218,7 @@ class _ReaderAnnotationsSheetState
           ),
           const SizedBox(height: 8),
           Text(
-            _filterQuery.isNotEmpty
+            query.isNotEmpty
                 ? 'No matching notes or highlights found'
                 : 'No notes or highlights added yet',
             style: TextStyle(
@@ -240,7 +231,7 @@ class _ReaderAnnotationsSheetState
     );
   }
 
-  Widget _buildNoteCard(NoteEntry note, ColorScheme colors) {
+  Widget _buildNoteCard(BuildContext context, NoteEntry note, ColorScheme colors) {
     final chapter = _chapterFor(note.chapterId);
     final noteColor = note.color ?? colors.primary;
 
@@ -265,7 +256,7 @@ class _ReaderAnnotationsSheetState
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () {
-            widget.onJumpToChapter?.call(note.chapterId, note.highlightStart);
+            onJumpToChapter?.call(note.chapterId, note.highlightStart);
             Navigator.of(context).pop();
           },
           child: Padding(
@@ -299,10 +290,10 @@ class _ReaderAnnotationsSheetState
                           quoteText: note.sentence.isNotEmpty
                               ? note.sentence
                               : note.text,
-                          bookTitle: widget.bookTitle,
-                          author: widget.author,
+                          bookTitle: bookTitle,
+                          author: author,
                           chapterTitle: chapter?.title,
-                          coverPath: widget.coverPath,
+                          coverPath: coverPath,
                         );
                       },
                     ),
@@ -313,7 +304,7 @@ class _ReaderAnnotationsSheetState
                       onPressed: () {
                         NoteEditorSheet.show(
                           context,
-                          bookId: widget.bookId,
+                          bookId: bookId,
                           chapterId: note.chapterId,
                           selectedText: note.sentence,
                           sentence: note.sentence,
@@ -381,7 +372,7 @@ class _ReaderAnnotationsSheetState
     );
   }
 
-  Widget _buildHighlightCard(HighlightEntry hl, ColorScheme colors) {
+  Widget _buildHighlightCard(BuildContext context, HighlightEntry hl, ColorScheme colors) {
     final chapter = _chapterFor(hl.chapterId);
     final hlColor = hl.color;
 
@@ -406,7 +397,7 @@ class _ReaderAnnotationsSheetState
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () {
-            widget.onJumpToChapter?.call(hl.chapterId, hl.start);
+            onJumpToChapter?.call(hl.chapterId, hl.start);
             Navigator.of(context).pop();
           },
           child: Padding(
@@ -453,10 +444,10 @@ class _ReaderAnnotationsSheetState
                         QuoteShareCardSheet.show(
                           context,
                           quoteText: hl.text,
-                          bookTitle: widget.bookTitle,
-                          author: widget.author,
+                          bookTitle: bookTitle,
+                          author: author,
                           chapterTitle: chapter?.title,
-                          coverPath: widget.coverPath,
+                          coverPath: coverPath,
                         );
                       },
                     ),
@@ -467,7 +458,7 @@ class _ReaderAnnotationsSheetState
                       onPressed: () {
                         NoteEditorSheet.show(
                           context,
-                          bookId: widget.bookId,
+                          bookId: bookId,
                           chapterId: hl.chapterId,
                           selectedText: hl.text,
                           sentence: hl.text,
@@ -497,4 +488,3 @@ class _ReaderAnnotationsSheetState
     );
   }
 }
-

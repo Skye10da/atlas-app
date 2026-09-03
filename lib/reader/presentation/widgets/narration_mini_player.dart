@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' hide WordBoundary;
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -252,8 +253,7 @@ class NarrationMiniPlayer extends ConsumerWidget {
 /// as a new word becomes active, the preceding text flows out to the left and
 /// the following text enters from the right. The slide duration is sized from
 /// the word's length so the motion stays roughly in sync with how long the word
-/// takes to speak. Falls back to [fallback] when no sentence is active yet.
-class _MiniLyric extends StatefulWidget {
+class _MiniLyric extends HookWidget {
   const _MiniLyric({
     required this.item,
     required this.boundary,
@@ -270,138 +270,21 @@ class _MiniLyric extends StatefulWidget {
   final Color dimColor;
   final Color accent;
 
-  @override
-  State<_MiniLyric> createState() => _MiniLyricState();
-}
-
-class _MiniLyricState extends State<_MiniLyric>
-    with SingleTickerProviderStateMixin {
-  // Where the spoken word rests after each slide.
   static const double _leftInset = 6;
-  // Per-word slide duration: base + characters * perChar, clamped.
   static const int _msBase = 160;
   static const int _msPerChar = 64;
   static const int _minMs = 180;
   static const int _maxMs = 900;
 
-  late final AnimationController _controller;
-  String _sentence = '';
-  final List<_WordRange> _words = [];
-  int _activeWord = -1;
-  double _startX = 0;
-  double _endX = 0;
-  double _renderedX = 0;
-  TextPainter? _painter;
-  Timer? _fallbackTimer;
-  Timer? _stallTimer;
-  bool _boundariesStalled = false;
-
-  // Platform & word boundary detection
-  bool get _isDesktop =>
+  static bool get _isDesktop =>
       !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-  bool get _useWordBoundaries => !_isDesktop;
+  static bool get _useWordBoundaries => !_isDesktop;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 220),
-    );
-    _resetLine();
-  }
-
-  @override
-  void didUpdateWidget(_MiniLyric oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.item?.text != widget.item?.text ||
-        oldWidget.fallback != widget.fallback) {
-      _resetLine();
-      return;
-    }
-
-    if (oldWidget.boundary != widget.boundary) {
-      _syncFromProvider();
-    }
-
-    if (oldWidget.playing != widget.playing) {
-      if (widget.playing) {
-        _scheduleNext(_activeWord);
-      } else {
-        _stopFallback();
-      }
-    }
-  }
-
-  /// Parses [widget.item] into word ranges and (re)starts the lyric at word 0.
-  void _resetLine() {
-    _sentence = _lineOf(widget.item);
-    _words
-      ..clear()
-      ..addAll(_tokenize(_sentence));
-    _activeWord = _words.isEmpty ? -1 : 0;
-    _startX = 0;
-    _endX = 0;
-    _renderedX = 0;
-    _controller.stop();
-    _controller.value = 0;
-    _stopFallback();
-    _stallTimer?.cancel();
-    _stallTimer = null;
-    _boundariesStalled = false;
-    _rebuildPainter();
-    // Slide to word 0's resting position (near the left inset).
-    if (_activeWord >= 0 && _words.first.start > 0) {
-      _animateTo(_activeWord);
-    }
-    if (widget.playing) _scheduleNext(_activeWord);
-  }
-
-  /// Stable identity of a line: the trimmed sentence, or [widget.fallback] when
-  /// the sentence is empty.
-  String _lineOf(SpeechItem? item) {
-    final text = item?.text.trim() ?? '';
-    return text.isEmpty ? widget.fallback : text;
-  }
-
-  /// Words of [_sentence] as character ranges.
   static List<_WordRange> _tokenize(String text) {
     return RegExp(r'\S+')
         .allMatches(text)
         .map((m) => _WordRange(start: m.start, end: m.end, word: m[0]!))
         .toList();
-  }
-
-  /// Advances to the word, sliding so its left edge lands at the inset, then
-  /// schedules the next word after the current word's estimated duration.
-  void _animateTo(int wi) {
-    if (wi < 0 || wi >= _words.length || wi == _activeWord) return;
-    _activeWord = wi;
-    _rebuildPainter();
-    final painter = _painter;
-    if (painter == null) return;
-    final r = _words[wi];
-    final wordStartX = _wordStartX(painter, r.start);
-    _startX = _renderedX;
-    _endX = _leftInset - wordStartX;
-    _controller.duration = Duration(milliseconds: _estimateMs(r.word.length));
-    _controller.forward(from: 0);
-    _scheduleNext(wi);
-  }
-
-  void _syncFromProvider() {
-    if (!_useWordBoundaries) return;
-    final w = widget.boundary?.word.trim();
-    if (w == null || w.isEmpty || _words.isEmpty) return;
-    for (var i = 0; i < _words.length; i++) {
-      if (_sameWord(_words[i].word, w)) {
-        _stallTimer?.cancel();
-        _stallTimer = null;
-        _animateTo(i); // Immediate animation to actual word
-        _scheduleNext(i); // Schedule stall detection for next word
-        return;
-      }
-    }
   }
 
   static bool _sameWord(String a, String b) {
@@ -413,96 +296,9 @@ class _MiniLyricState extends State<_MiniLyric>
     return na.isNotEmpty && na == normalize(b);
   }
 
-  void _scheduleNext(int wi) {
-    _stopFallback();
-    _stallTimer?.cancel();
-    _stallTimer = null;
-
-    if (!widget.playing) return;
-    if (wi < 0 || wi >= _words.length) return;
-
-    // If boundaries stalled or not available, use fallback timer
-    if (_boundariesStalled || !_useWordBoundaries) {
-      _fallbackTimer = Timer(
-        Duration(milliseconds: _estimateMs(_words[wi].word.length)),
-        () {
-          if (!mounted) return;
-          _animateTo(wi + 1);
-        },
-      );
-      return;
-    }
-
-    // Mobile with boundaries: NO fallback timer — set stall detection (2× expected duration)
-    _stallTimer = Timer(
-      Duration(milliseconds: _estimateMs(_words[wi].word.length) * 2),
-      () {
-        if (!mounted) return;
-        _boundariesStalled = true;
-        _scheduleNext(wi); // Re-enter with stalled=true → uses fallback
-      },
-    );
-  }
-
-  void _stopFallback() {
-    _fallbackTimer?.cancel();
-    _fallbackTimer = null;
-    _stallTimer?.cancel();
-    _stallTimer = null;
-  }
-
-  int _estimateMs(int charCount) =>
+  static int _estimateMs(int charCount) =>
       (_msBase + charCount * _msPerChar).clamp(_minMs, _maxMs);
 
-  TextStyle get _baseStyle => TextStyle(
-    fontSize: 13,
-    fontWeight: _sentence == widget.fallback
-        ? FontWeight.w600
-        : FontWeight.w500,
-    color: widget.dimColor,
-  );
-
-  /// Rebuilds the measuring painter from the exact span build() renders so the
-  /// measured word extents match the on-screen glyphs (a bolder highlighted
-  /// word would otherwise be measured too narrow and clipped).
-  void _rebuildPainter() {
-    _painter?.dispose();
-    final span = _span();
-    _painter = TextPainter(text: span, textDirection: TextDirection.ltr)
-      ..layout();
-  }
-
-  TextSpan _span() {
-    final accent = TextStyle(
-      fontSize: 13,
-      fontWeight: FontWeight.w800,
-      color: widget.accent,
-    );
-    final s = _startBounds;
-    final e = _endBounds;
-    if (s != null && e != null && e > s && e <= _sentence.length) {
-      return TextSpan(
-        style: _baseStyle,
-        children: [
-          if (s > 0) TextSpan(text: _sentence.substring(0, s)),
-          TextSpan(text: _sentence.substring(s, e), style: accent),
-          if (e < _sentence.length) TextSpan(text: _sentence.substring(e)),
-        ],
-      );
-    }
-    return TextSpan(text: _sentence, style: _baseStyle);
-  }
-
-  int? get _startBounds => (_activeWord >= 0 && _activeWord < _words.length)
-      ? _words[_activeWord].start
-      : null;
-
-  int? get _endBounds => (_activeWord >= 0 && _activeWord < _words.length)
-      ? _words[_activeWord].end
-      : null;
-
-  /// Horizontal position of the word starting at [wordStart] within the laid
-  /// out line, in logical pixels.
   static double _wordStartX(TextPainter painter, int wordStart) {
     if (wordStart <= 0) return 0;
     final boxes = painter.getBoxesForSelection(
@@ -513,26 +309,149 @@ class _MiniLyricState extends State<_MiniLyric>
   }
 
   @override
-  void dispose() {
-    _stopFallback();
-    _stallTimer?.cancel();
-    _painter?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final text = Text.rich(_span(), maxLines: 1, overflow: TextOverflow.clip);
+    final controller = useAnimationController(
+      duration: const Duration(milliseconds: 220),
+    );
+
+    final lineText = item?.text.trim() ?? '';
+    final sentence = lineText.isEmpty ? fallback : lineText;
+    final words = useMemoized(() => _tokenize(sentence), [sentence]);
+
+    final activeWord = useState(words.isEmpty ? -1 : 0);
+    final startX = useState(0.0);
+    final endX = useState(0.0);
+    final renderedX = useRef(0.0);
+    final boundariesStalled = useState(false);
+
+    final fallbackTimer = useRef<Timer?>(null);
+    final stallTimer = useRef<Timer?>(null);
+
+    void stopFallback() {
+      fallbackTimer.value?.cancel();
+      fallbackTimer.value = null;
+      stallTimer.value?.cancel();
+      stallTimer.value = null;
+    }
+
+    TextStyle getBaseStyle() => TextStyle(
+      fontSize: 13,
+      fontWeight: sentence == fallback ? FontWeight.w600 : FontWeight.w500,
+      color: dimColor,
+    );
+
+    TextSpan buildSpan() {
+      final accentStyle = TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w800,
+        color: accent,
+      );
+      final s = (activeWord.value >= 0 && activeWord.value < words.length)
+          ? words[activeWord.value].start
+          : null;
+      final e = (activeWord.value >= 0 && activeWord.value < words.length)
+          ? words[activeWord.value].end
+          : null;
+      if (s != null && e != null && e > s && e <= sentence.length) {
+        return TextSpan(
+          style: getBaseStyle(),
+          children: [
+            if (s > 0) TextSpan(text: sentence.substring(0, s)),
+            TextSpan(text: sentence.substring(s, e), style: accentStyle),
+            if (e < sentence.length) TextSpan(text: sentence.substring(e)),
+          ],
+        );
+      }
+      return TextSpan(text: sentence, style: getBaseStyle());
+    }
+
+    void animateTo(int wi) {
+      if (wi < 0 || wi >= words.length || wi == activeWord.value) return;
+      activeWord.value = wi;
+      final span = buildSpan();
+      final painter = TextPainter(text: span, textDirection: TextDirection.ltr)
+        ..layout();
+      final r = words[wi];
+      final wordPos = _wordStartX(painter, r.start);
+      painter.dispose();
+
+      startX.value = renderedX.value;
+      endX.value = _leftInset - wordPos;
+      controller.duration = Duration(milliseconds: _estimateMs(r.word.length));
+      controller.forward(from: 0);
+    }
+
+    void scheduleNext(int wi) {
+      stopFallback();
+
+      if (!playing) return;
+      if (wi < 0 || wi >= words.length) return;
+
+      if (boundariesStalled.value || !_useWordBoundaries) {
+        fallbackTimer.value = Timer(
+          Duration(milliseconds: _estimateMs(words[wi].word.length)),
+          () {
+            if (wi + 1 < words.length) {
+              animateTo(wi + 1);
+              scheduleNext(wi + 1);
+            }
+          },
+        );
+        return;
+      }
+
+      stallTimer.value = Timer(
+        Duration(milliseconds: _estimateMs(words[wi].word.length) * 2),
+        () {
+          boundariesStalled.value = true;
+          scheduleNext(wi);
+        },
+      );
+    }
+
+    useEffect(() {
+      activeWord.value = words.isEmpty ? -1 : 0;
+      startX.value = 0;
+      endX.value = 0;
+      renderedX.value = 0;
+      controller.stop();
+      controller.value = 0;
+      stopFallback();
+      boundariesStalled.value = false;
+
+      if (activeWord.value >= 0 && words.isNotEmpty && words.first.start > 0) {
+        animateTo(activeWord.value);
+      }
+      if (playing) scheduleNext(activeWord.value);
+      return stopFallback;
+    }, [sentence, playing]);
+
+    useEffect(() {
+      if (!_useWordBoundaries) return null;
+      final w = boundary?.word.trim();
+      if (w == null || w.isEmpty || words.isEmpty) return null;
+      for (var i = 0; i < words.length; i++) {
+        if (_sameWord(words[i].word, w)) {
+          stallTimer.value?.cancel();
+          stallTimer.value = null;
+          animateTo(i);
+          scheduleNext(i);
+          return null;
+        }
+      }
+      return null;
+    }, [boundary]);
+
+    final text = Text.rich(buildSpan(), maxLines: 1, overflow: TextOverflow.clip);
 
     return ClipRect(
       child: AnimatedBuilder(
-        animation: _controller,
+        animation: controller,
         child: text,
         builder: (context, child) {
-          final t = Curves.easeOutCubic.transform(_controller.value);
-          final x = _startX + (_endX - _startX) * t;
-          _renderedX = x;
+          final t = Curves.easeOutCubic.transform(controller.value);
+          final x = startX.value + (endX.value - startX.value) * t;
+          renderedX.value = x;
           return Transform.translate(offset: Offset(x, 0), child: child);
         },
       ),

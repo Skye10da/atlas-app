@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
-import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
+import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 
 /// Builds a shimmer color scheme that stays legible across light and dark
 /// reading themes by deriving the bone shades from the theme's palette.
@@ -21,7 +23,7 @@ ShimmerEffect chapterShimmerEffect(ReadingColors colors) {
 
 /// A reading-page-shaped skeleton rendered as a shimmer while a chapter's
 /// content is being fetched, processed and prepared for display.
-class ChapterShimmer extends StatefulWidget {
+class ChapterShimmer extends HookWidget {
   const ChapterShimmer({
     super.key,
     required this.vt,
@@ -37,22 +39,6 @@ class ChapterShimmer extends StatefulWidget {
   final double lineHeight;
   final int bodyLines;
 
-  @override
-  State<ChapterShimmer> createState() => _ChapterShimmerState();
-}
-
-class _ChapterShimmerState extends State<ChapterShimmer> {
-  double _opacity = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    // Fade in smoothly after the first frame to avoid a jarring pop-in.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _opacity = 1);
-    });
-  }
-
   EdgeInsetsGeometry get _padding => const EdgeInsets.symmetric(
     horizontal: AppSpacing.lg,
     vertical: AppSpacing.md,
@@ -60,81 +46,148 @@ class _ChapterShimmerState extends State<ChapterShimmer> {
 
   @override
   Widget build(BuildContext context) {
+    final opacity = useState(0.0);
+
+    useEffect(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        opacity.value = 1.0;
+      });
+      return null;
+    }, const []);
+
+    final colors = vt.resolve(Theme.of(context).colorScheme);
+    final shimmer = chapterShimmerEffect(colors);
+
+    final skeletonTheme = SkeletonizerConfigData(
+      effect: shimmer,
+      containersColor: colors.background,
+    );
+
     return AnimatedOpacity(
-      duration: const Duration(milliseconds: 300),
-      opacity: _opacity,
-      child: Container(
-        color: widget.vt.resolve(Theme.of(context).colorScheme).background,
-        child: Padding(
-          padding: _padding,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth
-                  .clamp(0, double.infinity)
-                  .toDouble();
-              final bodyWidth = (width - AppSpacing.lg * 2).toDouble();
-              final tileHeight = widget.fontSize * widget.lineHeight;
-              return SingleChildScrollView(
-                physics: const NeverScrollableScrollPhysics(),
-                child: Skeletonizer(
-                  enabled: true,
-                  effect: chapterShimmerEffect(
-                    widget.vt.resolve(Theme.of(context).colorScheme),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (widget.showHeaders) ...[
-                        Bone.text(
-                          width: bodyWidth * 0.65,
-                          fontSize: widget.fontSize * 0.8,
-                          style: TextStyle(height: widget.lineHeight),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        Row(
-                          children: [
-                            const Bone(width: 84, height: 3, uniRadius: 2),
-                            const SizedBox(width: AppSpacing.md),
-                            Bone(
-                              width: bodyWidth - 84 - AppSpacing.md,
-                              height: 3,
-                              uniRadius: 2,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.xl),
-                        Bone.text(
-                          width: bodyWidth * 0.5,
-                          fontSize: widget.fontSize * 0.75,
-                          style: TextStyle(height: widget.lineHeight),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                      ],
-                      for (var i = 0; i < widget.bodyLines; i++) ...[
-                        Bone.multiText(
-                          width: width,
-                          lines: (i.isEven ? 1 : 0) + 1,
-                          fontSize: widget.fontSize,
-                          style: TextStyle(height: widget.lineHeight),
-                          textAlign: TextAlign.start,
-                        ),
-                        SizedBox(height: tileHeight * (i % 3 == 2 ? 1.4 : 0.8)),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            },
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      opacity: opacity.value,
+      child: SkeletonizerConfig(
+        data: skeletonTheme,
+        child: Skeletonizer(
+          enabled: true,
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            padding: _padding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (showHeaders) ...[
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildHeader(colors),
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
+                _buildBody(colors),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _buildHeader(ReadingColors colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Bone(
+          width: 120,
+          height: 14,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Bone(
+          width: double.infinity,
+          height: 28,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Bone(
+          width: 220,
+          height: 28,
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBody(ReadingColors colors) {
+    // Generate varying line widths to look like real paragraphs with breaks.
+    final lineWidths = <double>[
+      1.0, 0.95, 0.98, 0.75, // Paragraph 1 end
+      1.0, 0.92, 0.97, 0.88, 0.60, // Paragraph 2 end
+      1.0, 0.96, 0.82, // Paragraph 3 end
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < bodyLines; i++) ...[
+          Bone(
+            width: double.infinity,
+            height: fontSize * 0.75,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          if (lineWidths[i % lineWidths.length] < 0.8)
+            SizedBox(height: fontSize * lineHeight)
+          else
+            SizedBox(height: fontSize * (lineHeight - 0.75)),
+        ],
+      ],
+    );
+  }
 }
 
-/// A bottom overlay that shows a chapter title, animated progress bar,
-/// and bouncing dots while the chapter content loads. Replaces the old
-/// text-based phase pill with a more informative and visually engaging design.
+/// A shimmer variant that overlays the current backend load phase label
+/// (e.g. "Getting text", "Processing text", "Preparing reader") over the
+/// skeleton so the user sees live progress instead of an indefinite loader.
+class ChapterStatusShimmer extends ConsumerWidget {
+  const ChapterStatusShimmer({
+    super.key,
+    required this.chapter,
+    required this.vt,
+    this.fontSize = 20,
+    this.lineHeight = 1.8,
+  });
+
+  final ChapterEntity chapter;
+  final ReadingViewTheme vt;
+  final double fontSize;
+  final double lineHeight;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final phase = ref.watch(chapterLoadPhaseProvider(chapter));
+    final colors = vt.resolve(Theme.of(context).colorScheme);
+
+    return Stack(
+      children: [
+        ChapterShimmer(
+          vt: vt,
+          fontSize: fontSize,
+          lineHeight: lineHeight,
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: AppSpacing.xxl,
+          child: Center(
+            child: _StatusPill(
+              phase: phase,
+              colors: colors,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class ReaderLoadingOverlay extends ConsumerWidget {
   const ReaderLoadingOverlay({
     super.key,
@@ -150,165 +203,145 @@ class ReaderLoadingOverlay extends ConsumerWidget {
     final phase = ref.watch(chapterLoadPhaseProvider(chapter));
     final colors = vt.resolve(Theme.of(context).colorScheme);
 
-    // Progress value: 0.0 → 0.25 → 0.5 → 0.75 → 1.0
-    final progress = (phase.index + 1) / ChapterLoadPhase.values.length;
-
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16, left: 24, right: 24),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: colors.surface.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Chapter title
-            Text(
-              chapter.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: colors.text.withValues(alpha: 0.6),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Progress bar
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return Container(
-                  height: 3,
-                  width: constraints.maxWidth,
-                  decoration: BoxDecoration(
-                    color: colors.text.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 400),
-                      curve: Curves.easeInOut,
-                      height: 3,
-                      width: constraints.maxWidth * progress,
-                      decoration: BoxDecoration(
-                        color: colors.accent,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 6),
-            // Bouncing dots + step label
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _BouncingDots(color: colors.text.withValues(alpha: 0.5)),
-                const SizedBox(width: 8),
-                Text(
-                  '${phase.index + 1}/${ChapterLoadPhase.values.length}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: colors.text.withValues(alpha: 0.5),
-                  ),
-                ),
-              ],
-            ),
-          ],
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: AppSpacing.xxl,
+      child: Center(
+        child: _StatusPill(
+          phase: phase,
+          colors: colors,
         ),
       ),
     );
   }
 }
 
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    required this.phase,
+    required this.colors,
+  });
+
+  final ChapterLoadPhase phase;
+  final ReadingColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = colors.surface.withValues(alpha: 0.92);
+    final fg = colors.text.withValues(alpha: 0.7);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs + 2,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+        border: Border.all(
+          color: colors.surface,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.text.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _BouncingDots(color: colors.accent),
+          const SizedBox(width: AppSpacing.sm),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.2),
+                  end: Offset.zero,
+                ).animate(anim),
+                child: child,
+              ),
+            ),
+            child: Text(
+              phase.label,
+              key: ValueKey(phase),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: fg,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Three small dots that bounce in sequence to indicate ongoing work.
-class _BouncingDots extends StatefulWidget {
+class _BouncingDots extends HookWidget {
   const _BouncingDots({required this.color});
 
   final Color color;
 
   @override
-  State<_BouncingDots> createState() => _BouncingDotsState();
-}
-
-class _BouncingDotsState extends State<_BouncingDots>
-    with TickerProviderStateMixin {
-  late final List<AnimationController> _controllers;
-  late final List<Animation<double>> _animations;
-
-  @override
-  void initState() {
-    super.initState();
-    _controllers = List.generate(3, (i) {
-      return AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 600),
-      );
-    });
-    _animations = _controllers.map((c) {
-      return Tween<double>(
-        begin: 0,
-        end: -4,
-      ).animate(CurvedAnimation(parent: c, curve: Curves.easeInOut));
-    }).toList();
-
-    _startAnimations();
-  }
-
-  void _startAnimations() async {
-    while (mounted) {
-      for (var i = 0; i < _controllers.length; i++) {
-        if (!mounted) return;
-        await _controllers[i].forward();
-        if (!mounted) return;
-        await _controllers[i].reverse();
-      }
-      if (!mounted) return;
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    }
-  }
-
-  @override
-  void dispose() {
-    for (final c in _controllers) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = useAnimationController(
+      duration: const Duration(milliseconds: 1200),
+    );
+
+    useEffect(() {
+      controller.repeat();
+      return null;
+    }, const []);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(3, (i) {
+        final start = i * 0.2;
+        final end = (start + 0.4).clamp(0.0, 1.0);
+        final anim = TweenSequence<double>([
+          TweenSequenceItem(
+            tween: Tween<double>(begin: 0, end: -4)
+                .chain(CurveTween(curve: Curves.easeOut)),
+            weight: 50,
+          ),
+          TweenSequenceItem(
+            tween: Tween<double>(begin: -4, end: 0)
+                .chain(CurveTween(curve: Curves.easeIn)),
+            weight: 50,
+          ),
+        ]).animate(
+          CurvedAnimation(
+            parent: controller,
+            curve: Interval(start, end, curve: Curves.linear),
+          ),
+        );
+
         return AnimatedBuilder(
-          animation: _animations[i],
+          animation: anim,
           builder: (context, child) {
             return Transform.translate(
-              offset: Offset(0, _animations[i].value),
+              offset: Offset(0, anim.value),
               child: child,
             );
           },
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 2),
+            margin: EdgeInsets.only(right: i < 2 ? 3 : 0),
             width: 4,
             height: 4,
             decoration: BoxDecoration(
+              color: color,
               shape: BoxShape.circle,
-              color: widget.color,
             ),
           ),
         );

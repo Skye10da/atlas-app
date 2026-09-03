@@ -12,6 +12,7 @@ import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_permissions.dart';
 import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
+import 'package:atlas_app/core/content_engine/templates/template_models.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 
 /// The load-bearing seam between the plugin engine and the existing
@@ -181,6 +182,14 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
           )
           .toList(),
     );
+  }
+
+  /// Fetches trending/popular books from this plugin source.
+  Future<List<TrendingResult>> getTrending() async {
+    if (!manifest.capabilities.contains(PluginCapability.trending)) {
+      return const [];
+    }
+    return template.trending(_context);
   }
 
   void _ensureCapability(PluginCapability capability) {

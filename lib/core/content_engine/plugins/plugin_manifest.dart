@@ -3,7 +3,7 @@ import 'package:atlas_app/core/content_engine/plugins/verification.dart';
 /// A capability a plugin can declare. Manifests declare what they support;
 /// templates declare what they implement; `PluginSource` bridges the two and
 /// fails fast when a declared capability isn't available.
-enum PluginCapability { search, chapterList, chapterContent, cover }
+enum PluginCapability { search, chapterList, chapterContent, cover, trending }
 
 PluginCapability? _capabilityFromName(String name) {
   for (final capability in PluginCapability.values) {

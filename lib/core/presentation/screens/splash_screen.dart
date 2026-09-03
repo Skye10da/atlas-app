@@ -1,117 +1,101 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends HookWidget {
   const SplashScreen({super.key});
 
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
-  late final AnimationController _inkController;
-  late final AnimationController _lettersController;
-  late final AnimationController _subtitleController;
-  late final AnimationController _pulseController;
-
-  late final Animation<double> _inkRadiusAnimation;
-  late final Animation<double> _subtitleFadeAnimation;
-  late final Animation<double> _subtitleSlideAnimation;
-
-  final List<String> _letters = ['A', 't', 'l', 'a', 's'];
-  final List<Animation<double>> _letterFadeAnimations = [];
-  final List<Animation<double>> _letterSlideAnimations = [];
-
-  bool _navigated = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // 1. Ink bloom controller (0 -> 400ms)
-    _inkController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 450),
-    );
-    _inkRadiusAnimation = CurvedAnimation(
-      parent: _inkController,
-      curve: Curves.easeOutCubic,
-    );
-
-    // 2. Letters controller (staggered cascade 300ms -> 900ms)
-    _lettersController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-
-    for (var i = 0; i < _letters.length; i++) {
-      final start = (i * 0.12).clamp(0.0, 0.6);
-      final end = (start + 0.4).clamp(0.0, 1.0);
-      final curve = CurvedAnimation(
-        parent: _lettersController,
-        curve: Interval(start, end, curve: Curves.easeOutBack),
-      );
-      _letterFadeAnimations.add(
-        CurvedAnimation(
-          parent: _lettersController,
-          curve: Interval(start, end, curve: Curves.easeIn),
-        ),
-      );
-      _letterSlideAnimations.add(
-        Tween<double>(begin: 24.0, end: 0.0).animate(curve),
-      );
-    }
-
-    // 3. Subtitle controller
-    _subtitleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _subtitleFadeAnimation = CurvedAnimation(
-      parent: _subtitleController,
-      curve: Curves.easeIn,
-    );
-    _subtitleSlideAnimation = Tween<double>(begin: 12.0, end: 0.0).animate(
-      CurvedAnimation(parent: _subtitleController, curve: Curves.easeOut),
-    );
-
-    // 4. Subtle pulse controller
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-
-    _runAnimationSequence();
-  }
-
-  Future<void> _runAnimationSequence() async {
-    await _inkController.forward();
-    await _lettersController.forward();
-    await _subtitleController.forward();
-
-    // Brief delay to let the reader take in the serene aesthetic
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (mounted && !_navigated) {
-      _navigated = true;
-      context.go('/discover');
-    }
-  }
-
-  @override
-  void dispose() {
-    _inkController.dispose();
-    _lettersController.dispose();
-    _subtitleController.dispose();
-    _pulseController.dispose();
-    super.dispose();
-  }
+  static const List<String> _letters = ['A', 't', 'l', 'a', 's'];
 
   @override
   Widget build(BuildContext context) {
+    // 1. Ink bloom controller (0 -> 400ms)
+    final inkController = useAnimationController(
+      duration: const Duration(milliseconds: 450),
+    );
+    final inkRadiusAnimation = useMemoized(
+      () => CurvedAnimation(
+        parent: inkController,
+        curve: Curves.easeOutCubic,
+      ),
+      [inkController],
+    );
+
+    // 2. Letters controller (staggered cascade 300ms -> 900ms)
+    final lettersController = useAnimationController(
+      duration: const Duration(milliseconds: 600),
+    );
+
+    final letterAnimations = useMemoized(() {
+      final fades = <Animation<double>>[];
+      final slides = <Animation<double>>[];
+      for (var i = 0; i < _letters.length; i++) {
+        final start = (i * 0.12).clamp(0.0, 0.6);
+        final end = (start + 0.4).clamp(0.0, 1.0);
+        final curve = CurvedAnimation(
+          parent: lettersController,
+          curve: Interval(start, end, curve: Curves.easeOutBack),
+        );
+        fades.add(
+          CurvedAnimation(
+            parent: lettersController,
+            curve: Interval(start, end, curve: Curves.easeIn),
+          ),
+        );
+        slides.add(
+          Tween<double>(begin: 24.0, end: 0.0).animate(curve),
+        );
+      }
+      return (fades: fades, slides: slides);
+    }, [lettersController]);
+
+    // 3. Subtitle controller
+    final subtitleController = useAnimationController(
+      duration: const Duration(milliseconds: 400),
+    );
+    final subtitleFadeAnimation = useMemoized(
+      () => CurvedAnimation(
+        parent: subtitleController,
+        curve: Curves.easeIn,
+      ),
+      [subtitleController],
+    );
+    final subtitleSlideAnimation = useMemoized(
+      () => Tween<double>(begin: 12.0, end: 0.0).animate(
+        CurvedAnimation(parent: subtitleController, curve: Curves.easeOut),
+      ),
+      [subtitleController],
+    );
+
+    // 4. Subtle pulse controller
+    final pulseController = useAnimationController(
+      duration: const Duration(milliseconds: 900),
+    );
+
+    final navigated = useRef(false);
+
+    useEffect(() {
+      pulseController.repeat(reverse: true);
+
+      Future<void> runSequence() async {
+        await inkController.forward();
+        await lettersController.forward();
+        await subtitleController.forward();
+
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        if (context.mounted && !navigated.value) {
+          navigated.value = true;
+          context.go('/discover');
+        }
+      }
+
+      runSequence();
+      return null;
+    }, const []);
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -122,11 +106,11 @@ class _SplashScreenState extends State<SplashScreen>
         children: [
           // Animated Ink Bloom Background
           AnimatedBuilder(
-            animation: _inkRadiusAnimation,
-            builder: (context, child) {
+            animation: inkRadiusAnimation,
+            builder: (ctx, child) {
               return CustomPaint(
                 painter: _InkBloomPainter(
-                  progress: _inkRadiusAnimation.value,
+                  progress: inkRadiusAnimation.value,
                   color: colorScheme.primary.withValues(alpha: 0.12),
                   accentColor: colorScheme.secondary.withValues(alpha: 0.06),
                 ),
@@ -141,7 +125,7 @@ class _SplashScreenState extends State<SplashScreen>
               children: [
                 // Atlas Compass Emblem (◈)
                 ScaleTransition(
-                  scale: _inkRadiusAnimation,
+                  scale: inkRadiusAnimation,
                   child: Container(
                     width: 100,
                     height: 100,
@@ -159,7 +143,6 @@ class _SplashScreenState extends State<SplashScreen>
                       'assets/icon.png',
                       width: 60,
                       height: 60,
-                      // color: colorScheme.onPrimaryContainer,
                     ),
                   ),
                 ),
@@ -167,18 +150,18 @@ class _SplashScreenState extends State<SplashScreen>
 
                 // Animated Wordmark letters
                 AnimatedBuilder(
-                  animation: _lettersController,
-                  builder: (context, child) {
+                  animation: lettersController,
+                  builder: (ctx, child) {
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: List.generate(_letters.length, (index) {
                         return Transform.translate(
                           offset: Offset(
                             0,
-                            _letterSlideAnimations[index].value,
+                            letterAnimations.slides[index].value,
                           ),
                           child: Opacity(
-                            opacity: _letterFadeAnimations[index].value.clamp(
+                            opacity: letterAnimations.fades[index].value.clamp(
                               0.0,
                               1.0,
                             ),
@@ -201,12 +184,12 @@ class _SplashScreenState extends State<SplashScreen>
 
                 // Subtitle
                 AnimatedBuilder(
-                  animation: _subtitleController,
-                  builder: (context, child) {
+                  animation: subtitleController,
+                  builder: (ctx, child) {
                     return Transform.translate(
-                      offset: Offset(0, _subtitleSlideAnimation.value),
+                      offset: Offset(0, subtitleSlideAnimation.value),
                       child: Opacity(
-                        opacity: _subtitleFadeAnimation.value.clamp(0.0, 1.0),
+                        opacity: subtitleFadeAnimation.value.clamp(0.0, 1.0),
                         child: Text(
                           'Your sanctuary for stories',
                           style: theme.textTheme.bodyMedium?.copyWith(
@@ -228,13 +211,13 @@ class _SplashScreenState extends State<SplashScreen>
             right: 0,
             bottom: AppSpacing.xxl,
             child: FadeTransition(
-              opacity: _subtitleFadeAnimation,
+              opacity: subtitleFadeAnimation,
               child: Center(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     FadeTransition(
-                      opacity: _pulseController,
+                      opacity: pulseController,
                       child: Container(
                         width: 6,
                         height: 6,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/browser/infrastructure/engines/inapp_webview_engine.dart';
@@ -12,7 +13,7 @@ import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 /// Replaces the multi-tab browser with a clean, focused browsing experience
 /// featuring a floating glass top bar with Back and Close (×) buttons and
 /// a slide-up novel detection pill.
-class SourceImmersiveScreen extends ConsumerStatefulWidget {
+class SourceImmersiveScreen extends HookConsumerWidget {
   const SourceImmersiveScreen({
     super.key,
     required this.initialUrl,
@@ -23,60 +24,49 @@ class SourceImmersiveScreen extends ConsumerStatefulWidget {
   final String? sourceTitle;
 
   @override
-  ConsumerState<SourceImmersiveScreen> createState() =>
-      _SourceImmersiveScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final engine = useMemoized<BrowserWebEngine>(
+      () => InappWebviewEngine(initialUrl: initialUrl),
+      [initialUrl],
+    );
 
-class _SourceImmersiveScreenState extends ConsumerState<SourceImmersiveScreen> {
-  late final BrowserWebEngine _engine;
-  String? _novelUrl;
-  String? _currentDisplayUrl;
+    final novelUrl = useState<String?>(null);
+    final currentDisplayUrl = useState<String?>(initialUrl);
 
-  @override
-  void initState() {
-    super.initState();
-    _engine = InappWebviewEngine(initialUrl: widget.initialUrl);
-    _currentDisplayUrl = widget.initialUrl;
-    _engine.currentUrl.addListener(_onUrlChanged);
-  }
-
-  void _onUrlChanged() {
-    final url = _engine.currentUrl.value;
-    if (url != null && url.isNotEmpty && mounted) {
-      setState(() {
-        _currentDisplayUrl = url;
-      });
-      _checkForNovel(url);
+    void checkForNovel(String url) {
+      final uri = Uri.tryParse(url);
+      if (uri == null) {
+        if (context.mounted) novelUrl.value = null;
+        return;
+      }
+      final adapter = ref.read(sourceRegistryProvider).resolve(uri);
+      final isNovel =
+          adapter != null && adapter.contentCategory == ContentCategory.novel;
+      if (context.mounted) novelUrl.value = isNovel ? url : null;
     }
-  }
 
-  void _checkForNovel(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null) {
-      if (mounted) setState(() => _novelUrl = null);
-      return;
+    void onUrlChanged() {
+      final url = engine.currentUrl.value;
+      if (url != null && url.isNotEmpty && context.mounted) {
+        currentDisplayUrl.value = url;
+        checkForNovel(url);
+      }
     }
-    final adapter = ref.read(sourceRegistryProvider).resolve(uri);
-    final isNovel =
-        adapter != null && adapter.contentCategory == ContentCategory.novel;
-    if (mounted) setState(() => _novelUrl = isNovel ? url : null);
-  }
 
-  @override
-  void dispose() {
-    _engine.currentUrl.removeListener(_onUrlChanged);
-    _engine.dispose();
-    super.dispose();
-  }
+    useEffect(() {
+      engine.currentUrl.addListener(onUrlChanged);
+      return () {
+        engine.currentUrl.removeListener(onUrlChanged);
+        engine.dispose();
+      };
+    }, [engine]);
 
-  @override
-  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final host = _currentDisplayUrl != null
-        ? Uri.tryParse(_currentDisplayUrl!)?.host ?? _currentDisplayUrl!
-        : (widget.sourceTitle ?? 'Source');
+    final host = currentDisplayUrl.value != null
+        ? Uri.tryParse(currentDisplayUrl.value!)?.host ?? currentDisplayUrl.value!
+        : (sourceTitle ?? 'Source');
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -108,14 +98,14 @@ class _SourceImmersiveScreenState extends ConsumerState<SourceImmersiveScreen> {
                     children: [
                       // Back in webview
                       ValueListenableBuilder<bool>(
-                        valueListenable: _engine.canGoBack,
-                        builder: (context, canBack, _) {
+                        valueListenable: engine.canGoBack,
+                        builder: (ctx, canBack, _) {
                           return IconButton(
                             icon: const Icon(
                               Icons.arrow_back_ios_new_rounded,
                               size: 18,
                             ),
-                            onPressed: canBack ? () => _engine.goBack() : null,
+                            onPressed: canBack ? () => engine.goBack() : null,
                             tooltip: 'Go back',
                             visualDensity: VisualDensity.compact,
                           );
@@ -151,8 +141,8 @@ class _SourceImmersiveScreenState extends ConsumerState<SourceImmersiveScreen> {
 
                 // Web Page Progress Indicator
                 ValueListenableBuilder<double>(
-                  valueListenable: _engine.progress,
-                  builder: (context, p, _) {
+                  valueListenable: engine.progress,
+                  builder: (ctx, p, _) {
                     if (p <= 0.0 || p >= 1.0) return const SizedBox.shrink();
                     return LinearProgressIndicator(
                       value: p,
@@ -164,12 +154,12 @@ class _SourceImmersiveScreenState extends ConsumerState<SourceImmersiveScreen> {
                 ),
 
                 // Web Platform View
-                Expanded(child: _engine.buildView()),
+                Expanded(child: engine.buildView()),
               ],
             ),
 
             // Novel Detection Bottom Action Pill
-            if (_novelUrl != null)
+            if (novelUrl.value != null)
               Positioned(
                 left: AppSpacing.md,
                 right: AppSpacing.md,
@@ -185,7 +175,7 @@ class _SourceImmersiveScreenState extends ConsumerState<SourceImmersiveScreen> {
                       AppSpacing.borderRadiusLg,
                     ),
                     onTap: () {
-                      final url = _novelUrl;
+                      final url = novelUrl.value;
                       if (url != null) {
                         showImportUrlSheet(context, initialUrl: url);
                       }
@@ -227,7 +217,7 @@ class _SourceImmersiveScreenState extends ConsumerState<SourceImmersiveScreen> {
                           ),
                           FilledButton.tonal(
                             onPressed: () {
-                              final url = _novelUrl;
+                              final url = novelUrl.value;
                               if (url != null) {
                                 showImportUrlSheet(context, initialUrl: url);
                               }
@@ -246,4 +236,3 @@ class _SourceImmersiveScreenState extends ConsumerState<SourceImmersiveScreen> {
     );
   }
 }
-

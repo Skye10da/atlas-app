@@ -12,36 +12,34 @@ import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
 /// offers add / edit / remove. Editing a term reopens the same bottom sheet the
 /// reader's selection menu uses; every change invalidates the glossary provider
 /// so the open chapter re-renders immediately.
-class GlossaryTab extends ConsumerStatefulWidget {
+class GlossaryTab extends ConsumerWidget {
   const GlossaryTab({super.key, required this.bookId});
 
   final String bookId;
 
-  @override
-  ConsumerState<GlossaryTab> createState() => _GlossaryTabState();
-}
-
-class _GlossaryTabState extends ConsumerState<GlossaryTab> {
-  Future<void> _addTerm() async {
+  Future<void> _addTerm(BuildContext context, WidgetRef ref) async {
     final term = await _promptForText(
+      context: context,
       title: 'Add term',
       label: 'Term',
       hint: 'Original text (e.g. 中)',
     );
-    if (term == null || !mounted) return;
+    if (term == null || !context.mounted) return;
     final replacement = await _promptForText(
+      context: context,
       title: 'Display "$term" as…',
       label: 'Replacement',
       hint: 'e.g. middle',
     );
-    if (replacement == null || !mounted) return;
+    if (replacement == null || !context.mounted) return;
     await ref
         .read(atlasGlossaryControllerProvider)
-        .upsertTerm(widget.bookId, term, replacement);
-    ref.invalidate(atlasGlossaryProvider(widget.bookId));
+        .upsertTerm(bookId, term, replacement);
+    ref.invalidate(atlasGlossaryProvider(bookId));
   }
 
   Future<String?> _promptForText({
+    required BuildContext context,
     required String title,
     required String label,
     required String hint,
@@ -49,21 +47,21 @@ class _GlossaryTabState extends ConsumerState<GlossaryTab> {
     final controller = TextEditingController();
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: Text(title),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(labelText: label, hintText: hint),
-          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+          onSubmitted: (value) => Navigator.of(ctx).pop(value.trim()),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
             child: const Text('Save'),
           ),
         ],
@@ -71,21 +69,21 @@ class _GlossaryTabState extends ConsumerState<GlossaryTab> {
     );
   }
 
-  Future<void> _editTerm(AtlasGlossaryEntry entry) async {
+  Future<void> _editTerm(BuildContext context, AtlasGlossaryEntry entry) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (_) =>
-          GlossaryTermSheet(bookId: widget.bookId, term: entry.term),
+          GlossaryTermSheet(bookId: bookId, term: entry.term),
     );
   }
 
-  Future<void> _removeTerm(AtlasGlossaryEntry entry) async {
+  Future<void> _removeTerm(BuildContext context, WidgetRef ref, AtlasGlossaryEntry entry) async {
     await ref
         .read(atlasGlossaryControllerProvider)
-        .removeEntry(widget.bookId, entry.id);
-    if (!mounted) return;
-    ref.invalidate(atlasGlossaryProvider(widget.bookId));
+        .removeEntry(bookId, entry.id);
+    if (!context.mounted) return;
+    ref.invalidate(atlasGlossaryProvider(bookId));
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(
@@ -99,11 +97,11 @@ class _GlossaryTabState extends ConsumerState<GlossaryTab> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    final entries = ref.watch(atlasGlossaryProvider(widget.bookId)).valueOrNull;
+    final entries = ref.watch(atlasGlossaryProvider(bookId)).valueOrNull;
     final list = entries ?? const <AtlasGlossaryEntry>[];
 
     return Column(
@@ -126,7 +124,7 @@ class _GlossaryTabState extends ConsumerState<GlossaryTab> {
                 ),
               ),
               FilledButton.tonalIcon(
-                onPressed: _addTerm,
+                onPressed: () => _addTerm(context, ref),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add term'),
               ),
@@ -148,8 +146,8 @@ class _GlossaryTabState extends ConsumerState<GlossaryTab> {
           for (final entry in list)
             _TermTile(
               entry: entry,
-              onTap: () => _editTerm(entry),
-              onDelete: () => _removeTerm(entry),
+              onTap: () => _editTerm(context, entry),
+              onDelete: () => _removeTerm(context, ref, entry),
             ),
       ],
     );

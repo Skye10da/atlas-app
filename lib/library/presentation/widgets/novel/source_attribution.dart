@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
+﻿import 'package:flutter/material.dart';
+import 'package:atlas_app/browser/presentation/screens/source_immersive_screen.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 
@@ -55,9 +54,16 @@ class SourceAttribution extends StatelessWidget {
                       size: 18,
                       color: colors.primary,
                     ),
-                    onPressed: () => context.go(
-                      '/web?url=${Uri.encodeQueryComponent(book.sourceUrl!)}',
-                    ),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => SourceImmersiveScreen(
+                            initialUrl: book.sourceUrl!,
+                            sourceTitle: book.sourceName ?? book.title,
+                          ),
+                        ),
+                      );
+                    },
                     tooltip: 'Open source',
                     visualDensity: VisualDensity.compact,
                   ),

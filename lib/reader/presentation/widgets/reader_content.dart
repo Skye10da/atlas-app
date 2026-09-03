@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart' hide WordBoundary;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
@@ -25,17 +26,18 @@ import 'package:atlas_app/reader/presentation/widgets/continuous_reader_layout.d
 import 'package:atlas_app/reader/presentation/widgets/note_editor_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/paged_reader_layout.dart';
 import 'package:atlas_app/reader/presentation/widgets/quote_share_card_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/real_flip_reader_layout.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_annotations_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/reader_settings_sheet.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
-import 'package:atlas_app/reader/speech/speech_events.dart';
-import 'package:atlas_app/reader/speech/speech_session_builder.dart';
-import 'package:atlas_app/reader/speech/speech_session.dart';
 import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
+import 'package:atlas_app/reader/speech/speech_events.dart';
+import 'package:atlas_app/reader/speech/speech_session.dart';
+import 'package:atlas_app/reader/speech/speech_session_builder.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
 
-class ReaderContent extends ConsumerStatefulWidget {
+class ReaderContent extends HookConsumerWidget {
   const ReaderContent({
     super.key,
     required this.repo,
@@ -47,654 +49,593 @@ class ReaderContent extends ConsumerStatefulWidget {
   final String bookId;
   final ReadingSettingsEntity settings;
 
-  @override
-  ConsumerState<ReaderContent> createState() => _ReaderContentState();
-}
-
-class _ReaderContentState extends ConsumerState<ReaderContent> {
-  ChapterEntity? _currentChapter;
-
-  /// Source of truth for which chapter is active — set directly by every
-  /// selection path (never re-derived via chapters.indexOf(_currentChapter),
-  /// which was doing an equality search that could resolve to the wrong
-  /// chapter whenever two ChapterEntitys compared equal, and fed that wrong
-  /// index into both the reader layouts' scroll/page position *and* their
-  /// app bar title — a single bad index explaining both symptoms at once).
-  int _currentChapterIndex = 0;
-  List<ChapterEntity> _chapters = [];
-  double _scrollProgress = 0.0;
-  String? _initialChapterId;
-  double? _initialScrollProgress;
-  int? _initialPosition;
-  bool _readQueryParam = false;
-  bool _loading = true;
-  String? _errorMessage;
-  Set<String> _bookmarkedChapterIds = {};
-  Timer? _saveDebounceTimer;
-  PlatformService? _platformService;
-
-  /// Last reported reading position (flat sentence index + total) for the
-  /// current chapter, used by [_saveProgress] instead of the old hardcoded
-  /// `0`. Reset on each chapter change so a stale chapter's index is never
-  /// persisted under another chapter.
-  int _currentSentenceIndex = 0;
-  int _currentSentenceTotal = 0;
-
-  String? _bookLanguage;
-  String? _bookTitle;
-  String? _bookAuthor;
-  String? _bookCoverPath;
-  int? _wtrRawId;
-  SpeechCheckpoint? _restoredCheckpoint;
-  StreamSubscription<SpeechEvent>? _speechSub;
-  final _sessionBuilder = const SpeechSessionBuilder();
+  static const _selectionSpeaker = SelectionSpeaker();
+  static const _sessionBuilder = SpeechSessionBuilder();
 
   @override
-  void initState() {
-    super.initState();
-    _speechSub = ref.read(speechEngineProvider).events.listen(_onSpeechEvent);
-    _loadChapters();
-  }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentChapter = useState<ChapterEntity?>(null);
+    final currentChapterIndex = useState<int>(0);
+    final chapters = useState<List<ChapterEntity>>([]);
+    final scrollProgress = useState<double>(0.0);
+    final initialChapterId = useRef<String?>(null);
+    final initialScrollProgress = useRef<double?>(null);
+    final initialPosition = useRef<int?>(null);
+    final readQueryParam = useRef<bool>(false);
+    final loading = useState<bool>(true);
+    final errorMessage = useState<String?>(null);
+    final bookmarkedChapterIds = useState<Set<String>>({});
+    final saveDebounceTimer = useRef<Timer?>(null);
+    final platformService = useRef<PlatformService?>(null);
 
-  void _onSpeechEvent(SpeechEvent event) {
-    switch (event) {
-      case ChapterFinished(:final chapterId):
-        _advanceFromNarration(chapterId);
-      case SentenceStarted(:final item):
-        ref.read(activeWordBoundaryProvider.notifier).state = null;
-        if (item.bookId == widget.bookId) {
-          ref.read(activeSpeechItemProvider.notifier).state = item;
-        }
-      case WordBoundary(:final item, :final start, :final end, :final word):
-        ref.read(activeWordBoundaryProvider.notifier).state = WordBoundary(
-          item,
-          start,
-          end,
-          word,
-        );
-      case SpeechStopped() || SpeechCompleted():
-        ref.read(activeSpeechItemProvider.notifier).state = null;
-        ref.read(activeWordBoundaryProvider.notifier).state = null;
-      default:
-        break;
-    }
-  }
+    final currentSentenceIndex = useState<int>(0);
+    final currentSentenceTotal = useState<int>(0);
 
-  void _advanceFromNarration(String finishedChapterId) {
-    if (!mounted) return;
-    final autoAdvance =
-        ref.read(narrationSettingsProvider).value?.autoAdvanceChapter ?? true;
-    if (!autoAdvance) return;
-    final idx = _chapters.indexWhere((c) => c.id == finishedChapterId);
-    if (idx < 0 || idx >= _chapters.length - 1) return;
-    final next = _chapters[idx + 1];
-    _resetPosition();
-    setState(() {
-      _currentChapter = next;
-      _currentChapterIndex = idx + 1;
-    });
-    _saveProgress(next);
-  }
+    final bookLanguage = useState<String?>(null);
+    final bookTitle = useState<String?>(null);
+    final bookAuthor = useState<String?>(null);
+    final bookCoverPath = useState<String?>(null);
+    final wtrRawId = useState<int?>(null);
+    final restoredCheckpoint = useState<SpeechCheckpoint?>(null);
+    final popInProgress = useRef<bool>(false);
 
-  /// (Re)builds and loads the SpeechSession for [chapter] once its content is
-  /// available, seeking to a restored checkpoint when applicable. Idempotent
-  /// per chapter.
-  Future<void> _syncSpeechSession(ChapterEntity chapter, String content) async {
-    final engine = ref.read(speechEngineProvider);
-    if (engine.session?.chapterId == chapter.id) return;
-
-    final settings =
-        ref.read(narrationSettingsProvider).value ?? const NarrationSettings();
-    final checkpoint = _restoredCheckpoint;
-    final restoreHere =
-        checkpoint != null &&
-        checkpoint.bookId == widget.bookId &&
-        checkpoint.chapterId == chapter.id;
-
-    final session = _sessionBuilder.build(
-      bookId: widget.bookId,
-      chapter: chapter,
-      content: content,
-      language: _bookLanguage ?? 'en',
-      settings: settings,
-      sentenceIndex: restoreHere ? checkpoint.sentenceIndex : 0,
-      coverPath: _bookCoverPath,
-      bookTitle: _bookTitle,
-      author: _bookAuthor,
-    );
-    await engine.loadSession(session);
-  }
-
-  @override
-  void didUpdateWidget(ReaderContent oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final os = oldWidget.settings;
-    final ns = widget.settings;
-    if (os.keepScreenAwake != ns.keepScreenAwake ||
-        os.brightness != ns.brightness ||
-        os.followSystemBrightness != ns.followSystemBrightness) {
-      _applySystemSettings();
-    }
-  }
-
-  void _applySystemSettings() {
-    final svc = ref.read(platformServiceProvider);
-    _platformService = svc;
-    final s = widget.settings;
-    svc.setKeepScreenOn(s.keepScreenAwake);
-    if (s.followSystemBrightness) {
-      svc.resetBrightness();
-    } else {
-      svc.setBrightness(s.brightness, smooth: true);
-    }
-    if (s.autoOptimizeBrightness) {
-      svc.optimizeForLowBattery();
-    }
-  }
-
-  Future<void> _loadChapters() async {
-    final result = await widget.repo.getChapters(widget.bookId);
-    if (!mounted) return;
-    if (result is Failure<List<ChapterEntity>>) {
-      setState(() {
-        _loading = false;
-        _errorMessage = result.error.userMessage;
-      });
-      return;
-    }
-    final loaded = (result as Success<List<ChapterEntity>>).value;
-    if (loaded.isEmpty) {
-      setState(() {
-        _loading = false;
-        _errorMessage = 'No chapters found.';
-      });
-      return;
+    void resetPosition() {
+      currentSentenceIndex.value = 0;
+      currentSentenceTotal.value = 0;
     }
 
-    final progressResult = await widget.repo.getReadingProgress(widget.bookId);
-    ReadingProgressSnapshot? progressSnap;
-    if (progressResult is Success<ReadingProgressSnapshot?>) {
-      progressSnap = progressResult.value;
-    }
-
-    final targetChapterId = _initialChapterId ?? progressSnap?.chapterId;
-    final initialIndex = targetChapterId != null
-        ? loaded.indexWhere((c) => c.id == targetChapterId)
-        : -1;
-    final resolvedIndex = initialIndex >= 0 ? initialIndex : 0;
-
-    _chapters = loaded;
-    _currentChapterIndex = resolvedIndex;
-    _currentChapter = loaded[resolvedIndex];
-    _initialPosition = progressSnap?.position;
-    _currentSentenceIndex = progressSnap?.position ?? 0;
-    _initialChapterId = null;
-
-    await Future.wait([
-      _loadBookmarks(),
-      _loadNarrationContext(),
-    ]);
-
-    if (!mounted) return;
-    setState(() {
-      _loading = false;
-    });
-  }
-
-  Future<void> _loadNarrationContext() async {
-    if (!mounted) return;
-    final bookResult = await widget.repo.getBookById(widget.bookId);
-    if (!mounted) return;
-    if (bookResult is Success<BookEntity>) {
-      final book = bookResult.value;
-      _bookLanguage = book.language;
-      _bookTitle = book.title;
-      _bookAuthor = book.author;
-      _bookCoverPath = book.coverPath;
-      _wtrRawId =
-          isWtrLabSource(sourceUrl: book.sourceUrl, sourceName: book.sourceName)
-          ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl)
-          : null;
-    }
-    final checkpoint = await ref
-        .read(speechRecoveryStoreProvider)
-        .load(widget.bookId);
-    if (!mounted) return;
-    setState(() {
-      _restoredCheckpoint =
-          checkpoint != null &&
-              _chapters.any((c) => c.id == checkpoint.chapterId)
-          ? checkpoint
-          : null;
-    });
-  }
-
-  Future<void> _loadBookmarks() async {
-    final result = await widget.repo.getBookmarks(widget.bookId);
-    if (!mounted) return;
-    if (result is Success<List<BookmarkEntity>>) {
-      setState(() {
-        _bookmarkedChapterIds = result.value.map((b) => b.chapterId).toSet();
-      });
-    }
-  }
-
-  Future<void> _toggleBookmark() async {
-    final chapter = _currentChapter;
-    if (chapter == null) return;
-    if (_bookmarkedChapterIds.contains(chapter.id)) {
-      final result = await widget.repo.getBookmarks(widget.bookId);
-      if (result is Success<List<BookmarkEntity>>) {
-        final existing = result.value
-            .where((b) => b.chapterId == chapter.id)
-            .toList();
-        for (final b in existing) {
-          await widget.repo.removeBookmark(b.id);
-        }
-      }
-    } else {
-      final now = DateTime.now();
-      await widget.repo.addBookmark(
-        BookmarkEntity(
-          id: '${widget.bookId}_${chapter.id}_${now.millisecondsSinceEpoch}',
-          bookId: widget.bookId,
-          chapterId: chapter.id,
-          position: 0,
-          createdAt: now,
-          updatedAt: now,
-        ),
+    Future<void> saveProgress(ChapterEntity chapter) async {
+      await repo.saveProgress(
+        userId: 'local',
+        bookId: bookId,
+        chapterId: chapter.id,
+        percentage: scrollProgress.value * 100,
+        position: currentSentenceIndex.value,
+        totalPositions: currentSentenceTotal.value,
       );
     }
-    ref.invalidate(bookmarksProvider(widget.bookId));
-    setState(() {
-      if (_bookmarkedChapterIds.contains(chapter.id)) {
-        _bookmarkedChapterIds.remove(chapter.id);
-      } else {
-        _bookmarkedChapterIds.add(chapter.id);
+
+    void advanceFromNarration(String finishedChapterId) {
+      if (!context.mounted) return;
+      final autoAdvance =
+          ref.read(narrationSettingsProvider).value?.autoAdvanceChapter ?? true;
+      if (!autoAdvance) return;
+      final idx = chapters.value.indexWhere((c) => c.id == finishedChapterId);
+      if (idx < 0 || idx >= chapters.value.length - 1) return;
+      final next = chapters.value[idx + 1];
+      resetPosition();
+      currentChapter.value = next;
+      currentChapterIndex.value = idx + 1;
+      saveProgress(next);
+    }
+
+    void onSpeechEvent(SpeechEvent event) {
+      switch (event) {
+        case ChapterFinished(:final chapterId):
+          advanceFromNarration(chapterId);
+        case SentenceStarted(:final item):
+          ref.read(activeWordBoundaryProvider.notifier).state = null;
+          if (item.bookId == bookId) {
+            ref.read(activeSpeechItemProvider.notifier).state = item;
+          }
+        case WordBoundary(:final item, :final start, :final end, :final word):
+          ref.read(activeWordBoundaryProvider.notifier).state = WordBoundary(
+            item,
+            start,
+            end,
+            word,
+          );
+        case SpeechStopped() || SpeechCompleted():
+          ref.read(activeSpeechItemProvider.notifier).state = null;
+          ref.read(activeWordBoundaryProvider.notifier).state = null;
+        default:
+          break;
       }
-    });
-  }
+    }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_readQueryParam) {
-      final params = GoRouterState.of(context).uri.queryParameters;
-      _initialChapterId = params['chapterId'];
-      final progressParam = params['progress'];
-      _initialScrollProgress = progressParam != null
-          ? double.tryParse(progressParam)
+    Future<void> syncSpeechSession(ChapterEntity chapter, String content) async {
+      final engine = ref.read(speechEngineProvider);
+      if (engine.session?.chapterId == chapter.id) return;
+
+      final narrationSettings =
+          ref.read(narrationSettingsProvider).value ?? const NarrationSettings();
+      final checkpoint = restoredCheckpoint.value;
+      final restoreHere =
+          checkpoint != null &&
+          checkpoint.bookId == bookId &&
+          checkpoint.chapterId == chapter.id;
+
+      final session = _sessionBuilder.build(
+        bookId: bookId,
+        chapter: chapter,
+        content: content,
+        language: bookLanguage.value ?? 'en',
+        settings: narrationSettings,
+        sentenceIndex: restoreHere ? checkpoint.sentenceIndex : 0,
+        coverPath: bookCoverPath.value,
+        bookTitle: bookTitle.value,
+        author: bookAuthor.value,
+      );
+      await engine.loadSession(session);
+    }
+
+    void applySystemSettings() {
+      final svc = ref.read(platformServiceProvider);
+      platformService.value = svc;
+      final s = settings;
+      svc.setKeepScreenOn(s.keepScreenAwake);
+      if (s.followSystemBrightness) {
+        svc.resetBrightness();
+      } else {
+        svc.setBrightness(s.brightness, smooth: true);
+      }
+      if (s.autoOptimizeBrightness) {
+        svc.optimizeForLowBattery();
+      }
+    }
+
+    Future<void> loadNarrationContext(List<ChapterEntity> chList) async {
+      if (!context.mounted) return;
+      final bookResult = await repo.getBookById(bookId);
+      if (!context.mounted) return;
+      if (bookResult is Success<BookEntity>) {
+        final book = bookResult.value;
+        bookLanguage.value = book.language;
+        bookTitle.value = book.title;
+        bookAuthor.value = book.author;
+        bookCoverPath.value = book.coverPath;
+        wtrRawId.value =
+            isWtrLabSource(sourceUrl: book.sourceUrl, sourceName: book.sourceName)
+            ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl)
+            : null;
+      }
+      final checkpoint = await ref
+          .read(speechRecoveryStoreProvider)
+          .load(bookId);
+      if (!context.mounted) return;
+      restoredCheckpoint.value =
+          checkpoint != null &&
+              chList.any((c) => c.id == checkpoint.chapterId)
+          ? checkpoint
           : null;
-      _readQueryParam = true;
     }
-    _applySystemSettings();
-  }
 
-  @override
-  void dispose() {
-    _speechSub?.cancel();
-    _saveDebounceTimer?.cancel();
-    // Best-effort fallback only (e.g. the widget is torn down by something
-    // other than the user popping the reader route, such as a hot restart).
-    // dispose() cannot be awaited by our caller, so this write can still
-    // lose the race against a screen that refreshes as soon as the route
-    // pops. The PopScope in build() is what guarantees the save actually
-    // lands before a normal back-navigation completes — see _handlePop.
-    if (_currentChapter != null) {
-      _saveProgress(_currentChapter!);
+    Future<void> loadBookmarks() async {
+      final result = await repo.getBookmarks(bookId);
+      if (!context.mounted) return;
+      if (result is Success<List<BookmarkEntity>>) {
+        bookmarkedChapterIds.value = result.value.map((b) => b.chapterId).toSet();
+      }
     }
-    _platformService?.setKeepScreenOn(false);
-    _platformService?.resetBrightness();
-    super.dispose();
-  }
 
-  bool _popInProgress = false;
+    Future<void> loadChapters() async {
+      final result = await repo.getChapters(bookId);
+      if (!context.mounted) return;
+      if (result is Failure<List<ChapterEntity>>) {
+        loading.value = false;
+        errorMessage.value = result.error.userMessage;
+        return;
+      }
+      final loaded = (result as Success<List<ChapterEntity>>).value;
+      if (loaded.isEmpty) {
+        loading.value = false;
+        errorMessage.value = 'No chapters found.';
+        return;
+      }
 
-  /// Flushes the current reading position to the database and then performs
-  /// the pop ourselves, so that anything awaiting the pushed route's Future
-  /// (e.g. `await navigator.push(route)` on the details screen) only resolves
-  /// once the save has actually landed — closing the race that let the
-  /// details/library screens read the old progress right after returning
-  /// from the reader.
-  Future<void> _handlePop() async {
-    if (_popInProgress) return;
-    _popInProgress = true;
-    _saveDebounceTimer?.cancel();
-    final chapter = _currentChapter;
-    if (chapter != null) {
-      await _saveProgress(chapter);
+      final progressResult = await repo.getReadingProgress(bookId);
+      ReadingProgressSnapshot? progressSnap;
+      if (progressResult is Success<ReadingProgressSnapshot?>) {
+        progressSnap = progressResult.value;
+      }
+
+      final targetChapterId = initialChapterId.value ?? progressSnap?.chapterId;
+      final initialIndex = targetChapterId != null
+          ? loaded.indexWhere((c) => c.id == targetChapterId)
+          : -1;
+      final resolvedIndex = initialIndex >= 0 ? initialIndex : 0;
+
+      chapters.value = loaded;
+      currentChapterIndex.value = resolvedIndex;
+      currentChapter.value = loaded[resolvedIndex];
+      initialPosition.value = progressSnap?.position;
+      currentSentenceIndex.value = progressSnap?.position ?? 0;
+      initialChapterId.value = null;
+
+      await Future.wait([
+        loadBookmarks(),
+        loadNarrationContext(loaded),
+      ]);
+
+      if (!context.mounted) return;
+      loading.value = false;
     }
-    if (mounted) {
-      Navigator.of(context).pop();
+
+    Future<void> toggleBookmark() async {
+      final chapter = currentChapter.value;
+      if (chapter == null) return;
+      if (bookmarkedChapterIds.value.contains(chapter.id)) {
+        final result = await repo.getBookmarks(bookId);
+        if (result is Success<List<BookmarkEntity>>) {
+          final existing = result.value
+              .where((b) => b.chapterId == chapter.id)
+              .toList();
+          for (final b in existing) {
+            await repo.removeBookmark(b.id);
+          }
+        }
+      } else {
+        final now = DateTime.now();
+        await repo.addBookmark(
+          BookmarkEntity(
+            id: '${bookId}_${chapter.id}_${now.millisecondsSinceEpoch}',
+            bookId: bookId,
+            chapterId: chapter.id,
+            position: 0,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+      }
+      ref.invalidate(bookmarksProvider(bookId));
+      final nextSet = Set<String>.from(bookmarkedChapterIds.value);
+      if (nextSet.contains(chapter.id)) {
+        nextSet.remove(chapter.id);
+      } else {
+        nextSet.add(chapter.id);
+      }
+      bookmarkedChapterIds.value = nextSet;
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _handlePop();
-      },
-      child: _buildContent(context),
-    );
-  }
+    Future<void> handlePop() async {
+      if (popInProgress.value) return;
+      popInProgress.value = true;
+      saveDebounceTimer.value?.cancel();
+      final chapter = currentChapter.value;
+      if (chapter != null) {
+        await saveProgress(chapter);
+      }
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+    }
 
-  Widget _buildContent(BuildContext context) {
-    if (_loading) {
+    useEffect(() {
+      final speechSub = ref.read(speechEngineProvider).events.listen(onSpeechEvent);
+      loadChapters();
+
+      return () {
+        speechSub.cancel();
+        saveDebounceTimer.value?.cancel();
+        if (currentChapter.value != null) {
+          saveProgress(currentChapter.value!);
+        }
+        platformService.value?.setKeepScreenOn(false);
+        platformService.value?.resetBrightness();
+      };
+    }, const []);
+
+    Map<String, String>? queryParams;
+    try {
+      queryParams = GoRouterState.of(context).uri.queryParameters;
+    } catch (_) {}
+
+    useEffect(() {
+      if (!readQueryParam.value && queryParams != null) {
+        initialChapterId.value = queryParams['chapterId'];
+        final progressParam = queryParams['progress'];
+        initialScrollProgress.value = progressParam != null
+            ? double.tryParse(progressParam)
+            : null;
+        readQueryParam.value = true;
+      }
+      applySystemSettings();
+      return null;
+    }, [
+      queryParams,
+      settings.keepScreenAwake,
+      settings.brightness,
+      settings.followSystemBrightness,
+      settings.autoOptimizeBrightness,
+    ]);
+
+    if (loading.value) {
       final colorScheme = Theme.of(context).colorScheme;
       return Scaffold(
         backgroundColor: ReadingViewTheme.paper.resolve(colorScheme).background,
         body: const ChapterShimmer(vt: ReadingViewTheme.paper),
       );
     }
-    if (_errorMessage != null) {
+    if (errorMessage.value != null) {
       return Scaffold(
         body: AppErrorState(
-          message: _errorMessage!,
-          technicalDetails: _errorMessage!,
+          message: errorMessage.value!,
+          technicalDetails: errorMessage.value!,
         ),
       );
     }
 
-    final chapters = _chapters;
-    final settings = widget.settings;
-
-    final currentChapter = _currentChapter;
-    if (currentChapter != null) {
-      // Tells `readerChapterContentProvider` which chapter is actually on
-      // screen, so a background prefetch of a neighboring chapter never
-      // qualifies for the automatic full-screen session re-verify — only a
-      // fetch for the chapter the reader is looking at right now may trigger
-      // that. Scheduled post-frame since this can run during build.
-      if (ref.read(activeChapterIdProvider) != currentChapter.id) {
+    final currCh = currentChapter.value;
+    if (currCh != null) {
+      if (ref.read(activeChapterIdProvider) != currCh.id) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            ref.read(activeChapterIdProvider.notifier).state =
-                currentChapter.id;
+          if (context.mounted) {
+            ref.read(activeChapterIdProvider.notifier).state = currCh.id;
           }
         });
       }
       final content = ref
-          .watch(readerChapterContentProvider(currentChapter))
+          .watch(readerChapterContentProvider(currCh))
           .valueOrNull;
       if (content != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _syncSpeechSession(currentChapter, content);
+          if (context.mounted) syncSpeechSession(currCh, content);
         });
       }
     }
 
     final isBookmarked =
-        _currentChapter != null &&
-        _bookmarkedChapterIds.contains(_currentChapter!.id);
+        currCh != null &&
+        bookmarkedChapterIds.value.contains(currCh.id);
 
-    final savedProgress = _scrollProgress > 0
-        ? _scrollProgress
-        : _initialScrollProgress;
-    // The live sentence index (relative to the current chapter) is preferred
-    // when it has been reported, so a mid-book mode switch carries the reader
-    // forward instead of snapping back to the chapter-1-era resume point.
-    final resumePosition = _currentSentenceIndex > 0
-        ? _currentSentenceIndex
-        : _initialPosition;
-    if (settings.readingMode == ReadingMode.continuous) {
-      return ContinuousReaderLayout(
-        chapters: chapters,
-        settings: settings,
-        currentChapterIndex: _currentChapterIndex,
-        bookmarkedChapterIds: _bookmarkedChapterIds,
-        initialScrollProgress: savedProgress,
-        restorePosition: resumePosition,
-        onPositionChanged: _onPositionChanged,
-        onScrollProgress: _onContinuousScrollProgress,
-        onCurrentChapterChanged: _onContinuousChapterChanged,
-        onScrollDirectionChanged: _onScrollDirectionChanged,
-        onSettingsTap: _showSettingsDrawer,
-        onSearchTap: _showSearchSheet,
-        onChapterSelected: (idx) {
-          _resetPosition();
-          setState(() {
-            _currentChapter = _chapters[idx];
-            _currentChapterIndex = idx;
-          });
-        },
-        isBookmarked: isBookmarked,
-        onBookmarkToggle: _toggleBookmark,
-        bookTitle: _bookTitle,
-        coverPath: _bookCoverPath,
-        onOpenAnnotations: _showAnnotationsSheet,
-        onHighlight: _handleHighlight,
-        onAddNote: _handleAddNote,
-        onShare: _handleShare,
-        onListen: _handleListen,
-        onErase: _handleErase,
+    final savedProgress = scrollProgress.value > 0
+        ? scrollProgress.value
+        : initialScrollProgress.value;
+    final resumePosition = currentSentenceIndex.value > 0
+        ? currentSentenceIndex.value
+        : initialPosition.value;
+
+    void onContinuousScrollProgress(double progress) {
+      scrollProgress.value = progress;
+    }
+
+    void onContinuousChapterChanged(int index) {
+      if (currentChapter.value?.id != chapters.value[index].id) {
+        currentChapter.value = chapters.value[index];
+        currentChapterIndex.value = index;
+        saveProgress(chapters.value[index]);
+      }
+    }
+
+    void onScrollDirectionChanged(ScrollDirection direction) {
+      saveDebounceTimer.value?.cancel();
+      saveDebounceTimer.value = Timer(const Duration(milliseconds: 500), () {
+        if (currentChapter.value != null) saveProgress(currentChapter.value!);
+      });
+    }
+
+    void onPositionChanged(int sentenceIndex, int totalSentences) {
+      currentSentenceIndex.value = sentenceIndex;
+      currentSentenceTotal.value = totalSentences;
+    }
+
+    void onPagedPageChanged(int chapterIdx) {
+      currentChapter.value = chapters.value[chapterIdx];
+      currentChapterIndex.value = chapterIdx;
+      saveProgress(chapters.value[chapterIdx]);
+    }
+
+    void onPagedProgressChanged(double progress) {
+      scrollProgress.value = progress;
+    }
+
+    void goToPagedChapter(int index) {
+      if (currentChapter.value?.id != chapters.value[index].id) {
+        resetPosition();
+        currentChapter.value = chapters.value[index];
+        currentChapterIndex.value = index;
+      }
+    }
+
+    void showSettingsDrawer() {
+      AppSheet.show(
+        context: context,
+        id: 'reader_settings',
+        title: 'Reading Settings',
+        initialHeight: 0.8,
+        snapPoints: const [0.6, 0.8],
+        child: ReaderSettingsSheet(
+          initialSettings: settings,
+          bookId: bookId,
+          rawId: wtrRawId.value,
+        ),
       );
     }
 
-    return PagedReaderLayout(
-      chapters: chapters,
-      settings: settings,
-      currentChapterIndex: _currentChapterIndex,
-      bookmarkedChapterIds: _bookmarkedChapterIds,
-      initialProgress: savedProgress,
-      restorePosition: resumePosition,
-      onPositionChanged: _onPositionChanged,
-      onPageChanged: _onPagedPageChanged,
-      onProgressChanged: _onPagedProgressChanged,
-      onChapterSelected: _goToPagedChapter,
-      onSettingsTap: _showSettingsDrawer,
-      onSearchTap: _showSearchSheet,
-      isBookmarked: isBookmarked,
-      onBookmarkToggle: _toggleBookmark,
-      bookTitle: _bookTitle,
-      coverPath: _bookCoverPath,
-      onOpenAnnotations: _showAnnotationsSheet,
-      onHighlight: _handleHighlight,
-      onAddNote: _handleAddNote,
-      onShare: _handleShare,
-      onListen: _handleListen,
-      onErase: _handleErase,
-    );
-  }
-
-  void _showSearchSheet() {
-    BookSearchSheet.show(
-      context,
-      bookId: widget.bookId,
-      onResultSelected: (chapterIndex, charOffset) {
-        if (widget.settings.readingMode == ReadingMode.continuous) {
-          _resetPosition();
-          setState(() {
-            _currentChapter = _chapters[chapterIndex];
-            _currentChapterIndex = chapterIndex;
-          });
-        } else {
-          _goToPagedChapter(chapterIndex);
-        }
-      },
-    );
-  }
-
-  void _onContinuousScrollProgress(double progress) {
-    _scrollProgress = progress;
-  }
-
-  void _onContinuousChapterChanged(int index) {
-    if (_currentChapter?.id != _chapters[index].id) {
-      setState(() {
-        _currentChapter = _chapters[index];
-        _currentChapterIndex = index;
-      });
-      _saveProgress(_chapters[index]);
+    void showSearchSheet() {
+      BookSearchSheet.show(
+        context,
+        bookId: bookId,
+        onResultSelected: (chapterIdx, charOffset) {
+          if (settings.readingMode == ReadingMode.continuous) {
+            resetPosition();
+            currentChapter.value = chapters.value[chapterIdx];
+            currentChapterIndex.value = chapterIdx;
+          } else {
+            goToPagedChapter(chapterIdx);
+          }
+        },
+      );
     }
-  }
 
-  void _onScrollDirectionChanged(ScrollDirection direction) {
-    _saveDebounceTimer?.cancel();
-    _saveDebounceTimer = Timer(const Duration(milliseconds: 500), () {
-      if (_currentChapter != null) _saveProgress(_currentChapter!);
-    });
-  }
-
-  void _resetPosition() {
-    _currentSentenceIndex = 0;
-    _currentSentenceTotal = 0;
-  }
-
-  /// Stores the reader's current reading position so [_saveProgress] can
-  /// persist it instead of the old hardcoded `0`. Called by both layouts as
-  /// the user pages/scrolls.
-  void _onPositionChanged(int sentenceIndex, int totalSentences) {
-    _currentSentenceIndex = sentenceIndex;
-    _currentSentenceTotal = totalSentences;
-  }
-
-  Future<void> _saveProgress(ChapterEntity chapter) async {
-    await widget.repo.saveProgress(
-      userId: 'local',
-      bookId: widget.bookId,
-      chapterId: chapter.id,
-      percentage: _scrollProgress * 100,
-      position: _currentSentenceIndex,
-      totalPositions: _currentSentenceTotal,
-    );
-  }
-
-  void _onPagedPageChanged(int chapterIndex) {
-    // PagedReaderLayout reports the new page's exact sentence position (via
-    // _onPositionChanged, which updates _currentSentenceIndex/_currentSentenceTotal)
-    // BEFORE invoking this callback, so _saveProgress below always persists
-    // the freshly reported position for whichever chapter we just landed on
-    // — never a stale index left over from the chapter we paged away from.
-    setState(() {
-      _currentChapter = _chapters[chapterIndex];
-      _currentChapterIndex = chapterIndex;
-    });
-    _saveProgress(_chapters[chapterIndex]);
-  }
-
-  void _onPagedProgressChanged(double progress) {
-    _scrollProgress = progress;
-  }
-
-  void _goToPagedChapter(int index) {
-    if (_currentChapter?.id != _chapters[index].id) {
-      _resetPosition();
-      setState(() {
-        _currentChapter = _chapters[index];
-        _currentChapterIndex = index;
-      });
+    void handleHighlight(
+      String text,
+      Color color,
+      int start,
+      int end, {
+      HighlightStyleType styleType = HighlightStyleType.solid,
+    }) {
+      final chapter = currentChapter.value;
+      if (chapter == null) return;
+      ref
+          .read(annotationsProvider(bookId).notifier)
+          .addHighlight(
+            chapterId: chapter.id,
+            start: start,
+            end: end,
+            text: text,
+            colorValue: color.toARGB32(),
+            styleType: styleType,
+          );
     }
-  }
 
-  void _showSettingsDrawer() {
-    AppSheet.show(
-      context: context,
-      id: 'reader_settings',
-      title: 'Reading Settings',
-      initialHeight: 0.8,
-      snapPoints: const [0.6, 0.8],
-      child: ReaderSettingsSheet(
-        initialSettings: widget.settings,
-        bookId: widget.bookId,
-        rawId: _wtrRawId,
-      ),
-    );
-  }
+    void handleErase(int start, int end) {
+      final chapter = currentChapter.value;
+      if (chapter == null) return;
+      ref
+          .read(annotationsProvider(bookId).notifier)
+          .eraseOverlapping(chapter.id, start, end);
+    }
 
-  // --------------------------------------------------------- annotations
+    void handleAddNote(String text, String? sentence) {
+      final chapter = currentChapter.value;
+      if (chapter == null) return;
+      NoteEditorSheet.show(
+        context,
+        bookId: bookId,
+        chapterId: chapter.id,
+        selectedText: text,
+        sentence: sentence,
+        chapterTitle: chapter.title,
+      );
+    }
 
-  final _selectionSpeaker = const SelectionSpeaker();
+    void handleShare(String text) {
+      QuoteShareCardSheet.show(
+        context,
+        quoteText: text,
+        bookTitle: bookTitle.value,
+        author: bookAuthor.value,
+        chapterTitle: currentChapter.value?.title,
+        coverPath: bookCoverPath.value,
+      );
+    }
 
-  void _handleHighlight(
-    String text,
-    Color color,
-    int start,
-    int end, {
-    HighlightStyleType styleType = HighlightStyleType.solid,
-  }) {
-    final chapter = _currentChapter;
-    if (chapter == null) return;
-    ref
-        .read(annotationsProvider(widget.bookId).notifier)
-        .addHighlight(
-          chapterId: chapter.id,
-          start: start,
-          end: end,
-          text: text,
-          colorValue: color.toARGB32(),
-          styleType: styleType,
-        );
-  }
+    void showAnnotationsSheet() {
+      ReaderAnnotationsSheet.show(
+        context,
+        bookId: bookId,
+        chapters: chapters.value,
+        currentChapterId: currentChapter.value?.id,
+        bookTitle: bookTitle.value,
+        author: bookAuthor.value,
+        coverPath: bookCoverPath.value,
+        onJumpToChapter: (chapterId, startOffset) {
+          final idx = chapters.value.indexWhere((c) => c.id == chapterId);
+          if (idx >= 0) {
+            resetPosition();
+            currentChapter.value = chapters.value[idx];
+            currentChapterIndex.value = idx;
+          }
+        },
+      );
+    }
 
-  void _handleErase(int start, int end) {
-    final chapter = _currentChapter;
-    if (chapter == null) return;
-    ref
-        .read(annotationsProvider(widget.bookId).notifier)
-        .eraseOverlapping(chapter.id, start, end);
-  }
+    void handleListen(String text, String? sentence, int start, int end) {
+      final chapter = currentChapter.value;
+      final language = bookLanguage.value ?? 'en';
+      if (chapter == null) return;
+      final snippet = text.trim();
+      if (snippet.isEmpty) return;
+      _selectionSpeaker.speak(
+        ref: ref,
+        bookId: bookId,
+        chapterId: chapter.id,
+        text: snippet,
+        language: language,
+      );
+    }
 
-  void _handleAddNote(String text, String? sentence) {
-    final chapter = _currentChapter;
-    if (chapter == null) return;
-    NoteEditorSheet.show(
-      context,
-      bookId: widget.bookId,
-      chapterId: chapter.id,
-      selectedText: text,
-      sentence: sentence,
-      chapterTitle: chapter.title,
-    );
-  }
+    Widget contentWidget;
+    if (settings.readingMode == ReadingMode.continuous) {
+      contentWidget = ContinuousReaderLayout(
+        chapters: chapters.value,
+        settings: settings,
+        currentChapterIndex: currentChapterIndex.value,
+        bookmarkedChapterIds: bookmarkedChapterIds.value,
+        initialScrollProgress: savedProgress,
+        restorePosition: resumePosition,
+        onPositionChanged: onPositionChanged,
+        onScrollProgress: onContinuousScrollProgress,
+        onCurrentChapterChanged: onContinuousChapterChanged,
+        onScrollDirectionChanged: onScrollDirectionChanged,
+        onSettingsTap: showSettingsDrawer,
+        onSearchTap: showSearchSheet,
+        onChapterSelected: (idx) {
+          resetPosition();
+          currentChapter.value = chapters.value[idx];
+          currentChapterIndex.value = idx;
+        },
+        isBookmarked: isBookmarked,
+        onBookmarkToggle: toggleBookmark,
+        bookTitle: bookTitle.value,
+        coverPath: bookCoverPath.value,
+        onOpenAnnotations: showAnnotationsSheet,
+        onHighlight: handleHighlight,
+        onAddNote: handleAddNote,
+        onShare: handleShare,
+        onListen: handleListen,
+        onErase: handleErase,
+      );
+    } else if (settings.readingMode == ReadingMode.realFlip) {
+      contentWidget = RealFlipReaderLayout(
+        chapters: chapters.value,
+        settings: settings,
+        currentChapterIndex: currentChapterIndex.value,
+        bookmarkedChapterIds: bookmarkedChapterIds.value,
+        initialProgress: savedProgress,
+        restorePosition: resumePosition,
+        onPositionChanged: onPositionChanged,
+        onPageChanged: onPagedPageChanged,
+        onProgressChanged: onPagedProgressChanged,
+        onChapterSelected: goToPagedChapter,
+        onSettingsTap: showSettingsDrawer,
+        onSearchTap: showSearchSheet,
+        isBookmarked: isBookmarked,
+        onBookmarkToggle: toggleBookmark,
+        bookTitle: bookTitle.value,
+        coverPath: bookCoverPath.value,
+        onOpenAnnotations: showAnnotationsSheet,
+        onHighlight: handleHighlight,
+        onAddNote: handleAddNote,
+        onShare: handleShare,
+        onListen: handleListen,
+        onErase: handleErase,
+      );
+    } else {
+      contentWidget = PagedReaderLayout(
+        chapters: chapters.value,
+        settings: settings,
+        currentChapterIndex: currentChapterIndex.value,
+        bookmarkedChapterIds: bookmarkedChapterIds.value,
+        initialProgress: savedProgress,
+        restorePosition: resumePosition,
+        onPositionChanged: onPositionChanged,
+        onPageChanged: onPagedPageChanged,
+        onProgressChanged: onPagedProgressChanged,
+        onChapterSelected: goToPagedChapter,
+        onSettingsTap: showSettingsDrawer,
+        onSearchTap: showSearchSheet,
+        isBookmarked: isBookmarked,
+        onBookmarkToggle: toggleBookmark,
+        bookTitle: bookTitle.value,
+        coverPath: bookCoverPath.value,
+        onOpenAnnotations: showAnnotationsSheet,
+        onHighlight: handleHighlight,
+        onAddNote: handleAddNote,
+        onShare: handleShare,
+        onListen: handleListen,
+        onErase: handleErase,
+      );
+    }
 
-  void _handleShare(String text) {
-    QuoteShareCardSheet.show(
-      context,
-      quoteText: text,
-      bookTitle: _bookTitle,
-      author: _bookAuthor,
-      chapterTitle: _currentChapter?.title,
-      coverPath: _bookCoverPath,
-    );
-  }
-
-  void _showAnnotationsSheet() {
-    ReaderAnnotationsSheet.show(
-      context,
-      bookId: widget.bookId,
-      chapters: _chapters,
-      currentChapterId: _currentChapter?.id,
-      bookTitle: _bookTitle,
-      author: _bookAuthor,
-      coverPath: _bookCoverPath,
-      onJumpToChapter: (chapterId, startOffset) {
-        final idx = _chapters.indexWhere((c) => c.id == chapterId);
-        if (idx >= 0) {
-          _resetPosition();
-          setState(() {
-            _currentChapter = _chapters[idx];
-            _currentChapterIndex = idx;
-          });
-        }
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        handlePop();
       },
-    );
-  }
-
-  void _handleListen(String text, String? sentence, int start, int end) {
-    final chapter = _currentChapter;
-    final language = _bookLanguage ?? 'en';
-    if (chapter == null) return;
-    final snippet = text.trim();
-    if (snippet.isEmpty) return;
-    _selectionSpeaker.speak(
-      ref: ref,
-      bookId: widget.bookId,
-      chapterId: chapter.id,
-      text: snippet,
-      language: language,
+      child: contentWidget,
     );
   }
 }

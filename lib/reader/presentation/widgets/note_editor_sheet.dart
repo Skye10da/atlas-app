@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -8,7 +9,7 @@ import 'package:atlas_app/reader/presentation/providers/annotations_provider.dar
 import 'package:atlas_app/reader/presentation/widgets/chapter_selection_menu.dart';
 
 /// Interactive modal sheet to create or edit a note attached to a passage.
-class NoteEditorSheet extends ConsumerStatefulWidget {
+class NoteEditorSheet extends HookConsumerWidget {
   const NoteEditorSheet({
     super.key,
     required this.bookId,
@@ -31,6 +32,15 @@ class NoteEditorSheet extends ConsumerStatefulWidget {
   final int? highlightStart;
   final int? highlightEnd;
   final VoidCallback? onSaved;
+
+  static const List<String> _suggestedTags = [
+    'Quote',
+    'Idea',
+    'Question',
+    'Vocabulary',
+    'Favorite',
+    'Plot',
+  ];
 
   static Future<void> show(
     BuildContext context, {
@@ -65,82 +75,58 @@ class NoteEditorSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<NoteEditorSheet> createState() => _NoteEditorSheetState();
-}
-
-class _NoteEditorSheetState extends ConsumerState<NoteEditorSheet> {
-  late final TextEditingController _textController;
-  late int? _selectedColor;
-  late final Set<String> _selectedTags;
-
-  static const List<String> _suggestedTags = [
-    'Quote',
-    'Idea',
-    'Question',
-    'Vocabulary',
-    'Favorite',
-    'Plot',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _textController = TextEditingController(
-      text: widget.existingNote?.text ?? '',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final textController = useTextEditingController(
+      text: existingNote?.text ?? '',
     );
-    _selectedColor = widget.existingNote?.colorValue ??
-        ChapterSelectionMenuBuilder.highlightPalette.first.color.toARGB32();
-    _selectedTags = widget.existingNote?.tags.toSet() ?? <String>{};
-  }
+    final selectedColor = useState<int?>(
+      existingNote?.colorValue ??
+          ChapterSelectionMenuBuilder.highlightPalette.first.color.toARGB32(),
+    );
+    final selectedTags = useState<Set<String>>(
+      existingNote?.tags.toSet() ?? <String>{},
+    );
 
-  @override
-  void dispose() {
-    _textController.dispose();
-    super.dispose();
-  }
+    void save() {
+      final text = textController.text.trim();
+      if (text.isEmpty) return;
 
-  void _save() {
-    final text = _textController.text.trim();
-    if (text.isEmpty) return;
-
-    final notifier = ref.read(annotationsProvider(widget.bookId).notifier);
-    if (widget.existingNote != null) {
-      notifier.updateNote(
-        chapterId: widget.chapterId,
-        noteId: widget.existingNote!.id,
-        text: text,
-        colorValue: _selectedColor,
-        tags: _selectedTags.toList(),
-      );
-    } else {
-      notifier.addNote(
-        chapterId: widget.chapterId,
-        sentence: widget.sentence ?? widget.selectedText,
-        text: text,
-        highlightStart: widget.highlightStart,
-        highlightEnd: widget.highlightEnd,
-        colorValue: _selectedColor,
-        tags: _selectedTags.toList(),
-      );
+      final notifier = ref.read(annotationsProvider(bookId).notifier);
+      if (existingNote != null) {
+        notifier.updateNote(
+          chapterId: chapterId,
+          noteId: existingNote!.id,
+          text: text,
+          colorValue: selectedColor.value,
+          tags: selectedTags.value.toList(),
+        );
+      } else {
+        notifier.addNote(
+          chapterId: chapterId,
+          sentence: sentence ?? selectedText,
+          text: text,
+          highlightStart: highlightStart,
+          highlightEnd: highlightEnd,
+          colorValue: selectedColor.value,
+          tags: selectedTags.value.toList(),
+        );
+      }
+      onSaved?.call();
+      Navigator.of(context).pop();
     }
-    widget.onSaved?.call();
-    Navigator.of(context).pop();
-  }
 
-  void _delete() {
-    if (widget.existingNote == null) return;
-    ref
-        .read(annotationsProvider(widget.bookId).notifier)
-        .deleteNote(widget.chapterId, widget.existingNote!.id);
-    widget.onSaved?.call();
-    Navigator.of(context).pop();
-  }
+    void delete() {
+      if (existingNote == null) return;
+      ref
+          .read(annotationsProvider(bookId).notifier)
+          .deleteNote(chapterId, existingNote!.id);
+      onSaved?.call();
+      Navigator.of(context).pop();
+    }
 
-  @override
-  Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final isEditing = widget.existingNote != null;
-    final quote = widget.sentence ?? widget.selectedText;
+    final isEditing = existingNote != null;
+    final quote = sentence ?? selectedText;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -162,8 +148,8 @@ class _NoteEditorSheetState extends ConsumerState<NoteEditorSheet> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border(
                   left: BorderSide(
-                    color: _selectedColor != null
-                        ? Color(_selectedColor!)
+                    color: selectedColor.value != null
+                        ? Color(selectedColor.value!)
                         : colors.primary,
                     width: 3.5,
                   ),
@@ -172,11 +158,11 @@ class _NoteEditorSheetState extends ConsumerState<NoteEditorSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (widget.chapterTitle != null)
+                  if (chapterTitle != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 2),
                       child: Text(
-                        widget.chapterTitle!,
+                        chapterTitle!,
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -204,7 +190,7 @@ class _NoteEditorSheetState extends ConsumerState<NoteEditorSheet> {
           SizedBox(
             height: 130,
             child: TextField(
-              controller: _textController,
+              controller: textController,
               autofocus: true,
               maxLines: null,
               expands: true,
@@ -254,9 +240,7 @@ class _NoteEditorSheetState extends ConsumerState<NoteEditorSheet> {
                           padding: const EdgeInsets.only(right: 6),
                           child: GestureDetector(
                             onTap: () {
-                              setState(() {
-                                _selectedColor = opt.color.toARGB32();
-                              });
+                              selectedColor.value = opt.color.toARGB32();
                             },
                             child: Container(
                               width: 22,
@@ -265,7 +249,7 @@ class _NoteEditorSheetState extends ConsumerState<NoteEditorSheet> {
                                 color: opt.color,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: _selectedColor == opt.color.toARGB32()
+                                  color: selectedColor.value == opt.color.toARGB32()
                                       ? colors.onSurface
                                       : Colors.transparent,
                                   width: 2,
@@ -288,12 +272,12 @@ class _NoteEditorSheetState extends ConsumerState<NoteEditorSheet> {
                     color: colors.error,
                     size: 20,
                   ),
-                  onPressed: _delete,
+                  onPressed: delete,
                 ),
 
               // Save Button
               FilledButton.icon(
-                onPressed: _save,
+                onPressed: save,
                 icon: const Icon(Icons.check_rounded, size: 18),
                 label: const Text('Save Note'),
                 style: FilledButton.styleFrom(
@@ -320,15 +304,15 @@ class _NoteEditorSheetState extends ConsumerState<NoteEditorSheet> {
                     padding: const EdgeInsets.only(right: 6),
                     child: FilterChip(
                       label: Text(tag, style: const TextStyle(fontSize: 11)),
-                      selected: _selectedTags.contains(tag),
+                      selected: selectedTags.value.contains(tag),
                       onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedTags.add(tag);
-                          } else {
-                            _selectedTags.remove(tag);
-                          }
-                        });
+                        final next = Set<String>.from(selectedTags.value);
+                        if (selected) {
+                          next.add(tag);
+                        } else {
+                          next.remove(tag);
+                        }
+                        selectedTags.value = next;
                       },
                       visualDensity: VisualDensity.compact,
                       padding: EdgeInsets.zero,
@@ -343,4 +327,3 @@ class _NoteEditorSheetState extends ConsumerState<NoteEditorSheet> {
     );
   }
 }
-

@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
@@ -11,163 +12,133 @@ import 'package:atlas_app/wtr/domain/entities/wtr_ai_settings.dart';
 import 'package:atlas_app/wtr/infrastructure/services/ai_chat_clients.dart';
 import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
 
-class AiTranslationSettingsScreen extends ConsumerStatefulWidget {
+class AiTranslationSettingsScreen extends HookConsumerWidget {
   const AiTranslationSettingsScreen({super.key});
 
   @override
-  ConsumerState<AiTranslationSettingsScreen> createState() =>
-      _AiTranslationSettingsScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final keyController = useTextEditingController();
+    final modelController = useTextEditingController();
 
-class _AiTranslationSettingsScreenState
-    extends ConsumerState<AiTranslationSettingsScreen> {
-  final _keyController = TextEditingController();
-  final _modelController = TextEditingController();
+    final selectedProvider = useState(WtrAiProviderId.gemini);
+    final obscureKey = useState(true);
+    final synced = useRef(false);
 
-  var _selectedProvider = WtrAiProviderId.gemini;
-  var _obscureKey = true;
-  var _synced = false;
+    final fetchedModels = useState<List<String>?>(null);
+    final fetchingModels = useState(false);
+    final fetchError = useState<Object?>(null);
+    final testSuccess = useState<bool?>(null);
+    final testMessage = useState<String?>(null);
 
-  List<String>? _fetchedModels;
-  var _fetchingModels = false;
-  Object? _fetchError;
-  bool? _testSuccess;
-  String? _testMessage;
+    WtrAiSettings? current() => ref.read(wtrAiSettingsProvider).valueOrNull;
 
-  @override
-  void dispose() {
-    _keyController.dispose();
-    _modelController.dispose();
-    super.dispose();
-  }
-
-  void _adoptStored(WtrAiSettings settings) {
-    _selectedProvider = settings.provider;
-    _keyController.text = settings.apiKeyFor(settings.provider) ?? '';
-    _modelController.text = settings.modelFor(settings.provider);
-    _fetchedModels = null;
-    _fetchError = null;
-    if ((settings.apiKeyFor(settings.provider) ?? '').isNotEmpty) {
-      unawaited(_fetchModels());
-    }
-  }
-
-  Future<void> _fetchModels({bool force = false}) async {
-    final apiKey = _keyController.text.trim();
-    if (apiKey.isEmpty) return;
-    if (_fetchingModels) return;
-    if (!force && _fetchedModels != null) return;
-    setState(() {
-      _fetchingModels = true;
-      _fetchError = null;
-    });
-    try {
-      final models = await wtrAiClients[_selectedProvider]!.listModels(
-        HttpTransport(),
-        apiKey: apiKey,
+    Future<void> persist(WtrAiSettings next) async {
+      await ref.read(wtrAiSettingsRepositoryProvider).save(next);
+      ref.invalidate(wtrAiSettingsProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('Settings saved'), duration: Duration(seconds: 1)),
       );
-      if (!mounted) return;
-      setState(() {
-        _fetchedModels = models;
-        _fetchingModels = false;
-      });
-    } on Object catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _fetchError = e;
-        _fetchingModels = false;
-      });
     }
-  }
 
-  Future<void> _persist(WtrAiSettings next) async {
-    await ref.read(wtrAiSettingsRepositoryProvider).save(next);
-    ref.invalidate(wtrAiSettingsProvider);
-    if (!mounted) return;
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(content: Text('Settings saved'), duration: Duration(seconds: 1)),
-    );
-  }
-
-  WtrAiSettings? get _current => ref.read(wtrAiSettingsProvider).valueOrNull;
-
-  Future<void> _saveKey() async {
-    final current = _current;
-    if (current == null) return;
-    await _persist(
-      current
-          .withProvider(_selectedProvider)
-          .withApiKey(_selectedProvider, _keyController.text.trim()),
-    );
-    await _fetchModels(force: true);
-  }
-
-  Future<void> _clearKey() async {
-    final current = _current;
-    if (current == null) return;
-    setState(() {
-      _keyController.clear();
-      _fetchedModels = null;
-      _fetchError = null;
-      _testSuccess = null;
-      _testMessage = null;
-    });
-    await _persist(current.withApiKey(_selectedProvider, null));
-  }
-
-  Future<void> _saveModel(String value) async {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return;
-    final current = _current;
-    if (current == null) return;
-    await _persist(
-      current
-          .withProvider(_selectedProvider)
-          .withModel(_selectedProvider, trimmed),
-    );
-  }
-
-  Future<void> _testConfiguration() async {
-    final apiKey = _keyController.text.trim();
-    if (apiKey.isEmpty) {
-      setState(() {
-        _testSuccess = false;
-        _testMessage = 'Please enter an API key first.';
-      });
-      return;
+    Future<void> fetchModels({bool force = false}) async {
+      final apiKey = keyController.text.trim();
+      if (apiKey.isEmpty) return;
+      if (fetchingModels.value) return;
+      if (!force && fetchedModels.value != null) return;
+      fetchingModels.value = true;
+      fetchError.value = null;
+      try {
+        final models = await wtrAiClients[selectedProvider.value]!.listModels(
+          HttpTransport(),
+          apiKey: apiKey,
+        );
+        if (!context.mounted) return;
+        fetchedModels.value = models;
+        fetchingModels.value = false;
+      } on Object catch (e) {
+        if (!context.mounted) return;
+        fetchError.value = e;
+        fetchingModels.value = false;
+      }
     }
-    setState(() {
-      _testSuccess = null;
-      _testMessage = 'Testing connection...';
-    });
-    try {
-      final client = wtrAiClients[_selectedProvider]!;
-      final models = await client.listModels(
-        HttpTransport(),
-        apiKey: apiKey,
+
+    void adoptStored(WtrAiSettings settings) {
+      selectedProvider.value = settings.provider;
+      keyController.text = settings.apiKeyFor(settings.provider) ?? '';
+      modelController.text = settings.modelFor(settings.provider);
+      fetchedModels.value = null;
+      fetchError.value = null;
+      if ((settings.apiKeyFor(settings.provider) ?? '').isNotEmpty) {
+        unawaited(fetchModels());
+      }
+    }
+
+    Future<void> saveKey() async {
+      final curr = current();
+      if (curr == null) return;
+      await persist(
+        curr
+            .withProvider(selectedProvider.value)
+            .withApiKey(selectedProvider.value, keyController.text.trim()),
       );
-      if (!mounted) return;
-      setState(() {
-        _testSuccess = true;
-        _testMessage = 'Connected successfully! ${models.length} model(s) available.';
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _testSuccess = false;
-        _testMessage = 'Connection failed: $e';
-      });
+      await fetchModels(force: true);
     }
-  }
 
-  List<String> _candidateModels() {
-    final fetched = _fetchedModels;
-    if (fetched != null && fetched.isNotEmpty) return fetched;
-    return _selectedProvider.fallbackModels;
-  }
+    Future<void> clearKey() async {
+      final curr = current();
+      if (curr == null) return;
+      keyController.clear();
+      fetchedModels.value = null;
+      fetchError.value = null;
+      testSuccess.value = null;
+      testMessage.value = null;
+      await persist(curr.withApiKey(selectedProvider.value, null));
+    }
 
-  @override
-  Widget build(BuildContext context) {
+    Future<void> saveModel(String value) async {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return;
+      final curr = current();
+      if (curr == null) return;
+      await persist(
+        curr
+            .withProvider(selectedProvider.value)
+            .withModel(selectedProvider.value, trimmed),
+      );
+    }
+
+    Future<void> testConfiguration() async {
+      final apiKey = keyController.text.trim();
+      if (apiKey.isEmpty) {
+        testSuccess.value = false;
+        testMessage.value = 'Please enter an API key first.';
+        return;
+      }
+      testSuccess.value = null;
+      testMessage.value = 'Testing connection...';
+      try {
+        final client = wtrAiClients[selectedProvider.value]!;
+        final models = await client.listModels(
+          HttpTransport(),
+          apiKey: apiKey,
+        );
+        if (!context.mounted) return;
+        testSuccess.value = true;
+        testMessage.value = 'Connected successfully! ${models.length} model(s) available.';
+      } catch (e) {
+        if (!context.mounted) return;
+        testSuccess.value = false;
+        testMessage.value = 'Connection failed: $e';
+      }
+    }
+
+    List<String> candidateModels() {
+      final fetched = fetchedModels.value;
+      if (fetched != null && fetched.isNotEmpty) return fetched;
+      return selectedProvider.value.fallbackModels;
+    }
+
     final settingsAsync = ref.watch(wtrAiSettingsProvider);
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
@@ -186,12 +157,12 @@ class _AiTranslationSettingsScreenState
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load settings: $e')),
         data: (settings) {
-          if (!_synced) {
-            _synced = true;
-            _adoptStored(settings);
+          if (!synced.value) {
+            synced.value = true;
+            adoptStored(settings);
           }
 
-          final storedKey = settings.apiKeyFor(_selectedProvider);
+          final storedKey = settings.apiKeyFor(selectedProvider.value);
 
           return Center(
             child: ConstrainedBox(
@@ -250,25 +221,23 @@ class _AiTranslationSettingsScreenState
                     title: 'Active Provider',
                     child: DropdownMenu<WtrAiProviderId>(
                       expandedInsets: EdgeInsets.zero,
-                      initialSelection: _selectedProvider,
+                      initialSelection: selectedProvider.value,
                       dropdownMenuEntries: [
                         for (final provider in WtrAiProviderId.values)
                           DropdownMenuEntry(value: provider, label: provider.label),
                       ],
                       onSelected: (p) {
-                        if (p == null || p == _selectedProvider) return;
-                        setState(() {
-                          _selectedProvider = p;
-                          _fetchedModels = null;
-                          _fetchError = null;
-                          _testSuccess = null;
-                          _testMessage = null;
-                          _keyController.text = settings.apiKeyFor(p) ?? '';
-                          _modelController.text = settings.modelFor(p);
-                        });
-                        unawaited(_persist(settings.withProvider(p)));
+                        if (p == null || p == selectedProvider.value) return;
+                        selectedProvider.value = p;
+                        fetchedModels.value = null;
+                        fetchError.value = null;
+                        testSuccess.value = null;
+                        testMessage.value = null;
+                        keyController.text = settings.apiKeyFor(p) ?? '';
+                        modelController.text = settings.modelFor(p);
+                        unawaited(persist(settings.withProvider(p)));
                         if ((settings.apiKeyFor(p) ?? '').isNotEmpty) {
-                          unawaited(_fetchModels());
+                          unawaited(fetchModels());
                         }
                       },
                     ),
@@ -277,16 +246,16 @@ class _AiTranslationSettingsScreenState
 
                   // 3. API Key & Model Configuration
                   _SectionCard(
-                    title: '${_selectedProvider.label} Configuration',
+                    title: '${selectedProvider.value.label} Configuration',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         TextField(
-                          controller: _keyController,
-                          obscureText: _obscureKey,
+                          controller: keyController,
+                          obscureText: obscureKey.value,
                           decoration: InputDecoration(
                             labelText: 'API Key',
-                            hintText: '${_selectedProvider.label} API key',
+                            hintText: '${selectedProvider.value.label} API key',
                             filled: true,
                             fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.4),
                             border: OutlineInputBorder(
@@ -294,9 +263,9 @@ class _AiTranslationSettingsScreenState
                             ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscureKey ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                obscureKey.value ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                               ),
-                              onPressed: () => setState(() => _obscureKey = !_obscureKey),
+                              onPressed: () => obscureKey.value = !obscureKey.value,
                             ),
                           ),
                         ),
@@ -304,53 +273,53 @@ class _AiTranslationSettingsScreenState
                         Row(
                           children: [
                             FilledButton.tonal(
-                              onPressed: _saveKey,
+                              onPressed: saveKey,
                               child: const Text('Save key'),
                             ),
                             const SizedBox(width: AppSpacing.sm),
                             if (storedKey != null && storedKey.isNotEmpty)
                               OutlinedButton(
-                                onPressed: _clearKey,
+                                onPressed: clearKey,
                                 child: const Text('Clear'),
                               ),
                             const Spacer(),
                             FilledButton.icon(
-                              onPressed: _testConfiguration,
+                              onPressed: testConfiguration,
                               icon: const Icon(Icons.bolt_rounded, size: 16),
                               label: const Text('Test'),
                             ),
                           ],
                         ),
-                        if (_testMessage != null) ...[
+                        if (testMessage.value != null) ...[
                           const SizedBox(height: AppSpacing.smMd),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
                             decoration: BoxDecoration(
-                              color: _testSuccess == true
+                              color: testSuccess.value == true
                                   ? colors.tertiaryContainer
-                                  : (_testSuccess == false ? colors.errorContainer : colors.surfaceContainerHighest),
+                                  : (testSuccess.value == false ? colors.errorContainer : colors.surfaceContainerHighest),
                               borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
                             ),
                             child: Row(
                               children: [
                                 Icon(
-                                  _testSuccess == true
+                                  testSuccess.value == true
                                       ? Icons.check_circle_rounded
-                                      : (_testSuccess == false ? Icons.error_outline_rounded : Icons.sync_rounded),
+                                      : (testSuccess.value == false ? Icons.error_outline_rounded : Icons.sync_rounded),
                                   size: 16,
-                                  color: _testSuccess == true
+                                  color: testSuccess.value == true
                                       ? colors.onTertiaryContainer
-                                      : (_testSuccess == false ? colors.onErrorContainer : colors.onSurfaceVariant),
+                                      : (testSuccess.value == false ? colors.onErrorContainer : colors.onSurfaceVariant),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    _testMessage!,
+                                    testMessage.value!,
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: _testSuccess == true
+                                      color: testSuccess.value == true
                                           ? colors.onTertiaryContainer
-                                          : (_testSuccess == false ? colors.onErrorContainer : colors.onSurfaceVariant),
+                                          : (testSuccess.value == false ? colors.onErrorContainer : colors.onSurfaceVariant),
                                     ),
                                   ),
                                 ),
@@ -365,7 +334,7 @@ class _AiTranslationSettingsScreenState
                           children: [
                             Expanded(
                               child: TextField(
-                                controller: _modelController,
+                                controller: modelController,
                                 decoration: InputDecoration(
                                   labelText: 'Model Name',
                                   filled: true,
@@ -374,7 +343,7 @@ class _AiTranslationSettingsScreenState
                                     borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
                                   ),
                                 ),
-                                onSubmitted: _saveModel,
+                                onSubmitted: saveModel,
                               ),
                             ),
                             const SizedBox(width: AppSpacing.sm),
@@ -382,20 +351,20 @@ class _AiTranslationSettingsScreenState
                               icon: const Icon(Icons.tune_rounded),
                               tooltip: 'Preset Models',
                               itemBuilder: (_) => [
-                                for (final m in _candidateModels())
+                                for (final m in candidateModels())
                                   PopupMenuItem(value: m, child: Text(m)),
                               ],
                               onSelected: (m) {
-                                setState(() => _modelController.text = m);
-                                _saveModel(m);
+                                modelController.text = m;
+                                saveModel(m);
                               },
                             ),
                           ],
                         ),
-                        if (_fetchError != null) ...[
+                        if (fetchError.value != null) ...[
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            'Could not fetch remote models: $_fetchError (showing curated fallback)',
+                            'Could not fetch remote models: ${fetchError.value} (showing curated fallback)',
                             style: TextStyle(fontSize: 11, color: colors.error),
                           ),
                         ],

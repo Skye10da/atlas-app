@@ -3,7 +3,8 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide WordBoundary;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
@@ -22,7 +23,7 @@ import 'package:atlas_app/reader/speech/speech_queue.dart';
 ///
 /// Opened from the reader bottom nav's Listen button (see
 /// [NowPlayingSheet.show]).
-class NowPlayingSheet extends ConsumerStatefulWidget {
+class NowPlayingSheet extends HookConsumerWidget {
   const NowPlayingSheet({
     super.key,
     this.chapterTitle,
@@ -56,14 +57,8 @@ class NowPlayingSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<NowPlayingSheet> createState() => _NowPlayingSheetState();
-}
-
-class _NowPlayingSheetState extends ConsumerState<NowPlayingSheet> {
-  bool _showSettings = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final showSettings = useState(false);
     final colorScheme = Theme.of(context).colorScheme;
     final engine = ref.watch(speechEngineProvider);
     final session = engine.session;
@@ -75,9 +70,9 @@ class _NowPlayingSheetState extends ConsumerState<NowPlayingSheet> {
     final activeItem = ref.watch(activeSpeechItemProvider);
     final boundary = ref.watch(activeWordBoundaryProvider);
 
-    final effectiveCoverPath = widget.coverPath ?? session?.coverPath;
-    final effectiveBookTitle = widget.bookTitle ?? session?.bookTitle;
-    final effectiveChapterTitle = widget.chapterTitle ??
+    final effectiveCoverPath = coverPath ?? session?.coverPath;
+    final effectiveBookTitle = bookTitle ?? session?.bookTitle;
+    final effectiveChapterTitle = chapterTitle ??
         (session != null && session.chapterId.startsWith('pdf_page_')
             ? 'Page ${session.chapterId.replaceFirst('pdf_page_', '')}'
             : null);
@@ -106,7 +101,7 @@ class _NowPlayingSheetState extends ConsumerState<NowPlayingSheet> {
         );
 
         return SingleChildScrollView(
-          physics: _showSettings
+          physics: showSettings.value
               ? const AlwaysScrollableScrollPhysics()
               : const ClampingScrollPhysics(),
           padding: const EdgeInsets.symmetric(
@@ -182,11 +177,11 @@ class _NowPlayingSheetState extends ConsumerState<NowPlayingSheet> {
                 queue: queue,
                 accent: colorScheme.primary,
                 color: colorScheme.onSurface,
-                settingsExpanded: _showSettings,
+                settingsExpanded: showSettings.value,
                 onToggleSettings: () =>
-                    setState(() => _showSettings = !_showSettings),
+                    showSettings.value = !showSettings.value,
               ),
-              if (_showSettings) ...[
+              if (showSettings.value) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Divider(color: colorScheme.onSurface.withValues(alpha: 0.12)),
                 const SizedBox(height: AppSpacing.sm),

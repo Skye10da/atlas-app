@@ -1,5 +1,18 @@
 sealed class Result<T> {
   const Result();
+
+  bool get isSuccess => this is Success<T>;
+  bool get isFailure => this is Failure<T>;
+
+  T? get valueOrNull => switch (this) {
+        Success(:final value) => value,
+        Failure() => null,
+      };
+
+  AppException? get errorOrNull => switch (this) {
+        Failure(:final error) => error,
+        Success() => null,
+      };
 }
 
 final class Success<T> extends Result<T> {

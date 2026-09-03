@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 /// Responsive window size breakpoints adhering to Material Design 3 and
 /// Flutter adaptive layout guidelines.
@@ -17,6 +17,23 @@ abstract final class AppBreakpoints {
 
   /// Optimal maximum width for prose readability (65-85 characters per line).
   static const double readerContentMaxWidth = 840.0;
+
+  /// Returns a responsive max-width for reader content based on the current
+  /// window width.
+  ///
+  /// - **Mobile / Tablet** (< 900dp): returns [double.infinity] so content
+  ///   fills the full available width (only [MarginPreset] padding applies).
+  /// - **Desktop** (900–1199dp): returns 90% of the window width, floored at
+  ///   840dp so it's never narrower than the legacy constant.
+  /// - **Large desktop** (≥ 1200dp): returns 90% of the window width, capped
+  ///   at 1100dp to keep line lengths readable.
+  static double readerResponsiveMaxWidth(double windowWidth) {
+    if (windowWidth < desktop) return double.infinity;
+    if (windowWidth < largeDesktop) {
+      return (windowWidth * 0.9).clamp(840.0, windowWidth);
+    }
+    return (windowWidth * 0.9).clamp(840.0, 1100.0);
+  }
 
   /// Optimal maximum width for settings forms and dialog cards.
   static const double formContentMaxWidth = 760.0;

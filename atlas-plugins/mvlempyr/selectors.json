@@ -1,0 +1,12 @@
+{
+  "trending": {
+    "path": "/rankings?rank=weekly",
+    "resultItem": ".ranking-item, .novel-item, .book-item",
+    "title": ".novel-title, .book-title, h3 a@text",
+    "coverUrl": ".novel-img img@src, .book-cover img@src, img@src",
+    "detailUrl": ".novel-title a@href, .book-title a@href, h3 a@href",
+    "author": ".author@text, .novel-author@text",
+    "rating": ".rating@text, .score@text",
+    "genre": ".genre-tag@text, .tag@text"
+  }
+}

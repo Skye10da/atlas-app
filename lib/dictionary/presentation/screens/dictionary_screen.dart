@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/dictionary_service.dart';
@@ -11,83 +12,72 @@ import 'package:atlas_app/dictionary/presentation/screens/word_review_screen.dar
 
 enum _SortMode { alphabetical, byLanguage }
 
-class DictionaryScreen extends ConsumerStatefulWidget {
+class DictionaryScreen extends HookConsumerWidget {
   const DictionaryScreen({super.key});
 
   @override
-  ConsumerState<DictionaryScreen> createState() => _DictionaryScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final searchController = useTextEditingController();
+    final query = useState('');
+    final selectedLanguage = useState<String?>(null);
+    final sortMode = useState(_SortMode.alphabetical);
+    final expandedIds = useState<Set<String>>({});
 
-class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
-  final _searchController = TextEditingController();
-  String _query = '';
-  String? _selectedLanguage;
-  _SortMode _sortMode = _SortMode.alphabetical;
-  final Set<String> _expandedIds = {};
+    List<DictionaryWordEntity> filterAndSort(List<DictionaryWordEntity> words) {
+      final result = words.where((w) {
+        final matchesQuery =
+            query.value.isEmpty ||
+            w.word.toLowerCase().contains(query.value) ||
+            w.definition.toLowerCase().contains(query.value);
+        final matchesLanguage =
+            selectedLanguage.value == null || w.languageLabel == selectedLanguage.value;
+        return matchesQuery && matchesLanguage;
+      }).toList();
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+      result.sort(
+        (a, b) => sortMode.value == _SortMode.alphabetical
+            ? a.word.toLowerCase().compareTo(b.word.toLowerCase())
+            : a.languageLabel.toLowerCase().compareTo(
+                b.languageLabel.toLowerCase(),
+              ),
+      );
 
-  List<DictionaryWordEntity> _filterAndSort(List<DictionaryWordEntity> words) {
-    final result = words.where((w) {
-      final matchesQuery =
-          _query.isEmpty ||
-          w.word.toLowerCase().contains(_query) ||
-          w.definition.toLowerCase().contains(_query);
-      final matchesLanguage =
-          _selectedLanguage == null || w.languageLabel == _selectedLanguage;
-      return matchesQuery && matchesLanguage;
-    }).toList();
+      return result;
+    }
 
-    result.sort(
-      (a, b) => _sortMode == _SortMode.alphabetical
-          ? a.word.toLowerCase().compareTo(b.word.toLowerCase())
-          : a.languageLabel.toLowerCase().compareTo(
-              b.languageLabel.toLowerCase(),
+    Future<void> confirmDelete(DictionaryWordEntity word) async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: const Text('Remove word?'),
+          content: Text('"${word.word}" will be removed from your dictionary.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('Cancel'),
             ),
-    );
-
-    return result;
-  }
-
-  Future<void> _confirmDelete(DictionaryWordEntity word) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Remove word?'),
-        content: Text('"${word.word}" will be removed from your dictionary.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
+            FilledButton.tonal(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              style: FilledButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: const Text('Remove'),
             ),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
 
-    if (confirmed == true) {
-      await ref.read(dictionaryRepositoryProvider).delete(word.id);
-      ref.invalidate(savedWordsProvider);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Removed "${word.word}"')));
+      if (confirmed == true) {
+        await ref.read(dictionaryRepositoryProvider).delete(word.id);
+        ref.invalidate(savedWordsProvider);
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Removed "${word.word}"')));
+        }
       }
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
     final savedAsync = ref.watch(savedWordsProvider);
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -102,7 +92,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
 
           final languages = words.map((w) => w.languageLabel).toSet().toList()
             ..sort();
-          final filtered = _filterAndSort(words);
+          final filtered = filterAndSort(words);
 
           return CustomScrollView(
             slivers: [
@@ -112,8 +102,8 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                   PopupMenuButton<_SortMode>(
                     icon: const Icon(Icons.sort),
                     tooltip: 'Sort',
-                    initialValue: _sortMode,
-                    onSelected: (mode) => setState(() => _sortMode = mode),
+                    initialValue: sortMode.value,
+                    onSelected: (mode) => sortMode.value = mode,
                     itemBuilder: (context) => const [
                       PopupMenuItem(
                         value: _SortMode.alphabetical,
@@ -137,9 +127,9 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                       AppSpacing.sm,
                     ),
                     child: _SearchField(
-                      controller: _searchController,
+                      controller: searchController,
                       onChanged: (value) =>
-                          setState(() => _query = value.toLowerCase()),
+                          query.value = value.toLowerCase(),
                     ),
                   ),
                 ),
@@ -160,20 +150,17 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                         if (index == 0) {
                           return ChoiceChip(
                             label: const Text('All'),
-                            selected: _selectedLanguage == null,
+                            selected: selectedLanguage.value == null,
                             onSelected: (_) =>
-                                setState(() => _selectedLanguage = null),
+                                selectedLanguage.value = null,
                           );
                         }
                         final lang = languages[index - 1];
                         return ChoiceChip(
                           label: Text(lang),
-                          selected: _selectedLanguage == lang,
-                          onSelected: (_) => setState(
-                            () => _selectedLanguage = _selectedLanguage == lang
-                                ? null
-                                : lang,
-                          ),
+                          selected: selectedLanguage.value == lang,
+                          onSelected: (_) => selectedLanguage.value =
+                              selectedLanguage.value == lang ? null : lang,
                         );
                       },
                     ),
@@ -235,12 +222,12 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                         const SizedBox(height: AppSpacing.xs),
                     itemBuilder: (context, index) {
                       final word = filtered[index];
-                      final isExpanded = _expandedIds.contains(word.id);
+                      final isExpanded = expandedIds.value.contains(word.id);
                       return Dismissible(
                         key: ValueKey(word.id),
                         direction: DismissDirection.endToStart,
                         confirmDismiss: (_) async {
-                          await _confirmDelete(word);
+                          await confirmDelete(word);
                           return false;
                         },
                         background: _DismissBackground(
@@ -249,13 +236,15 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                         child: _WordCard(
                           word: word,
                           expanded: isExpanded,
-                          onTap: () => setState(() {
+                          onTap: () {
+                            final next = Set<String>.from(expandedIds.value);
                             if (isExpanded) {
-                              _expandedIds.remove(word.id);
+                              next.remove(word.id);
                             } else {
-                              _expandedIds.add(word.id);
+                              next.add(word.id);
                             }
-                          }),
+                            expandedIds.value = next;
+                          },
                           onCopy: () {
                             Clipboard.setData(
                               ClipboardData(
@@ -268,7 +257,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                               ),
                             );
                           },
-                          onDelete: () => _confirmDelete(word),
+                          onDelete: () => confirmDelete(word),
                         ),
                       );
                     },

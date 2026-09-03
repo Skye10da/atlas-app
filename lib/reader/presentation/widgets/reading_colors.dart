@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 
@@ -47,6 +47,34 @@ extension ReadingViewThemeColorsX on ReadingViewTheme {
         text: _tint(txt, hueShift: 25, satBoost: 0.1),
         surface: _tint(sf, hueShift: 35, satBoost: 0.18),
         accent: scheme.primary,
+      ),
+      ReadingViewTheme.wood => ReadingColors(
+        background: isDark
+            ? const Color(0xFF24160E)
+            : const Color(0xFFE2D1C3),
+        text: isDark
+            ? const Color(0xFFEAD6C5)
+            : const Color(0xFF2C190F),
+        surface: isDark
+            ? const Color(0xFF332015)
+            : const Color(0xFFD6C1AF),
+        accent: isDark
+            ? const Color(0xFFE08D50)
+            : const Color(0xFF9E4E20),
+      ),
+      ReadingViewTheme.book => ReadingColors(
+        background: isDark
+            ? const Color(0xFF1F1C18)
+            : const Color(0xFFF7F0DF),
+        text: isDark
+            ? const Color(0xFFEBE0CD)
+            : const Color(0xFF23201B),
+        surface: isDark
+            ? const Color(0xFF2D2822)
+            : const Color(0xFFEDE2CB),
+        accent: isDark
+            ? const Color(0xFFE5B558)
+            : const Color(0xFFAC3D20),
       ),
       ReadingViewTheme.blueLight => ReadingColors(
         background: _tint(bg, hueShift: -30, satBoost: 0.1),

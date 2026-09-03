@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 
 /// Text search panel bound to a [PdfTextSearcher] created by the viewer.
-class PdfSearchPanel extends StatefulWidget {
+class PdfSearchPanel extends HookWidget {
   const PdfSearchPanel({
     super.key,
     required this.textSearcher,
@@ -15,73 +16,53 @@ class PdfSearchPanel extends StatefulWidget {
   final bool nightMode;
 
   @override
-  State<PdfSearchPanel> createState() => _PdfSearchPanelState();
-}
-
-class _PdfSearchPanelState extends State<PdfSearchPanel> {
-  final _searchTextController = TextEditingController();
-  final _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    widget.textSearcher.addListener(_onSearcherChanged);
-    _searchTextController.addListener(_onQueryChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.textSearcher.removeListener(_onSearcherChanged);
-    _searchTextController.removeListener(_onQueryChanged);
-    _scrollController.dispose();
-    _searchTextController.dispose();
-    super.dispose();
-  }
-
-  void _onQueryChanged() {
-    widget.textSearcher.startTextSearch(_searchTextController.text);
-  }
-
-  void _onSearcherChanged() {
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _goToNextMatch() async {
-    await widget.textSearcher.goToNextMatch();
-    _revealCurrent();
-  }
-
-  Future<void> _goToPrevMatch() async {
-    await widget.textSearcher.goToPrevMatch();
-    _revealCurrent();
-  }
-
-  Future<void> _goToMatchAt(int index) async {
-    await widget.textSearcher.goToMatchOfIndex(index);
-    _revealCurrent();
-  }
-
-  void _revealCurrent() {
-    if (!_scrollController.hasClients) return;
-    final index = widget.textSearcher.currentIndex;
-    if (index == null) return;
-    final target = 44.0 * index.toDouble();
-    final position = _scrollController.position;
-    _scrollController.animateTo(
-      target.clamp(0.0, position.maxScrollExtent),
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-    );
-    if (mounted) setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
+    useListenable(textSearcher);
+    final searchTextController = useTextEditingController();
+    final scrollController = useScrollController();
+
+    useEffect(() {
+      void onQueryChanged() {
+        textSearcher.startTextSearch(searchTextController.text);
+      }
+
+      searchTextController.addListener(onQueryChanged);
+      return () => searchTextController.removeListener(onQueryChanged);
+    }, [searchTextController, textSearcher]);
+
+    void revealCurrent() {
+      if (!scrollController.hasClients) return;
+      final index = textSearcher.currentIndex;
+      if (index == null) return;
+      final target = 44.0 * index.toDouble();
+      final position = scrollController.position;
+      scrollController.animateTo(
+        target.clamp(0.0, position.maxScrollExtent),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+
+    Future<void> goToNextMatch() async {
+      await textSearcher.goToNextMatch();
+      revealCurrent();
+    }
+
+    Future<void> goToPrevMatch() async {
+      await textSearcher.goToPrevMatch();
+      revealCurrent();
+    }
+
+    Future<void> goToMatchAt(int index) async {
+      await textSearcher.goToMatchOfIndex(index);
+      revealCurrent();
+    }
+
     final colors = Theme.of(context).colorScheme;
-    final searcher = widget.textSearcher;
+    final searcher = textSearcher;
     final matches = searcher.matches;
     final isSearching = searcher.isSearching;
-    final hasQuery = _searchTextController.text.isNotEmpty;
+    final hasQuery = searchTextController.text.isNotEmpty;
 
     return Column(
       children: [
@@ -103,7 +84,7 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
             children: [
               Expanded(
                 child: TextField(
-                  controller: _searchTextController,
+                  controller: searchTextController,
                   decoration: InputDecoration(
                     hintText: 'Search document…',
                     isDense: true,
@@ -140,14 +121,14 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
                 tooltip: 'Previous match',
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                onPressed: matches.isEmpty ? null : _goToPrevMatch,
+                onPressed: matches.isEmpty ? null : goToPrevMatch,
               ),
               IconButton(
                 icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
                 tooltip: 'Next match',
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                onPressed: matches.isEmpty ? null : _goToNextMatch,
+                onPressed: matches.isEmpty ? null : goToNextMatch,
               ),
               IconButton(
                 icon: const Icon(Icons.close_rounded, size: 18),
@@ -156,7 +137,7 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
                 padding: EdgeInsets.zero,
                 onPressed: hasQuery
                     ? () {
-                        _searchTextController.clear();
+                        searchTextController.clear();
                         searcher.resetTextSearch();
                       }
                     : null,
@@ -177,13 +158,13 @@ class _PdfSearchPanelState extends State<PdfSearchPanel> {
                   ),
                 )
               : ListView.builder(
-                  controller: _scrollController,
+                  controller: scrollController,
                   itemExtent: 44,
                   itemCount: matches.length,
                   itemBuilder: (context, index) => _ResultTile(
                     match: matches[index],
                     isCurrent: index == searcher.currentIndex,
-                    onTap: () => _goToMatchAt(index),
+                    onTap: () => goToMatchAt(index),
                   ),
                 ),
         ),

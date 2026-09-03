@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.dart';
@@ -13,125 +14,96 @@ import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/presentation/providers/source_browser_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 
-class SourceSearchScreen extends ConsumerStatefulWidget {
+class SourceSearchScreen extends HookConsumerWidget {
   const SourceSearchScreen({super.key, required this.sourceName});
 
   final String sourceName;
 
   @override
-  ConsumerState<SourceSearchScreen> createState() => _SourceSearchScreenState();
-}
-
-class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
-    with SingleTickerProviderStateMixin {
-  SearchableSource? _source;
-  final _searchController = TextEditingController();
-  String _term = '';
-  int _page = 1;
-  List<SourceSearchResult> _results = [];
-  SourceSearchResponse? _lastResponse;
-  bool _isSearching = false;
-  bool _isLoadingMore = false;
-  bool _isImporting = false;
-  late final AnimationController _searchAnimCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _source = ref
-        .read(searchableSourcesProvider)
-        .where((s) => s.sourceName == widget.sourceName)
-        .firstOrNull;
-    _searchAnimCtrl = AnimationController(
-      vsync: this,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final searchController = useTextEditingController();
+    final term = useState('');
+    final page = useState(1);
+    final results = useState<List<SourceSearchResult>>([]);
+    final lastResponse = useState<SourceSearchResponse?>(null);
+    final isSearching = useState(false);
+    final isLoadingMore = useState(false);
+    final isImporting = useState(false);
+    final searchAnimCtrl = useAnimationController(
       duration: const Duration(milliseconds: 1200),
-    )..repeat();
-  }
+    );
 
-  @override
-  void dispose() {
-    _searchAnimCtrl.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
+    useEffect(() {
+      searchAnimCtrl.repeat();
+      return null;
+    }, const []);
 
-  Future<void> _search({bool loadMore = false}) async {
-    final term = _searchController.text.trim();
-    if (term.isEmpty) return;
+    final sources = ref.watch(searchableSourcesProvider);
+    final source = sources.where((s) => s.sourceName == sourceName).firstOrNull;
 
-    setState(() {
-      _term = term;
+    Future<void> doSearch({bool loadMore = false}) async {
+      final queryTerm = searchController.text.trim();
+      if (queryTerm.isEmpty || source == null) return;
+
+      term.value = queryTerm;
       if (!loadMore) {
-        _page = 1;
-        _results = [];
-        _isSearching = true;
+        page.value = 1;
+        results.value = [];
+        isSearching.value = true;
       }
-      _isLoadingMore = loadMore;
-    });
+      isLoadingMore.value = loadMore;
 
-    final source = _source;
-    if (source == null) return;
-
-    try {
-      final response = await source.search(
-        SourceSearchQuery(term: term, page: _page),
-      );
-      if (!mounted) return;
-      setState(() {
-        _lastResponse = response;
-        _results.addAll(response.results);
-        _isLoadingMore = false;
-        _isSearching = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingMore = false;
-        _isSearching = false;
-      });
+      try {
+        final response = await source.search(
+          SourceSearchQuery(term: queryTerm, page: page.value),
+        );
+        if (!context.mounted) return;
+        lastResponse.value = response;
+        results.value = [...results.value, ...response.results];
+        isLoadingMore.value = false;
+        isSearching.value = false;
+      } catch (e) {
+        if (!context.mounted) return;
+        isLoadingMore.value = false;
+        isSearching.value = false;
+      }
     }
-  }
 
-  Future<void> _import(SourceSearchResult result) async {
-    final source = _source;
-    if (source == null) return;
-    if (_isImporting) return;
-    setState(() => _isImporting = true);
+    Future<void> doImport(SourceSearchResult result) async {
+      if (source == null || isImporting.value) return;
+      isImporting.value = true;
 
-    try {
-      final previewModel = NovelModel(
-        sourceId: result.id,
-        title: result.title,
-        author: result.author,
-        description: result.description,
-        coverUrl: result.coverUrl,
-        language: result.language,
-        source: source.sourceName,
-        sourceUrl: result.importUrl,
-        category: source.contentCategory,
-      );
+      try {
+        final previewModel = NovelModel(
+          sourceId: result.id,
+          title: result.title,
+          author: result.author,
+          description: result.description,
+          coverUrl: result.coverUrl,
+          language: result.language,
+          source: source.sourceName,
+          sourceUrl: result.importUrl,
+          category: source.contentCategory,
+        );
 
-      final outcome = await showImportUrlSheet(
-        context,
-        title: result.title,
-        skipInputStage: true,
-        previewModel: previewModel,
-      );
-      if (outcome == null || !mounted) return;
-      final route = outcome.category == ContentCategory.novel
-          ? '/novel/${outcome.bookId}'
-          : '/book/${outcome.bookId}';
-      context.go(route);
-    } finally {
-      if (mounted) setState(() => _isImporting = false);
+        final outcome = await showImportUrlSheet(
+          context,
+          title: result.title,
+          skipInputStage: true,
+          previewModel: previewModel,
+        );
+        if (outcome == null || !context.mounted) return;
+        final route = outcome.category == ContentCategory.novel
+            ? '/novel/${outcome.bookId}'
+            : '/book/${outcome.bookId}';
+        context.go(route);
+      } finally {
+        if (context.mounted) isImporting.value = false;
+      }
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final source = _source;
 
     if (source == null) {
       return Scaffold(
@@ -141,7 +113,7 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
             onPressed: () => popOrGoToLibrary(context),
           ),
           title: Text(
-            widget.sourceName,
+            sourceName,
             style: const TextStyle(
               fontFamily: 'Playfair Display',
               fontWeight: FontWeight.w700,
@@ -161,7 +133,7 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
-                  'Source "${widget.sourceName}" is unavailable.',
+                  'Source "$sourceName" is unavailable.',
                   style: theme.textTheme.titleMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -220,20 +192,18 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
                   AppSpacing.sm,
                 ),
                 child: TextField(
-                  controller: _searchController,
+                  controller: searchController,
                   decoration: InputDecoration(
                     hintText: 'Search catalog on ${source.sourceName}…',
                     prefixIcon: const Icon(Icons.search_rounded),
-                    suffixIcon: _searchController.text.isNotEmpty
+                    suffixIcon: searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear_rounded),
                             onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _term = '';
-                                _results = [];
-                                _lastResponse = null;
-                              });
+                              searchController.clear();
+                              term.value = '';
+                              results.value = [];
+                              lastResponse.value = null;
                             },
                           )
                         : null,
@@ -249,69 +219,69 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
                     ),
                   ),
                   textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _search(),
+                  onSubmitted: (_) => doSearch(),
                 ),
               ),
               Expanded(
-                child: _results.isEmpty
-                    ? _isSearching
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AnimatedBuilder(
-                                    animation: _searchAnimCtrl,
-                                    builder: (_, _) => SizedBox(
-                                      width: 48,
-                                      height: 48,
-                                      child: CustomPaint(
-                                        painter: _ArcPainter(
-                                          progress: _searchAnimCtrl.value,
-                                          color: cs.primary,
-                                        ),
+                child: results.value.isEmpty
+                    ? isSearching.value
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AnimatedBuilder(
+                                  animation: searchAnimCtrl,
+                                  builder: (_, _) => SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: CustomPaint(
+                                      painter: _ArcPainter(
+                                        progress: searchAnimCtrl.value,
+                                        color: cs.primary,
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  Text(
-                                    'Searching...',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: cs.onSurfaceVariant,
-                                    ),
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                Text(
+                                  'Searching...',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: cs.onSurfaceVariant,
                                   ),
-                                ],
-                              ),
-                            )
-                          : Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.travel_explore_rounded,
-                                    size: 56,
-                                    color: cs.onSurfaceVariant.withValues(alpha: 0.35),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.travel_explore_rounded,
+                                  size: 56,
+                                  color: cs.onSurfaceVariant.withValues(alpha: 0.35),
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                Text(
+                                  term.value.isEmpty
+                                      ? 'Search for novels across ${source.sourceName}'
+                                      : 'No results found on ${source.sourceName}',
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: cs.onSurfaceVariant,
                                   ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  Text(
-                                    _term.isEmpty
-                                        ? 'Search for novels across ${source.sourceName}'
-                                        : 'No results found on ${source.sourceName}',
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      color: cs.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
+                                ),
+                              ],
+                            ),
+                          )
                     : NotificationListener<ScrollNotification>(
                         onNotification: (notification) {
                           if (notification is ScrollEndNotification &&
-                              !_isLoadingMore &&
-                              _lastResponse?.nextPage != null &&
+                              !isLoadingMore.value &&
+                              lastResponse.value?.nextPage != null &&
                               notification.metrics.pixels >=
                                   notification.metrics.maxScrollExtent - 200) {
-                            _page = _lastResponse!.nextPage!;
-                            _search(loadMore: true);
+                            page.value = lastResponse.value!.nextPage!;
+                            doSearch(loadMore: true);
                           }
                           return false;
                         },
@@ -322,22 +292,22 @@ class _SourceSearchScreenState extends ConsumerState<SourceSearchScreen>
                           ),
                           gridDelegate:
                               const SliverGridDelegateWithMaxCrossAxisExtent(
-                                maxCrossAxisExtent: 170,
-                                childAspectRatio: 0.6,
-                                crossAxisSpacing: 14,
-                                mainAxisSpacing: 14,
-                              ),
-                          itemCount: _results.length + (_isLoadingMore ? 1 : 0),
+                            maxCrossAxisExtent: 170,
+                            childAspectRatio: 0.6,
+                            crossAxisSpacing: 14,
+                            mainAxisSpacing: 14,
+                          ),
+                          itemCount: results.value.length + (isLoadingMore.value ? 1 : 0),
                           itemBuilder: (context, index) {
-                            if (index == _results.length) {
+                            if (index == results.value.length) {
                               return const Center(
                                 child: CircularProgressIndicator(),
                               );
                             }
-                            final result = _results[index];
+                            final item = results.value[index];
                             return _SearchResultCard(
-                              result: result,
-                              onTap: _isImporting ? null : () => _import(result),
+                              result: item,
+                              onTap: isImporting.value ? null : () => doImport(item),
                             );
                           },
                         ),

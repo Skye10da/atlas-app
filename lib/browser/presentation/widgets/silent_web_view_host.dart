@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/browser/domain/services/silent_web_view_service.dart';
@@ -17,44 +18,32 @@ import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 ///
 /// The live browser remains the primary fetcher whenever it is open; this
 /// host only kicks in when no open tab covers the requested origin.
-class SilentWebViewHost extends ConsumerStatefulWidget {
+class SilentWebViewHost extends HookConsumerWidget {
   const SilentWebViewHost({super.key});
 
   @override
-  ConsumerState<SilentWebViewHost> createState() => _SilentWebViewHostState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final engineState = useState<BrowserWebEngine?>(null);
 
-class _SilentWebViewHostState extends ConsumerState<SilentWebViewHost> {
-  BrowserWebEngine? _engine;
+    useEffect(() {
+      final engine = ref.read(browserEngineFactoryProvider)();
+      final service = SilentWebViewService(
+        engine: engine,
+        sessionStore: ref.read(browserSessionRepositoryProvider),
+      );
+      engineState.value = engine;
+      WebViewFetchService.instance.fallbackFetcher = service.fetchHtml;
 
-  @override
-  void initState() {
-    super.initState();
-    final engine = ref.read(browserEngineFactoryProvider)();
-    final service = SilentWebViewService(
-      engine: engine,
-      sessionStore: ref.read(browserSessionRepositoryProvider),
-    );
-    _engine = engine;
-    // The tear-off keeps [service] (and its engine) alive for the host's whole
-    // lifetime; [WebViewFetchService] releases it on dispose.
-    WebViewFetchService.instance.fallbackFetcher = service.fetchHtml;
-  }
+      return () {
+        WebViewFetchService.instance.fallbackFetcher = null;
+        engine.dispose();
+        engineState.value = null;
+      };
+    }, const []);
 
-  @override
-  void dispose() {
-    WebViewFetchService.instance.fallbackFetcher = null;
-    _engine?.dispose();
-    _engine = null;
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final engine = _engine;
+    final engine = engineState.value;
     if (engine == null) return const SizedBox.shrink();
-    // The host is deliberately tiny (see the 1x1 SizedBox in main.dart), never
-    // focused, and never hit-testable so it can't steal input from the app.
+
     return Semantics(
       explicitChildNodes: true,
       child: Focus(

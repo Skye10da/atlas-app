@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -43,12 +44,14 @@ class PdfBottomNav extends ConsumerWidget {
   final Color? progressColor;
 
   IconData get _layoutModeIcon => switch (layoutMode) {
+    PdfReaderLayoutMode.flipbook => Icons.auto_stories_rounded,
     PdfReaderLayoutMode.single => Icons.crop_portrait_rounded,
     PdfReaderLayoutMode.facing => Icons.menu_book_rounded,
     PdfReaderLayoutMode.continuous => Icons.view_day_rounded,
   };
 
   String get _layoutModeLabel => switch (layoutMode) {
+    PdfReaderLayoutMode.flipbook => 'Flip',
     PdfReaderLayoutMode.single => 'Single',
     PdfReaderLayoutMode.facing => 'Facing',
     PdfReaderLayoutMode.continuous => 'Scroll',
@@ -102,22 +105,19 @@ class PdfBottomNav extends ConsumerWidget {
                       onBookmarkTap();
                     },
                   ),
-                  if (onAnnotationsTap != null)
-                    _NavIconButton(
-                      icon: Icons.note_alt_outlined,
-                      label: 'Notes',
-                      textColor: textColor,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        onAnnotationsTap!();
-                      },
-                    ),
                   _NavIconButton(
                     icon: _layoutModeIcon,
                     label: _layoutModeLabel,
                     textColor: textColor,
                     onTap: onToggleLayoutMode,
                   ),
+                  if (onAnnotationsTap != null)
+                    _NavIconButton(
+                      icon: Icons.bookmarks_outlined,
+                      label: 'Notes',
+                      textColor: textColor,
+                      onTap: onAnnotationsTap!,
+                    ),
                   _NavIconButton(
                     icon: Icons.headphones_rounded,
                     label: 'Listen',
@@ -140,7 +140,7 @@ class PdfBottomNav extends ConsumerWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: _PageSliderTrack(
+                    child: _PageProgressBar(
                       currentPage: currentPage,
                       totalPages: totalPages,
                       progressFraction: progressFraction,
@@ -166,8 +166,8 @@ class PdfBottomNav extends ConsumerWidget {
   }
 }
 
-class _PageSliderTrack extends StatelessWidget {
-  const _PageSliderTrack({
+class _PageProgressBar extends StatelessWidget {
+  const _PageProgressBar({
     required this.currentPage,
     required this.totalPages,
     required this.progressFraction,
@@ -252,61 +252,44 @@ class _NavIconButton extends StatelessWidget {
   }
 }
 
-class _ClockIndicator extends StatefulWidget {
+class _ClockIndicator extends HookWidget {
   const _ClockIndicator({required this.textColor});
 
   final Color textColor;
 
-  @override
-  State<_ClockIndicator> createState() => _ClockIndicatorState();
-}
-
-class _ClockIndicatorState extends State<_ClockIndicator> {
-  late Timer _timer;
-  late String _timeString;
-
-  @override
-  void initState() {
-    super.initState();
-    _updateTime();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _updateTime());
-  }
-
-  void _updateTime() {
+  static String _formatCurrentTime() {
     final now = DateTime.now();
     final hour = now.hour == 0
         ? 12
         : (now.hour > 12 ? now.hour - 12 : now.hour);
     final minute = now.minute.toString().padLeft(2, '0');
     final period = now.hour >= 12 ? 'PM' : 'AM';
-    final formatted = '$hour:$minute $period';
-    if (mounted) {
-      setState(() => _timeString = formatted);
-    } else {
-      _timeString = formatted;
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
+    return '$hour:$minute $period';
   }
 
   @override
   Widget build(BuildContext context) {
+    final timeString = useState(_formatCurrentTime());
+
+    useEffect(() {
+      final timer = Timer.periodic(const Duration(seconds: 30), (_) {
+        timeString.value = _formatCurrentTime();
+      });
+      return timer.cancel;
+    }, const []);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: widget.textColor.withValues(alpha: 0.08),
+        color: textColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
       ),
       child: Text(
-        _timeString,
+        timeString.value,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: widget.textColor.withValues(alpha: 0.9),
+          color: textColor.withValues(alpha: 0.9),
         ),
       ),
     );
@@ -367,4 +350,3 @@ class _BatteryIndicator extends StatelessWidget {
     );
   }
 }
-

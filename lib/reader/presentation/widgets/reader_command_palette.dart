@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 
-class ReaderCommandPalette extends StatefulWidget {
+class ReaderCommandPalette extends HookWidget {
   const ReaderCommandPalette({
     super.key,
     required this.chapters,
@@ -26,103 +27,87 @@ class ReaderCommandPalette extends StatefulWidget {
   final VoidCallback? onOpenAnnotations;
   final VoidCallback onClose;
 
-  @override
-  State<ReaderCommandPalette> createState() => _ReaderCommandPaletteState();
-}
-
-class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
-  final _searchController = TextEditingController();
-  final _focusNode = FocusNode();
-  String _query = '';
-  int _selectedIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _focusNode.requestFocus(),
-    );
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  List<_CommandItem> get _filteredCommands {
-    final commands = _allCommands;
-    if (_query.isEmpty) return commands;
-    final q = _query.toLowerCase();
-    return commands
-        .where(
-          (c) =>
-              c.title.toLowerCase().contains(q) ||
-              c.subtitle.toLowerCase().contains(q) ||
-              '${c.index}'.contains(q),
-        )
-        .toList();
-  }
-
-  List<_CommandItem> get _allCommands => [
+  List<_CommandItem> _buildAllCommands() => [
     _CommandItem(
       icon: Icons.list,
       title: 'Go to Chapter...',
       subtitle: 'Jump to a specific chapter',
       action: (idx) {},
     ),
-    ...widget.chapters.map(
+    ...chapters.map(
       (ch) => _CommandItem(
         icon: Icons.article_outlined,
         title: ch.title,
-        subtitle: 'Chapter ${widget.chapters.indexOf(ch) + 1}',
-        index: widget.chapters.indexOf(ch),
-        isCurrent: widget.chapters.indexOf(ch) == widget.currentChapterIndex,
-        action: (idx) => widget.onChapterSelected(idx),
+        subtitle: 'Chapter ${chapters.indexOf(ch) + 1}',
+        index: chapters.indexOf(ch),
+        isCurrent: chapters.indexOf(ch) == currentChapterIndex,
+        action: (idx) => onChapterSelected(idx),
       ),
     ),
     _CommandItem(
-      icon: widget.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-      title: widget.isBookmarked
-          ? 'Remove bookmark'
-          : 'Bookmark current chapter',
+      icon: isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+      title: isBookmarked ? 'Remove bookmark' : 'Bookmark current chapter',
       subtitle: 'Toggle bookmark for this chapter',
-      action: (_) => widget.onToggleBookmark(),
+      action: (_) => onToggleBookmark(),
     ),
-    if (widget.onOpenAnnotations != null)
+    if (onOpenAnnotations != null)
       _CommandItem(
         icon: Icons.bookmarks_outlined,
         title: 'Annotations & Notes',
         subtitle: 'View saved notes, quotes, and highlights',
-        action: (_) => widget.onOpenAnnotations!(),
+        action: (_) => onOpenAnnotations!(),
       ),
     _CommandItem(
       icon: Icons.text_fields,
       title: 'Reading settings',
       subtitle: 'Font size, theme, layout',
-      action: (_) => widget.onToggleSettings(),
+      action: (_) => onToggleSettings(),
     ),
   ];
 
-  void _executeSelected() {
-    final items = _filteredCommands;
-    if (items.isEmpty) return;
-    if (_selectedIndex >= items.length) _selectedIndex = 0;
-    items[_selectedIndex].action(items[_selectedIndex].index);
-    widget.onClose();
-  }
-
   @override
   Widget build(BuildContext context) {
+    final searchController = useTextEditingController();
+    final focusNode = useFocusNode();
+    final query = useState('');
+    final selectedIndex = useState(0);
+
+    useEffect(() {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => focusNode.requestFocus(),
+      );
+      return null;
+    }, const []);
+
+    final allCommands = _buildAllCommands();
+    final items = useMemoized(() {
+      if (query.value.isEmpty) return allCommands;
+      final q = query.value.toLowerCase();
+      return allCommands
+          .where(
+            (c) =>
+                c.title.toLowerCase().contains(q) ||
+                c.subtitle.toLowerCase().contains(q) ||
+                '${c.index}'.contains(q),
+          )
+          .toList();
+    }, [query.value, allCommands]);
+
+    void executeSelected() {
+      if (items.isEmpty) return;
+      var idx = selectedIndex.value;
+      if (idx >= items.length) idx = 0;
+      items[idx].action(items[idx].index);
+      onClose();
+    }
+
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final items = _filteredCommands;
 
     return Stack(
       children: [
         GestureDetector(
-          onTap: widget.onClose,
+          onTap: onClose,
           child: Container(color: Colors.black.withValues(alpha: 0.3)),
         ),
         Center(
@@ -148,39 +133,33 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                           return KeyEventResult.ignored;
                         }
                         if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                          setState(
-                            () => _selectedIndex = (_selectedIndex + 1).clamp(
-                              0,
-                              items.length - 1,
-                            ),
+                          selectedIndex.value = (selectedIndex.value + 1).clamp(
+                            0,
+                            items.length - 1,
                           );
                           return KeyEventResult.handled;
                         }
                         if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                          setState(
-                            () => _selectedIndex = (_selectedIndex - 1).clamp(
-                              0,
-                              items.length - 1,
-                            ),
+                          selectedIndex.value = (selectedIndex.value - 1).clamp(
+                            0,
+                            items.length - 1,
                           );
                           return KeyEventResult.handled;
                         }
                         if (event.logicalKey == LogicalKeyboardKey.escape) {
-                          widget.onClose();
+                          onClose();
                           return KeyEventResult.handled;
                         }
                         return KeyEventResult.ignored;
                       },
                       child: TextField(
-                        controller: _searchController,
-                        focusNode: _focusNode,
+                        controller: searchController,
+                        focusNode: focusNode,
                         onChanged: (v) {
-                          setState(() {
-                            _query = v;
-                            _selectedIndex = 0;
-                          });
+                          query.value = v;
+                          selectedIndex.value = 0;
                         },
-                        onSubmitted: (_) => _executeSelected(),
+                        onSubmitted: (_) => executeSelected(),
                         decoration: InputDecoration(
                           hintText: 'Search commands...',
                           prefixIcon: Icon(
@@ -215,7 +194,7 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                         itemCount: items.length,
                         itemBuilder: (_, i) {
                           final item = items[i];
-                          final isSelected = i == _selectedIndex;
+                          final isSelected = i == selectedIndex.value;
                           return Material(
                             color: isSelected
                                 ? colors.primaryContainer.withValues(alpha: 0.3)
@@ -223,7 +202,7 @@ class _ReaderCommandPaletteState extends State<ReaderCommandPalette> {
                             child: InkWell(
                               onTap: () {
                                 item.action(item.index);
-                                widget.onClose();
+                                onClose();
                               },
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(

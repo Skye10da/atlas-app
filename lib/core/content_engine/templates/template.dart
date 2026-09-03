@@ -58,6 +58,10 @@ abstract interface class Template {
   );
 
   Future<NovelMetadata> metadata(PluginContext context, String novelUrl);
+
+  /// Fetches trending/popular books from the plugin's trending page.
+  /// Returns an empty list if the plugin doesn't support trending.
+  Future<List<TrendingResult>> trending(PluginContext context) async => [];
 }
 
 /// Thrown when a capability is invoked on a plugin that doesn't declare it —

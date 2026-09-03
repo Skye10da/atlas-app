@@ -1,0 +1,13 @@
+{
+  "trending": {
+    "path": "/en/ranking/daily",
+    "resultItem": ".rank-item, .novel-item, .book-card",
+    "title": ".novel-title, .book-title, h3 a@text",
+    "coverUrl": ".novel-img img@src, .book-cover img@src, img@src",
+    "detailUrl": ".novel-title a@href, .book-title a@href, h3 a@href",
+    "author": ".author@text, .novel-author@text",
+    "rating": ".rating@text, .score@text",
+    "popularity": ".views@text, .reads@text",
+    "genre": ".genre-tag@text, .tag@text"
+  }
+}

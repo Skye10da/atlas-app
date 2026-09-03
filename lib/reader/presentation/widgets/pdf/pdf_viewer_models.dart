@@ -5,6 +5,9 @@ import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 
 /// How PDF pages are laid out in the reader.
 enum PdfReaderLayoutMode {
+  /// Realistic physical 3D-like page flip engine.
+  flipbook,
+
   /// One page (or page spread) at a time, scrolled vertically.
   single,
 
@@ -17,6 +20,7 @@ enum PdfReaderLayoutMode {
 
 extension PdfReaderLayoutModeX on PdfReaderLayoutMode {
   String get label => switch (this) {
+    PdfReaderLayoutMode.flipbook => 'Flipbook',
     PdfReaderLayoutMode.single => 'Single',
     PdfReaderLayoutMode.continuous => 'Continuous',
     PdfReaderLayoutMode.facing => 'Facing',

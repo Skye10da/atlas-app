@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
+import 'package:atlas_app/library/presentation/providers/book_providers.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 
-class BatchDownloadSheet extends ConsumerStatefulWidget {
+class BatchDownloadSheet extends HookConsumerWidget {
   const BatchDownloadSheet({
     super.key,
     required this.book,
@@ -33,31 +35,70 @@ class BatchDownloadSheet extends ConsumerStatefulWidget {
     );
   }
 
-  @override
-  ConsumerState<BatchDownloadSheet> createState() => _BatchDownloadSheetState();
-}
-
-class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
-  bool _isDownloading = false;
-  int _completed = 0;
-  int _targetTotal = 0;
-  String _statusText = '';
+  static String _formatSize(int count) {
+    final mb = (count * 0.15).toStringAsFixed(1);
+    return '~$mb MB';
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDownloading = useState(false);
+    final completed = useState(0);
+    final targetTotal = useState(0);
+    final statusText = useState('');
+
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
     // Calculate un-downloaded chapters
-    final undownloaded = widget.chapters
+    final undownloaded = chapters
         .where((c) => c.contentState != ContentState.availableOffline.index)
         .toList();
 
-    final lastReadIdx = ((widget.book.progress ?? 0.0) * widget.chapters.length).round();
-    final remainingFromCurrent = widget.chapters
+    final lastReadIdx = ((book.progress ?? 0.0) * chapters.length).round();
+    final remainingFromCurrent = chapters
         .skip(lastReadIdx)
         .where((c) => c.contentState != ContentState.availableOffline.index)
         .toList();
+
+    Future<void> startBatchDownload({
+      required List<ChapterEntity> toDownload,
+      required String label,
+    }) async {
+      if (toDownload.isEmpty) return;
+
+      isDownloading.value = true;
+      completed.value = 0;
+      targetTotal.value = toDownload.length;
+      statusText.value = label;
+
+      final service = ref.read(chapterDownloadServiceProvider);
+      final downloadingSet = ref.read(chapterDownloadingSetProvider.notifier);
+
+      for (final ch in toDownload) {
+        if (!context.mounted) break;
+        downloadingSet.update((set) => set..add(ch.id));
+
+        await service.downloadChapter(book.id, ch.index);
+
+        downloadingSet.update((set) => set..remove(ch.id));
+        if (context.mounted) {
+          completed.value = completed.value + 1;
+        }
+      }
+
+      ref.invalidate(novelChaptersProvider(book.id));
+      ref.invalidate(bookChaptersProvider(book.id));
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloaded ${completed.value} chapters successfully.'),
+          ),
+        );
+        Navigator.of(context).pop();
+      }
+    }
 
     return Container(
       padding: EdgeInsets.only(
@@ -106,7 +147,7 @@ class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
                     ),
                   ),
                 ),
-                if (_isDownloading)
+                if (isDownloading.value)
                   IconButton(
                     icon: const Icon(Icons.close_rounded),
                     onPressed: () => Navigator.of(context).pop(),
@@ -123,7 +164,7 @@ class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
             const SizedBox(height: AppSpacing.lg),
 
             // Downloading Progress View
-            if (_isDownloading) ...[
+            if (isDownloading.value) ...[
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
@@ -140,13 +181,13 @@ class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          _statusText,
+                          statusText.value,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
-                          '$_completed / $_targetTotal',
+                          '${completed.value} / ${targetTotal.value}',
                           style: theme.textTheme.labelMedium?.copyWith(
                             color: cs.primary,
                             fontWeight: FontWeight.bold,
@@ -158,7 +199,7 @@ class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
                       child: LinearProgressIndicator(
-                        value: _targetTotal > 0 ? _completed / _targetTotal : 0.0,
+                        value: targetTotal.value > 0 ? completed.value / targetTotal.value : 0.0,
                         minHeight: 6,
                         backgroundColor: cs.surfaceContainerHighest,
                         valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
@@ -175,8 +216,8 @@ class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
                   subtitle: _formatSize(10),
                   icon: Icons.filter_1_rounded,
                   enabled: remainingFromCurrent.isNotEmpty,
-                  onTap: () => _startBatchDownload(
-                    chapters: remainingFromCurrent.take(10).toList(),
+                  onTap: () => startBatchDownload(
+                    toDownload: remainingFromCurrent.take(10).toList(),
                     label: 'Downloading next 10 chapters',
                   ),
                 ),
@@ -186,8 +227,8 @@ class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
                   subtitle: _formatSize(25),
                   icon: Icons.filter_2_rounded,
                   enabled: remainingFromCurrent.length > 10,
-                  onTap: () => _startBatchDownload(
-                    chapters: remainingFromCurrent.take(25).toList(),
+                  onTap: () => startBatchDownload(
+                    toDownload: remainingFromCurrent.take(25).toList(),
                     label: 'Downloading next 25 chapters',
                   ),
                 ),
@@ -197,8 +238,8 @@ class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
                   subtitle: _formatSize(50),
                   icon: Icons.filter_3_rounded,
                   enabled: remainingFromCurrent.length > 25,
-                  onTap: () => _startBatchDownload(
-                    chapters: remainingFromCurrent.take(50).toList(),
+                  onTap: () => startBatchDownload(
+                    toDownload: remainingFromCurrent.take(50).toList(),
                     label: 'Downloading next 50 chapters',
                   ),
                 ),
@@ -210,8 +251,8 @@ class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
                 icon: Icons.cloud_download_rounded,
                 enabled: undownloaded.isNotEmpty,
                 isPrimary: true,
-                onTap: () => _startBatchDownload(
-                  chapters: undownloaded,
+                onTap: () => startBatchDownload(
+                  toDownload: undownloaded,
                   label: 'Downloading all remaining chapters',
                 ),
               ),
@@ -220,53 +261,6 @@ class _BatchDownloadSheetState extends ConsumerState<BatchDownloadSheet> {
         ),
       ),
     );
-  }
-
-  String _formatSize(int count) {
-    final mb = (count * 0.15).toStringAsFixed(1);
-    return '~$mb MB';
-  }
-
-  Future<void> _startBatchDownload({
-    required List<ChapterEntity> chapters,
-    required String label,
-  }) async {
-    if (chapters.isEmpty) return;
-
-    setState(() {
-      _isDownloading = true;
-      _completed = 0;
-      _targetTotal = chapters.length;
-      _statusText = label;
-    });
-
-    final service = ref.read(chapterDownloadServiceProvider);
-    final downloadingSet = ref.read(chapterDownloadingSetProvider.notifier);
-
-    for (final ch in chapters) {
-      if (!mounted) break;
-      downloadingSet.update((set) => set..add(ch.id));
-
-      await service.downloadChapter(widget.book.id, ch.index);
-
-      downloadingSet.update((set) => set..remove(ch.id));
-      if (mounted) {
-        setState(() {
-          _completed++;
-        });
-      }
-    }
-
-    ref.invalidate(novelChaptersProvider(widget.book.id));
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Downloaded $_completed chapters successfully.'),
-        ),
-      );
-      Navigator.of(context).pop();
-    }
   }
 }
 

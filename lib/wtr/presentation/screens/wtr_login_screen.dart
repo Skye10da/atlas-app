@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_authentication_manager.dart';
@@ -13,63 +14,51 @@ import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
 /// the session cookies created during sign-in and flips the auth state. Closing
 /// the screen first (AppBar close / system back) abandons the attempt and
 /// reports `authenticationFailed` so the translation selector can recover.
-class WtrLoginScreen extends ConsumerStatefulWidget {
+class WtrLoginScreen extends HookConsumerWidget {
   const WtrLoginScreen({super.key});
 
   @override
-  ConsumerState<WtrLoginScreen> createState() => _WtrLoginScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(wtrAuthManagerProvider);
+    final engine = useMemoized<BrowserWebEngine>(() {
+      final factory = ref.read(wtrLoginEngineFactoryProvider);
+      return factory(initialUrl: WtrAuthenticationManager.loginUrl);
+    }, []);
 
-class _WtrLoginScreenState extends ConsumerState<WtrLoginScreen> {
-  late final BrowserWebEngine _engine;
-  late final WtrAuthenticationManager _auth;
-  bool _completing = false;
-  bool _completed = false;
+    final completing = useState(false);
+    final completed = useRef(false);
 
-  @override
-  void initState() {
-    super.initState();
-    final factory = ref.read(wtrLoginEngineFactoryProvider);
-    _engine = factory(initialUrl: WtrAuthenticationManager.loginUrl);
-    _auth = ref.read(wtrAuthManagerProvider);
-    _auth.beginLogin();
-  }
+    useEffect(() {
+      auth.beginLogin();
+      return () {
+        if (!completed.value) {
+          auth.markAuthenticationFailed();
+        }
+        engine.dispose();
+      };
+    }, [auth, engine]);
 
-  Future<void> _completeLogin() async {
-    if (_completing) return;
-    setState(() => _completing = true);
-    final ok = await _auth.completeLogin();
-    if (!mounted) return;
-    _completed = true;
-    if (ok) {
-      Navigator.of(context).pop(true);
-    } else {
-      setState(() => _completing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'WTR-Lab sign-in did not complete. Check that you reached the '
-            'wtr-lab.com site, then try again.',
+    Future<void> completeLogin() async {
+      if (completing.value) return;
+      completing.value = true;
+      final ok = await auth.completeLogin();
+      if (!context.mounted) return;
+      completed.value = true;
+      if (ok) {
+        Navigator.of(context).pop(true);
+      } else {
+        completing.value = false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'WTR-Lab sign-in did not complete. Check that you reached the '
+              'wtr-lab.com site, then try again.',
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
-  }
 
-  @override
-  void dispose() {
-    if (!_completed) {
-      // User closed the browser before finishing login — reflect that in the
-      // auth state so the selector offers a retry instead of staying stuck on
-      // "signing in".
-      _auth.markAuthenticationFailed();
-    }
-    _engine.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
@@ -92,22 +81,22 @@ class _WtrLoginScreenState extends ConsumerState<WtrLoginScreen> {
               style: theme.textTheme.bodySmall,
             ),
           ),
-          Expanded(child: _engine.buildView()),
+          Expanded(child: engine.buildView()),
         ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: FilledButton.icon(
-            onPressed: _completing ? null : _completeLogin,
-            icon: _completing
+            onPressed: completing.value ? null : completeLogin,
+            icon: completing.value
                 ? const SizedBox(
-                    width: 18,
-                    height: 18,
+                    width: 16,
+                    height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.check),
-            label: const Text('Done — Return to Atlas'),
+                : const Icon(Icons.check_rounded),
+            label: Text(completing.value ? 'Finishing sign-in…' : 'I have signed in'),
           ),
         ),
       ),

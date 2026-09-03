@@ -1,38 +1,42 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:atlas_app/library/presentation/widgets/batch_download_sheet.dart';
-import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
-import 'package:atlas_app/library/presentation/widgets/novel/continue_reading_card.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
-import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/atoms/book_badge.dart';
 import 'package:atlas_app/core/design_system/molecules/confirm_delete_dialog.dart';
 import 'package:atlas_app/core/design_system/molecules/milestone_celebration_dialog.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
+import 'package:atlas_app/library/presentation/providers/book_providers.dart';
+import 'package:atlas_app/library/presentation/providers/chapter_download_provider.dart';
+import 'package:atlas_app/library/presentation/providers/chapter_expansion_provider.dart';
+import 'package:atlas_app/library/presentation/providers/library_provider.dart';
+import 'package:atlas_app/library/presentation/providers/novel_actions_controller.dart';
+import 'package:atlas_app/library/presentation/widgets/batch_download_sheet.dart';
+import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
+import 'package:atlas_app/library/presentation/widgets/novel/continue_reading_card.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/genre_tag_row.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/novel_hero_header.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/source_attribution.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/synopsis_card.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
-import 'package:atlas_app/core/database/providers.dart';
-import 'package:atlas_app/core/router/navigation.dart';
-import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
 import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
 
-class NovelDetailsScreen extends ConsumerStatefulWidget {
+class NovelDetailsScreen extends HookConsumerWidget {
   const NovelDetailsScreen({
     super.key,
     required this.bookId,
@@ -45,119 +49,29 @@ class NovelDetailsScreen extends ConsumerStatefulWidget {
   final VoidCallback? onClose;
 
   @override
-  ConsumerState<NovelDetailsScreen> createState() => _NovelDetailsScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    useEffect(() {
+      unawaited(
+        ref.read(novelActionsControllerProvider.notifier).acknowledgeUpdates(bookId),
+      );
+      return null;
+    }, [bookId]);
 
-class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
-  // Held in state (instead of created fresh inline in every `build`) so it
-  // can be explicitly refreshed after returning from the reader. Popping
-  // back onto this screen doesn't itself trigger a rebuild, so a future
-  // built inline in `build()` would otherwise keep showing the snapshot
-  // that was current when the reader was opened — stale chapter/progress —
-  // until some unrelated rebuild happened to occur.
-  late Future<Result<BookEntity>> _bookFuture;
-  bool _checkingUpdates = false;
+    final bookAsync = ref.watch(bookDetailsProvider(bookId));
+    final actionsState = ref.watch(novelActionsControllerProvider);
+    final isDesktop = AppBreakpoints.isDesktop(context);
 
-  @override
-  void initState() {
-    super.initState();
-    _bookFuture = _fetchBook();
-    unawaited(_acknowledgeUpdates());
-  }
-
-  Future<Result<BookEntity>> _fetchBook() {
-    final db = ref.read(databaseProvider);
-    return DriftLibraryRepository(db).getBookById(widget.bookId);
-  }
-
-  /// Opening the details screen counts as having seen the "new chapters"
-  /// badge, so clear it (and the library tile marker).
-  Future<void> _acknowledgeUpdates() async {
-    final result = await _fetchBook();
-    if (result is! Success<BookEntity> || !result.value.hasUpdate) return;
-    final db = ref.read(databaseProvider);
-    await DriftLibraryRepository(db).clearUpdateFlag(widget.bookId);
-    if (mounted) ref.invalidate(libraryBooksProvider);
-  }
-
-  void _refreshBook() {
-    if (!mounted) return;
-    setState(() {
-      _bookFuture = _fetchBook();
-    });
-  }
-
-  /// A WTR-Lab translation switch means any stored chapter text was fetched
-  /// under the *previous* service. Drop the book's downloaded content so the
-  /// next read re-fetches each chapter with the newly selected service.
-  Future<void> _onWtrServiceChanged() async {
-    final repo = ref.read(readerRepositoryProvider);
-    await repo.resetChapterContent(widget.bookId);
-    ref.invalidate(novelChaptersProvider(widget.bookId));
-  }
-
-  Future<void> _checkForUpdates({bool showSnackbars = true}) async {
-    setState(() => _checkingUpdates = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final outcome = await ref
-          .read(chapterUpdateServiceProvider)
-          .refreshBook(widget.bookId);
-      if (!mounted) return;
-      ref.invalidate(novelChaptersProvider(widget.bookId));
-      _refreshBook();
-      final message = !outcome.success
-          ? outcome.error ?? 'Update check failed.'
-          : outcome.newChapters == 0
-          ? 'No new chapters.'
-          : 'Found ${outcome.newChapters} new chapter'
-                '${outcome.newChapters == 1 ? '' : 's'}.';
-      if (showSnackbars) {
-        messenger.showSnackBar(SnackBar(content: Text(message)));
-      }
-    } catch (_) {
-      if (showSnackbars && mounted) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Update check failed.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _checkingUpdates = false);
-    }
-  }
-
-  Future<void> _toggleTracking(BookEntity book) async {
-    final db = ref.read(databaseProvider);
-    await DriftLibraryRepository(
-      db,
-    ).setUpdateTracking(book.id, !book.updateTrackingEnabled);
-    if (!mounted) return;
-    ref.invalidate(libraryBooksProvider);
-    _refreshBook();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<Result<BookEntity>>(
-      future: _bookFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return widget.isEmbedded
-              ? const Center(child: CircularProgressIndicator())
-              : const Scaffold(body: AppLoading());
-        }
-
-        final bookData = snapshot.data;
-        if (bookData is! Success<BookEntity>) {
-          return widget.isEmbedded
-              ? const Center(child: Text('Failed to load novel'))
-              : Scaffold(
-                  appBar: AppBar(),
-                  body: const Center(child: Text('Failed to load novel')),
-                );
-        }
-
-        final book = bookData.value;
+    return bookAsync.when(
+      loading: () => isEmbedded
+          ? const Center(child: CircularProgressIndicator())
+          : const Scaffold(body: AppLoading()),
+      error: (err, _) => isEmbedded
+          ? Center(child: Text('Failed to load novel: $err'))
+          : Scaffold(
+              appBar: AppBar(),
+              body: Center(child: Text('Failed to load novel: $err')),
+            ),
+      data: (book) {
         final isWtrLab = isWtrLabSource(
           sourceUrl: book.sourceUrl,
           sourceName: book.sourceName,
@@ -165,29 +79,28 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
         final wtrRawId = isWtrLab
             ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl)
             : null;
-        final isDesktop = AppBreakpoints.isDesktop(context);
 
         final scrollView = CustomScrollView(
           slivers: [
             SliverAppBar(
-              expandedHeight: widget.isEmbedded ? 240 : 360,
+              expandedHeight: isEmbedded ? 240 : 360,
               pinned: true,
               flexibleSpace: FlexibleSpaceBar(
                 background: NovelHeroHeader(
                   book: book,
-                  isEmbedded: widget.isEmbedded,
+                  isEmbedded: isEmbedded,
                 ),
               ),
               backgroundColor: Theme.of(context).colorScheme.surface,
-              leading: widget.isEmbedded
+              leading: isEmbedded
                   ? IconButton(
                       icon: const Icon(Icons.close),
-                      onPressed: widget.onClose,
+                      onPressed: onClose,
                     )
                   : null,
               actions: [
                 IconButton(
-                  icon: _checkingUpdates
+                  icon: actionsState.isLoading
                       ? const SizedBox(
                           width: 18,
                           height: 18,
@@ -195,7 +108,11 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                         )
                       : const Icon(Icons.refresh),
                   tooltip: 'Check for updates',
-                  onPressed: _checkingUpdates ? null : () => _checkForUpdates(),
+                  onPressed: actionsState.isLoading
+                      ? null
+                      : () => ref
+                          .read(novelActionsControllerProvider.notifier)
+                          .checkForUpdates(context, bookId),
                 ),
                 if (book.isNovel)
                   IconButton(
@@ -207,17 +124,25 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                     tooltip: book.updateTrackingEnabled
                         ? 'Stop tracking updates'
                         : 'Track updates',
-                    onPressed: () => _toggleTracking(book),
+                    onPressed: () async {
+                      final db = ref.read(databaseProvider);
+                      await DriftLibraryRepository(db).setUpdateTracking(
+                        book.id,
+                        !book.updateTrackingEnabled,
+                      );
+                      ref.invalidate(bookDetailsProvider(bookId));
+                      ref.invalidate(libraryBooksProvider);
+                    },
                   ),
                 IconButton(
                   icon: const Icon(Icons.file_upload_outlined),
                   tooltip: 'Export',
-                  onPressed: () => _exportNovel(book),
+                  onPressed: () => _exportNovel(context, ref, book),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
                   tooltip: 'Delete novel',
-                  onPressed: () => _confirmDelete(context),
+                  onPressed: () => _confirmDelete(context, ref, bookId),
                 ),
                 const SizedBox(width: 4),
               ],
@@ -230,10 +155,12 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                   if (wtrRawId != null)
                     WtrTranslationSelector(
                       rawId: wtrRawId,
-                      onServiceChanged: () => _onWtrServiceChanged(),
+                      onServiceChanged: () => ref
+                          .read(novelActionsControllerProvider.notifier)
+                          .changeWtrService(bookId),
                     ),
                   if (wtrRawId != null) const SizedBox(height: AppSpacing.sm),
-                  ContinueReadingCard(book: book, onReturn: _refreshBook),
+                  ContinueReadingCard(book: book),
                   const SizedBox(height: AppSpacing.sm),
                   _ReadingTriviaCard(book: book),
                   const SizedBox(height: AppSpacing.sm),
@@ -248,7 +175,7 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
                     totalChapters: book.totalChapters,
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  _ChapterPanel(bookId: widget.bookId, onReturn: _refreshBook),
+                  _ChapterPanel(bookId: bookId),
                   const SizedBox(height: AppSpacing.xxl),
                 ],
               ),
@@ -257,11 +184,13 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
         );
 
         final refreshableScrollView = RefreshIndicator(
-          onRefresh: () => _checkForUpdates(showSnackbars: false),
+          onRefresh: () => ref
+              .read(novelActionsControllerProvider.notifier)
+              .checkForUpdates(context, bookId, showSnackbars: false),
           child: scrollView,
         );
 
-        if (widget.isEmbedded) return refreshableScrollView;
+        if (isEmbedded) return refreshableScrollView;
 
         return Scaffold(
           body: isDesktop
@@ -277,44 +206,48 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context) async {
+  static Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    String bookId,
+  ) async {
     final confirmed = await ConfirmDeleteDialog.show(
       context,
       title: 'Delete novel?',
       message: 'This will permanently remove the novel and all reading progress.',
       confirmLabel: 'Delete',
     );
-    if (confirmed == true && mounted) {
-      unawaited(_deleteNovel());
-    }
-  }
-
-  Future<void> _deleteNovel() async {
-    final db = ref.read(databaseProvider);
-    final repo = DriftLibraryRepository(db);
-    final r = await repo.deleteBook(widget.bookId);
-    if (mounted) {
-      if (r is Success) {
-        ref.invalidate(libraryBooksProvider);
-        popOrGoToLibrary(context);
-      } else if (r is Failure) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(r.error.userMessage)));
+    if (confirmed == true && context.mounted) {
+      final db = ref.read(databaseProvider);
+      final repo = DriftLibraryRepository(db);
+      final r = await repo.deleteBook(bookId);
+      if (context.mounted) {
+        if (r is Success) {
+          ref.invalidate(libraryBooksProvider);
+          popOrGoToLibrary(context);
+        } else if (r is Failure) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(r.error.userMessage)),
+          );
+        }
       }
     }
   }
 
-  Future<void> _exportNovel(BookEntity book) async {
+  static Future<void> _exportNovel(
+    BuildContext context,
+    WidgetRef ref,
+    BookEntity book,
+  ) async {
     final format = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (ctx) => _ExportFormatSheet(book: book),
     );
-    if (format == null || !mounted) return;
+    if (format == null || !context.mounted) return;
 
     final dir = await FilePicker.platform.getDirectoryPath();
-    if (dir == null || !mounted) return;
+    if (dir == null || !context.mounted) return;
 
     final service = ref.read(novelExportServiceProvider);
     final progress = ValueNotifier<double>(0);
@@ -334,7 +267,7 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
       );
     }
 
-    if (!mounted) {
+    if (!context.mounted) {
       try {
         await exportFuture;
       } catch (_) {}
@@ -351,16 +284,16 @@ class _NovelDetailsScreenState extends ConsumerState<NovelDetailsScreen> {
       ),
     );
 
-    if (!mounted) return;
+    if (!context.mounted) return;
     final result = await exportFuture;
     final message = switch (result) {
       Success(value: final path) => 'Exported to $path',
       Failure(error: final error) => error.userMessage,
     };
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 }
 
@@ -383,9 +316,9 @@ class _ExportFormatSheet extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 'Export ${book.title}',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
               ),
             ),
             const SizedBox(height: 12),
@@ -438,14 +371,10 @@ class _ChapterSectionHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chapters = ref.watch(novelChaptersProvider(book.id));
-    final downloadingSet = ref.watch(chapterDownloadingSetProvider);
-    final isDownloadingAll = chapters.maybeWhen(
-      data: (list) => list.any((ch) => downloadingSet.contains(ch.id)),
-      orElse: () => false,
-    );
+    final chaptersAsync = ref.watch(bookChaptersProvider(book.id));
+    final isDownloadingAll = ref.watch(isBatchDownloadingProvider(book.id));
 
-    final downloadedCount = chapters.maybeWhen(
+    final downloadedCount = chaptersAsync.maybeWhen(
       data: (list) => list
           .where((ch) => ch.contentState == ContentState.availableOffline.index)
           .length,
@@ -458,16 +387,17 @@ class _ChapterSectionHeader extends ConsumerWidget {
         children: [
           Text(
             'Chapters',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            style: Theme.of(context)
+                .textTheme
+                .titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600),
           ),
           const Spacer(),
           Text(
             '$downloadedCount / $totalChapters',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
           if (downloadedCount < totalChapters) ...[
             const SizedBox(width: 8),
@@ -477,7 +407,7 @@ class _ChapterSectionHeader extends ConsumerWidget {
                 onPressed: isDownloadingAll
                     ? null
                     : () {
-                        final list = chapters.valueOrNull ?? [];
+                        final list = chaptersAsync.valueOrNull ?? [];
                         BatchDownloadSheet.show(
                           context,
                           book: book,
@@ -508,169 +438,107 @@ class _ChapterSectionHeader extends ConsumerWidget {
   }
 }
 
-class _ChapterPanel extends ConsumerStatefulWidget {
-  const _ChapterPanel({required this.bookId, this.onReturn});
+class _ChapterPanel extends ConsumerWidget {
+  const _ChapterPanel({required this.bookId});
 
   final String bookId;
-  final VoidCallback? onReturn;
 
   @override
-  ConsumerState<_ChapterPanel> createState() => _ChapterPanelState();
-}
-
-class _ChapterPanelState extends ConsumerState<_ChapterPanel> {
-  @override
-  Widget build(BuildContext context) {
-    final chaptersAsync = ref.watch(novelChaptersProvider(widget.bookId));
-    final downloadingSet = ref.watch(chapterDownloadingSetProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final chaptersAsync = ref.watch(bookChaptersProvider(bookId));
 
     return chaptersAsync.when(
       loading: () => const Padding(
         padding: EdgeInsets.all(AppSpacing.md),
         child: AppLoading(),
       ),
-      error: (_, _) => const SizedBox.shrink(),
+      error: (error, stack) => const SizedBox.shrink(),
       data: (chapters) {
         if (chapters.isEmpty) return const SizedBox.shrink();
-        final totalChapters = chapters.first.totalChapters;
+        final totalChapters = chapters.length;
         final groups = _groupChapters(totalChapters);
-        final colors = Theme.of(context).colorScheme;
 
-        final groupMap = <_ChapterGroupInfo, List<ChapterEntity>>{
-          for (final g in groups) g: <ChapterEntity>[],
-        };
-        var currentGroupIdx = 0;
-        for (final ch in chapters) {
-          while (currentGroupIdx < groups.length &&
-              ch.index > groups[currentGroupIdx].end) {
-            currentGroupIdx++;
-          }
-          if (currentGroupIdx < groups.length &&
-              ch.index >= groups[currentGroupIdx].start) {
-            groupMap[groups[currentGroupIdx]]!.add(ch);
-          }
-        }
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: groups.length,
+          itemBuilder: (context, index) {
+            final group = groups[index];
+            final groupChapters = chapters
+                .where((c) => c.index >= group.start && c.index <= group.end)
+                .toList();
 
-        return Column(
-          children: groups.map((group) {
-            final isFirst = group == groups.first;
             return _ChapterGroup(
+              bookId: bookId,
+              groupIndex: index,
               title: group.title,
-              chapters: groupMap[group] ?? const [],
-              isFirst: isFirst,
-              isLast: group == groups.last,
-              colors: colors,
-              downloadingSet: downloadingSet,
-              onTap: (chapterId) async {
-                await context.push(
-                  '/reader/${widget.bookId}?chapterId=$chapterId',
-                );
-                ref.invalidate(lastReadChapterProvider(widget.bookId));
-                widget.onReturn?.call();
-              },
-              onDownload: (chapterId) => _downloadChapter(chapterId),
+              chapters: groupChapters,
+              isFirst: index == 0,
+              isLast: index == groups.length - 1,
             );
-          }).toList(),
+          },
         );
       },
     );
   }
 
-  Future<void> _downloadChapter(String chapterId) async {
-    final service = ref.read(chapterDownloadServiceProvider);
-    final downloadingSet = ref.read(chapterDownloadingSetProvider.notifier);
-    final chapters = await ref.read(
-      novelChaptersProvider(widget.bookId).future,
-    );
-    final ch = chapters.firstWhere((c) => c.id == chapterId);
-
-    downloadingSet.update((set) => set..add(ch.id));
-
-    await service.downloadChapter(widget.bookId, ch.index);
-
-    downloadingSet.update((set) => set..remove(ch.id));
-    ref.invalidate(novelChaptersProvider(widget.bookId));
-  }
-
-  List<_ChapterGroupInfo> _groupChapters(int total) {
+  List<({String title, int start, int end})> _groupChapters(int total) {
     final groupSize = total <= 100 ? 10 : (total <= 500 ? 50 : 100);
-    final groups = <_ChapterGroupInfo>[];
+    final groups = <({String title, int start, int end})>[];
     for (int start = 0; start < total; start += groupSize) {
       final end = min(start + groupSize - 1, total - 1);
       final label = total <= 100
           ? '${start + 1} - ${end + 1}'
           : 'Ch. ${start + 1} - ${end + 1}';
-      groups.add(_ChapterGroupInfo(title: label, start: start, end: end));
+      groups.add((title: label, start: start, end: end));
     }
     return groups;
   }
 }
 
-class _ChapterGroupInfo {
-  const _ChapterGroupInfo({
-    required this.title,
-    required this.start,
-    required this.end,
-  });
-  final String title;
-  final int start;
-  final int end;
-}
-
-class _ChapterGroup extends StatefulWidget {
+class _ChapterGroup extends ConsumerWidget {
   const _ChapterGroup({
+    required this.bookId,
+    required this.groupIndex,
     required this.title,
     required this.chapters,
     required this.isFirst,
     required this.isLast,
-    required this.colors,
-    required this.downloadingSet,
-    required this.onTap,
-    required this.onDownload,
   });
 
+  final String bookId;
+  final int groupIndex;
   final String title;
   final List<ChapterEntity> chapters;
   final bool isFirst;
   final bool isLast;
-  final ColorScheme colors;
-  final Set<String> downloadingSet;
-  final void Function(String chapterId) onTap;
-  final void Function(String chapterId) onDownload;
 
   @override
-  State<_ChapterGroup> createState() => _ChapterGroupState();
-}
-
-class _ChapterGroupState extends State<_ChapterGroup> {
-  bool _expanded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _expanded = widget.isFirst || widget.isLast;
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupKey = '$bookId:$groupIndex';
+    final isExpanded = ref.watch(chapterGroupExpandedProvider(groupKey));
+    final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
       margin: EdgeInsets.fromLTRB(
         AppSpacing.md,
-        widget.isFirst ? 0 : AppSpacing.xs,
+        isFirst ? 0 : AppSpacing.xs,
         AppSpacing.md,
-        widget.isLast ? 0 : AppSpacing.xs,
+        isLast ? 0 : AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: widget.colors.surfaceContainerLow.withValues(alpha: 0.5),
+        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
           InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: () => setState(() => _expanded = !_expanded),
+            onTap: () {
+              ref.read(chapterGroupExpandedProvider(groupKey).notifier).state =
+                  !isExpanded;
+            },
             child: Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md,
@@ -679,43 +547,41 @@ class _ChapterGroupState extends State<_ChapterGroup> {
               child: Row(
                 children: [
                   Text(
-                    widget.title,
+                    title,
                     style: textTheme.labelLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const Spacer(),
                   Text(
-                    '${widget.chapters.length}',
+                    '${chapters.length}',
                     style: textTheme.bodySmall?.copyWith(
-                      color: widget.colors.onSurfaceVariant,
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(width: 4),
                   Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
                     size: 18,
-                    color: widget.colors.onSurfaceVariant,
+                    color: colors.onSurfaceVariant,
                   ),
                 ],
               ),
             ),
           ),
-          if (_expanded)
+          if (isExpanded)
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: widget.chapters.length,
+              itemCount: chapters.length,
               itemBuilder: (context, index) {
-                final ch = widget.chapters[index];
+                final ch = chapters[index];
                 return _ChapterTile(
+                  bookId: bookId,
                   chapter: ch,
-                  isDownloading: widget.downloadingSet.contains(ch.id),
-                  onTap: () => widget.onTap(ch.id),
-                  onDownload:
-                      ch.contentState != ContentState.availableOffline.index
-                          ? () => widget.onDownload(ch.id)
-                          : null,
+                  onTap: () => context.push(
+                    '/reader/$bookId?chapterId=${ch.id}',
+                  ),
                 );
               },
             ),
@@ -725,21 +591,22 @@ class _ChapterGroupState extends State<_ChapterGroup> {
   }
 }
 
-class _ChapterTile extends StatelessWidget {
+class _ChapterTile extends ConsumerWidget {
   const _ChapterTile({
+    required this.bookId,
     required this.chapter,
-    required this.isDownloading,
     required this.onTap,
-    this.onDownload,
   });
 
+  final String bookId;
   final ChapterEntity chapter;
-  final bool isDownloading;
   final VoidCallback onTap;
-  final VoidCallback? onDownload;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDownloading = ref.watch(
+      isChapterDownloadingProvider(chapter.id),
+    );
     final colors = Theme.of(context).colorScheme;
     final isDownloaded =
         chapter.contentState == ContentState.availableOffline.index;
@@ -812,9 +679,11 @@ class _ChapterTile extends StatelessWidget {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               )
-            else if (onDownload != null)
+            else if (!isDownloaded)
               IconButton(
-                onPressed: onDownload,
+                onPressed: () => ref
+                    .read(chapterDownloadControllerProvider.notifier)
+                    .downloadSingle(bookId, chapter),
                 icon: Icon(
                   Icons.download_rounded,
                   size: 18,
@@ -905,10 +774,14 @@ class _ReadingTriviaCard extends StatelessWidget {
                   ),
                   const Spacer(),
                   BookBadge(
-                    label: progressPct >= 100 ? 'Completed' : (progressPct > 0 ? 'Reading' : 'Unread'),
+                    label: progressPct >= 100
+                        ? 'Completed'
+                        : (progressPct > 0 ? 'Reading' : 'Unread'),
                     variant: progressPct >= 100
                         ? BookBadgeVariant.tertiary
-                        : (progressPct > 0 ? BookBadgeVariant.primary : BookBadgeVariant.neutral),
+                        : (progressPct > 0
+                            ? BookBadgeVariant.primary
+                            : BookBadgeVariant.neutral),
                     isCompact: true,
                   ),
                 ],
@@ -960,4 +833,3 @@ class _TriviaCol extends StatelessWidget {
     );
   }
 }
-

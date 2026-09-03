@@ -1,14 +1,19 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/browser/presentation/screens/browser_screen.dart';
+import 'package:atlas_app/browser/presentation/screens/source_immersive_screen.dart';
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
 import 'package:atlas_app/core/presentation/screens/splash_screen.dart';
 import 'package:atlas_app/core/router/transitions.dart';
+import 'package:atlas_app/dictionary/presentation/screens/dictionary_screen.dart';
 import 'package:atlas_app/discover/presentation/screens/discover_screen.dart';
 import 'package:atlas_app/library/presentation/screens/book_details_screen.dart';
 import 'package:atlas_app/library/presentation/screens/library_screen.dart';
 import 'package:atlas_app/library/presentation/screens/novel_details_screen.dart';
+import 'package:atlas_app/library/presentation/screens/source_browser_screen.dart';
 import 'package:atlas_app/library/presentation/screens/source_search_screen.dart';
+import 'package:atlas_app/notifications/presentation/screens/notification_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/bookmarks_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/reader_screen.dart';
 import 'package:atlas_app/search/presentation/screens/search_screen.dart';
@@ -45,7 +50,10 @@ abstract final class AppRouter {
         path: '/sources',
         name: 'sources',
         parentNavigatorKey: _rootNavigatorKey,
-        redirect: (context, state) => '/discover',
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const SourceBrowserScreen(),
+          key: state.pageKey,
+        ),
       ),
       GoRoute(
         path: '/sources/:name',
@@ -60,13 +68,43 @@ abstract final class AppRouter {
         path: '/browser',
         name: 'browser',
         parentNavigatorKey: _rootNavigatorKey,
-        redirect: (context, state) => '/discover',
+        pageBuilder: (context, state) {
+          final url = state.uri.queryParameters['url'];
+          return buildPageTransition(
+            child: BrowserScreen(initialUrl: url),
+            key: state.pageKey,
+          );
+        },
       ),
       GoRoute(
         path: '/web',
         name: 'web',
         parentNavigatorKey: _rootNavigatorKey,
-        redirect: (context, state) => '/discover',
+        pageBuilder: (context, state) {
+          final url = state.uri.queryParameters['url'] ?? 'https://google.com';
+          return buildPageTransition(
+            child: SourceImmersiveScreen(initialUrl: url),
+            key: state.pageKey,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/notifications',
+        name: 'notifications',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const NotificationScreen(),
+          key: state.pageKey,
+        ),
+      ),
+      GoRoute(
+        path: '/dictionary',
+        name: 'dictionary',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const DictionaryScreen(),
+          key: state.pageKey,
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -92,10 +130,13 @@ abstract final class AppRouter {
               GoRoute(
                 path: '/library',
                 name: 'library',
-                pageBuilder: (context, state) => buildPageTransition(
-                  child: const LibraryScreen(),
-                  key: state.pageKey,
-                ),
+                pageBuilder: (context, state) {
+                  final genre = state.uri.queryParameters['genre'];
+                  return buildPageTransition(
+                    child: LibraryScreen(initialGenre: genre),
+                    key: state.pageKey,
+                  );
+                },
               ),
               GoRoute(
                 path: '/book/:bookId',
@@ -126,10 +167,18 @@ abstract final class AppRouter {
               GoRoute(
                 path: '/search',
                 name: 'search',
-                pageBuilder: (context, state) => buildPageTransition(
-                  child: const SearchScreen(),
-                  key: state.pageKey,
-                ),
+                pageBuilder: (context, state) {
+                  final query = state.uri.queryParameters['q'];
+                  final tabStr = state.uri.queryParameters['tab'];
+                  final tabIndex = tabStr == 'dictionary' ? 1 : 0;
+                  return buildPageTransition(
+                    child: SearchScreen(
+                      initialQuery: query,
+                      initialTabIndex: tabIndex,
+                    ),
+                    key: state.pageKey,
+                  );
+                },
               ),
             ],
           ),
@@ -166,3 +215,4 @@ abstract final class AppRouter {
     ],
   );
 }
+

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:path/path.dart' as p;
 
 /// Renders an inline chapter image with rounded corners, subtle border,
@@ -106,7 +107,7 @@ class ReaderImageWidget extends StatelessWidget {
   }
 }
 
-class _ImageViewerDialog extends StatefulWidget {
+class _ImageViewerDialog extends HookWidget {
   const _ImageViewerDialog({
     required this.imageProvider,
     this.caption,
@@ -116,24 +117,13 @@ class _ImageViewerDialog extends StatefulWidget {
   final String? caption;
 
   @override
-  State<_ImageViewerDialog> createState() => _ImageViewerDialogState();
-}
-
-class _ImageViewerDialogState extends State<_ImageViewerDialog> {
-  final TransformationController _controller = TransformationController();
-
-  void _resetZoom() {
-    _controller.value = Matrix4.identity();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = useTransformationController();
+
+    void resetZoom() {
+      controller.value = Matrix4.identity();
+    }
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.zero,
@@ -141,13 +131,13 @@ class _ImageViewerDialogState extends State<_ImageViewerDialog> {
         alignment: Alignment.center,
         children: [
           GestureDetector(
-            onDoubleTap: _resetZoom,
+            onDoubleTap: resetZoom,
             child: InteractiveViewer(
-              transformationController: _controller,
+              transformationController: controller,
               minScale: 0.8,
               maxScale: 5.0,
               child: Image(
-                image: widget.imageProvider,
+                image: imageProvider,
                 fit: BoxFit.contain,
               ),
             ),
@@ -162,7 +152,7 @@ class _ImageViewerDialogState extends State<_ImageViewerDialog> {
             ),
           ),
           // Caption at bottom
-          if (widget.caption != null && widget.caption!.trim().isNotEmpty)
+          if (caption != null && caption!.trim().isNotEmpty)
             Positioned(
               bottom: 40,
               left: 24,
@@ -174,7 +164,7 @@ class _ImageViewerDialogState extends State<_ImageViewerDialog> {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  widget.caption!.trim(),
+                  caption!.trim(),
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                   textAlign: TextAlign.center,
                 ),
@@ -185,4 +175,3 @@ class _ImageViewerDialogState extends State<_ImageViewerDialog> {
     );
   }
 }
-

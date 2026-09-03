@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 
 /// Document outline (a.k.a. table of contents / bookmarks) navigator.
-class PdfOutlinePanel extends StatefulWidget {
+class PdfOutlinePanel extends HookWidget {
   const PdfOutlinePanel({
     super.key,
     required this.outline,
@@ -16,18 +17,26 @@ class PdfOutlinePanel extends StatefulWidget {
   final void Function(PdfOutlineNode node) onSelected;
   final bool nightMode;
 
-  @override
-  State<PdfOutlinePanel> createState() => _PdfOutlinePanelState();
-}
-
-class _PdfOutlinePanelState extends State<PdfOutlinePanel> {
-  final _expanded = <PdfOutlineNode>{};
+  static void _flatten(
+    PdfOutlineNode node,
+    int depth,
+    List<_OutlineRow> rows,
+    Set<PdfOutlineNode> expanded,
+  ) {
+    rows.add(_OutlineRow(node, depth));
+    if (node.children.isNotEmpty && expanded.contains(node)) {
+      for (final child in node.children) {
+        _flatten(child, depth + 1, rows, expanded);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final expanded = useState<Set<PdfOutlineNode>>({});
     final colors = Theme.of(context).colorScheme;
 
-    if (widget.outline.isEmpty) {
+    if (outline.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -43,8 +52,8 @@ class _PdfOutlinePanelState extends State<PdfOutlinePanel> {
     }
 
     final rows = <_OutlineRow>[];
-    for (final node in widget.outline) {
-      _flatten(node, 0, rows);
+    for (final node in outline) {
+      _flatten(node, 0, rows, expanded.value);
     }
 
     return ListView.builder(
@@ -53,20 +62,20 @@ class _PdfOutlinePanelState extends State<PdfOutlinePanel> {
       itemBuilder: (context, index) {
         final row = rows[index];
         final hasChildren = row.node.children.isNotEmpty;
-        final isExpanded = _expanded.contains(row.node);
+        final isExpanded = expanded.value.contains(row.node);
 
         return InkWell(
           onTap: () {
             if (hasChildren) {
-              setState(() {
-                if (isExpanded) {
-                  _expanded.remove(row.node);
-                } else {
-                  _expanded.add(row.node);
-                }
-              });
+              final next = Set<PdfOutlineNode>.from(expanded.value);
+              if (isExpanded) {
+                next.remove(row.node);
+              } else {
+                next.add(row.node);
+              }
+              expanded.value = next;
             }
-            widget.onSelected(row.node);
+            onSelected(row.node);
           },
           child: Padding(
             padding: EdgeInsets.only(
@@ -107,15 +116,6 @@ class _PdfOutlinePanelState extends State<PdfOutlinePanel> {
         );
       },
     );
-  }
-
-  void _flatten(PdfOutlineNode node, int depth, List<_OutlineRow> rows) {
-    rows.add(_OutlineRow(node, depth));
-    if (node.children.isNotEmpty && _expanded.contains(node)) {
-      for (final child in node.children) {
-        _flatten(child, depth + 1, rows);
-      }
-    }
   }
 }
 

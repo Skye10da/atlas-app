@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:atlas_app/settings/domain/value_objects/desktop_sheet_presentation.dart';
@@ -260,7 +261,7 @@ class _Backdrop extends StatelessWidget {
   }
 }
 
-class _AppSheetSurface extends StatefulWidget {
+class _AppSheetSurface extends HookWidget {
   const _AppSheetSurface({
     required this.id,
     required this.title,
@@ -283,6 +284,13 @@ class _AppSheetSurface extends StatefulWidget {
     this.onSnapChanged,
   });
 
+  static const _handleHeight = 28.0;
+  static const _spring = SpringDescription(
+    mass: 1,
+    stiffness: 380,
+    damping: 34,
+  );
+
   final String id;
   final String? title;
   final String? subtitle;
@@ -304,226 +312,178 @@ class _AppSheetSurface extends StatefulWidget {
   final void Function(double snapFraction)? onSnapChanged;
 
   @override
-  State<_AppSheetSurface> createState() => _AppSheetSurfaceState();
-}
-
-class _AppSheetSurfaceState extends State<_AppSheetSurface>
-    with SingleTickerProviderStateMixin {
-  static const _handleHeight = 28.0;
-  static const _spring = SpringDescription(
-    mass: 1,
-    stiffness: 380,
-    damping: 34,
-  );
-
-  late final AnimationController _position;
-  late List<double> _snapsPx;
-  late double _maxExtent;
-  double _screenHeight = 0;
-  bool _isDragging = false;
-  bool _isDockedAtBottom = false;
-  double _dragAccumulator = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _position = AnimationController(vsync: this);
-    _isDockedAtBottom = widget.rememberedDockStates[widget.id] ?? false;
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final screen = MediaQuery.sizeOf(context).height;
-    if (screen == _screenHeight) return;
-    final firstInit = _screenHeight == 0;
-    _screenHeight = screen;
-    _maxExtent = screen * widget.maxHeightFactor;
-    final minPx = math.max(
-      widget.minHeight,
-      _handleHeight + kMinInteractiveDimension,
-    );
-
-    _snapsPx =
-        (widget.snapPoints.isEmpty ? [widget.initialHeight] : widget.snapPoints)
-            .map((f) => f.clamp(widget.minHeight / screen, 1.0) * screen)
-            .toList()
-          ..sort();
-
-    if (!firstInit) return;
-    final remembered = widget.rememberedHeights[widget.id];
-    final startPx = (remembered != null)
-        ? remembered * screen
-        : _nearestSnap(_maxExtent * widget.initialHeight);
-    _position.value = (startPx.clamp(minPx, _maxExtent)) / _maxExtent;
-  }
-
-  double get _heightPx => _position.value * _maxExtent;
-
-  double _nearestSnap(double px) {
-    var best = _snapsPx.first;
-    for (final s in _snapsPx) {
-      if ((s - px).abs() < (best - px).abs()) best = s;
-    }
-    return best.clamp(0, _maxExtent);
-  }
-
-  void _onDragStart() {
-    _isDragging = true;
-    _dragAccumulator = 0;
-    _position.stop();
-  }
-
-  void _onDragUpdate(DragUpdateDetails details) {
-    if (!_isDragging) _onDragStart();
-    _dragAccumulator += details.delta.dy;
-
-    if (widget.presentation == _SurfacePresentation.dialog) {
-      // In desktop dialog mode, dragging down docks at bottom; dragging up floats to center
-      if (!_isDockedAtBottom && _dragAccumulator > 60) {
-        setState(() {
-          _isDockedAtBottom = true;
-          widget.rememberedDockStates[widget.id] = true;
-          _dragAccumulator = 0;
-          _isDragging = false;
-        });
-        HapticFeedback.selectionClick();
-        return;
-      } else if (_isDockedAtBottom && _dragAccumulator < -60) {
-        setState(() {
-          _isDockedAtBottom = false;
-          widget.rememberedDockStates[widget.id] = false;
-          _dragAccumulator = 0;
-          _isDragging = false;
-        });
-        HapticFeedback.selectionClick();
-        return;
-      }
-    }
-
-    final minPx = math.min(_snapsPx.first * 0.55, widget.minHeight);
-    _position.value =
-        ((_heightPx - details.delta.dy).clamp(minPx, _maxExtent)) / _maxExtent;
-  }
-
-  void _onDragEnd(DragEndDetails details) {
-    _isDragging = false;
-    final vy = -details.velocity.pixelsPerSecond.dy;
-
-    if (widget.presentation == _SurfacePresentation.dialog) {
-      if (!_isDockedAtBottom && (vy < -350 || _dragAccumulator > 30)) {
-        setState(() {
-          _isDockedAtBottom = true;
-          widget.rememberedDockStates[widget.id] = true;
-        });
-        HapticFeedback.selectionClick();
-        return;
-      } else if (_isDockedAtBottom && (vy > 350 || _dragAccumulator < -30)) {
-        setState(() {
-          _isDockedAtBottom = false;
-          widget.rememberedDockStates[widget.id] = false;
-        });
-        HapticFeedback.selectionClick();
-        return;
-      }
-    }
-
-    final projected = _heightPx + vy * 0.12;
-
-    if (widget.dismissible) {
-      // Hard downward fling dismisses outright
-      if (vy < -1400 && _heightPx < _snapsPx.first * 1.15) {
-        _dismiss();
-        return;
-      }
-      // Momentum carrying toward dismissal
-      if (projected < _snapsPx.first * 0.5) {
-        _dismiss();
-        return;
-      }
-    }
-
-    _settleTo(_nearestSnap(projected), velocityPxPerFraction: vy / _maxExtent);
-  }
-
-  void _settleTo(double px, {double velocityPxPerFraction = 0}) {
-    _position
-        .animateWith(
-          SpringSimulation(
-            _spring,
-            _position.value,
-            px / _maxExtent,
-            velocityPxPerFraction,
-          ),
-        )
-        .whenComplete(() {
-          if (!mounted) return;
-          final fraction = (_position.value * _maxExtent) / _screenHeight;
-          widget.rememberedHeights[widget.id] = fraction;
-          widget.onSnapChanged?.call(fraction);
-          HapticFeedback.selectionClick();
-        });
-  }
-
-  void _dismiss() {
-    widget.onDismissed?.call();
-    Navigator.maybeOf(context)?.maybePop();
-  }
-
-  bool _handleScrollNotification(ScrollNotification notification) {
-    if (!widget.enableNestedScroll ||
-        widget.presentation != _SurfacePresentation.bottomSheet) {
-      return false;
-    }
-
-    if (notification is OverscrollNotification && notification.overscroll < 0) {
-      // Pulling down at top of list
-      _onDragStart();
-      final minPx = math.min(_snapsPx.first * 0.55, widget.minHeight);
-      _position.value =
-          ((_heightPx - notification.overscroll * 0.6).clamp(minPx, _maxExtent)) /
-          _maxExtent;
-      return true;
-    } else if (notification is ScrollEndNotification && _isDragging) {
-      _onDragEnd(
-        DragEndDetails(
-          velocity: Velocity(
-            pixelsPerSecond: Offset(
-              0,
-              notification.dragDetails?.primaryVelocity ?? 0,
-            ),
-          ),
-        ),
-      );
-      return true;
-    }
-    return false;
-  }
-
-  @override
-  void dispose() {
-    _position.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final position = useAnimationController();
+    final isDockedAtBottom = useState(rememberedDockStates[id] ?? false);
+    final isDragging = useRef(false);
+    final dragAccumulator = useRef(0.0);
+    final screenHeightRef = useRef(0.0);
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final size = MediaQuery.sizeOf(context);
     final width = size.width;
     final height = size.height;
-    final viewInsets = MediaQuery.viewInsetsOf(context);
-    final keyboard = viewInsets.bottom;
-    final isDialog = widget.presentation == _SurfacePresentation.dialog;
-    final isSide = widget.presentation == _SurfacePresentation.sideSheet ||
-        widget.presentation == _SurfacePresentation.splitLandscape;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+
+    final maxExtent = height * maxHeightFactor;
+    final minPx = math.max(
+      minHeight,
+      _handleHeight + kMinInteractiveDimension,
+    );
+
+    final snapsPx = useMemoized(() {
+      return (snapPoints.isEmpty ? [initialHeight] : snapPoints)
+          .map((f) => f.clamp(minHeight / height, 1.0) * height)
+          .toList()
+        ..sort();
+    }, [snapPoints, initialHeight, minHeight, height]);
+
+    double nearestSnap(double px) {
+      var best = snapsPx.first;
+      for (final s in snapsPx) {
+        if ((s - px).abs() < (best - px).abs()) best = s;
+      }
+      return best.clamp(0, maxExtent);
+    }
+
+    double getHeightPx() => position.value * maxExtent;
+
+    void dismiss() {
+      if (!context.mounted) return;
+      onDismissed?.call();
+      Navigator.of(context).pop();
+    }
+
+    void settleTo(double px, {double velocityPxPerFraction = 0}) {
+      position
+          .animateWith(
+            SpringSimulation(
+              _spring,
+              position.value,
+              px / maxExtent,
+              velocityPxPerFraction,
+            ),
+          )
+          .whenComplete(() {
+            if (context.mounted) {
+              rememberedHeights[id] = (position.value * maxExtent) / height;
+              onSnapChanged?.call(position.value);
+            }
+          });
+    }
+
+    void onDragStart() {
+      isDragging.value = true;
+      dragAccumulator.value = 0;
+      position.stop();
+    }
+
+    void onDragUpdate(DragUpdateDetails details) {
+      if (!isDragging.value) onDragStart();
+      dragAccumulator.value += details.delta.dy;
+
+      if (presentation == _SurfacePresentation.dialog) {
+        if (!isDockedAtBottom.value && dragAccumulator.value > 60) {
+          isDockedAtBottom.value = true;
+          rememberedDockStates[id] = true;
+          dragAccumulator.value = 0;
+          isDragging.value = false;
+          HapticFeedback.selectionClick();
+          return;
+        } else if (isDockedAtBottom.value && dragAccumulator.value < -60) {
+          isDockedAtBottom.value = false;
+          rememberedDockStates[id] = false;
+          dragAccumulator.value = 0;
+          isDragging.value = false;
+          HapticFeedback.selectionClick();
+          return;
+        }
+      }
+
+      final minSnapPx = math.min(snapsPx.first * 0.55, minHeight);
+      position.value =
+          ((getHeightPx() - details.delta.dy).clamp(minSnapPx, maxExtent)) /
+              maxExtent;
+    }
+
+    void onDragEnd(DragEndDetails details) {
+      isDragging.value = false;
+      final vy = -details.velocity.pixelsPerSecond.dy;
+
+      if (presentation == _SurfacePresentation.dialog) {
+        if (!isDockedAtBottom.value && (vy < -350 || dragAccumulator.value > 30)) {
+          isDockedAtBottom.value = true;
+          rememberedDockStates[id] = true;
+          HapticFeedback.selectionClick();
+          return;
+        } else if (isDockedAtBottom.value && (vy > 350 || dragAccumulator.value < -30)) {
+          isDockedAtBottom.value = false;
+          rememberedDockStates[id] = false;
+          HapticFeedback.selectionClick();
+          return;
+        }
+      }
+
+      final projected = getHeightPx() + vy * 0.12;
+
+      if (dismissible) {
+        if (vy < -1400 && getHeightPx() < snapsPx.first * 1.15) {
+          dismiss();
+          return;
+        }
+        if (projected < snapsPx.first * 0.5) {
+          dismiss();
+          return;
+        }
+      }
+
+      settleTo(nearestSnap(projected), velocityPxPerFraction: vy / maxExtent);
+    }
+
+    bool handleScrollNotification(ScrollNotification notification) {
+      if (!enableNestedScroll ||
+          presentation != _SurfacePresentation.bottomSheet) {
+        return false;
+      }
+
+      if (notification is OverscrollNotification && notification.overscroll < 0) {
+        final delta = notification.overscroll;
+        position.value =
+            ((getHeightPx() - delta).clamp(0.0, maxExtent)) / maxExtent;
+        return true;
+      } else if (notification is ScrollEndNotification) {
+        if (position.value < 1.0) {
+          settleTo(nearestSnap(getHeightPx()));
+        }
+        return true;
+      }
+      return false;
+    }
+
+    useEffect(() {
+      final firstInit = screenHeightRef.value == 0;
+      screenHeightRef.value = height;
+      if (firstInit) {
+        final remembered = rememberedHeights[id];
+        final startPx = (remembered != null)
+            ? remembered * height
+            : nearestSnap(maxExtent * initialHeight);
+        position.value = (startPx.clamp(minPx, maxExtent)) / maxExtent;
+      }
+      return null;
+    }, [height]);
+
+    final isSide = presentation == _SurfacePresentation.sideSheet ||
+        presentation == _SurfacePresentation.splitLandscape;
+    final isDialog = presentation == _SurfacePresentation.dialog;
 
     final EdgeInsets outerPadding;
     final BorderRadius radius;
     final Alignment alignment;
 
     if (isDialog) {
-      if (_isDockedAtBottom) {
+      if (isDockedAtBottom.value) {
         outerPadding = EdgeInsets.only(
           bottom: keyboard > 0 ? keyboard : MediaQuery.paddingOf(context).bottom,
         );
@@ -556,30 +516,29 @@ class _AppSheetSurfaceState extends State<_AppSheetSurface>
     }
 
     final double effectiveMaxWidth;
-    if (widget.presentation == _SurfacePresentation.splitLandscape) {
-      effectiveMaxWidth = math.min(widget.maxWidth, AppSheet.maxLandscapeSheetWidth);
+    if (presentation == _SurfacePresentation.splitLandscape) {
+      effectiveMaxWidth = math.min(maxWidth, AppSheet.maxLandscapeSheetWidth);
     } else if (isSide) {
-      effectiveMaxWidth = math.min(widget.maxWidth, 460);
+      effectiveMaxWidth = math.min(maxWidth, 460);
     } else {
-      effectiveMaxWidth = widget.maxWidth;
+      effectiveMaxWidth = maxWidth;
     }
 
     final effectiveTrailing = [
-      ...widget.trailingActions,
+      ...trailingActions,
       if (isDialog)
         IconButton(
           icon: Icon(
-            _isDockedAtBottom
+            isDockedAtBottom.value
                 ? Icons.open_in_full_rounded
                 : Icons.vertical_align_bottom_rounded,
             size: 18,
           ),
-          tooltip: _isDockedAtBottom ? 'Float to center' : 'Dock at bottom',
+          tooltip: isDockedAtBottom.value ? 'Float to center' : 'Dock at bottom',
           onPressed: () {
-            setState(() {
-              _isDockedAtBottom = !_isDockedAtBottom;
-              widget.rememberedDockStates[widget.id] = _isDockedAtBottom;
-            });
+            final next = !isDockedAtBottom.value;
+            isDockedAtBottom.value = next;
+            AppSheet.rememberedDockStates[id] = next;
           },
           visualDensity: VisualDensity.compact,
         ),
@@ -590,56 +549,57 @@ class _AppSheetSurfaceState extends State<_AppSheetSurface>
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.escape &&
-            widget.dismissible) {
-          _dismiss();
+            dismissible) {
+          dismiss();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
       },
       child: AnimatedBuilder(
-        animation: _position,
+        animation: position,
         builder: (context, _) {
           final double hPx;
-          if (widget.fitToContent) {
+          if (fitToContent) {
             hPx = double.infinity;
           } else if (isSide) {
             hPx = height;
           } else if (isDialog) {
-            hPx = math.min(_maxExtent, _screenHeight * widget.initialHeight);
+            hPx = math.min(maxExtent, height * initialHeight);
           } else {
-            hPx = math.max(widget.minHeight, _heightPx);
+            hPx = math.max(minHeight, getHeightPx());
           }
 
           Widget contentBody = Column(
-            mainAxisSize: widget.fitToContent
+            mainAxisSize: fitToContent
                 ? MainAxisSize.min
                 : MainAxisSize.max,
             children: [
               if (!isSide)
                 _SheetHandle(
-                  onVerticalDragUpdate: _onDragUpdate,
-                  onVerticalDragEnd: _onDragEnd,
+                  onVerticalDragUpdate: onDragUpdate,
+                  onVerticalDragEnd: onDragEnd,
                 ),
-              if (widget.title != null ||
-                  widget.leadingAction != null ||
+              if (title != null ||
+                  leadingAction != null ||
                   effectiveTrailing.isNotEmpty)
                 SheetHeader(
-                  title: widget.title ?? '',
-                  subtitle: widget.subtitle,
-                  leading: widget.leadingAction,
+                  title: title ?? '',
+                  subtitle: subtitle,
+                  leading: leadingAction,
                   trailing: effectiveTrailing,
-                  onClose: widget.dismissible ? _dismiss : () {},
+                  onClose: dismiss,
                 ),
-              if (widget.fitToContent)
-                Flexible(fit: FlexFit.loose, child: widget.child)
+              if (fitToContent)
+                Flexible(child: child)
               else
-                Expanded(child: widget.child),
+                Expanded(child: child),
             ],
           );
 
-          if (widget.enableNestedScroll && !isDialog) {
+          if (enableNestedScroll &&
+              presentation == _SurfacePresentation.bottomSheet) {
             contentBody = NotificationListener<ScrollNotification>(
-              onNotification: _handleScrollNotification,
+              onNotification: handleScrollNotification,
               child: contentBody,
             );
           }
@@ -653,11 +613,11 @@ class _AppSheetSurfaceState extends State<_AppSheetSurface>
             child: contentBody,
           );
 
-          if (widget.fitToContent) {
+          if (fitToContent) {
             sheet = ConstrainedBox(
               constraints: BoxConstraints(
-                maxHeight: _maxExtent,
-                minHeight: widget.minHeight,
+                maxHeight: maxExtent,
+                minHeight: minHeight,
               ),
               child: sheet,
             );
@@ -706,7 +666,7 @@ class _SheetHandle extends StatelessWidget {
       onVerticalDragUpdate: onVerticalDragUpdate,
       onVerticalDragEnd: onVerticalDragEnd,
       child: SizedBox(
-        height: _AppSheetSurfaceState._handleHeight,
+        height: _AppSheetSurface._handleHeight,
         width: double.infinity,
         child: Center(
           child: Container(
@@ -804,9 +764,49 @@ class SheetHeader extends StatelessWidget {
   }
 }
 
+/// Controller providing programmatic push/pop navigation in a SheetNavigator.
+class SheetNavigatorController {
+  SheetNavigatorController({
+    required ValueNotifier<List<Widget>> stackNotifier,
+    required this.onPageChanged,
+  }) : _stackNotifier = stackNotifier;
+
+  final ValueNotifier<List<Widget>> _stackNotifier;
+  final void Function(int depth)? onPageChanged;
+
+  int get depth => _stackNotifier.value.length;
+  bool get canPop => _stackNotifier.value.length > 1;
+
+  void push(Widget page) {
+    _stackNotifier.value = [..._stackNotifier.value, page];
+    onPageChanged?.call(_stackNotifier.value.length);
+  }
+
+  bool pop() {
+    if (!canPop) return false;
+    _stackNotifier.value =
+        _stackNotifier.value.sublist(0, _stackNotifier.value.length - 1);
+    onPageChanged?.call(_stackNotifier.value.length);
+    return true;
+  }
+}
+
+class _SheetNavigatorScope extends InheritedWidget {
+  const _SheetNavigatorScope({
+    required this.controller,
+    required super.child,
+  });
+
+  final SheetNavigatorController controller;
+
+  @override
+  bool updateShouldNotify(_SheetNavigatorScope oldWidget) =>
+      controller != oldWidget.controller;
+}
+
 /// In-sheet navigation container allowing multi-step sub-flows
 /// with smooth sliding transitions within a single sheet.
-class SheetNavigator extends StatefulWidget {
+class SheetNavigator extends HookWidget {
   const SheetNavigator({
     super.key,
     required this.initialPage,
@@ -816,61 +816,55 @@ class SheetNavigator extends StatefulWidget {
   final Widget initialPage;
   final void Function(int depth)? onPageChanged;
 
-  static SheetNavigatorState of(BuildContext context) {
-    final state = context.findAncestorStateOfType<SheetNavigatorState>();
-    assert(state != null, 'No SheetNavigator found in context');
-    return state!;
-  }
-
-  @override
-  State<SheetNavigator> createState() => SheetNavigatorState();
-}
-
-class SheetNavigatorState extends State<SheetNavigator> {
-  final List<Widget> _stack = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _stack.add(widget.initialPage);
-  }
-
-  int get depth => _stack.length;
-  bool get canPop => _stack.length > 1;
-
-  void push(Widget page) {
-    setState(() {
-      _stack.add(page);
-    });
-    widget.onPageChanged?.call(_stack.length);
-  }
-
-  bool pop() {
-    if (!canPop) return false;
-    setState(() {
-      _stack.removeLast();
-    });
-    widget.onPageChanged?.call(_stack.length);
-    return true;
+  static SheetNavigatorController of(BuildContext context) {
+    final scope =
+        context.dependOnInheritedWidgetOfExactType<_SheetNavigatorScope>();
+    assert(scope != null, 'No SheetNavigator found in context');
+    return scope!.controller;
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 240),
-      transitionBuilder: (child, animation) {
-        final inAnimation = Tween<Offset>(
-          begin: const Offset(0.2, 0),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
-        return SlideTransition(
-          position: inAnimation,
-          child: FadeTransition(opacity: animation, child: child),
-        );
-      },
-      child: KeyedSubtree(
-        key: ValueKey(_stack.length),
-        child: _stack.last,
+    final stackNotifier =
+        useMemoized(() => ValueNotifier<List<Widget>>([initialPage]), []);
+
+    useEffect(() {
+      return () => stackNotifier.dispose();
+    }, [stackNotifier]);
+
+    final controller = useMemoized(
+      () => SheetNavigatorController(
+        stackNotifier: stackNotifier,
+        onPageChanged: onPageChanged,
+      ),
+      [stackNotifier, onPageChanged],
+    );
+
+    return _SheetNavigatorScope(
+      controller: controller,
+      child: ValueListenableBuilder<List<Widget>>(
+        valueListenable: stackNotifier,
+        builder: (context, stack, _) {
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            transitionBuilder: (child, animation) {
+              final inAnimation = Tween<Offset>(
+                begin: const Offset(0.2, 0),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              );
+              return SlideTransition(
+                position: inAnimation,
+                child: FadeTransition(opacity: animation, child: child),
+              );
+            },
+            child: KeyedSubtree(
+              key: ValueKey(stack.length),
+              child: stack.last,
+            ),
+          );
+        },
       ),
     );
   }

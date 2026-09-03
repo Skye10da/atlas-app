@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -172,61 +173,44 @@ class ReaderBottomNav extends ConsumerWidget {
   }
 }
 
-class _ClockIndicator extends StatefulWidget {
+class _ClockIndicator extends HookWidget {
   const _ClockIndicator({required this.textColor});
 
   final Color textColor;
 
-  @override
-  State<_ClockIndicator> createState() => _ClockIndicatorState();
-}
-
-class _ClockIndicatorState extends State<_ClockIndicator> {
-  late Timer _timer;
-  late String _timeString;
-
-  @override
-  void initState() {
-    super.initState();
-    _updateTime();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _updateTime());
-  }
-
-  void _updateTime() {
+  static String _formatCurrentTime() {
     final now = DateTime.now();
     final hour = now.hour == 0
         ? 12
         : (now.hour > 12 ? now.hour - 12 : now.hour);
     final minute = now.minute.toString().padLeft(2, '0');
     final period = now.hour >= 12 ? 'PM' : 'AM';
-    final formatted = '$hour:$minute $period';
-    if (mounted) {
-      setState(() => _timeString = formatted);
-    } else {
-      _timeString = formatted;
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
+    return '$hour:$minute $period';
   }
 
   @override
   Widget build(BuildContext context) {
+    final timeString = useState(_formatCurrentTime());
+
+    useEffect(() {
+      final timer = Timer.periodic(const Duration(seconds: 30), (_) {
+        timeString.value = _formatCurrentTime();
+      });
+      return timer.cancel;
+    }, const []);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: widget.textColor.withValues(alpha: 0.08),
+        color: textColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
       ),
       child: Text(
-        _timeString,
+        timeString.value,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: widget.textColor.withValues(alpha: 0.9),
+          color: textColor.withValues(alpha: 0.9),
         ),
       ),
     );

@@ -14,15 +14,10 @@ import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
 /// viewer: reader theme (drives the night/invert effect) and keep-screen-awake,
 /// plus a link to the full Reading settings for everything else. Text/layout
 /// typography tabs are intentionally excluded — they can't reflow a PDF.
-class PdfSettingsSheet extends ConsumerStatefulWidget {
+class PdfSettingsSheet extends ConsumerWidget {
   const PdfSettingsSheet({super.key});
 
-  @override
-  ConsumerState<PdfSettingsSheet> createState() => _PdfSettingsSheetState();
-}
-
-class _PdfSettingsSheetState extends ConsumerState<PdfSettingsSheet> {
-  void _openFullSettings() {
+  void _openFullSettings(BuildContext context) {
     Navigator.of(context).pop();
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const ReadingSettingsScreen()),
@@ -30,7 +25,7 @@ class _PdfSettingsSheetState extends ConsumerState<PdfSettingsSheet> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final settingsAsync = ref.watch(readingSettingsProvider);
@@ -92,10 +87,22 @@ class _PdfSettingsSheetState extends ConsumerState<PdfSettingsSheet> {
             const SizedBox(height: AppSpacing.lg),
             const Divider(),
             const SizedBox(height: AppSpacing.sm),
-            Text('Options', style: textTheme.labelLarge),
+            Text('Options & Sensory', style: textTheme.labelLarge),
             const SizedBox(height: AppSpacing.xs),
             SettingsGroup(
               children: [
+                SwitchTile(
+                  title: 'Page turn sound',
+                  subtitle: 'Play realistic paper rustle sound when flipping',
+                  value: settings.enablePageFlipSound,
+                  onChanged: notifier.setPageFlipSound,
+                ),
+                SwitchTile(
+                  title: 'Haptic feedback',
+                  subtitle: 'Feel physical paper vibrations during swipe',
+                  value: settings.enablePageFlipHaptics,
+                  onChanged: notifier.setPageFlipHaptics,
+                ),
                 SwitchTile(
                   title: 'Keep screen awake',
                   subtitle: 'Prevent the screen from turning off while reading',
@@ -108,7 +115,7 @@ class _PdfSettingsSheetState extends ConsumerState<PdfSettingsSheet> {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: _openFullSettings,
+                onPressed: () => _openFullSettings(context),
                 icon: const Icon(Icons.tune_rounded, size: 18),
                 label: const Text('More in Reading settings'),
                 style: TextButton.styleFrom(

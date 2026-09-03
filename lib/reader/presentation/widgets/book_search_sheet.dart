@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/atoms/book_badge.dart';
 import 'package:atlas_app/core/design_system/molecules/app_search_bar.dart';
@@ -13,7 +14,7 @@ import 'package:atlas_app/reader/domain/entities/book_search_result.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 
 /// Full-text search modal bottom sheet for searching within the current book.
-class BookSearchSheet extends ConsumerStatefulWidget {
+class BookSearchSheet extends HookConsumerWidget {
   const BookSearchSheet({
     super.key,
     required this.bookId,
@@ -42,201 +43,212 @@ class BookSearchSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<BookSearchSheet> createState() => _BookSearchSheetState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = useTextEditingController();
+    final debounceTimer = useRef<Timer?>(null);
+    final isLoading = useState(false);
+    final results = useState<List<BookSearchResult>>([]);
+    final lastQuery = useState('');
 
-class _BookSearchSheetState extends ConsumerState<BookSearchSheet> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounceTimer;
-  bool _isLoading = false;
-  List<BookSearchResult> _results = [];
-  String _lastQuery = '';
+    useEffect(() {
+      return () => debounceTimer.value?.cancel();
+    }, const []);
 
-  @override
-  void dispose() {
-    _debounceTimer?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
+    Future<void> performSearch(String query) async {
+      isLoading.value = true;
+      lastQuery.value = query;
 
-  void _onQueryChanged(String query) {
-    _debounceTimer?.cancel();
-    final clean = query.trim();
-    if (clean.isEmpty) {
-      setState(() {
-        _isLoading = false;
-        _results = [];
-        _lastQuery = '';
-      });
-      return;
+      final repo = ref.read(readerRepositoryProvider);
+      final service = BookSearchService(repo);
+      final result = await service.searchBook(bookId: bookId, query: query);
+
+      if (!context.mounted) return;
+      isLoading.value = false;
+      if (result is Success<List<BookSearchResult>>) {
+        results.value = result.value;
+      } else {
+        results.value = [];
+      }
     }
 
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () => _performSearch(clean));
-  }
-
-  Future<void> _performSearch(String query) async {
-    if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _lastQuery = query;
-    });
-
-    final repo = ref.read(readerRepositoryProvider);
-    final service = BookSearchService(repo);
-    final result = await service.searchBook(bookId: widget.bookId, query: query);
-
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      if (result is Success<List<BookSearchResult>>) {
-        _results = result.value;
-      } else {
-        _results = [];
+    void onQueryChanged(String query) {
+      debounceTimer.value?.cancel();
+      final clean = query.trim();
+      if (clean.isEmpty) {
+        isLoading.value = false;
+        results.value = [];
+        lastQuery.value = '';
+        return;
       }
-    });
-  }
 
-  @override
-  Widget build(BuildContext context) {
+      debounceTimer.value = Timer(
+        const Duration(milliseconds: 300),
+        () => performSearch(clean),
+      );
+    }
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-          child: AppSearchBar(
-            controller: _controller,
-            hint: 'Search word or phrase...',
-            autofocus: true,
-            onChanged: _onQueryChanged,
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppSearchBar(
+            controller: controller,
+            hint: 'Search book contents…',
+            onChanged: onQueryChanged,
           ),
-        ),
-        if (_isLoading)
-          const Padding(
-            padding: EdgeInsets.all(AppSpacing.xl),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (_lastQuery.isNotEmpty && _results.isEmpty)
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.search_off_rounded, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    'No matches found for "$_lastQuery"',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+          const SizedBox(height: AppSpacing.sm),
+          if (isLoading.value)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
               ),
-            ),
-          )
-        else if (_results.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
-            child: Align(
-              alignment: Alignment.centerLeft,
+            )
+          else if (lastQuery.value.isNotEmpty && results.value.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.search_off_rounded,
+                      size: 40,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'No matches found for "${lastQuery.value}"',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (results.value.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs, left: 4),
               child: Text(
-                '${_results.length} results found',
+                '${results.value.length} results found',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-          ),
-          const Divider(height: 1),
           Expanded(
             child: ListView.separated(
-              itemCount: _results.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemCount: results.value.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final item = _results[index];
+                final item = results.value[index];
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
+                    horizontal: AppSpacing.sm,
                     vertical: AppSpacing.xs,
                   ),
                   title: Row(
                     children: [
-                      BookBadge(label: 'Ch. ${item.chapterIndex + 1}'),
+                      BookBadge(
+                        label: 'Ch. ${item.chapterIndex + 1}',
+                        isCompact: true,
+                      ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Text(
                           item.chapterTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelMedium?.copyWith(
                             fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
                   subtitle: Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xs),
-                    child: _buildHighlightedSnippet(context, item),
+                    padding: const EdgeInsets.only(top: 6.0),
+                    child: RichText(
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                        children: _highlightSnippet(
+                          snippet: item.snippet,
+                          matchStart: item.matchStartInSnippet,
+                          matchLength: lastQuery.value.length,
+                          highlightColor: colorScheme.primaryContainer,
+                          highlightTextColor: colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
                   ),
                   onTap: () {
                     Navigator.of(context).pop();
-                    widget.onResultSelected(item.chapterIndex, item.charOffset);
+                    onResultSelected(item.chapterIndex, item.charOffset);
                   },
                 );
               },
             ),
           ),
-        ] else
-          Expanded(
-            child: Center(
-              child: Text(
-                'Type a keyword to search this book',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildHighlightedSnippet(BuildContext context, BookSearchResult result) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    final snippet = result.snippet;
-    final start = result.matchStartInSnippet;
-    final length = result.matchLength;
-    final end = (start + length).clamp(0, snippet.length);
-
-    if (start < 0 || start >= snippet.length) {
-      return Text(snippet, style: theme.textTheme.bodySmall);
-    }
-
-    final before = snippet.substring(0, start);
-    final match = snippet.substring(start, end);
-    final after = snippet.substring(end);
-
-    return RichText(
-      text: TextSpan(
-        style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
-        children: [
-          TextSpan(text: before),
-          TextSpan(
-            text: match,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              backgroundColor: colorScheme.primary.withValues(alpha: 0.25),
-              color: colorScheme.primary,
-            ),
-          ),
-          TextSpan(text: after),
         ],
       ),
     );
+  }
+
+  List<InlineSpan> _highlightSnippet({
+    required String snippet,
+    required int matchStart,
+    required int matchLength,
+    required Color highlightColor,
+    required Color highlightTextColor,
+  }) {
+    if (matchStart < 0 || matchStart + matchLength > snippet.length) {
+      return [TextSpan(text: snippet)];
+    }
+
+    final before = snippet.substring(0, matchStart);
+    final match = snippet.substring(matchStart, matchStart + matchLength);
+    final after = snippet.substring(matchStart + matchLength);
+
+    return [
+      TextSpan(text: before),
+      WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+          decoration: BoxDecoration(
+            color: highlightColor,
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: Text(
+            match,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: highlightTextColor,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+      TextSpan(text: after),
+    ];
   }
 }

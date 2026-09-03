@@ -132,6 +132,27 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
   }
 
   @override
+  Stream<Result<BookEntity>> watchBookById(String id) {
+    final query = _db.select(_db.books).join([
+      leftOuterJoin(
+        _db.readingProgress,
+        _db.readingProgress.bookId.equalsExp(_db.books.id),
+      ),
+    ])..where(_db.books.id.equals(id));
+
+    return query.watch().map((rows) {
+      if (rows.isEmpty) {
+        return Failure<BookEntity>(NotFoundException('Book $id not found'));
+      }
+      try {
+        return Success<BookEntity>(_toBookEntity(rows.first));
+      } catch (e, st) {
+        return Failure<BookEntity>(DatabaseException('Failed to load book', e), st);
+      }
+    });
+  }
+
+  @override
   Future<Result<void>> deleteBook(String id) async {
     try {
       final query = _db.select(_db.books)..where((b) => b.id.equals(id));

@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/browser/presentation/widgets/app_session_refresh_bridge.dart';
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
+import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -58,6 +60,14 @@ class AtlasApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(settings.brand, settings.systemFontFamily),
       themeMode: settings.themeMode,
       routerConfig: AppRouter.router,
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+        },
+      ),
       builder: (context, child) {
         return Stack(
           fit: StackFit.expand,
@@ -104,7 +114,8 @@ class AtlasApp extends ConsumerWidget {
         settings.intervalHours;
     // Initialized unconditionally so notification taps deep-link even when
     // the OS-level checks are off.
-    await UpdateNotificationService.instance.initialize();
+    final db = ref.read(databaseProvider);
+    await UpdateNotificationService.instance.initialize(db: db);
     await initializeBackgroundUpdateChecks(settings);
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/core/design_system/atoms/book_badge.dart';
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
@@ -71,7 +72,7 @@ class BookCard extends StatelessWidget {
   }
 }
 
-class BookGridCard extends StatefulWidget {
+class BookGridCard extends HookWidget {
   const BookGridCard({
     super.key,
     required this.book,
@@ -94,48 +95,42 @@ class BookGridCard extends StatefulWidget {
   final bool isSelected;
 
   @override
-  State<BookGridCard> createState() => _BookGridCardState();
-}
-
-class _BookGridCardState extends State<BookGridCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
+    final hovered = useState(false);
     final cs = Theme.of(context).colorScheme;
-    final progress = widget.book.progress ?? 0;
+    final progress = book.progress ?? 0;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) => hovered.value = true,
+      onExit: (_) => hovered.value = false,
       child: GestureDetector(
-        onTap: widget.onTap,
-        onLongPressStart: widget.onLongPress != null
-            ? (d) => widget.onLongPress!(d.globalPosition)
+        onTap: onTap,
+        onLongPressStart: onLongPress != null
+            ? (d) => onLongPress!(d.globalPosition)
             : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          transform: _hovered && widget.isDesktop && !widget.isSelectionMode
+          transform: hovered.value && isDesktop && !isSelectionMode
               ? (Matrix4.identity()..translateByDouble(0.0, -4.0, 0.0, 1.0))
               : Matrix4.identity(),
           child: Card(
             clipBehavior: Clip.antiAlias,
-            shape: widget.isSelectionMode && widget.isSelected
+            shape: isSelectionMode && isSelected
                 ? RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
                     side: BorderSide(color: cs.primary, width: 2),
                   )
                 : null,
-            color: widget.isSelectionMode && widget.isSelected
+            color: isSelectionMode && isSelected
                 ? cs.primaryContainer.withValues(alpha: 0.25)
                 : null,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _BookCoverStack(
-                  book: widget.book,
-                  coverWidth: widget.coverWidth,
-                  coverHeight: widget.coverHeight,
+                  book: book,
+                  coverWidth: coverWidth,
+                  coverHeight: coverHeight,
                   overlay: progress > 0
                       ? Positioned(
                           bottom: 4,
@@ -154,7 +149,7 @@ class _BookGridCardState extends State<BookGridCard> {
                           ),
                         )
                       : null,
-                  selectionOverlay: widget.isSelectionMode
+                  selectionOverlay: isSelectionMode
                       ? Positioned(
                           top: 8,
                           right: 8,
@@ -164,10 +159,10 @@ class _BookGridCardState extends State<BookGridCard> {
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
-                              widget.isSelected
+                              isSelected
                                   ? Icons.check_circle_rounded
                                   : Icons.radio_button_unchecked_rounded,
-                              color: widget.isSelected
+                              color: isSelected
                                   ? cs.primary
                                   : Colors.white70,
                               size: 24,
@@ -175,14 +170,14 @@ class _BookGridCardState extends State<BookGridCard> {
                           ),
                         )
                       : null,
-                  hoverOverlay: _hovered && widget.isDesktop && !widget.isSelectionMode
+                  hoverOverlay: hovered.value && isDesktop && !isSelectionMode
                       ? Positioned(
                           left: 0,
                           right: 0,
                           bottom: 0,
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 150),
-                            opacity: _hovered ? 1.0 : 0.0,
+                            opacity: hovered.value ? 1.0 : 0.0,
                             child: Container(
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
@@ -199,7 +194,7 @@ class _BookGridCardState extends State<BookGridCard> {
                               ),
                               padding: const EdgeInsets.all(AppSpacing.sm),
                               child: _BookInfoSection(
-                                book: widget.book,
+                                book: book,
                                 compact: true,
                               ),
                             ),
@@ -209,7 +204,7 @@ class _BookGridCardState extends State<BookGridCard> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: _BookInfoSection(book: widget.book, compact: true),
+                  child: _BookInfoSection(book: book, compact: true),
                 ),
               ],
             ),

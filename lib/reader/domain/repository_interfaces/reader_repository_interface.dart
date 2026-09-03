@@ -6,6 +6,7 @@ import 'package:atlas_app/reader/domain/entities/reading_progress_snapshot.dart'
 
 abstract interface class ReaderRepositoryInterface {
   Future<Result<List<ChapterEntity>>> getChapters(String bookId);
+  Stream<Result<List<ChapterEntity>>> watchChapters(String bookId);
   Future<Result<String>> getChapterContent(String contentPath);
   Future<Result<void>> saveProgress({
     required String userId,

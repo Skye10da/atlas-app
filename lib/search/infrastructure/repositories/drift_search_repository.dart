@@ -28,7 +28,11 @@ final class DriftSearchRepository implements SearchRepositoryInterface {
                 ),
               ])
                 ..where(
-                  _db.books.title.like(pattern) | _db.books.author.like(pattern),
+                  _db.books.title.like(pattern) |
+                      _db.books.author.like(pattern) |
+                      _db.books.tags.like(pattern) |
+                      _db.books.description.like(pattern) |
+                      _db.books.sourceName.like(pattern),
                 )
                 ..limit(50))
               .get();

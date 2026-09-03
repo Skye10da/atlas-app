@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
@@ -44,7 +45,7 @@ enum ShareCardRatio {
   };
 }
 
-class QuoteShareCardSheet extends StatefulWidget {
+class QuoteShareCardSheet extends HookWidget {
   const QuoteShareCardSheet({
     super.key,
     required this.quoteText,
@@ -82,23 +83,10 @@ class QuoteShareCardSheet extends StatefulWidget {
     );
   }
 
-  @override
-  State<QuoteShareCardSheet> createState() => _QuoteShareCardSheetState();
-}
-
-class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
-  final GlobalKey _cardBoundaryKey = GlobalKey();
-  ShareCardTheme _theme = ShareCardTheme.editorial;
-  ShareCardRatio _ratio = ShareCardRatio.square;
-  bool _showCover = true;
-  bool _showAuthor = true;
-  bool _showQuotes = true;
-  bool _isExporting = false;
-
-  void _copyText() {
-    final title = widget.bookTitle ?? 'Unknown Book';
-    final author = widget.author != null ? ' by ${widget.author}' : '';
-    final formatted = '“${widget.quoteText.trim()}”\n\n— $title$author';
+  void _copyText(BuildContext context) {
+    final title = bookTitle ?? 'Unknown Book';
+    final authorStr = author != null ? ' by $author' : '';
+    final formatted = '“${quoteText.trim()}”\n\n— $title$authorStr';
     Clipboard.setData(ClipboardData(text: formatted));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -108,58 +96,66 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
     );
   }
 
-  Future<void> _exportImage() async {
-    if (_isExporting) return;
-    setState(() => _isExporting = true);
-
-    try {
-      final boundary = _cardBoundaryKey.currentContext?.findRenderObject()
-          as RenderRepaintBoundary?;
-      if (boundary == null) return;
-
-      final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-
-      final pngBytes = byteData.buffer.asUint8List();
-
-      if (!kIsWeb) {
-        final dir = await getApplicationDocumentsDirectory();
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final file = File('${dir.path}/atlas_quote_$timestamp.png');
-        await file.writeAsBytes(pngBytes);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Quote card saved to: ${file.path}'),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Image rendered successfully!'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to export image: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isExporting = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final cardBoundaryKey = useMemoized(() => GlobalKey());
+    final theme = useState(ShareCardTheme.editorial);
+    final ratio = useState(ShareCardRatio.square);
+    final showCover = useState(true);
+    final showAuthor = useState(true);
+    final showQuotes = useState(true);
+    final isExporting = useState(false);
+
+    Future<void> exportImage() async {
+      if (isExporting.value) return;
+      isExporting.value = true;
+
+      try {
+        final boundary = cardBoundaryKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
+        if (boundary == null) return;
+
+        final image = await boundary.toImage(pixelRatio: 3.0);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData == null) return;
+
+        final pngBytes = byteData.buffer.asUint8List();
+
+        if (!kIsWeb) {
+          final dir = await getApplicationDocumentsDirectory();
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final file = File('${dir.path}/atlas_quote_$timestamp.png');
+          await file.writeAsBytes(pngBytes);
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Quote card saved to: ${file.path}'),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        } else {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Image rendered successfully!'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to export image: $e')),
+          );
+        }
+      } finally {
+        if (context.mounted) isExporting.value = false;
+      }
+    }
+
     final colors = Theme.of(context).colorScheme;
 
     return Container(
@@ -219,8 +215,14 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                 child: Center(
                   child: SingleChildScrollView(
                     child: RepaintBoundary(
-                      key: _cardBoundaryKey,
-                      child: _buildShareCard(),
+                      key: cardBoundaryKey,
+                      child: _buildShareCard(
+                        theme: theme.value,
+                        ratio: ratio.value,
+                        showQuotes: showQuotes.value,
+                        showCover: showCover.value,
+                        showAuthor: showAuthor.value,
+                      ),
                     ),
                   ),
                 ),
@@ -246,9 +248,9 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                               child: ChoiceChip(
                                 label: Text(t.label,
                                     style: const TextStyle(fontSize: 11)),
-                                selected: _theme == t,
+                                selected: theme.value == t,
                                 onSelected: (sel) {
-                                  if (sel) setState(() => _theme = t);
+                                  if (sel) theme.value = t;
                                 },
                                 visualDensity: VisualDensity.compact,
                               ),
@@ -280,9 +282,9 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                               child: ChoiceChip(
                                 label: Text(r.label,
                                     style: const TextStyle(fontSize: 11)),
-                                selected: _ratio == r,
+                                selected: ratio.value == r,
                                 onSelected: (sel) {
-                                  if (sel) setState(() => _ratio = r);
+                                  if (sel) ratio.value = r;
                                 },
                                 visualDensity: VisualDensity.compact,
                               ),
@@ -310,22 +312,22 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                         children: [
                           FilterChip(
                             label: const Text('Cover', style: TextStyle(fontSize: 11)),
-                            selected: _showCover,
-                            onSelected: (sel) => setState(() => _showCover = sel),
+                            selected: showCover.value,
+                            onSelected: (sel) => showCover.value = sel,
                             visualDensity: VisualDensity.compact,
                           ),
                           const SizedBox(width: 6),
                           FilterChip(
                             label: const Text('Author', style: TextStyle(fontSize: 11)),
-                            selected: _showAuthor,
-                            onSelected: (sel) => setState(() => _showAuthor = sel),
+                            selected: showAuthor.value,
+                            onSelected: (sel) => showAuthor.value = sel,
                             visualDensity: VisualDensity.compact,
                           ),
                           const SizedBox(width: 6),
                           FilterChip(
                             label: const Text('Quotes', style: TextStyle(fontSize: 11)),
-                            selected: _showQuotes,
-                            onSelected: (sel) => setState(() => _showQuotes = sel),
+                            selected: showQuotes.value,
+                            onSelected: (sel) => showQuotes.value = sel,
                             visualDensity: VisualDensity.compact,
                           ),
                         ],
@@ -341,7 +343,7 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _copyText,
+                      onPressed: () => _copyText(context),
                       icon: const Icon(Icons.copy_rounded, size: 18),
                       label: const Text('Copy Text'),
                       style: OutlinedButton.styleFrom(
@@ -355,8 +357,8 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: _isExporting ? null : _exportImage,
-                      icon: _isExporting
+                      onPressed: isExporting.value ? null : exportImage,
+                      icon: isExporting.value
                           ? const SizedBox(
                               width: 16,
                               height: 16,
@@ -366,7 +368,7 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                               ),
                             )
                           : const Icon(Icons.download_rounded, size: 18),
-                      label: Text(_isExporting ? 'Saving…' : 'Save Image'),
+                      label: Text(isExporting.value ? 'Saving…' : 'Save Image'),
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -384,9 +386,15 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
     );
   }
 
-  Widget _buildShareCard() {
+  Widget _buildShareCard({
+    required ShareCardTheme theme,
+    required ShareCardRatio ratio,
+    required bool showQuotes,
+    required bool showCover,
+    required bool showAuthor,
+  }) {
     final (bgDecoration, textColor, subtextColor, accentColor, fontSerif) =
-        switch (_theme) {
+        switch (theme) {
       ShareCardTheme.editorial => (
           BoxDecoration(
             color: const Color(0xFFF9F6F0),
@@ -483,13 +491,13 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
         ),
     };
 
-    final text = widget.quoteText.trim();
-    final effectiveText = _showQuotes ? '“$text”' : text;
+    final text = quoteText.trim();
+    final effectiveText = showQuotes ? '“$text”' : text;
 
     return Container(
       width: 320,
       constraints: BoxConstraints(
-        minHeight: switch (_ratio) {
+        minHeight: switch (ratio) {
           ShareCardRatio.square => 320,
           ShareCardRatio.story => 480,
           ShareCardRatio.banner => 180,
@@ -554,7 +562,7 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (_showCover && widget.coverPath != null) ...[
+              if (showCover && coverPath != null) ...[
                 Container(
                   width: 34,
                   height: 46,
@@ -570,7 +578,7 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: BookCover(
-                    coverPath: widget.coverPath,
+                    coverPath: coverPath,
                     width: 34,
                     height: 46,
                   ),
@@ -581,9 +589,9 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (widget.bookTitle != null)
+                    if (bookTitle != null)
                       Text(
-                        widget.bookTitle!,
+                        bookTitle!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -592,9 +600,9 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                           color: textColor,
                         ),
                       ),
-                    if (_showAuthor && widget.author != null)
+                    if (showAuthor && author != null)
                       Text(
-                        widget.author!,
+                        author!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -603,9 +611,9 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
                           color: subtextColor,
                         ),
                       ),
-                    if (widget.chapterTitle != null)
+                    if (chapterTitle != null)
                       Text(
-                        widget.chapterTitle!,
+                        chapterTitle!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -624,4 +632,3 @@ class _QuoteShareCardSheetState extends State<QuoteShareCardSheet> {
     );
   }
 }
-

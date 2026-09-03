@@ -13,6 +13,8 @@ dependencies:
 
   # State management
   flutter_riverpod: ^2.6.1
+  hooks_riverpod: ^2.6.1
+  flutter_hooks: ^0.21.3
   riverpod_annotation: ^2.6.1
 
   # Navigation
@@ -75,6 +77,9 @@ dependencies:
   # PDF rendering/viewer (pdfrx, on top of PDFium)
   pdfrx: ^2.4.7
 
+  # Realistic 3D-like physical page flip engine
+  real_page_flip: ^2.2.9
+
   # Opening external links from PDFs
   url_launcher: ^6.3.2
   flutter_inappwebview: ^6.1.5
@@ -87,6 +92,7 @@ dependencies:
   workmanager: ^0.10.9
   flutter_local_notifications: ^22.3.0
   permission_handler: ^13.0.1
+  rxdart: ^0.28.0
 
 # permission_handler_android 14.0.0 is broken (requires compileSdk 37 / AGP 9,
 # which no stable toolchain provides — see Baseflow issue #1556).
@@ -98,7 +104,10 @@ dev_dependencies:
     sdk: flutter
   # UI automation entrypoint (lib/driver_main.dart) — enables the
   # flutter_driver extension for external driving of taps/scrolls/finders.
+  # Linter & Custom Lint
   flutter_lints: ^6.0.0
+  custom_lint: ^0.7.3
+  riverpod_lint: ^2.6.4
 
   # Code generation
   build_runner: ^2.4.14

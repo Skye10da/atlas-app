@@ -638,4 +638,23 @@ class HtmlTemplate implements Template {
       queryParameters: params,
     );
   }
+
+  @override
+  Future<List<TrendingResult>> trending(PluginContext context) async {
+    final selectors = context.selectors;
+    if (selectors == null || selectors.trending == null) {
+      return const [];
+    }
+    final trendingSelectors = selectors.trending!;
+    final path = trendingSelectors.path;
+    final uri = Uri.parse(context.plugin.baseUrl).replace(
+      path: path.startsWith('/') ? path : '/$path',
+    );
+    final html = await context.transport.fetchHtml(
+      uri,
+      headers: context.plugin.requestHeaders,
+    );
+    final doc = parser.parse(html);
+    return selectors.applyTrending(doc, baseUrl: context.plugin.baseUrl);
+  }
 }

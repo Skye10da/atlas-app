@@ -32,5 +32,14 @@
     "genres": { "selector": ".summary_content .genres-content a|.post-content_item.mg_genres .summary-content a" },
     "status": { "selector": ".summary_content .manga-status|.post-content_item.mg_status .summary-content" },
     "description": { "selector": ".info-block.manga-excerpt .excerpt-content p|.post-content_item.mg_summary .summary-content" }
+  },
+  "trending": {
+    "path": "/ranking/",
+    "resultItem": ".page-item-detail",
+    "title": ".post-title h3 a@text",
+    "coverUrl": ".post-title a img@src",
+    "detailUrl": ".post-title h3 a@href",
+    "author": ".author a@text",
+    "genre": ".mg_genres a@text"
   }
 }

@@ -18,6 +18,11 @@ class FakeReaderRepository implements ReaderRepositoryInterface {
   }
 
   @override
+  Stream<Result<List<ChapterEntity>>> watchChapters(String bookId) {
+    return Stream.value(Success(chapters[bookId] ?? []));
+  }
+
+  @override
   Future<Result<String>> getChapterContent(String contentPath) async {
     final text = contents[contentPath];
     if (text != null) return Success(text);

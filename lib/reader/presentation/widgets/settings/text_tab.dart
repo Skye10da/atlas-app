@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import 'package:atlas_app/core/design_system/atoms/app_chip.dart';
+import 'package:atlas_app/core/design_system/atoms/app_divider.dart';
 import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
@@ -14,39 +15,36 @@ class TextTab extends StatelessWidget {
     required this.lineHeight,
     required this.letterSpacing,
     required this.textAlignment,
+    required this.marginPreset,
     required this.onFontSizeChanged,
     required this.onFontFamilyChanged,
     required this.onFontWeightChanged,
     required this.onLineHeightChanged,
     required this.onLetterSpacingChanged,
     required this.onTextAlignmentChanged,
+    required this.onMarginPresetChanged,
     required this.fontFamilies,
     required this.onDownloadMore,
   });
 
   final double fontSize;
   final String? fontFamily;
-
-  /// Numeric reader body-text weight; `null` keeps the family default.
   final int? fontWeight;
   final double lineHeight;
   final double letterSpacing;
   final TextAlignment textAlignment;
+  final MarginPreset marginPreset;
+
   final ValueChanged<double> onFontSizeChanged;
   final ValueChanged<String?> onFontFamilyChanged;
   final ValueChanged<int?> onFontWeightChanged;
   final ValueChanged<double> onLineHeightChanged;
   final ValueChanged<double> onLetterSpacingChanged;
   final ValueChanged<TextAlignment> onTextAlignmentChanged;
+  final ValueChanged<MarginPreset> onMarginPresetChanged;
 
-  /// Available font families (bundled + downloaded).
   final List<String> fontFamilies;
-
-  /// Called when the user taps "Download more fonts…".
   final VoidCallback onDownloadMore;
-
-  /// Threshold: when System + fontFamilies exceeds this, use the sheet picker.
-  static const _sheetThreshold = 6;
 
   List<(String?, String)> get _allOptions => [
     (null, 'System'),
@@ -55,204 +53,395 @@ class TextTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.max,
         children: [
-          const AppSectionHeader(title: 'Font Size'),
-          Slider(
-            value: fontSize,
-            min: 12,
-            max: 28,
-            divisions: 16,
-            label: '${fontSize.round()} pt',
-            onChanged: onFontSizeChanged,
+          // 1. Typeface / Font Family
+          AppSectionHeader(
+            title: 'Typeface',
+            padding: 0,
+            actionLabel: 'Get Fonts',
+            action: onDownloadMore,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Select font family to customize your reading experience',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          _buildFontFamilySection(context),
+          _buildFontCards(context),
+
+          const SizedBox(height: AppSpacing.md),
+          const AppDivider(),
           const SizedBox(height: AppSpacing.sm),
-          const AppSectionHeader(title: 'Font Weight'),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: 8,
+
+          // 2. Font Weight
+          const AppSectionHeader(title: 'Font Weight', padding: 0),
+          const SizedBox(height: 4),
+          Text(
+            'Adjust stroke thickness for higher contrast or delicate serifs',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
             children: [
-              (300, 'Regular'),
-              (500, 'Medium'),
-              (600, 'Semi-Bold'),
-              (700, 'Bold'),
+              (400, 'Regular', 'Normal weight'),
+              (500, 'Medium', 'Balanced contrast'),
+              (600, 'Semi-Bold', 'Strong clarity'),
+              (700, 'Bold', 'High emphasis'),
             ].map((entry) {
-              final isSelected = fontWeight == entry.$1;
-              return AppChip(
-                label: entry.$2,
-                selected: isSelected,
-                onPressed: () => onFontWeightChanged(entry.$1),
+              final isSelected = (fontWeight == null && entry.$1 == 400) ||
+                  fontWeight == entry.$1;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onFontWeightChanged(entry.$1);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primaryContainer
+                            : colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outlineVariant.withValues(alpha: 0.4),
+                          width: isSelected ? 1.8 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            entry.$2,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight(entry.$1),
+                              color: isSelected
+                                  ? colorScheme.onPrimaryContainer
+                                  : colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               );
             }).toList(),
           ),
+
+          const SizedBox(height: AppSpacing.md),
+          const AppDivider(),
           const SizedBox(height: AppSpacing.sm),
-          const AppSectionHeader(title: 'Line Height'),
-          Slider(
-            value: lineHeight,
-            min: 1.0,
-            max: 2.5,
-            divisions: 15,
-            label: '${lineHeight.toStringAsFixed(1)}x',
-            onChanged: onLineHeightChanged,
+
+          // 3. Text Alignment
+          const AppSectionHeader(title: 'Text Alignment', padding: 0),
+          const SizedBox(height: 4),
+          Text(
+            'Choose between ragged-right edge or clean newspaper justification',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const AppSectionHeader(title: 'Letter Spacing'),
+          Row(
+            children: [
+              (TextAlignment.left, 'Left', Icons.format_align_left, 'Natural spacing'),
+              (TextAlignment.justify, 'Justify', Icons.format_align_justify, 'Clean edges'),
+              (TextAlignment.center, 'Center', Icons.format_align_center, 'Poetry style'),
+            ].map((entry) {
+              final isSelected = textAlignment == entry.$1;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onTextAlignmentChanged(entry.$1);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primaryContainer
+                            : colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outlineVariant.withValues(alpha: 0.4),
+                          width: isSelected ? 1.8 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            entry.$3,
+                            size: 20,
+                            color: isSelected
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            entry.$2,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected
+                                  ? colorScheme.onPrimaryContainer
+                                  : colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            entry.$4,
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: isSelected
+                                  ? colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+          const AppDivider(),
+          const SizedBox(height: AppSpacing.sm),
+
+          // 4. Page Margins
+          const AppSectionHeader(title: 'Page Margins', padding: 0),
+          const SizedBox(height: 4),
+          Text(
+            'Control the white space breathing room along page edges',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              (MarginPreset.narrow, 'Compact', 'More text per page', Icons.unfold_less),
+              (MarginPreset.normal, 'Standard', 'Balanced comfort', Icons.crop_portrait),
+              (MarginPreset.wide, 'Spacious', 'Focused column width', Icons.unfold_more),
+            ].map((entry) {
+              final isSelected = marginPreset == entry.$1;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onMarginPresetChanged(entry.$1);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primaryContainer
+                            : colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outlineVariant.withValues(alpha: 0.4),
+                          width: isSelected ? 1.8 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            entry.$4,
+                            size: 20,
+                            color: isSelected
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            entry.$2,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected
+                                  ? colorScheme.onPrimaryContainer
+                                  : colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            entry.$3,
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: isSelected
+                                  ? colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+          const AppDivider(),
+          const SizedBox(height: AppSpacing.sm),
+
+          // 5. Letter Spacing Fine-Tuning
+          AppSectionHeader(
+            title: 'Letter Spacing',
+            padding: 0,
+            actionLabel: '${letterSpacing.toStringAsFixed(1)} pt',
+            action: () {},
+          ),
           Slider(
-            value: letterSpacing,
+            value: letterSpacing.clamp(-1.0, 3.0),
             min: -1.0,
             max: 3.0,
             divisions: 20,
             label: '${letterSpacing.toStringAsFixed(1)} pt',
-            onChanged: onLetterSpacingChanged,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const AppSectionHeader(title: 'Text Alignment'),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: 8,
-            children: TextAlignment.values.map((a) {
-              final isSelected = textAlignment == a;
-              return AppChip(
-                label: a.label,
-                selected: isSelected,
-                onPressed: () => onTextAlignmentChanged(a),
-              );
-            }).toList(),
+            onChanged: (v) {
+              onLetterSpacingChanged(v);
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFontFamilySection(BuildContext context) {
+  Widget _buildFontCards(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final options = _allOptions;
-    final totalOptions = options.length;
 
-    // Few fonts: show chips (fast, glanceable).
-    if (totalOptions <= _sheetThreshold) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        child: Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          children: options.map((opt) {
-            final (f, label) = opt;
-            final isSelected = fontFamily == f;
-            return AppChip(
-              label: label,
-              selected: isSelected,
-              onPressed: () => onFontFamilyChanged(f),
-            );
-          }).toList(),
-        ),
-      );
-    }
-
-    // Many fonts: compact selector → modal bottom sheet.
-    final currentLabel = _allOptions
-        .firstWhere((o) => o.$1 == fontFamily, orElse: () => (null, 'System'))
-        .$2;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: GestureDetector(
-        onTap: () => _openFontPickerSheet(context),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  currentLabel,
-                  style: Theme.of(context).textTheme.bodyMedium,
+    return SizedBox(
+      height: 84,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: options.length + 1,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == options.length) {
+            return GestureDetector(
+              onTap: onDownloadMore,
+              child: Container(
+                width: 100,
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                    style: BorderStyle.solid,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_circle_outline, size: 20, color: colorScheme.primary),
+                    const SizedBox(height: 4),
+                    Text(
+                      'More Fonts',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Icon(
-                Icons.arrow_drop_down,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+            );
+          }
 
-  void _openFontPickerSheet(BuildContext context) {
-    final options = _allOptions;
-    final currentFamily = fontFamily;
+          final (font, label) = options[index];
+          final isSelected = fontFamily == font;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.85,
-        expand: false,
-        builder: (ctx, scrollController) => Column(
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 8, bottom: 4),
-              width: 32,
-              height: 4,
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onFontFamilyChanged(font);
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 120,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
               decoration: BoxDecoration(
-                color: Theme.of(
-                  ctx,
-                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
+                color: isSelected
+                    ? colorScheme.primaryContainer
+                    : colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected
+                      ? colorScheme.primary
+                      : colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  width: isSelected ? 2 : 1,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: 4,
-              ),
-              child: Text(
-                'Font Family',
-                style: Theme.of(ctx).textTheme.titleMedium,
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: options.length,
-                itemBuilder: (ctx, i) {
-                  final (f, label) = options[i];
-                  final isSelected = currentFamily == f;
-                  return ListTile(
-                    title: Text(
-                      label,
-                      style: TextStyle(fontFamily: f, fontSize: 16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Aa Bb Gg',
+                    style: TextStyle(
+                      fontFamily: font,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected
+                          ? colorScheme.onPrimaryContainer
+                          : colorScheme.onSurface,
                     ),
-                    trailing: isSelected
-                        ? Icon(
-                            Icons.check,
-                            color: Theme.of(ctx).colorScheme.primary,
-                          )
-                        : null,
-                    onTap: () {
-                      onFontFamilyChanged(f);
-                      Navigator.pop(ctx);
-                    },
-                  );
-                },
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected
+                          ? colorScheme.onPrimaryContainer
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

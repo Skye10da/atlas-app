@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 
@@ -19,7 +20,7 @@ List<List<ChapterEntity>> groupChapters(List<ChapterEntity> chapters) {
   return groups;
 }
 
-class ChapterGroupedList extends StatefulWidget {
+class ChapterGroupedList extends HookWidget {
   const ChapterGroupedList({
     super.key,
     required this.chapters,
@@ -32,47 +33,46 @@ class ChapterGroupedList extends StatefulWidget {
   final void Function(String? chapterId)? onOpenReader;
 
   @override
-  State<ChapterGroupedList> createState() => _ChapterGroupedListState();
-}
-
-class _ChapterGroupedListState extends State<ChapterGroupedList> {
-  final Set<int> _collapsedGroups = {};
-
-  @override
-  void initState() {
-    super.initState();
-    final groups = groupChapters(widget.chapters);
-    if (groups.length > 3) {
-      for (var i = 1; i < groups.length; i++) {
-        _collapsedGroups.add(i);
-      }
-    }
-  }
-
-  void _toggleGroup(int groupIndex) {
-    setState(() {
-      if (_collapsedGroups.contains(groupIndex)) {
-        _collapsedGroups.remove(groupIndex);
-      } else {
-        _collapsedGroups.add(groupIndex);
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final groups = useMemoized(() => groupChapters(chapters), [chapters]);
+    final collapsedGroups = useState<Set<int>>(() {
+      final set = <int>{};
+      if (groups.length > 3) {
+        for (var i = 1; i < groups.length; i++) {
+          set.add(i);
+        }
+      }
+      return set;
+    }());
+
+    void toggleGroup(int groupIndex) {
+      final next = Set<int>.from(collapsedGroups.value);
+      if (next.contains(groupIndex)) {
+        next.remove(groupIndex);
+      } else {
+        next.add(groupIndex);
+      }
+      collapsedGroups.value = next;
+    }
+
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final groups = groupChapters(widget.chapters);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var g = 0; g < groups.length; g++) ...[
-          _buildGroupHeader(g, groups[g], textTheme, cs),
-          if (!_collapsedGroups.contains(g))
-            for (final ch in groups[g]) _buildChapterItem(ch, textTheme, cs),
+          _buildGroupHeader(
+            g,
+            groups[g],
+            textTheme,
+            cs,
+            collapsedGroups.value.contains(g),
+            () => toggleGroup(g),
+          ),
+          if (!collapsedGroups.value.contains(g))
+            for (final ch in groups[g]) _buildChapterItem(context, ch, textTheme, cs),
         ],
       ],
     );
@@ -83,12 +83,13 @@ class _ChapterGroupedListState extends State<ChapterGroupedList> {
     List<ChapterEntity> group,
     TextTheme textTheme,
     ColorScheme cs,
+    bool isCollapsed,
+    VoidCallback onToggle,
   ) {
     final start = group.first.index + 1;
     final end = group.last.index + 1;
-    final isCollapsed = _collapsedGroups.contains(groupIndex);
     return InkWell(
-      onTap: () => _toggleGroup(groupIndex),
+      onTap: onToggle,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
         child: Row(
@@ -113,14 +114,15 @@ class _ChapterGroupedListState extends State<ChapterGroupedList> {
   }
 
   Widget _buildChapterItem(
+    BuildContext context,
     ChapterEntity ch,
     TextTheme textTheme,
     ColorScheme cs,
   ) {
     final isRead =
-        widget.lastReadChapterIndex != null &&
-        ch.index < widget.lastReadChapterIndex!;
-    final isCurrent = ch.index == widget.lastReadChapterIndex;
+        lastReadChapterIndex != null &&
+        ch.index < lastReadChapterIndex!;
+    final isCurrent = ch.index == lastReadChapterIndex;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Card(
@@ -157,7 +159,7 @@ class _ChapterGroupedListState extends State<ChapterGroupedList> {
             size: 18,
             color: cs.onSurfaceVariant,
           ),
-          onTap: () => widget.onOpenReader?.call(ch.id),
+          onTap: () => onOpenReader?.call(ch.id),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
             vertical: 2,

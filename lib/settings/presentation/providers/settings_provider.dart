@@ -120,6 +120,22 @@ class ReadingSettingsNotifier
     await _repo.save(updated);
   }
 
+  Future<void> setHorizontalPadding(double padding) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(
+      horizontalPadding: padding.clamp(0.0, 80.0),
+    );
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setUseBookSpread(bool value) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(useBookSpread: value);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
   Future<void> setLetterSpacing(double spacing) async {
     final current = state.valueOrNull ?? const ReadingSettingsEntity();
     final updated = current.copyWith(letterSpacing: spacing.clamp(0.0, 5.0));
@@ -158,6 +174,27 @@ class ReadingSettingsNotifier
   Future<void> setPageTurnAnimation(PageTurnAnimation animation) async {
     final current = state.valueOrNull ?? const ReadingSettingsEntity();
     final updated = current.copyWith(pageTurnAnimation: animation);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setPageFlipGestureZone(PageFlipGestureZone zone) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(pageFlipGestureZone: zone);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setPageFlipSound(bool enabled) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(enablePageFlipSound: enabled);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setPageFlipHaptics(bool enabled) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(enablePageFlipHaptics: enabled);
     state = AsyncData(updated);
     await _repo.save(updated);
   }

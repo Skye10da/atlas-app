@@ -23,6 +23,7 @@ class ChapterContentLoader extends ConsumerWidget {
     required this.vt,
     this.textAlignment = TextAlignment.left,
     this.marginPreset = MarginPreset.normal,
+    this.horizontalPadding,
     this.scrollable = true,
     this.chapterStyle,
     this.restoreCharOffset,
@@ -49,6 +50,7 @@ class ChapterContentLoader extends ConsumerWidget {
   final ReadingViewTheme vt;
   final TextAlignment textAlignment;
   final MarginPreset marginPreset;
+  final double? horizontalPadding;
   final bool scrollable;
   final ChapterStyle? chapterStyle;
 
@@ -137,6 +139,7 @@ class ChapterContentLoader extends ConsumerWidget {
             theme: vt,
             textAlignment: textAlignment,
             marginPreset: marginPreset,
+            horizontalPadding: horizontalPadding,
             scrollable: scrollable,
             dropCapStyle: chapterStyle?.dropCapStyle,
             chapterTitle: chapter.title,

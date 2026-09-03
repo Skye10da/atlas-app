@@ -9,5 +9,17 @@
   "chapterContent": {
     "container": ".chapter-inner.chapter-content",
     "title": "h1.font-white.break-word"
+  },
+  "trending": {
+    "path": "/fictions/trending",
+    "resultItem": ".fiction-list-item",
+    "title": "h2.fiction-title a@text",
+    "coverUrl": ".cover img@src",
+    "detailUrl": "h2.fiction-title a@href",
+    "author": ".author a@text",
+    "rating": ".star-rating@title",
+    "popularity": ".follows@title",
+    "genre": ".genre-tags .tag@text",
+    "description": ".fiction-description .description"
   }
 }

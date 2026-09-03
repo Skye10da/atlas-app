@@ -15,6 +15,7 @@ import 'package:atlas_app/core/database/tables/dictionary_words.dart';
 import 'package:atlas_app/core/database/tables/web_bookmarks.dart';
 import 'package:atlas_app/core/database/tables/web_history.dart';
 import 'package:atlas_app/core/database/tables/web_tabs.dart';
+import 'package:atlas_app/core/database/tables/notification_history.dart';
 
 part 'database.g.dart';
 
@@ -30,6 +31,7 @@ part 'database.g.dart';
     WebHistory,
     WebBookmarks,
     WebTabs,
+    NotificationHistory,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -40,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open(super.executor);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -132,6 +134,20 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(books, col);
           } catch (_) {}
         }
+      }
+      if (from <= 10) {
+        // Notification history (schema 11) — raw SQL because code generation is broken.
+        await customStatement('''
+          CREATE TABLE IF NOT EXISTS notification_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            payload TEXT,
+            book_id TEXT,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+          );
+        ''');
       }
     },
   );

@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/content_acquisition/application/chapter_update_service.dart';
@@ -30,37 +31,35 @@ import 'package:atlas_app/library/presentation/widgets/continue_reading_strip.da
 import 'package:atlas_app/library/presentation/widgets/sort_dropdown.dart';
 import 'package:atlas_app/library/presentation/widgets/sort_toolbar.dart';
 
-class LibraryScreen extends ConsumerStatefulWidget {
-  const LibraryScreen({super.key});
+class LibraryScreen extends HookConsumerWidget {
+  const LibraryScreen({
+    super.key,
+    this.initialGenre,
+  });
+
+  final String? initialGenre;
 
   @override
-  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final searchController = useTextEditingController();
+    final showSearchBar = useState(false);
+    final isSelectionMode = useState(false);
+    final selectedBookIds = useState<Set<String>>({});
 
-class _LibraryScreenState extends ConsumerState<LibraryScreen> {
-  final _searchController = TextEditingController();
-  bool _showSearchBar = false;
-  bool _isSelectionMode = false;
-  final Set<String> _selectedBookIds = {};
+    useEffect(() {
+      final initialQuery = ref.read(librarySearchQueryProvider);
+      if (initialQuery.isNotEmpty) {
+        searchController.text = initialQuery;
+        showSearchBar.value = true;
+      }
+      if (initialGenre != null && initialGenre!.trim().isNotEmpty) {
+        Future.microtask(() {
+          ref.read(libraryViewModelProvider.notifier).setGenreFilter(initialGenre!.trim());
+        });
+      }
+      return null;
+    }, [initialGenre]);
 
-  @override
-  void initState() {
-    super.initState();
-    final initialQuery = ref.read(librarySearchQueryProvider);
-    if (initialQuery.isNotEmpty) {
-      _searchController.text = initialQuery;
-      _showSearchBar = true;
-    }
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     final libraryAsync = ref.watch(libraryViewModelProvider);
     final libraryState = libraryAsync.valueOrNull ?? const LibraryState();
     final importActions = ref.watch(libraryImportProvider);
@@ -72,52 +71,56 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return AppScaffold(
-      title: _isSelectionMode
-          ? '${_selectedBookIds.length} Selected'
+      title: isSelectionMode.value
+          ? '${selectedBookIds.value.length} Selected'
           : 'Library',
-      actions: _isSelectionMode
+      actions: isSelectionMode.value
           ? [
               IconButton(
                 icon: Icon(
-                  _selectedBookIds.length == libraryState.filteredBooks.length &&
+                  selectedBookIds.value.length == libraryState.filteredBooks.length &&
                           libraryState.filteredBooks.isNotEmpty
                       ? Icons.deselect_rounded
                       : Icons.select_all_rounded,
                 ),
-                tooltip: _selectedBookIds.length ==
+                tooltip: selectedBookIds.value.length ==
                             libraryState.filteredBooks.length &&
                         libraryState.filteredBooks.isNotEmpty
                     ? 'Deselect all'
                     : 'Select all',
                 onPressed: () {
-                  setState(() {
-                    if (_selectedBookIds.length ==
-                        libraryState.filteredBooks.length) {
-                      _selectedBookIds.clear();
-                    } else {
-                      _selectedBookIds
-                          .addAll(libraryState.filteredBooks.map((b) => b.id));
-                    }
-                  });
+                  if (selectedBookIds.value.length ==
+                      libraryState.filteredBooks.length) {
+                    selectedBookIds.value = {};
+                  } else {
+                    selectedBookIds.value =
+                        libraryState.filteredBooks.map((b) => b.id).toSet();
+                  }
                 },
               ),
               IconButton(
                 icon: Icon(
                   Icons.delete_outline_rounded,
-                  color: _selectedBookIds.isEmpty ? cs.onSurfaceVariant : cs.error,
+                  color: selectedBookIds.value.isEmpty
+                      ? cs.onSurfaceVariant
+                      : cs.error,
                 ),
                 tooltip: 'Delete selected',
-                onPressed:
-                    _selectedBookIds.isEmpty ? null : () => _confirmDeleteSelected(),
+                onPressed: selectedBookIds.value.isEmpty
+                    ? null
+                    : () => _confirmDeleteSelected(
+                          context,
+                          ref,
+                          selectedBookIds,
+                          isSelectionMode,
+                        ),
               ),
               IconButton(
                 icon: const Icon(Icons.close),
                 tooltip: 'Cancel selection',
                 onPressed: () {
-                  setState(() {
-                    _isSelectionMode = false;
-                    _selectedBookIds.clear();
-                  });
+                  isSelectionMode.value = false;
+                  selectedBookIds.value = {};
                 },
               ),
             ]
@@ -147,33 +150,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               else ...[
                 IconButton(
                   icon: Icon(
-                    _showSearchBar || libraryState.searchQuery.isNotEmpty
+                    showSearchBar.value || libraryState.searchQuery.isNotEmpty
                         ? Icons.search_off_rounded
                         : Icons.search_rounded,
                   ),
                   tooltip:
-                      _showSearchBar || libraryState.searchQuery.isNotEmpty
+                      showSearchBar.value || libraryState.searchQuery.isNotEmpty
                           ? 'Close search'
                           : 'Search library',
                   onPressed: () {
-                    setState(() {
-                      if (_showSearchBar ||
-                          libraryState.searchQuery.isNotEmpty) {
-                        _showSearchBar = false;
-                        _searchController.clear();
-                        ref
-                            .read(libraryViewModelProvider.notifier)
-                            .setSearchQuery('');
-                      } else {
-                        _showSearchBar = true;
-                      }
-                    });
+                    if (showSearchBar.value ||
+                        libraryState.searchQuery.isNotEmpty) {
+                      showSearchBar.value = false;
+                      searchController.clear();
+                      ref
+                          .read(libraryViewModelProvider.notifier)
+                          .setSearchQuery('');
+                    } else {
+                      showSearchBar.value = true;
+                    }
                   },
                 ),
                 if (libraryState.filteredBooks.isNotEmpty)
                   IconButton(
                     icon: const Icon(Icons.add),
-                    onPressed: () => _showAddSheet(),
+                    onPressed: () => _showAddSheet(context, ref),
                     tooltip: 'Add to library',
                   ),
               ],
@@ -188,13 +189,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 tooltip: 'Check ongoing novels for updates',
                 onPressed: libraryState.isCheckingUpdates
                     ? null
-                    : () => _checkAllUpdates(),
+                    : () => _checkAllUpdates(context, ref),
               ),
             ],
       child: _buildContent(
+        context,
         ref,
         libraryAsync,
         libraryState,
+        searchController,
+        showSearchBar,
+        isSelectionMode,
+        selectedBookIds,
         importActions.isImporting,
         isDesktop,
         isBigDesktop,
@@ -203,7 +209,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  Future<void> _checkAllUpdates() async {
+  static Future<void> _checkAllUpdates(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final service = ref.read(chapterUpdateServiceProvider);
@@ -228,16 +234,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
-  Widget _buildContent(
+  static Widget _buildContent(
+    BuildContext context,
     WidgetRef ref,
     AsyncValue<LibraryState> libraryAsync,
     LibraryState state,
+    TextEditingController searchController,
+    ValueNotifier<bool> showSearchBar,
+    ValueNotifier<bool> isSelectionMode,
+    ValueNotifier<Set<String>> selectedBookIds,
     bool isImporting,
     bool isDesktop,
     bool isBigDesktop,
     bool isTablet,
   ) {
-    final showSearch = _showSearchBar || state.searchQuery.isNotEmpty;
+    final showSearch = showSearchBar.value || state.searchQuery.isNotEmpty;
 
     return Column(
       children: [
@@ -245,14 +256,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: AppSearchBar(
-              controller: _searchController,
+              controller: searchController,
               hint: 'Search library...',
-              autofocus: _showSearchBar && state.searchQuery.isEmpty,
+              autofocus: showSearchBar.value && state.searchQuery.isEmpty,
               onChanged: (q) =>
                   ref.read(libraryViewModelProvider.notifier).setSearchQuery(q),
             ),
           ),
-        if (!isDesktop && !_isSelectionMode)
+        if (!isDesktop && !isSelectionMode.value)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: SizedBox(
@@ -285,7 +296,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         if (state.category == LibraryCategory.novels &&
             state.availableGenres.isNotEmpty &&
-            !_isSelectionMode)
+            !isSelectionMode.value)
           SizedBox(
             height: 48,
             child: ListView(
@@ -330,17 +341,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               isDesktop: isDesktop,
               isBigDesktop: isBigDesktop,
               isTablet: isTablet,
-              isSelectionMode: _isSelectionMode,
-              selectedIds: _selectedBookIds,
+              isSelectionMode: isSelectionMode.value,
+              selectedIds: selectedBookIds.value,
               onBookTap: (id) {
-                if (_isSelectionMode) {
-                  setState(() {
-                    if (_selectedBookIds.contains(id)) {
-                      _selectedBookIds.remove(id);
-                    } else {
-                      _selectedBookIds.add(id);
-                    }
-                  });
+                if (isSelectionMode.value) {
+                  final next = Set<String>.from(selectedBookIds.value);
+                  if (next.contains(id)) {
+                    next.remove(id);
+                  } else {
+                    next.add(id);
+                  }
+                  selectedBookIds.value = next;
                   return;
                 }
                 if (isDesktop) {
@@ -357,24 +368,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 }
               },
               onBookLongPress: (id, pos) {
-                if (_isSelectionMode) {
-                  setState(() {
-                    if (_selectedBookIds.contains(id)) {
-                      _selectedBookIds.remove(id);
-                    } else {
-                      _selectedBookIds.add(id);
-                    }
-                  });
+                if (isSelectionMode.value) {
+                  final next = Set<String>.from(selectedBookIds.value);
+                  if (next.contains(id)) {
+                    next.remove(id);
+                  } else {
+                    next.add(id);
+                  }
+                  selectedBookIds.value = next;
                 } else {
-                  setState(() {
-                    _isSelectionMode = true;
-                    _selectedBookIds.add(id);
-                  });
+                  isSelectionMode.value = true;
+                  selectedBookIds.value = {id};
                 }
               },
-              onLoadSamples: () => _loadSamples(),
-              onImport: () => _showAddSheet(),
-              onDeleteBook: (id) => _deleteBook(id),
+              onLoadSamples: () => _loadSamples(ref),
+              onImport: () => _showAddSheet(context, ref),
+              onDeleteBook: (id) => _deleteBook(context, ref, id),
               isImporting: isImporting,
               selectedBookId: isDesktop ? state.selectedBookId : null,
             ),
@@ -384,17 +393,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  void _loadSamples() {
+  static void _loadSamples(WidgetRef ref) {
     ref.read(librarySeedProvider.future).then((_) {
       ref.invalidate(libraryBooksProvider);
     });
   }
 
-  void _showAddSheet() {
+  static void _showAddSheet(BuildContext context, WidgetRef ref) {
     final actions = ref.read(libraryImportProvider);
     actions.importLocal(context).then((result) {
       ref.invalidate(libraryBooksProvider);
-      if (result is Success<ImportOutcome> && mounted) {
+      if (result is Success<ImportOutcome> && context.mounted) {
         if (result.value.bookId.startsWith('batch:')) {
           final count = result.value.bookId.split(':').last;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -410,7 +419,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     });
   }
 
-  Future<void> _deleteBook(String bookId) async {
+  static Future<void> _deleteBook(BuildContext context, WidgetRef ref, String bookId) async {
     final confirmed = await ConfirmDeleteDialog.show(
       context,
       title: 'Delete book?',
@@ -418,13 +427,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       confirmLabel: 'Delete',
     );
 
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !context.mounted) return;
 
     final actions = ref.read(libraryDeleteProvider);
     final result = await actions.delete(bookId);
     ref.invalidate(libraryBooksProvider);
 
-    if (mounted) {
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         result is Success
             ? const SnackBar(content: Text('Book deleted'))
@@ -433,8 +442,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
-  Future<void> _confirmDeleteSelected() async {
-    final count = _selectedBookIds.length;
+  static Future<void> _confirmDeleteSelected(
+    BuildContext context,
+    WidgetRef ref,
+    ValueNotifier<Set<String>> selectedBookIds,
+    ValueNotifier<bool> isSelectionMode,
+  ) async {
+    final count = selectedBookIds.value.length;
     if (count == 0) return;
 
     final confirmed = await ConfirmDeleteDialog.show(
@@ -445,18 +459,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       confirmLabel: 'Delete $count ${count == 1 ? 'Book' : 'Books'}',
     );
 
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !context.mounted) return;
 
-    final idsToDelete = _selectedBookIds.toList();
+    final idsToDelete = selectedBookIds.value.toList();
     final actions = ref.read(libraryDeleteProvider);
     final result = await actions.deleteMultiple(idsToDelete);
     ref.invalidate(libraryBooksProvider);
 
-    if (mounted) {
-      setState(() {
-        _isSelectionMode = false;
-        _selectedBookIds.clear();
-      });
+    if (context.mounted) {
+      isSelectionMode.value = false;
+      selectedBookIds.value = {};
       ScaffoldMessenger.of(context).showSnackBar(
         result is Success
             ? SnackBar(content: Text('Deleted $count books'))
@@ -466,7 +478,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
-class _BookshelfContent extends ConsumerStatefulWidget {
+class _BookshelfContent extends HookConsumerWidget {
   const _BookshelfContent({
     required this.books,
     required this.recentBooks,
@@ -502,27 +514,8 @@ class _BookshelfContent extends ConsumerStatefulWidget {
   final Set<String> selectedIds;
 
   @override
-  ConsumerState<_BookshelfContent> createState() => _BookshelfContentState();
-}
-
-class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
-  bool _dragging = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final books = widget.books;
-    final recentBooks = widget.recentBooks;
-    final searchQuery = widget.searchQuery;
-    final isTablet = widget.isTablet;
-    final isDesktop = widget.isDesktop;
-    final onBookTap = widget.onBookTap;
-    final onBookLongPress = widget.onBookLongPress;
-    final onLoadSamples = widget.onLoadSamples;
-    final onImport = widget.onImport;
-    final onDeleteBook = widget.onDeleteBook;
-    final isImporting = widget.isImporting;
-    final isSelectionMode = widget.isSelectionMode;
-    final selectedIds = widget.selectedIds;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dragging = useState(false);
     final layout = ref.watch(bookshelfLayoutProvider);
 
     if (books.isEmpty) {
@@ -552,9 +545,9 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
       }
 
       return DropTarget(
-        onDragDone: (details) => _handleFileDrop(details),
-        onDragEntered: (_) => setState(() => _dragging = true),
-        onDragExited: (_) => setState(() => _dragging = false),
+        onDragDone: (details) => _handleFileDrop(context, ref, details, dragging),
+        onDragEntered: (_) => dragging.value = true,
+        onDragExited: (_) => dragging.value = false,
         child: Stack(
           children: [
             Center(
@@ -586,16 +579,16 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
                 ],
               ),
             ),
-            if (_dragging) _buildDropOverlay(),
+            if (dragging.value) _buildDropOverlay(context),
           ],
         ),
       );
     }
 
     return DropTarget(
-      onDragDone: (details) => _handleFileDrop(details),
-      onDragEntered: (_) => setState(() => _dragging = true),
-      onDragExited: (_) => setState(() => _dragging = false),
+      onDragDone: (details) => _handleFileDrop(context, ref, details, dragging),
+      onDragEntered: (_) => dragging.value = true,
+      onDragExited: (_) => dragging.value = false,
       child: Stack(
         children: [
           Row(
@@ -647,7 +640,11 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
                                   layout.icon,
                                   size: isDesktop ? 20 : 18,
                                 ),
-                                onPressed: () => cycleLayout(),
+                                onPressed: () {
+                                  const values = BookshelfLayout.values;
+                                  final nextIndex = (layout.index + 1) % values.length;
+                                  ref.read(libraryViewModelProvider.notifier).setLayout(values[nextIndex]);
+                                },
                                 tooltip: 'Layout: ${layout.label}',
                                 visualDensity: VisualDensity.compact,
                                 constraints: const BoxConstraints(
@@ -689,13 +686,13 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
                   ],
                 ),
               ),
-              if (isDesktop && widget.selectedBookId != null && !isSelectionMode) ...[
+              if (isDesktop && selectedBookId != null && !isSelectionMode) ...[
                 const VerticalDivider(width: 1),
                 SizedBox(
                   width: 400,
                   child: Material(
                     child: BookDetailPanel(
-                      bookId: widget.selectedBookId!,
+                      bookId: selectedBookId!,
                       onClose: () => ref
                           .read(libraryViewModelProvider.notifier)
                           .selectBook(null),
@@ -705,13 +702,13 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
               ],
             ],
           ),
-          if (_dragging) _buildDropOverlay(),
+          if (dragging.value) _buildDropOverlay(context),
         ],
       ),
     );
   }
 
-  Widget _buildDropOverlay() {
+  static Widget _buildDropOverlay(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Positioned.fill(
       child: Container(
@@ -734,8 +731,13 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
     );
   }
 
-  Future<void> _handleFileDrop(DropDoneDetails details) async {
-    setState(() => _dragging = false);
+  static Future<void> _handleFileDrop(
+    BuildContext context,
+    WidgetRef ref,
+    DropDoneDetails details,
+    ValueNotifier<bool> dragging,
+  ) async {
+    dragging.value = false;
     if (details.files.isEmpty) return;
 
     final importer = ref.read(openedFileImportServiceProvider);
@@ -748,7 +750,7 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
       final name = file.name;
       final result = await importer.importBytes(bytes.toList(), name);
       ref.invalidate(libraryBooksProvider);
-      if (result is Success<ImportOutcome> && mounted) {
+      if (result is Success<ImportOutcome> && context.mounted) {
         final route = result.value.category == ContentCategory.novel
             ? '/novel/${result.value.bookId}'
             : '/book/${result.value.bookId}';
@@ -772,17 +774,10 @@ class _BookshelfContentState extends ConsumerState<_BookshelfContent> {
     }
     ref.invalidate(libraryBooksProvider);
 
-    if (mounted) {
+    if (context.mounted) {
       messenger.showSnackBar(
         SnackBar(content: Text('Successfully imported $count books.')),
       );
     }
-  }
-
-  void cycleLayout() {
-    final current = ref.read(bookshelfLayoutProvider);
-    const values = BookshelfLayout.values;
-    final nextIndex = (current.index + 1) % values.length;
-    ref.read(libraryViewModelProvider.notifier).setLayout(values[nextIndex]);
   }
 }

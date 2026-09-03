@@ -7,6 +7,7 @@ import Foundation
 
 import audio_service
 import audio_session
+import audioplayers_darwin
 import battery_plus
 import desktop_drop
 import file_picker
@@ -14,6 +15,7 @@ import flutter_inappwebview_macos
 import flutter_local_notifications
 import flutter_tts
 import pdfium_flutter
+import real_page_flip
 import screen_brightness_pro
 import shared_preferences_foundation
 import sqflite_darwin
@@ -24,6 +26,7 @@ import workmanager_apple
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   AudioServicePlugin.register(with: registry.registrar(forPlugin: "AudioServicePlugin"))
   AudioSessionPlugin.register(with: registry.registrar(forPlugin: "AudioSessionPlugin"))
+  AudioplayersDarwinPlugin.register(with: registry.registrar(forPlugin: "AudioplayersDarwinPlugin"))
   BatteryPlusMacosPlugin.register(with: registry.registrar(forPlugin: "BatteryPlusMacosPlugin"))
   DesktopDropPlugin.register(with: registry.registrar(forPlugin: "DesktopDropPlugin"))
   FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
@@ -31,6 +34,7 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FlutterLocalNotificationsPlugin.register(with: registry.registrar(forPlugin: "FlutterLocalNotificationsPlugin"))
   FlutterTtsPlugin.register(with: registry.registrar(forPlugin: "FlutterTtsPlugin"))
   PDFiumFlutterPlugin.register(with: registry.registrar(forPlugin: "PDFiumFlutterPlugin"))
+  RealPageFlipMacos.register(with: registry.registrar(forPlugin: "RealPageFlipMacos"))
   ScreenBrightnessProPlugin.register(with: registry.registrar(forPlugin: "ScreenBrightnessProPlugin"))
   SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))
   SqflitePlugin.register(with: registry.registrar(forPlugin: "SqflitePlugin"))

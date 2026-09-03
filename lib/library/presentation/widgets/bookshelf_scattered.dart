@@ -1,12 +1,13 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 
-class BookshelfScattered extends StatefulWidget {
+class BookshelfScattered extends HookWidget {
   const BookshelfScattered({
     super.key,
     required this.books,
@@ -22,28 +23,7 @@ class BookshelfScattered extends StatefulWidget {
   final bool isSelectionMode;
   final Set<String> selectedIds;
 
-  @override
-  State<BookshelfScattered> createState() => _BookshelfScatteredState();
-}
-
-class _BookshelfScatteredState extends State<BookshelfScattered> {
-  late List<_ScatteredBook> _scattered;
-
-  @override
-  void initState() {
-    super.initState();
-    _scattered = _generateScattered(widget.books.length);
-  }
-
-  @override
-  void didUpdateWidget(covariant BookshelfScattered oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.books.length != oldWidget.books.length) {
-      _scattered = _generateScattered(widget.books.length);
-    }
-  }
-
-  List<_ScatteredBook> _generateScattered(int count) {
+  static List<_ScatteredBook> _generateScattered(int count) {
     final rng = Random(42);
     return List.generate(count, (i) {
       final angle = (rng.nextDouble() - 0.5) * 0.15;
@@ -55,6 +35,10 @@ class _BookshelfScatteredState extends State<BookshelfScattered> {
 
   @override
   Widget build(BuildContext context) {
+    final scattered = useMemoized(
+      () => _generateScattered(books.length),
+      [books.length],
+    );
     final cs = Theme.of(context).colorScheme;
     final isDesktop = AppBreakpoints.isLarge(context);
     final coverWidth = isDesktop ? 130.0 : 90.0;
@@ -71,16 +55,16 @@ class _BookshelfScatteredState extends State<BookshelfScattered> {
             6,
           );
           final totalHeight =
-              ((widget.books.length / cols).ceil() * cardHeight * 1.2) + 100;
+              ((books.length / cols).ceil() * cardHeight * 1.2) + 100;
 
           return SizedBox(
             height: totalHeight,
             child: Stack(
-              children: widget.books.asMap().entries.map((entry) {
+              children: books.asMap().entries.map((entry) {
                 final i = entry.key;
                 final book = entry.value;
-                final isSelected = widget.selectedIds.contains(book.id);
-                final s = _scattered[i];
+                final isSelected = selectedIds.contains(book.id);
+                final s = scattered[i];
                 final col = i % cols;
                 final row = i ~/ cols;
                 final left = col * cardWidth * 0.78 + (s.xOffset + 0.5) * 30;
@@ -94,95 +78,46 @@ class _BookshelfScatteredState extends State<BookshelfScattered> {
                     child: SizedBox(
                       width: coverWidth + 16,
                       child: GestureDetector(
-                        onTap: () => widget.onBookTap(book.id),
+                        onTap: () => onBookTap(book.id),
                         child: Card(
                           elevation: isSelected ? 8 : 4,
-                          shadowColor: isSelected ? cs.primary.withValues(alpha: 0.4) : Colors.black26,
-                          shape: widget.isSelectionMode && isSelected
-                              ? RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  side: BorderSide(color: cs.primary, width: 2),
-                                )
-                              : null,
+                          shadowColor: isSelected
+                              ? cs.primary.withValues(alpha: 0.4)
+                              : Colors.black26,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: isSelected
+                                ? BorderSide(color: cs.primary, width: 2)
+                                : BorderSide.none,
+                          ),
                           child: Padding(
                             padding: const EdgeInsets.all(8),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Stack(
-                                  children: [
-                                    BookCover(
-                                      coverPath: book.coverPath,
-                                      format: book.format,
-                                      width: coverWidth,
-                                      height: coverHeight,
-                                    ),
-                                    if (widget.isSelectionMode)
-                                      Positioned(
-                                        top: 4,
-                                        right: 4,
-                                        child: Container(
-                                          decoration: const BoxDecoration(
-                                            color: Colors.black54,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            isSelected
-                                                ? Icons.check_circle_rounded
-                                                : Icons.radio_button_unchecked_rounded,
-                                            color: isSelected
-                                                ? cs.primary
-                                                : Colors.white70,
-                                            size: 20,
-                                          ),
-                                        ),
-                                      )
-                                    else if (book.progress == null)
-                                      Positioned(
-                                        top: 2,
-                                        right: 2,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 1,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: cs.primary,
-                                            borderRadius: BorderRadius.circular(
-                                              3,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            'New',
-                                            style: TextStyle(
-                                              color: cs.onPrimary,
-                                              fontSize: 8,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: 0.3,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
+                                BookCover(
+                                  coverPath: book.coverPath,
+                                  width: coverWidth,
+                                  height: coverHeight,
+                                  format: book.format,
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 6),
                                 Text(
                                   book.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                                if (book.author != null)
-                                  Text(
-                                    book.author!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.labelSmall
-                                        ?.copyWith(
-                                          color: cs.onSurfaceVariant,
-                                          fontSize: 10,
-                                        ),
+                                if (book.progress != null && book.progress! > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: LinearProgressIndicator(
+                                      value: book.progress,
+                                      minHeight: 2,
+                                    ),
                                   ),
                               ],
                             ),

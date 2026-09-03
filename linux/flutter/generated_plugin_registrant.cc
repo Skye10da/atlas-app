@@ -6,15 +6,23 @@
 
 #include "generated_plugin_registrant.h"
 
+#include <audioplayers_linux/audioplayers_linux_plugin.h>
 #include <desktop_drop/desktop_drop_plugin.h>
+#include <real_page_flip/real_page_flip_linux.h>
 #include <screen_brightness_pro/screen_brightness_pro_plugin.h>
 #include <sqlite3_flutter_libs/sqlite3_flutter_libs_plugin.h>
 #include <url_launcher_linux/url_launcher_plugin.h>
 
 void fl_register_plugins(FlPluginRegistry* registry) {
+  g_autoptr(FlPluginRegistrar) audioplayers_linux_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "AudioplayersLinuxPlugin");
+  audioplayers_linux_plugin_register_with_registrar(audioplayers_linux_registrar);
   g_autoptr(FlPluginRegistrar) desktop_drop_registrar =
       fl_plugin_registry_get_registrar_for_plugin(registry, "DesktopDropPlugin");
   desktop_drop_plugin_register_with_registrar(desktop_drop_registrar);
+  g_autoptr(FlPluginRegistrar) real_page_flip_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "RealPageFlipLinux");
+  real_page_flip_linux_register_with_registrar(real_page_flip_registrar);
   g_autoptr(FlPluginRegistrar) screen_brightness_pro_registrar =
       fl_plugin_registry_get_registrar_for_plugin(registry, "ScreenBrightnessProPlugin");
   screen_brightness_pro_plugin_register_with_registrar(screen_brightness_pro_registrar);

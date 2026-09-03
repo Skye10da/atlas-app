@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/dictionary_service.dart';
@@ -11,7 +13,7 @@ import 'package:atlas_app/dictionary/domain/entities/dictionary_word_entity.dart
 import 'package:atlas_app/dictionary/presentation/providers/dictionary_providers.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
 
-class WordLookupSheet extends ConsumerStatefulWidget {
+class WordLookupSheet extends HookConsumerWidget {
   const WordLookupSheet({
     super.key,
     required this.word,
@@ -24,186 +26,166 @@ class WordLookupSheet extends ConsumerStatefulWidget {
   final String word;
   final String initialLanguage;
   final DictionarySource initialSource;
-
   final String? sourceSentence;
-
   final String? sourceTitle;
 
   @override
-  ConsumerState<WordLookupSheet> createState() => _WordLookupSheetState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final contextController = useTextEditingController(
+      text: sourceSentence ?? '',
+    );
+    final source = useState(initialSource);
+    final language = useState(() {
+      var lang = initialLanguage;
+      if (!initialSource.languages.any((l) => l.code == lang)) {
+        lang = initialSource.languages.first.code;
+      }
+      return lang;
+    }());
+    final result = useState<WiktionaryResult?>(null);
+    final loading = useState(true);
+    final error = useState<String?>(null);
+    final saved = useState(false);
+    final speaking = useState(false);
 
-class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
-  late String _language;
-  late DictionarySource _source;
-  WiktionaryResult? _result;
-  bool _loading = true;
-  String? _error;
-  bool _saved = false;
-  bool _speaking = false;
-  late final TextEditingController _contextController = TextEditingController(
-    text: widget.sourceSentence ?? '',
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    _language = widget.initialLanguage;
-    _source = widget.initialSource;
-    if (!_source.languages.any((l) => l.code == _language)) {
-      _language = _source.languages.first.code;
+    Future<void> checkSaved() async {
+      final id = '${word}_${language.value}';
+      final exists = await ref.read(dictionaryRepositoryProvider).exists(id);
+      if (context.mounted) saved.value = exists;
     }
-    _checkSaved();
-    _lookup();
-  }
 
-  @override
-  void dispose() {
-    _contextController.dispose();
-    if (_speaking) asyncStop();
-    super.dispose();
-  }
+    Future<void> lookup() async {
+      loading.value = true;
+      result.value = null;
+      error.value = null;
 
-  void asyncStop() {
-    const SelectionSpeaker().stop(ref).catchError((_) {});
-  }
-
-  void _checkSaved() {
-    final id = '${widget.word}_$_language';
-    ref.read(dictionaryRepositoryProvider).exists(id).then((exists) {
-      if (mounted) setState(() => _saved = exists);
-    });
-  }
-
-  Future<void> _lookup() async {
-    setState(() {
-      _loading = true;
-      _result = null;
-      _error = null;
-    });
-    final svc = ref.read(dictionaryServiceProvider(_source));
-    try {
-      final result = await svc.lookup(widget.word, _language);
-      if (!mounted) return;
-      setState(() {
-        _result = result;
-        _loading = false;
-        if (result == null) {
-          _error = 'No definition found for "${widget.word}".';
+      final svc = ref.read(dictionaryServiceProvider(source.value));
+      try {
+        final res = await svc.lookup(word, language.value);
+        if (!context.mounted) return;
+        result.value = res;
+        loading.value = false;
+        if (res == null) {
+          error.value = 'No definition found for "$word".';
         }
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = 'Could not look up "${widget.word}". Check your connection.';
-      });
+      } catch (e) {
+        if (!context.mounted) return;
+        loading.value = false;
+        error.value = 'Could not look up "$word". Check your connection.';
+      }
+      await checkSaved();
     }
-    _checkSaved();
-  }
 
-  Future<void> _toggleSave() async {
-    final result = _result;
-    if (result == null) return;
-    final id = '${widget.word}_$_language';
-    final repo = ref.read(dictionaryRepositoryProvider);
-    await HapticFeedback.lightImpact();
-    if (_saved) {
-      await repo.delete(id);
-    } else {
-      final langLabel = _source.languages
-          .firstWhere(
-            (l) => l.code == _language,
-            orElse: () => const WiktionaryLanguage('en', 'English'),
-          )
-          .label;
-      final context = _contextController.text.trim();
-      await repo.save(
-        DictionaryWordEntity(
-          id: id,
-          word: widget.word,
-          language: _language,
-          languageLabel: langLabel,
-          source: _source.id,
-          sourceLabel: _source.label,
-          phonetic: result.phonetic,
-          partOfSpeech: result.senses.first.partOfSpeech,
-          definition: result.senses.map((s) => s.definition).join('\n'),
-          fullJson: jsonEncode(result.toJson()),
-          savedAt: DateTime.now(),
-          sourceSentence: context.isEmpty ? null : context,
-          sourceTitle: widget.sourceTitle,
-          reviewLevel: 0,
-          reviewCount: 0,
-          lastReviewedAt: null,
-          nextReviewAt: null,
+    useEffect(() {
+      unawaited(checkSaved());
+      unawaited(lookup());
+      return () {
+        if (speaking.value) {
+          const SelectionSpeaker().stop(ref).catchError((_) {});
+        }
+      };
+    }, const []);
+
+    Future<void> toggleSave() async {
+      final res = result.value;
+      if (res == null) return;
+      final id = '${word}_${language.value}';
+      final repo = ref.read(dictionaryRepositoryProvider);
+      await HapticFeedback.lightImpact();
+      if (saved.value) {
+        await repo.delete(id);
+      } else {
+        final langLabel = source.value.languages
+            .firstWhere(
+              (l) => l.code == language.value,
+              orElse: () => const WiktionaryLanguage('en', 'English'),
+            )
+            .label;
+        final ctxText = contextController.text.trim();
+        await repo.save(
+          DictionaryWordEntity(
+            id: id,
+            word: word,
+            language: language.value,
+            languageLabel: langLabel,
+            source: source.value.id,
+            sourceLabel: source.value.label,
+            phonetic: res.phonetic,
+            partOfSpeech: res.senses.first.partOfSpeech,
+            definition: res.senses.map((s) => s.definition).join('\n'),
+            fullJson: jsonEncode(res.toJson()),
+            savedAt: DateTime.now(),
+            sourceSentence: ctxText.isEmpty ? null : ctxText,
+            sourceTitle: sourceTitle,
+            reviewLevel: 0,
+            reviewCount: 0,
+            lastReviewedAt: null,
+            nextReviewAt: null,
+          ),
+        );
+      }
+      ref.invalidate(savedWordsProvider);
+      if (!context.mounted) return;
+      saved.value = !saved.value;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            saved.value ? 'Saved "$word"' : 'Removed from saved words',
+          ),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
-    ref.invalidate(savedWordsProvider);
-    if (!mounted) return;
-    setState(() => _saved = !_saved);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _saved ? 'Saved "${widget.word}"' : 'Removed from saved words',
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
 
-  void _copyWord() {
-    final result = _result;
-    if (result == null) return;
-    final text = result.senses
-        .map((s) => '${s.partOfSpeech}: ${s.definition}')
-        .join('\n');
-    Clipboard.setData(ClipboardData(text: '${widget.word}\n$text'));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
-  }
-
-  Future<void> _speak() async {
-    const speaker = SelectionSpeaker();
-    if (_speaking) {
-      setState(() => _speaking = false);
-      await speaker.stop(ref);
-      return;
+    void copyWord() {
+      final res = result.value;
+      if (res == null) return;
+      final text = res.senses
+          .map((s) => '${s.partOfSpeech}: ${s.definition}')
+          .join('\n');
+      Clipboard.setData(ClipboardData(text: '$word\n$text'));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
     }
 
-    final result = _result;
-    if (result == null) return;
-    final firstSense = result.senses.isNotEmpty ? result.senses.first : null;
-    final firstExample = firstSense != null && firstSense.examples.isNotEmpty
-        ? firstSense.examples.first
-        : null;
-    final text = [
-      result.word,
-      ?firstSense?.definition,
-      ?firstExample,
-    ].join('. ');
-    if (text.trim().isEmpty) return;
+    Future<void> speak() async {
+      const speaker = SelectionSpeaker();
+      if (speaking.value) {
+        speaking.value = false;
+        await speaker.stop(ref);
+        return;
+      }
 
-    final locale = localeForLanguageCode(_language);
-    final voiceId = await resolveVoiceIdForLanguage(ref, _language);
-    if (!mounted) return;
+      final res = result.value;
+      if (res == null) return;
+      final firstSense = res.senses.isNotEmpty ? res.senses.first : null;
+      final firstExample = firstSense != null && firstSense.examples.isNotEmpty
+          ? firstSense.examples.first
+          : null;
+      final text = [
+        res.word,
+        ?firstSense?.definition,
+        ?firstExample,
+      ].join('. ');
+      if (text.trim().isEmpty) return;
 
-    setState(() => _speaking = true);
-    await speaker.speak(
-      ref: ref,
-      bookId: 'dictionary',
-      chapterId: '${widget.word}_$_language',
-      text: text,
-      language: locale,
-      voiceId: voiceId,
-    );
-    if (mounted) setState(() => _speaking = false);
-  }
+      final locale = localeForLanguageCode(language.value);
+      final voiceId = await resolveVoiceIdForLanguage(ref, language.value);
+      if (!context.mounted) return;
 
-  @override
-  Widget build(BuildContext context) {
+      speaking.value = true;
+      await speaker.speak(
+        ref: ref,
+        bookId: 'dictionary',
+        chapterId: '${word}_${language.value}',
+        text: text,
+        language: locale,
+        voiceId: voiceId,
+      );
+      if (context.mounted) speaking.value = false;
+    }
+
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -226,16 +208,16 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.word,
+                      word,
                       style: const TextStyle(
                         fontFamily: 'Playfair Display',
                         fontSize: 26,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (_result?.phonetic != null && _result!.phonetic!.isNotEmpty)
+                    if (result.value?.phonetic != null && result.value!.phonetic!.isNotEmpty)
                       Text(
-                        _result!.phonetic!,
+                        result.value!.phonetic!,
                         style: textTheme.bodyMedium?.copyWith(
                           color: colorScheme.primary,
                           fontFamily: 'monospace',
@@ -245,14 +227,14 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
                 ),
               ),
               _SpeakButton(
-                speaking: _speaking,
-                enabled: _result != null,
-                onPressed: _speak,
+                speaking: speaking.value,
+                enabled: result.value != null,
+                onPressed: speak,
               ),
               _SaveButton(
-                saved: _saved,
-                enabled: _result != null,
-                onPressed: _toggleSave,
+                saved: saved.value,
+                enabled: result.value != null,
+                onPressed: toggleSave,
               ),
               IconButton(
                 icon: const Icon(Icons.close),
@@ -263,36 +245,34 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
           ),
           const SizedBox(height: AppSpacing.sm),
           _ContextField(
-            controller: _contextController,
-            source: widget.sourceTitle,
+            controller: contextController,
+            source: sourceTitle,
           ),
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
               Expanded(
                 child: _SourceSelector(
-                  selected: _source,
+                  selected: source.value,
                   onChanged: (src) {
-                    if (src == null || src == _source) return;
-                    setState(() {
-                      _source = src;
-                      if (!_source.languages.any((l) => l.code == _language)) {
-                        _language = _source.languages.first.code;
-                      }
-                    });
-                    _lookup();
+                    if (src == null || src == source.value) return;
+                    source.value = src;
+                    if (!src.languages.any((l) => l.code == language.value)) {
+                      language.value = src.languages.first.code;
+                    }
+                    lookup();
                   },
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _LanguageSelector(
-                  selected: _language,
-                  languages: _source.languages,
+                  selected: language.value,
+                  languages: source.value.languages,
                   onChanged: (code) {
-                    if (code != null && code != _language) {
-                      setState(() => _language = code);
-                      _lookup();
+                    if (code != null && code != language.value) {
+                      language.value = code;
+                      lookup();
                     }
                   },
                 ),
@@ -303,22 +283,22 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
           Flexible(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
-              child: _loading
+              child: loading.value
                   ? const _LoadingState(key: ValueKey('loading'))
-                  : _error != null
+                  : error.value != null
                   ? _ErrorState(
                       key: const ValueKey('error'),
-                      message: _error!,
-                      onRetry: _lookup,
+                      message: error.value!,
+                      onRetry: lookup,
                     )
-                  : _result != null
+                  : result.value != null
                   ? SingleChildScrollView(
                       key: const ValueKey('result'),
                       child: _DefinitionCard(
-                        result: _result!,
-                        language: _language,
-                        source: _source,
-                        onCopy: _copyWord,
+                        result: result.value!,
+                        language: language.value,
+                        source: source.value,
+                        onCopy: copyWord,
                         textTheme: textTheme,
                         colorScheme: colorScheme,
                         relatedWords: const [],
@@ -329,8 +309,8 @@ class _WordLookupSheetState extends ConsumerState<WordLookupSheet> {
                                 body: SafeArea(
                                   child: WordLookupSheet(
                                     word: relatedWord,
-                                    initialLanguage: _language,
-                                    initialSource: _source,
+                                    initialLanguage: language.value,
+                                    initialSource: source.value,
                                   ),
                                 ),
                               ),

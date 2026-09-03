@@ -9,29 +9,20 @@ import 'package:atlas_app/reader/speech/speech_models.dart';
 /// Narration settings panel: voice, speed/pitch, sleep timer and profiles.
 /// Reads and writes through [narrationSettingsProvider], live-applying to the
 /// engine so an active session picks changes up immediately.
-class NarrationTab extends ConsumerStatefulWidget {
+class NarrationTab extends ConsumerWidget {
   const NarrationTab({super.key});
 
   @override
-  ConsumerState<NarrationTab> createState() => _NarrationTabState();
-}
-
-class _NarrationTabState extends ConsumerState<NarrationTab> {
-  NarrationSettings? _settings;
-
-  void _apply(NarrationSettings next) {
-    setState(() => _settings = next);
-    ref.read(narrationSettingsProvider.notifier).apply(next);
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(narrationSettingsProvider);
-    _settings ??= async.value;
-    final settings = _settings;
+    final settings = async.value;
     if (settings == null) return const SizedBox.shrink();
 
     final textTheme = Theme.of(context).textTheme;
+
+    void apply(NarrationSettings next) {
+      ref.read(narrationSettingsProvider.notifier).apply(next);
+    }
 
     return ListView(
       shrinkWrap: true,
@@ -44,53 +35,59 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
         _VoicePicker(
           voices: ref.watch(speechVoicesProvider).valueOrNull ?? const [],
           selectedVoiceId: settings.selectedVoiceId,
-          onSelected: (id) => _apply(
+          onSelected: (id) => apply(
             settings.copyWith(selectedVoiceId: id, clearActiveProfile: true),
           ),
         ),
         const Divider(height: AppSpacing.lg),
 
-        _profileSection(settings),
+        _profileSection(context, settings, apply),
         const Divider(height: AppSpacing.lg),
 
         _labeledSlider(
+          context,
           'Speech rate',
           settings.speechRate,
           0.4,
           2.0,
-          (v) => _apply(
+          (v) => apply(
             settings.copyWith(speechRate: v, clearActiveProfile: true),
           ),
         ),
         _labeledSlider(
+          context,
           'Pitch',
           settings.speechPitch,
           0.4,
           2.0,
-          (v) => _apply(
+          (v) => apply(
             settings.copyWith(speechPitch: v, clearActiveProfile: true),
           ),
         ),
         const Divider(height: AppSpacing.lg),
 
-        _sleepTimerSection(settings),
+        _sleepTimerSection(context, settings, apply),
         const Divider(height: AppSpacing.lg),
 
         SwitchListTile(
           title: const Text('Auto-advance chapters'),
           value: settings.autoAdvanceChapter,
-          onChanged: (v) => _apply(settings.copyWith(autoAdvanceChapter: v)),
+          onChanged: (v) => apply(settings.copyWith(autoAdvanceChapter: v)),
         ),
         SwitchListTile(
           title: const Text('Sync scroll to narration'),
           value: settings.syncScrollToNarration,
-          onChanged: (v) => _apply(settings.copyWith(syncScrollToNarration: v)),
+          onChanged: (v) => apply(settings.copyWith(syncScrollToNarration: v)),
         ),
       ],
     );
   }
 
-  Widget _profileSection(NarrationSettings settings) {
+  Widget _profileSection(
+    BuildContext context,
+    NarrationSettings settings,
+    void Function(NarrationSettings) apply,
+  ) {
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     return Column(
@@ -107,7 +104,7 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
                 label: Text(profile.name),
                 selected: settings.activeProfile == profile.name,
                 selectedColor: colors.primary.withValues(alpha: 0.15),
-                onSelected: (_) => _apply(profile.applyTo(settings)),
+                onSelected: (_) => apply(profile.applyTo(settings)),
               ),
           ],
         ),
@@ -115,7 +112,11 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
     );
   }
 
-  Widget _sleepTimerSection(NarrationSettings settings) {
+  Widget _sleepTimerSection(
+    BuildContext context,
+    NarrationSettings settings,
+    void Function(NarrationSettings) apply,
+  ) {
     final textTheme = Theme.of(context).textTheme;
     final timer = settings.sleepTimer;
     return Column(
@@ -131,13 +132,13 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
               label: const Text('Off'),
               selected: timer == null,
               onSelected: (_) =>
-                  _apply(settings.copyWith(clearSleepTimer: true)),
+                  apply(settings.copyWith(clearSleepTimer: true)),
             ),
             for (final minutes in const [5, 10, 15, 30, 60])
               ChoiceChip(
                 label: Text('$minutes min'),
                 selected: timer?.duration.inMinutes == minutes,
-                onSelected: (_) => _apply(
+                onSelected: (_) => apply(
                   settings.copyWith(
                     sleepTimer: SleepTimerConfig(
                       duration: Duration(minutes: minutes),
@@ -179,7 +180,7 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
             ],
             onChanged: (b) {
               if (b != null) {
-                _apply(
+                apply(
                   settings.copyWith(
                     sleepTimer: SleepTimerConfig(
                       duration: timer.duration,
@@ -196,6 +197,7 @@ class _NarrationTabState extends ConsumerState<NarrationTab> {
   }
 
   Widget _labeledSlider(
+    BuildContext context,
     String label,
     double value,
     double min,

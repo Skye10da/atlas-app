@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 
 /// A full-screen preview of a reading theme, allowing the user to see
 /// how text looks on the selected background before applying it.
-class ThemePreviewScreen extends StatefulWidget {
+class ThemePreviewScreen extends HookWidget {
   const ThemePreviewScreen({
     super.key,
     required this.initialTheme,
@@ -15,38 +16,23 @@ class ThemePreviewScreen extends StatefulWidget {
   final ValueChanged<ReadingViewTheme> onApply;
 
   @override
-  State<ThemePreviewScreen> createState() => _ThemePreviewScreenState();
-}
-
-class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
-  late ReadingViewTheme _currentTheme;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentTheme = widget.initialTheme;
-  }
-
-  void _prevTheme() {
-    const themes = ReadingViewTheme.values;
-    final idx = themes.indexOf(_currentTheme);
-    setState(() {
-      _currentTheme = themes[(idx - 1 + themes.length) % themes.length];
-    });
-  }
-
-  void _nextTheme() {
-    const themes = ReadingViewTheme.values;
-    final idx = themes.indexOf(_currentTheme);
-    setState(() {
-      _currentTheme = themes[(idx + 1) % themes.length];
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final currentTheme = useState(initialTheme);
+
+    void prevTheme() {
+      const themes = ReadingViewTheme.values;
+      final idx = themes.indexOf(currentTheme.value);
+      currentTheme.value = themes[(idx - 1 + themes.length) % themes.length];
+    }
+
+    void nextTheme() {
+      const themes = ReadingViewTheme.values;
+      final idx = themes.indexOf(currentTheme.value);
+      currentTheme.value = themes[(idx + 1) % themes.length];
+    }
+
     final colorScheme = Theme.of(context).colorScheme;
-    final colors = _currentTheme.resolve(colorScheme);
+    final colors = currentTheme.value.resolve(colorScheme);
     final isDark = colorScheme.brightness == Brightness.dark;
 
     return Scaffold(
@@ -55,17 +41,17 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
         onHorizontalDragEnd: (details) {
           final v = details.primaryVelocity ?? 0;
           if (v < 0) {
-            _nextTheme();
+            nextTheme();
           } else if (v > 0) {
-            _prevTheme();
+            prevTheme();
           }
         },
         child: SafeArea(
           child: Column(
             children: [
-              _buildTopBar(context, colors),
+              _buildTopBar(context, colors, currentTheme.value),
               Expanded(child: _buildPreviewContent(colors)),
-              _buildBottomBar(context, colors, isDark),
+              _buildBottomBar(context, colors, isDark, currentTheme),
             ],
           ),
         ),
@@ -73,7 +59,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context, ReadingColors colors) {
+  Widget _buildTopBar(BuildContext context, ReadingColors colors, ReadingViewTheme currentTheme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -84,7 +70,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
           ),
           const SizedBox(width: 8),
           Text(
-            _currentTheme.label,
+            currentTheme.label,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -93,7 +79,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
           ),
           const Spacer(),
           Text(
-            '${ReadingViewTheme.values.indexOf(_currentTheme) + 1} / ${ReadingViewTheme.values.length}',
+            '${ReadingViewTheme.values.indexOf(currentTheme) + 1} / ${ReadingViewTheme.values.length}',
             style: TextStyle(
               fontSize: 14,
               color: colors.text.withValues(alpha: 0.5),
@@ -223,6 +209,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
     BuildContext context,
     ReadingColors colors,
     bool isDark,
+    ValueNotifier<ReadingViewTheme> currentTheme,
   ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -238,10 +225,10 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final t = ReadingViewTheme.values[index];
-                  final isSelected = t == _currentTheme;
+                  final isSelected = t == currentTheme.value;
                   final tc = t.resolve(Theme.of(context).colorScheme);
                   return GestureDetector(
-                    onTap: () => setState(() => _currentTheme = t),
+                    onTap: () => currentTheme.value = t,
                     child: Container(
                       width: 36,
                       height: 36,
@@ -275,7 +262,7 @@ class _ThemePreviewScreenState extends State<ThemePreviewScreen> {
           // Apply button
           FilledButton(
             onPressed: () {
-              widget.onApply(_currentTheme);
+              onApply(currentTheme.value);
               Navigator.of(context).pop();
             },
             child: const Text('Apply'),

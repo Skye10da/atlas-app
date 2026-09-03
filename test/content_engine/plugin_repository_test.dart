@@ -42,6 +42,9 @@ class _LimitedTemplate implements Template {
   @override
   Future<NovelMetadata> metadata(PluginContext context, String novelUrl) =>
       throw UnimplementedError();
+
+  @override
+  Future<List<TrendingResult>> trending(PluginContext context) async => const [];
 }
 
 void main() {

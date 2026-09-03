@@ -57,6 +57,66 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
   }
 
   @override
+  Stream<Result<List<ChapterEntity>>> watchChapters(String bookId) {
+    return (_db.select(_db.chapters)
+          ..where((c) => c.bookId.equals(bookId))
+          ..orderBy([(c) => OrderingTerm.asc(c.index)]))
+        .watch()
+        .map((rows) {
+      try {
+        final chapters = rows
+            .map(
+              (c) => ChapterEntity(
+                id: c.id,
+                bookId: c.bookId,
+                index: c.index,
+                title: c.title,
+                contentPath: c.contentPath,
+                wordCount: c.wordCount,
+                pageCount: c.pageCount,
+                contentState: c.contentState,
+                totalChapters: rows.length,
+                version: c.version,
+                checksum: c.checksum,
+                previousVersionRef: c.previousVersionRef,
+              ),
+            )
+            .toList();
+        return Success<List<ChapterEntity>>(chapters);
+      } catch (e, st) {
+        return Failure<List<ChapterEntity>>(DatabaseException('Failed to watch chapters', e), st);
+      }
+    });
+  }
+
+  Stream<List<ChapterEntity>> watchChaptersForBook(String bookId) {
+    return (_db.select(_db.chapters)
+          ..where((c) => c.bookId.equals(bookId))
+          ..orderBy([(c) => OrderingTerm.asc(c.index)]))
+        .watch()
+        .map((rows) {
+      return rows
+          .map(
+            (c) => ChapterEntity(
+              id: c.id,
+              bookId: c.bookId,
+              index: c.index,
+              title: c.title,
+              contentPath: c.contentPath,
+              wordCount: c.wordCount,
+              pageCount: c.pageCount,
+              contentState: c.contentState,
+              totalChapters: rows.length,
+              version: c.version,
+              checksum: c.checksum,
+              previousVersionRef: c.previousVersionRef,
+            ),
+          )
+          .toList();
+    });
+  }
+
+  @override
   Future<Result<void>> updateChapterContent(
     String bookId,
     int chapterIndex,

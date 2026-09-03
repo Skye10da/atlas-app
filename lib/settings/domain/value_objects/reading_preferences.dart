@@ -1,10 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 enum ReadingViewTheme {
   paper,
   parchment,
   ivory,
   sepia,
+  wood,
+  book,
   blueLight,
   warmGray,
   mint,
@@ -23,6 +25,8 @@ extension ReadingViewThemeX on ReadingViewTheme {
     ReadingViewTheme.parchment => 'Parchment',
     ReadingViewTheme.ivory => 'Ivory',
     ReadingViewTheme.sepia => 'Sepia',
+    ReadingViewTheme.wood => 'Wood',
+    ReadingViewTheme.book => 'Book',
     ReadingViewTheme.blueLight => 'Blue Light',
     ReadingViewTheme.warmGray => 'Warm Gray',
     ReadingViewTheme.mint => 'Mint',
@@ -40,6 +44,8 @@ extension ReadingViewThemeX on ReadingViewTheme {
     ReadingViewTheme.parchment => Icons.wb_sunny,
     ReadingViewTheme.ivory => Icons.wb_sunny,
     ReadingViewTheme.sepia => Icons.wb_sunny,
+    ReadingViewTheme.wood => Icons.table_restaurant,
+    ReadingViewTheme.book => Icons.import_contacts,
     ReadingViewTheme.blueLight => Icons.water_drop,
     ReadingViewTheme.warmGray => Icons.blur_on,
     ReadingViewTheme.mint => Icons.nature,
@@ -55,32 +61,39 @@ extension ReadingViewThemeX on ReadingViewTheme {
 
 enum ScrollDirection { up, down }
 
-enum ReadingMode { page, continuous }
+enum ReadingMode { page, continuous, realFlip }
 
 extension ReadingModeX on ReadingMode {
   String get label => switch (this) {
     ReadingMode.page => 'Page Mode',
     ReadingMode.continuous => 'Continuous',
+    ReadingMode.realFlip => 'Real Page Flip',
+  };
+
+  IconData get icon => switch (this) {
+    ReadingMode.page => Icons.auto_stories,
+    ReadingMode.continuous => Icons.view_day,
+    ReadingMode.realFlip => Icons.menu_book,
   };
 }
 
-enum PageTurnAnimation { slide, fade, reveal, cube, depth }
+enum PageTurnAnimation { realFlip, slide, fade, reveal, cube }
 
 extension PageTurnAnimationX on PageTurnAnimation {
   String get label => switch (this) {
+    PageTurnAnimation.realFlip => 'Page Flip',
     PageTurnAnimation.slide => 'Slide',
     PageTurnAnimation.fade => 'Fade',
     PageTurnAnimation.reveal => 'Reveal',
     PageTurnAnimation.cube => 'Cube',
-    PageTurnAnimation.depth => 'Depth',
   };
 
   IconData get icon => switch (this) {
+    PageTurnAnimation.realFlip => Icons.auto_stories,
     PageTurnAnimation.slide => Icons.arrow_forward,
     PageTurnAnimation.fade => Icons.blur_on,
     PageTurnAnimation.reveal => Icons.swap_horiz,
     PageTurnAnimation.cube => Icons.view_in_ar,
-    PageTurnAnimation.depth => Icons.layers,
   };
 }
 
@@ -145,3 +158,30 @@ extension MarginPresetX on MarginPreset {
     MarginPreset.wide => 'Wide',
   };
 }
+
+/// Drag gesture active zones for turning pages in page flip mode.
+enum PageFlipGestureZone {
+  /// Turn from anywhere on the page (swipe across entire screen).
+  fullScreen,
+
+  /// Turn only by dragging from the outer edges (leaves center free for effortless text selection).
+  edgesOnly,
+}
+
+extension PageFlipGestureZoneX on PageFlipGestureZone {
+  String get label => switch (this) {
+    PageFlipGestureZone.fullScreen => 'Full Screen',
+    PageFlipGestureZone.edgesOnly => 'Edges Only (Selection Friendly)',
+  };
+
+  String get description => switch (this) {
+    PageFlipGestureZone.fullScreen => 'Swipe anywhere to turn page',
+    PageFlipGestureZone.edgesOnly => 'Swipe from edges to turn, center is for text selection',
+  };
+
+  IconData get icon => switch (this) {
+    PageFlipGestureZone.fullScreen => Icons.fullscreen,
+    PageFlipGestureZone.edgesOnly => Icons.border_vertical,
+  };
+}
+

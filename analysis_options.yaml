@@ -14,6 +14,8 @@ linter:
     require_trailing_commas: true
 
 analyzer:
+  # plugins:
+  #   - custom_lint  # disabled: analyzer_plugin-0.12.0 incompatible with analyzer-7.6.0
   errors:
     invalid_annotation_target: ignore
     override_on_non_overriding_member: ignore
@@ -21,3 +23,9 @@ analyzer:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
     - "**/*.drift.dart"
+
+custom_lint:
+  rules:
+    - riverpod_avoid_stateful_widgets
+    - riverpod_final_provider
+    - avoid_public_notifier_properties

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -62,35 +63,29 @@ class ContinueReadingStrip extends StatelessWidget {
   }
 }
 
-class _ContinueReadingCard extends StatefulWidget {
+class _ContinueReadingCard extends HookWidget {
   const _ContinueReadingCard({required this.book, required this.onTap});
 
   final BookEntity book;
   final VoidCallback onTap;
 
   @override
-  State<_ContinueReadingCard> createState() => _ContinueReadingCardState();
-}
-
-class _ContinueReadingCardState extends State<_ContinueReadingCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
+    final hovered = useState(false);
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    final progressVal = widget.book.progress ?? 0.0;
+    final progressVal = book.progress ?? 0.0;
     final normalizedProgress = progressVal > 1.0
         ? (progressVal / 100).clamp(0.0, 1.0)
         : progressVal.clamp(0.0, 1.0);
     final percentLabel = '${(normalizedProgress * 100).round()}%';
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) => hovered.value = true,
+      onExit: (_) => hovered.value = false,
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           width: 230,
@@ -98,12 +93,12 @@ class _ContinueReadingCardState extends State<_ContinueReadingCard> {
             borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
             color: cs.surfaceContainerLow,
             border: Border.all(
-              color: _hovered
+              color: hovered.value
                   ? cs.primary.withValues(alpha: 0.5)
                   : cs.outlineVariant.withValues(alpha: 0.4),
               width: 1,
             ),
-            boxShadow: _hovered
+            boxShadow: hovered.value
                 ? [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.1),
@@ -120,10 +115,10 @@ class _ContinueReadingCardState extends State<_ContinueReadingCard> {
                   left: Radius.circular(AppSpacing.borderRadiusMd - 1),
                 ),
                 child: BookCover(
-                  coverPath: widget.book.coverPath,
+                  coverPath: book.coverPath,
                   width: 86,
                   height: 148,
-                  format: widget.book.format,
+                  format: book.format,
                 ),
               ),
               Expanded(
@@ -134,7 +129,7 @@ class _ContinueReadingCardState extends State<_ContinueReadingCard> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        widget.book.title,
+                        book.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.titleSmall?.copyWith(
@@ -143,9 +138,9 @@ class _ContinueReadingCardState extends State<_ContinueReadingCard> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      if (widget.book.author != null)
+                      if (book.author != null)
                         Text(
-                          widget.book.author!,
+                          book.author!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.bodySmall?.copyWith(
@@ -164,9 +159,9 @@ class _ContinueReadingCardState extends State<_ContinueReadingCard> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (widget.book.totalChapters > 0)
+                          if (book.totalChapters > 0)
                             Text(
-                              '${widget.book.totalChapters} chs',
+                              '${book.totalChapters} chs',
                               style: textTheme.labelSmall?.copyWith(
                                 color: cs.outline,
                                 fontSize: 10,

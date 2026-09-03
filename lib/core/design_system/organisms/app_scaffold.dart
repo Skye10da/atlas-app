@@ -7,37 +7,33 @@ import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/presentation/widgets/library_filter_panel.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
 
-class AppShell extends StatefulWidget {
+import 'package:flutter_hooks/flutter_hooks.dart';
+
+class AppShell extends HookWidget {
   const AppShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  State<AppShell> createState() => _AppShellState();
-}
-
-class _AppShellState extends State<AppShell> {
-  bool _sidebarCollapsed = false;
-
-  @override
   Widget build(BuildContext context) {
+    final sidebarCollapsed = useState(false);
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width >= AppBreakpoints.tablet;
     final isBigDesktop = width >= AppBreakpoints.largeDesktop;
     final isTablet = width >= AppBreakpoints.mobile && !isDesktop;
 
     if (isDesktop) {
-      return _buildDesktopLayout(isBigDesktop);
+      return _buildDesktopLayout(context, isBigDesktop, sidebarCollapsed);
     }
     if (isTablet) {
-      return _buildTabletLayout();
+      return _buildTabletLayout(context);
     }
-    return _buildMobileLayout();
+    return _buildMobileLayout(context);
   }
 
-  Widget _buildDesktopLayout(bool isBigDesktop) {
+  Widget _buildDesktopLayout(BuildContext context, bool isBigDesktop, ValueNotifier<bool> sidebarCollapsed) {
     final cs = Theme.of(context).colorScheme;
-    final sidebarWidth = isBigDesktop && !_sidebarCollapsed ? 260.0 : 72.0;
+    final sidebarWidth = isBigDesktop && !sidebarCollapsed.value ? 260.0 : 72.0;
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -45,17 +41,17 @@ class _AppShellState extends State<AppShell> {
         children: [
           _DesktopSidebar(
             width: sidebarWidth,
-            collapsed: !isBigDesktop || _sidebarCollapsed,
+            collapsed: !isBigDesktop || sidebarCollapsed.value,
             isBigDesktop: isBigDesktop,
-            currentIndex: widget.navigationShell.currentIndex,
+            currentIndex: navigationShell.currentIndex,
             onDestinationSelected: (index) {
-              widget.navigationShell.goBranch(
+              navigationShell.goBranch(
                 index,
-                initialLocation: index == widget.navigationShell.currentIndex,
+                initialLocation: index == navigationShell.currentIndex,
               );
             },
             onToggleCollapse: isBigDesktop
-                ? () => setState(() => _sidebarCollapsed = !_sidebarCollapsed)
+                ? () => sidebarCollapsed.value = !sidebarCollapsed.value
                 : null,
           ),
           VerticalDivider(
@@ -65,7 +61,7 @@ class _AppShellState extends State<AppShell> {
           Expanded(
             child: Stack(
               children: [
-                Positioned.fill(child: widget.navigationShell),
+                Positioned.fill(child: navigationShell),
                 const Positioned(
                   left: AppSpacing.md,
                   right: AppSpacing.md,
@@ -80,7 +76,7 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _buildTabletLayout() {
+  Widget _buildTabletLayout(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -88,10 +84,10 @@ class _AppShellState extends State<AppShell> {
       body: Row(
         children: [
           NavigationRail(
-            selectedIndex: widget.navigationShell.currentIndex,
-            onDestinationSelected: (index) => widget.navigationShell.goBranch(
+            selectedIndex: navigationShell.currentIndex,
+            onDestinationSelected: (index) => navigationShell.goBranch(
               index,
-              initialLocation: index == widget.navigationShell.currentIndex,
+              initialLocation: index == navigationShell.currentIndex,
             ),
             backgroundColor: cs.surfaceContainerLow,
             indicatorColor: cs.secondaryContainer,
@@ -131,7 +127,7 @@ class _AppShellState extends State<AppShell> {
           Expanded(
             child: Stack(
               children: [
-                Positioned.fill(child: widget.navigationShell),
+                Positioned.fill(child: navigationShell),
                 const Positioned(
                   left: AppSpacing.md,
                   right: AppSpacing.md,
@@ -146,23 +142,23 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _buildMobileLayout() {
+  Widget _buildMobileLayout(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: cs.surface,
       body: Column(
         children: [
-          Expanded(child: widget.navigationShell),
+          Expanded(child: navigationShell),
           // System-wide narration mini player sitting directly above bottom bar
           const NarrationMiniPlayer(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: widget.navigationShell.currentIndex,
-        onDestinationSelected: (index) => widget.navigationShell.goBranch(
+        selectedIndex: navigationShell.currentIndex,
+        onDestinationSelected: (index) => navigationShell.goBranch(
           index,
-          initialLocation: index == widget.navigationShell.currentIndex,
+          initialLocation: index == navigationShell.currentIndex,
         ),
         backgroundColor: cs.surfaceContainerLow,
         indicatorColor: cs.secondaryContainer,
@@ -322,7 +318,7 @@ class _DesktopSidebar extends StatelessWidget {
   }
 }
 
-class _SidebarNavItem extends StatefulWidget {
+class _SidebarNavItem extends HookWidget {
   const _SidebarNavItem({
     required this.icon,
     required this.label,
@@ -338,38 +334,32 @@ class _SidebarNavItem extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_SidebarNavItem> createState() => _SidebarNavItemState();
-}
-
-class _SidebarNavItemState extends State<_SidebarNavItem> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
+    final isHovered = useState(false);
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    final bgColor = widget.isSelected
+    final bgColor = isSelected
         ? cs.secondaryContainer
-        : _isHovered
+        : isHovered.value
         ? cs.onSurface.withValues(alpha: 0.08)
         : Colors.transparent;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      onEnter: (_) => isHovered.value = true,
+      onExit: (_) => isHovered.value = false,
       cursor: SystemMouseCursors.click,
       child: Material(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: widget.onTap,
+          onTap: onTap,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                if (widget.isSelected && !widget.collapsed)
+                if (isSelected && !collapsed)
                   Container(
                     width: 3,
                     height: 18,
@@ -380,19 +370,19 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
                     ),
                   ),
                 Icon(
-                  widget.icon,
+                  icon,
                   size: 20,
-                  color: widget.isSelected
+                  color: isSelected
                       ? cs.onSecondaryContainer
                       : cs.onSurfaceVariant,
                 ),
-                if (!widget.collapsed) ...[
+                if (!collapsed) ...[
                   const SizedBox(width: 12),
                   Text(
-                    widget.label,
+                    label,
                     style: textTheme.labelLarge?.copyWith(
-                      fontWeight: widget.isSelected ? FontWeight.w600 : null,
-                      color: widget.isSelected
+                      fontWeight: isSelected ? FontWeight.w600 : null,
+                      color: isSelected
                           ? cs.onSecondaryContainer
                           : cs.onSurfaceVariant,
                     ),

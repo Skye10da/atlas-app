@@ -27,7 +27,12 @@ final class SharedPrefsSettingsRepository
   static const _keyReadingMode = 'reader_reading_mode';
   static const _keyTextAlignment = 'reader_text_alignment';
   static const _keyMarginPreset = 'reader_margin_preset';
+  static const _keyHorizontalPadding = 'reader_horizontal_padding';
+  static const _keyUseBookSpread = 'reader_use_book_spread';
   static const _keyPageTurnAnimation = 'reader_page_turn_animation';
+  static const _keyPageFlipGestureZone = 'reader_page_flip_gesture_zone';
+  static const _keyPageFlipSound = 'reader_page_flip_sound';
+  static const _keyPageFlipHaptics = 'reader_page_flip_haptics';
   static const _keyScrollAnimation = 'reader_scroll_animation';
   static const _keyChromeStyle = 'reader_chrome_style';
   static const _keyDesktopSheetPresentation = 'desktop_sheet_presentation';
@@ -61,16 +66,19 @@ final class SharedPrefsSettingsRepository
       fontSize: prefs.getDouble(_keyFontSize) ?? 18.0,
       fontFamily: prefs.getString(_keyFontFamily),
       fontWeight: prefs.getInt(_keyFontWeight),
-      lineHeight: (prefs.getDouble(_keyLineHeight) ?? 1.8).clamp(1.0, 2.0),
+      lineHeight: prefs.getDouble(_keyLineHeight) ?? 1.8,
       letterSpacing: prefs.getDouble(_keyLetterSpacing) ?? 0.0,
       keepScreenAwake: prefs.getBool(_keyKeepAwake) ?? false,
       brightness: prefs.getDouble(_keyBrightness) ?? 1.0,
       autoOptimizeBrightness: prefs.getBool(_keyAutoOptimize) ?? false,
-      followSystemBrightness: prefs.getBool(_keyFollowSystemBrightness) ?? true,
+      followSystemBrightness:
+          prefs.getBool(_keyFollowSystemBrightness) ?? true,
       theme: switch (prefs.getString(_keyTheme)) {
         'parchment' => ReadingViewTheme.parchment,
         'ivory' => ReadingViewTheme.ivory,
         'sepia' => ReadingViewTheme.sepia,
+        'wood' => ReadingViewTheme.wood,
+        'book' => ReadingViewTheme.book,
         'blueLight' => ReadingViewTheme.blueLight,
         'warmGray' => ReadingViewTheme.warmGray,
         'mint' => ReadingViewTheme.mint,
@@ -81,14 +89,13 @@ final class SharedPrefsSettingsRepository
         'nord' => ReadingViewTheme.nord,
         'dracula' => ReadingViewTheme.dracula,
         'amoled' => ReadingViewTheme.amoled,
-        'light' => ReadingViewTheme.paper,
-        'dark' => ReadingViewTheme.paper,
         'cream' => ReadingViewTheme.parchment,
         'gray' => ReadingViewTheme.charcoal,
         _ => ReadingViewTheme.paper,
       },
       readingMode: switch (prefs.getString(_keyReadingMode)) {
         'continuous' => ReadingMode.continuous,
+        'realFlip' => ReadingMode.realFlip,
         _ => ReadingMode.page,
       },
       textAlignment: switch (prefs.getString(_keyTextAlignment)) {
@@ -102,13 +109,21 @@ final class SharedPrefsSettingsRepository
         'wide' => MarginPreset.wide,
         _ => MarginPreset.normal,
       },
+      horizontalPadding: (prefs.getDouble(_keyHorizontalPadding) ?? 24.0).clamp(0.0, 80.0),
+      useBookSpread: prefs.getBool(_keyUseBookSpread) ?? true,
       pageTurnAnimation: switch (prefs.getString(_keyPageTurnAnimation)) {
+        'slide' => PageTurnAnimation.slide,
         'fade' => PageTurnAnimation.fade,
         'reveal' => PageTurnAnimation.reveal,
         'cube' => PageTurnAnimation.cube,
-        'depth' => PageTurnAnimation.depth,
-        _ => PageTurnAnimation.slide,
+        _ => PageTurnAnimation.realFlip,
       },
+      pageFlipGestureZone: switch (prefs.getString(_keyPageFlipGestureZone)) {
+        'edgesOnly' => PageFlipGestureZone.edgesOnly,
+        _ => PageFlipGestureZone.fullScreen,
+      },
+      enablePageFlipSound: prefs.getBool(_keyPageFlipSound) ?? false,
+      enablePageFlipHaptics: prefs.getBool(_keyPageFlipHaptics) ?? true,
       scrollAnimation: switch (prefs.getString(_keyScrollAnimation)) {
         'snap' => ScrollAnimation.snap,
         'fadeEdges' => ScrollAnimation.fadeEdges,
@@ -167,10 +182,18 @@ final class SharedPrefsSettingsRepository
     await prefs.setString(_keyReadingMode, settings.readingMode.name);
     await prefs.setString(_keyTextAlignment, settings.textAlignment.name);
     await prefs.setString(_keyMarginPreset, settings.marginPreset.name);
+    await prefs.setDouble(_keyHorizontalPadding, settings.horizontalPadding);
+    await prefs.setBool(_keyUseBookSpread, settings.useBookSpread);
     await prefs.setString(
       _keyPageTurnAnimation,
       settings.pageTurnAnimation.name,
     );
+    await prefs.setString(
+      _keyPageFlipGestureZone,
+      settings.pageFlipGestureZone.name,
+    );
+    await prefs.setBool(_keyPageFlipSound, settings.enablePageFlipSound);
+    await prefs.setBool(_keyPageFlipHaptics, settings.enablePageFlipHaptics);
     await prefs.setString(_keyScrollAnimation, settings.scrollAnimation.name);
     await prefs.setString(_keyChromeStyle, settings.chromeStyle.name);
     await prefs.setString(

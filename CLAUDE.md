@@ -38,8 +38,19 @@ At the end of EVERY operation/task, you MUST clean up all temporary files and fo
 
 NEVER end an operation with temp files still on disk unless deletion was explicitly blocked (report it if so).
 
-## Code Style
+## Code Style & Architecture Enforcement
 
+### 1. Zero-`setState` & Declarative State Architecture
+- **Strict Prohibition of `setState`:** Never use `setState()`, `StatefulWidget`, or `ConsumerStatefulWidget` in application presentation code.
+- **Widget Hierarchy Standards:**
+  - Stateless UI / Presentational components: Extend `ConsumerWidget` or `HookConsumerWidget` (or `StatelessWidget`).
+  - Ephemeral UI State (animations, local controllers, focus): Use `flutter_hooks` inside `HookConsumerWidget` (`useAnimationController`, `useTextEditingController`, `useScrollController`, `useState`, `useEffect`, `useMemoized`, `useListenable`).
+  - Shared / Async / Domain State: Use declarative Riverpod providers (`ref.watch`, `StateNotifierProvider`, `StreamProvider`, `FutureProvider`, `NotifierProvider`).
+- **Async & Reactive Flow:**
+  - Consume async data using `AsyncValue.when(...)` or `whenData(...)`. Avoid `FutureBuilder` or imperative data fetching inside lifecycle methods.
+  - Return domain outcomes wrapped in `Result<T>` (`Success<T>` and `Failure<T>`) for type-safe error handling.
+
+### 2. General Style Guidelines
 - Use `logger` from the `logger` package instead of `print` or `debugPrint`.
-- All code must pass `analyze_files` with zero issues at all times.
-- Follow existing patterns in the codebase.
+- All code must pass `analyze_files` / `flutter analyze` with zero issues at all times.
+- Follow the established layer separation: `domain` (entities & interfaces), `infrastructure` (repositories & data sources), `application` (services), and `presentation` (screens, widgets, providers).

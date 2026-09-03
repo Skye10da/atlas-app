@@ -24,6 +24,65 @@ void main() {
   });
 
   group('ReaderSettingsSheet', () {
+    testWidgets('renders live preview card and all redesigned category tabs', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: ReaderSettingsSheet(
+                initialSettings: ReadingSettingsEntity(),
+                bookId: 'b1',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Live Preview Card
+      expect(find.text('LIVE READING PREVIEW'), findsOneWidget);
+      expect(find.text('Chapter Four: The Silent River'), findsOneWidget);
+
+      // 2. Tab Bar Labels
+      expect(find.text('Style'), findsOneWidget);
+      expect(find.text('Typography'), findsOneWidget);
+      expect(find.text('Display'), findsOneWidget);
+      expect(find.text('Translate'), findsOneWidget);
+
+      // 3. Quick Style Tab Content
+      expect(find.text('Reading Presets'), findsOneWidget);
+      expect(find.text('Classic Paper'), findsOneWidget);
+      expect(find.text('Modern Clean'), findsOneWidget);
+      expect(find.text('Midnight OLED'), findsOneWidget);
+      expect(find.text('Reading Flow'), findsOneWidget);
+      expect(find.text('Page Flip'), findsOneWidget);
+      expect(find.text('Real Flip'), findsOneWidget);
+      expect(find.text('Continuous'), findsOneWidget);
+      expect(find.text('Compact'), findsOneWidget);
+      expect(find.text('Comfortable'), findsOneWidget);
+      expect(find.text('Relaxed'), findsOneWidget);
+
+      // 4. Switch to Typography Tab
+      await tester.tap(find.text('Typography'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Typeface'), findsOneWidget);
+      expect(find.text('Font Weight'), findsOneWidget);
+      expect(find.text('Text Alignment'), findsOneWidget);
+      expect(find.text('Page Margins'), findsOneWidget);
+      expect(find.text('Letter Spacing'), findsOneWidget);
+
+      // 5. Switch to Display Tab
+      await tester.tap(find.text('Display'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Toolbars & Controls Style'), findsOneWidget);
+      expect(find.text('Keep Screen Awake'), findsOneWidget);
+      expect(find.text('Follow System Brightness'), findsOneWidget);
+    });
+
     testWidgets(
       'shows a Translate tab for WTR-Lab novels and, on service change, '
       'drops the downloaded chapter so the reader refetches it',

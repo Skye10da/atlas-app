@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:atlas_app/reader/presentation/utils/pager_boundary.dart';
+import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 
 /// The pager scoped to ONE chapter's own panels — pages on handset, two-page
 /// spreads on wide desktop. It knows nothing about chapters, books, or any
@@ -13,7 +16,7 @@ import 'package:atlas_app/reader/presentation/utils/pager_boundary.dart';
 /// shell is asked to turn the chapter instead. The shell owns the transition
 /// (animating the OUTER chapter pager), so no cross-chapter page math ever
 /// happens here.
-class ChapterPager extends StatefulWidget {
+class ChapterPager extends HookWidget {
   const ChapterPager({
     super.key,
     required this.itemCount,
@@ -21,6 +24,9 @@ class ChapterPager extends StatefulWidget {
     required this.itemBuilder,
     required this.onPageChanged,
     required this.onBoundaryTurn,
+    this.animation = PageTurnAnimation.realFlip,
+    this.enablePageFlipSound = false,
+    this.enablePageFlipHaptics = true,
     this.turnLocked = false,
     this.turnThreshold = 64.0,
   });
@@ -46,6 +52,15 @@ class ChapterPager extends StatefulWidget {
   /// ([forward] = true) edge far enough to want the neighboring chapter.
   final void Function(bool forward) onBoundaryTurn;
 
+  /// Page turn animation type.
+  final PageTurnAnimation animation;
+
+  /// Whether paper curl sound is enabled for real flip.
+  final bool enablePageFlipSound;
+
+  /// Whether paper curl haptics are enabled for real flip.
+  final bool enablePageFlipHaptics;
+
   /// While the shell animates a chapter transition, further intents are
   /// swallowed so one swipe can't fire twice.
   final bool turnLocked;
@@ -54,70 +69,73 @@ class ChapterPager extends StatefulWidget {
   final double turnThreshold;
 
   @override
-  State<ChapterPager> createState() => _ChapterPagerState();
-}
-
-class _ChapterPagerState extends State<ChapterPager> {
-  late final EdgeDragAccumulator _edgeDrag = EdgeDragAccumulator(
-    threshold: widget.turnThreshold,
-  );
-
-  @override
-  void didUpdateWidget(ChapterPager oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Repagination can shrink a chapter (smaller font, wider viewport).
-    // Keep the reader anchored to the chapter's last existing panel instead
-    // of letting the controller hold a now-impossible index.
-    if (widget.itemCount < oldWidget.itemCount &&
-        widget.controller.hasClients) {
-      final target = widget.itemCount - 1;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (!widget.controller.hasClients) return;
-        final page = widget.controller.page ?? 0;
-        if (page > target) widget.controller.jumpToPage(target);
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: _onScrollNotification,
-      child: PageView.builder(
-        controller: widget.controller,
-        itemCount: widget.itemCount,
-        onPageChanged: widget.onPageChanged,
-        itemBuilder: widget.itemBuilder,
-      ),
+    final edgeDrag = useMemoized(
+      () => EdgeDragAccumulator(threshold: turnThreshold),
+      [turnThreshold],
     );
-  }
 
-  bool _onScrollNotification(ScrollNotification notification) {
-    if (notification is ScrollEndNotification) {
-      _edgeDrag.reset();
+    final prevItemCount = useRef(itemCount);
+    useEffect(() {
+      if (itemCount < prevItemCount.value && controller.hasClients) {
+        final target = itemCount - 1;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) return;
+          if (!controller.hasClients) return;
+          final page = controller.page ?? 0;
+          if (page > target) controller.jumpToPage(target);
+        });
+      }
+      prevItemCount.value = itemCount;
+      return null;
+    }, [itemCount]);
+
+    bool onScrollNotification(ScrollNotification notification) {
+      if (notification is ScrollEndNotification) {
+        edgeDrag.reset();
+        return false;
+      }
+      double? delta;
+      var fromDrag = false;
+      final metrics = notification.metrics;
+      if (notification is OverscrollNotification) {
+        delta = notification.overscroll;
+        fromDrag = notification.dragDetails != null;
+      } else if (notification is ScrollUpdateNotification) {
+        delta = notification.scrollDelta;
+        fromDrag = notification.dragDetails != null;
+      }
+      if (delta == null || delta == 0) return false;
+      final intent = edgeDrag.add(
+        pixels: metrics.pixels,
+        minExtent: metrics.minScrollExtent,
+        maxExtent: metrics.maxScrollExtent,
+        delta: delta,
+        fromDrag: fromDrag,
+      );
+      if (intent == BoundaryTurnIntent.none || turnLocked) return false;
+      onBoundaryTurn(intent == BoundaryTurnIntent.forward);
       return false;
     }
-    double? delta;
-    var fromDrag = false;
-    final metrics = notification.metrics;
-    if (notification is OverscrollNotification) {
-      delta = notification.overscroll;
-      fromDrag = notification.dragDetails != null;
-    } else if (notification is ScrollUpdateNotification) {
-      delta = notification.scrollDelta;
-      fromDrag = notification.dragDetails != null;
-    }
-    if (delta == null || delta == 0) return false;
-    final intent = _edgeDrag.add(
-      pixels: metrics.pixels,
-      minExtent: metrics.minScrollExtent,
-      maxExtent: metrics.maxScrollExtent,
-      delta: delta,
-      fromDrag: fromDrag,
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: onScrollNotification,
+      child: PageView.builder(
+        controller: controller,
+        itemCount: itemCount,
+        onPageChanged: (page) {
+          if (animation == PageTurnAnimation.realFlip) {
+            if (enablePageFlipHaptics) {
+              HapticFeedback.lightImpact();
+            }
+            if (enablePageFlipSound) {
+              SystemSound.play(SystemSoundType.click);
+            }
+          }
+          onPageChanged(page);
+        },
+        itemBuilder: itemBuilder,
+      ),
     );
-    if (intent == BoundaryTurnIntent.none || widget.turnLocked) return false;
-    widget.onBoundaryTurn(intent == BoundaryTurnIntent.forward);
-    return false;
   }
 }

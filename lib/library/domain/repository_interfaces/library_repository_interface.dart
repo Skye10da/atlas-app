@@ -10,6 +10,7 @@ abstract interface class LibraryRepositoryInterface {
   Stream<Result<List<BookEntity>>> watchBooks();
 
   Future<Result<BookEntity>> getBookById(String id);
+  Stream<Result<BookEntity>> watchBookById(String id);
   Future<Result<void>> deleteBook(String id);
   Future<Result<void>> deleteBooks(List<String> ids);
   Future<Result<void>> deleteAllBooks();

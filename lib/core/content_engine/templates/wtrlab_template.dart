@@ -855,4 +855,7 @@ class WtrLabTemplate implements Template {
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
+
+  @override
+  Future<List<TrendingResult>> trending(PluginContext context) async => const [];
 }

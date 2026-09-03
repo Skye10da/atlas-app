@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -10,29 +11,18 @@ import 'package:atlas_app/settings/infrastructure/repositories/font_download_rep
 import 'package:atlas_app/settings/presentation/providers/font_download_provider.dart';
 import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
 
-class FontManagerScreen extends ConsumerStatefulWidget {
+class FontManagerScreen extends HookConsumerWidget {
   const FontManagerScreen({super.key});
 
   @override
-  ConsumerState<FontManagerScreen> createState() => _FontManagerScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final searchController = useTextEditingController();
+    final query = useState('');
+    final categoryFilter = useState<FontCatalogCategory?>(null);
+    final sort = useState(FontSort.popularity);
+    final previewLoading = useState<Set<String>>({});
+    final previewFailed = useState<Set<String>>({});
 
-class _FontManagerScreenState extends ConsumerState<FontManagerScreen> {
-  final _searchController = TextEditingController();
-  String _query = '';
-  FontCatalogCategory? _categoryFilter;
-  FontSort _sort = FontSort.popularity;
-  final Set<String> _previewLoading = {};
-  final Set<String> _previewFailed = {};
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     final fontState = ref.watch(fontDownloadProvider);
 
     return Scaffold(
@@ -48,7 +38,7 @@ class _FontManagerScreenState extends ConsumerState<FontManagerScreen> {
           PopupMenuButton<FontSort>(
             icon: const Icon(Icons.sort),
             tooltip: 'Sort by',
-            onSelected: (s) => setState(() => _sort = s),
+            onSelected: (s) => sort.value = s,
             itemBuilder: (_) => const [
               PopupMenuItem(
                 value: FontSort.popularity,
@@ -67,92 +57,94 @@ class _FontManagerScreenState extends ConsumerState<FontManagerScreen> {
           ),
           child: Column(
             children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.sm,
-              AppSpacing.md,
-              0,
-            ),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search fonts…',
-                prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                suffixIcon: _query.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear_rounded, size: 18),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
-                      )
-                    : null,
-                isDense: true,
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
-                  borderSide: BorderSide.none,
+              // Search bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                  AppSpacing.md,
+                  0,
+                ),
+                child: TextField(
+                  controller: searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search fonts…',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    suffixIcon: query.value.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            onPressed: () {
+                              searchController.clear();
+                              query.value = '';
+                            },
+                          )
+                        : null,
+                    isDense: true,
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (v) => query.value = v,
                 ),
               ),
-              onChanged: (v) => setState(() => _query = v),
-            ),
-          ),
 
-          // Category chips
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.xs,
-            ),
-            child: SizedBox(
-              height: 36,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _CategoryChip(
-                    label: 'All',
-                    selected: _categoryFilter == null,
-                    onTap: () => setState(() => _categoryFilter = null),
+              // Category chips
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                child: SizedBox(
+                  height: 36,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _CategoryChip(
+                        label: 'All',
+                        selected: categoryFilter.value == null,
+                        onTap: () => categoryFilter.value = null,
+                      ),
+                      for (final cat in FontCatalogCategory.values)
+                        _CategoryChip(
+                          label: cat.label,
+                          selected: categoryFilter.value == cat,
+                          onTap: () => categoryFilter.value = cat,
+                        ),
+                    ],
                   ),
-                  for (final cat in FontCatalogCategory.values)
-                    _CategoryChip(
-                      label: cat.label,
-                      selected: _categoryFilter == cat,
-                      onTap: () => setState(() => _categoryFilter = cat),
-                    ),
-                ],
+                ),
               ),
-            ),
-          ),
 
-          // Font list
-          Expanded(
-            child: _FontBrowserBody(
-              query: _query,
-              categoryFilter: _categoryFilter,
-              sort: _sort,
-              fontState: fontState,
-              previewLoading: _previewLoading,
-              previewFailed: _previewFailed,
-              onPreviewLoaded: (family) =>
-                  setState(() => _previewLoading.remove(family)),
-              onPreviewFailed: (family) {
-                setState(() {
-                  _previewLoading.remove(family);
-                  _previewFailed.add(family);
-                });
-              },
-            ),
+              // Font list
+              Expanded(
+                child: _FontBrowserBody(
+                  query: query.value,
+                  categoryFilter: categoryFilter.value,
+                  sort: sort.value,
+                  fontState: fontState,
+                  previewLoading: previewLoading.value,
+                  previewFailed: previewFailed.value,
+                  onPreviewLoaded: (family) {
+                    final next = Set<String>.from(previewLoading.value)..remove(family);
+                    previewLoading.value = next;
+                  },
+                  onPreviewFailed: (family) {
+                    final nextLoading = Set<String>.from(previewLoading.value)..remove(family);
+                    final nextFailed = Set<String>.from(previewFailed.value)..add(family);
+                    previewLoading.value = nextLoading;
+                    previewFailed.value = nextFailed;
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
+    );
   }
 }
 
@@ -333,7 +325,7 @@ class _FontBrowserBody extends ConsumerWidget {
 // Font tile with lazy preview + weight info
 // ---------------------------------------------------------------------------
 
-class _FontTile extends StatefulWidget {
+class _FontTile extends HookWidget {
   const _FontTile({
     required this.family,
     required this.isBundled,
@@ -342,12 +334,12 @@ class _FontTile extends StatefulWidget {
     required this.hasError,
     required this.isLoadingPreview,
     required this.hasPreviewFailed,
+    this.availableWeights,
+    this.installedWeights,
     required this.onPreviewLoaded,
     required this.onPreviewFailed,
     required this.onDownload,
     required this.onRemove,
-    this.availableWeights,
-    this.installedWeights,
   });
 
   final String family;
@@ -365,56 +357,42 @@ class _FontTile extends StatefulWidget {
   final VoidCallback? onRemove;
 
   @override
-  State<_FontTile> createState() => _FontTileState();
-}
-
-class _FontTileState extends State<_FontTile> {
-  bool _previewStarted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (!widget.isBundled) _maybeStartPreview();
-  }
-
-  @override
-  void didUpdateWidget(covariant _FontTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.family != widget.family) {
-      _previewStarted = false;
-      _maybeStartPreview();
-    }
-  }
-
-  void _maybeStartPreview() {
-    if (_previewStarted) return;
-    if (widget.isDownloaded ||
-        widget.isLoadingPreview ||
-        widget.hasPreviewFailed) {
-      return;
-    }
-    _previewStarted = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPreview());
-  }
-
-  Future<void> _loadPreview() async {
-    try {
-      await FontDownloader.download(widget.family, weights: const [400]);
-      if (mounted) widget.onPreviewLoaded(widget.family);
-    } on Object catch (_) {
-      if (mounted) widget.onPreviewFailed(widget.family);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final previewStarted = useRef(false);
+
+    Future<void> loadPreview() async {
+      try {
+        await FontDownloader.download(family, weights: const [400]);
+        if (context.mounted) onPreviewLoaded(family);
+      } on Object catch (_) {
+        if (context.mounted) onPreviewFailed(family);
+      }
+    }
+
+    void maybeStartPreview({bool force = false}) {
+      if (force) previewStarted.value = false;
+      if (previewStarted.value) return;
+      if (isDownloaded || isLoadingPreview || (hasPreviewFailed && !force)) {
+        return;
+      }
+      previewStarted.value = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => loadPreview());
+    }
+
+    useEffect(() {
+      if (!isBundled) {
+        maybeStartPreview(force: true);
+      }
+      return null;
+    }, [family, isBundled]);
+
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     final weightInfo =
-        widget.installedWeights != null && widget.installedWeights!.isNotEmpty
-        ? '${widget.installedWeights!.length} weight${widget.installedWeights!.length > 1 ? 's' : ''}'
-        : widget.isBundled
+        installedWeights != null && installedWeights!.isNotEmpty
+        ? '${installedWeights!.length} weight${installedWeights!.length > 1 ? 's' : ''}'
+        : isBundled
         ? 'Bundled'
         : null;
 
@@ -423,7 +401,7 @@ class _FontTileState extends State<_FontTile> {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: widget.isDownloaded || widget.isBundled
+          color: isDownloaded || isBundled
               ? colors.primaryContainer.withValues(alpha: 0.6)
               : colors.surfaceContainerHighest.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(8),
@@ -435,26 +413,26 @@ class _FontTileState extends State<_FontTile> {
         child: Text(
           'Aa',
           style: TextStyle(
-            fontFamily: widget.isDownloaded || widget.isBundled
-                ? widget.family
+            fontFamily: isDownloaded || isBundled
+                ? family
                 : null,
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: widget.isDownloaded || widget.isBundled
+            color: isDownloaded || isBundled
                 ? colors.onPrimaryContainer
                 : colors.onSurfaceVariant,
           ),
         ),
       ),
       title: Text(
-        widget.family,
+        family,
         style: textTheme.bodyLarge?.copyWith(
-          fontFamily: widget.isDownloaded || widget.isBundled
-              ? widget.family
+          fontFamily: isDownloaded || isBundled
+              ? family
               : null,
         ),
       ),
-      subtitle: widget.hasError
+      subtitle: hasError
           ? Text(
               'Download failed — tap to retry',
               style: textTheme.bodySmall?.copyWith(color: colors.error),
@@ -463,41 +441,38 @@ class _FontTileState extends State<_FontTile> {
           ? Text(
               weightInfo,
               style: textTheme.bodySmall?.copyWith(
-                color: widget.isBundled
+                color: isBundled
                     ? colors.primary
                     : colors.onSurfaceVariant,
               ),
             )
           : null,
-      trailing: widget.isBundled
+      trailing: isBundled
           ? Icon(Icons.check_circle_outline, color: colors.primary, size: 20)
-          : widget.isDownloading
+          : isDownloading
           ? const SizedBox(
               width: 20,
               height: 20,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : widget.isLoadingPreview
+          : isLoadingPreview
           ? const SizedBox(
               width: 20,
               height: 20,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : widget.isDownloaded
+          : isDownloaded
           ? IconButton(
               icon: Icon(Icons.cloud_done, color: colors.primary),
-              onPressed: widget.onRemove,
+              onPressed: onRemove,
               tooltip: 'Remove download',
             )
           : IconButton(
               icon: const Icon(Icons.cloud_download_outlined),
-              onPressed: widget.hasPreviewFailed
-                  ? () {
-                      setState(() => _previewStarted = false);
-                      _maybeStartPreview();
-                    }
-                  : widget.onDownload,
-              tooltip: widget.hasPreviewFailed ? 'Retry' : 'Download font',
+              onPressed: hasPreviewFailed
+                  ? () => maybeStartPreview(force: true)
+                  : onDownload,
+              tooltip: hasPreviewFailed ? 'Retry' : 'Download font',
             ),
     );
   }

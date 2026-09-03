@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
@@ -16,35 +17,36 @@ import 'package:atlas_app/dictionary/presentation/screens/dictionary_screen.dart
 import 'package:atlas_app/search/domain/entities/search_result_entity.dart';
 import 'package:atlas_app/search/presentation/providers/search_provider.dart';
 
-class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+class SearchScreen extends HookConsumerWidget {
+  const SearchScreen({
+    super.key,
+    this.initialQuery,
+    this.initialTabIndex,
+  });
+
+  final String? initialQuery;
+  final int? initialTabIndex;
 
   @override
-  ConsumerState<SearchScreen> createState() => _SearchScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tabController = useTabController(
+      initialLength: 2,
+      initialIndex: (initialTabIndex ?? 0).clamp(0, 1),
+    );
+    final controller = useTextEditingController(text: initialQuery ?? '');
+    final debounceTimer = useRef<Timer?>(null);
 
-class _SearchScreenState extends ConsumerState<SearchScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounceTimer;
+    useEffect(() {
+      if (initialQuery != null && initialQuery!.trim().isNotEmpty) {
+        Future.microtask(() {
+          ref.read(searchQueryProvider.notifier).state = initialQuery!.trim();
+        });
+      }
+      return () {
+        debounceTimer.value?.cancel();
+      };
+    }, [initialQuery]);
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _debounceTimer?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final resultsAsync = ref.watch(searchResultsProvider);
@@ -59,7 +61,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           ),
         ),
         bottom: TabBar(
-          controller: _tabController,
+          controller: tabController,
           indicatorColor: colorScheme.primary,
           labelColor: colorScheme.primary,
           unselectedLabelColor: colorScheme.onSurfaceVariant,
@@ -76,18 +78,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         ),
       ),
       body: TabBarView(
-        controller: _tabController,
+        controller: tabController,
         children: [
           // 1. Library Search Tab
           Column(
             children: [
               AppSearchBar(
-                controller: _controller,
+                controller: controller,
                 autofocus: false,
                 hint: 'Search books, novels, and chapters…',
                 onChanged: (value) {
-                  _debounceTimer?.cancel();
-                  _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+                  debounceTimer.value?.cancel();
+                  debounceTimer.value = Timer(const Duration(milliseconds: 300), () {
                     ref.read(searchQueryProvider.notifier).state = value;
                   });
                 },

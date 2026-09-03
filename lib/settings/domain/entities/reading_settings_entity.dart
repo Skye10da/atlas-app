@@ -21,7 +21,12 @@ class ReadingSettingsEntity {
     this.readingMode = ReadingMode.page,
     this.textAlignment = TextAlignment.left,
     this.marginPreset = MarginPreset.normal,
-    this.pageTurnAnimation = PageTurnAnimation.slide,
+    this.horizontalPadding = 24.0,
+    this.useBookSpread = true,
+    this.pageTurnAnimation = PageTurnAnimation.realFlip,
+    this.pageFlipGestureZone = PageFlipGestureZone.fullScreen,
+    this.enablePageFlipSound = false,
+    this.enablePageFlipHaptics = true,
     this.scrollAnimation = ScrollAnimation.smooth,
     this.chromeStyle = ReaderChromeStyle.translucent,
     this.themeMode = ThemeMode.system,
@@ -46,7 +51,27 @@ class ReadingSettingsEntity {
   final ReadingMode readingMode;
   final TextAlignment textAlignment;
   final MarginPreset marginPreset;
+
+  /// Custom horizontal padding in dp applied to the reading content.
+  /// Range: 0.0 – 80.0. Overrides the [MarginPreset] horizontal value when
+  /// the user explicitly sets it.
+  final double horizontalPadding;
+
+  /// Whether to show a two-page book spread on wide desktop screens (≥ 1200dp)
+  /// in page mode. When `false`, wide screens use a single centred column.
+  final bool useBookSpread;
+
   final PageTurnAnimation pageTurnAnimation;
+
+  /// Active drag gesture zone for page turn gestures (full screen vs edges only).
+  final PageFlipGestureZone pageFlipGestureZone;
+
+  /// Whether to play physical page-rustle sound effects during page flips.
+  final bool enablePageFlipSound;
+
+  /// Whether to trigger physical haptic feedback waveforms during page flips.
+  final bool enablePageFlipHaptics;
+
   final ScrollAnimation scrollAnimation;
   final ReaderChromeStyle chromeStyle;
   final ThemeMode themeMode;
@@ -71,7 +96,12 @@ class ReadingSettingsEntity {
     ReadingMode? readingMode,
     TextAlignment? textAlignment,
     MarginPreset? marginPreset,
+    double? horizontalPadding,
+    bool? useBookSpread,
     PageTurnAnimation? pageTurnAnimation,
+    PageFlipGestureZone? pageFlipGestureZone,
+    bool? enablePageFlipSound,
+    bool? enablePageFlipHaptics,
     ScrollAnimation? scrollAnimation,
     ReaderChromeStyle? chromeStyle,
     ThemeMode? themeMode,
@@ -95,7 +125,13 @@ class ReadingSettingsEntity {
       readingMode: readingMode ?? this.readingMode,
       textAlignment: textAlignment ?? this.textAlignment,
       marginPreset: marginPreset ?? this.marginPreset,
+      horizontalPadding: horizontalPadding ?? this.horizontalPadding,
+      useBookSpread: useBookSpread ?? this.useBookSpread,
       pageTurnAnimation: pageTurnAnimation ?? this.pageTurnAnimation,
+      pageFlipGestureZone: pageFlipGestureZone ?? this.pageFlipGestureZone,
+      enablePageFlipSound: enablePageFlipSound ?? this.enablePageFlipSound,
+      enablePageFlipHaptics:
+          enablePageFlipHaptics ?? this.enablePageFlipHaptics,
       scrollAnimation: scrollAnimation ?? this.scrollAnimation,
       chromeStyle: chromeStyle ?? this.chromeStyle,
       themeMode: themeMode ?? this.themeMode,

@@ -37,6 +37,7 @@ class PagedPageView extends StatelessWidget {
     this.fontFamily,
     required this.textAlignment,
     required this.marginPreset,
+    this.horizontalPadding,
     required this.vt,
     this.showHeaders = true,
     this.chapterStyle,
@@ -79,6 +80,7 @@ class PagedPageView extends StatelessWidget {
   final String? fontFamily;
   final TextAlignment textAlignment;
   final MarginPreset marginPreset;
+  final double? horizontalPadding;
   final ReadingViewTheme vt;
   final bool showHeaders;
   final ChapterStyle? chapterStyle;
@@ -103,20 +105,23 @@ class PagedPageView extends StatelessWidget {
   /// Called when the page text is single-tapped so the reader can toggle chrome.
   final VoidCallback? onTap;
 
-  EdgeInsets get _padding => switch (marginPreset) {
-    MarginPreset.narrow => const EdgeInsets.symmetric(
-      horizontal: AppSpacing.md,
-      vertical: AppSpacing.sm,
-    ),
-    MarginPreset.normal => const EdgeInsets.symmetric(
-      horizontal: AppSpacing.lg,
-      vertical: AppSpacing.md,
-    ),
-    MarginPreset.wide => const EdgeInsets.symmetric(
-      horizontal: AppSpacing.xxl,
-      vertical: AppSpacing.lg,
-    ),
-  };
+  EdgeInsets get _padding {
+    final vPadding = switch (marginPreset) {
+      MarginPreset.narrow => AppSpacing.sm,
+      MarginPreset.normal => AppSpacing.md,
+      MarginPreset.wide => AppSpacing.lg,
+    };
+    final hPadding = horizontalPadding ??
+        switch (marginPreset) {
+          MarginPreset.narrow => AppSpacing.md,
+          MarginPreset.normal => AppSpacing.lg,
+          MarginPreset.wide => AppSpacing.xxl,
+        };
+    return EdgeInsets.symmetric(
+      horizontal: hPadding,
+      vertical: vPadding,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +173,11 @@ class PagedPageView extends StatelessWidget {
 
     final spans = _pageSpans(c, resolvedStyle, pageHighlights);
 
+    void handleTap() {
+      if (onTap == null) return;
+      onTap!();
+    }
+
     if (cs != null && isFirstPageOfChapter && c.isNotEmpty) {
       return SelectableText.rich(
         TextSpan(
@@ -178,14 +188,14 @@ class PagedPageView extends StatelessWidget {
         ),
         textAlign: textAlignment.flutterTextAlign,
         contextMenuBuilder: contextMenu,
-        onTap: onTap,
+        onTap: handleTap,
       );
     }
     return SelectableText.rich(
       TextSpan(children: spans),
       textAlign: textAlignment.flutterTextAlign,
       contextMenuBuilder: contextMenu,
-      onTap: onTap,
+      onTap: handleTap,
     );
   }
 
@@ -522,3 +532,4 @@ class PagedPageView extends StatelessWidget {
     );
   }
 }
+

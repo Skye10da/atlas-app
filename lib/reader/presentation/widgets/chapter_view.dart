@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show Selectable;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -8,7 +9,6 @@ import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
-import 'package:atlas_app/reader/presentation/widgets/block_card_widget.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_narration_coordinator.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_selection_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_span_builder.dart';
@@ -19,7 +19,7 @@ import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart
 export 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 export 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 
-class ChapterView extends ConsumerStatefulWidget {
+class ChapterView extends HookConsumerWidget {
   const ChapterView({
     super.key,
     required this.content,
@@ -33,6 +33,7 @@ class ChapterView extends ConsumerStatefulWidget {
     this.theme = ReadingViewTheme.paper,
     this.textAlignment = TextAlignment.left,
     this.marginPreset = MarginPreset.normal,
+    this.horizontalPadding,
     this.scrollable = true,
     this.onScroll,
     this.onScrollDirectionChanged,
@@ -54,40 +55,24 @@ class ChapterView extends ConsumerStatefulWidget {
   });
 
   final String content;
-
-  /// Optional block-card scan of [content]: prose/card spans in reading
-  /// order. When set, the continuous renderer interleaves detected
-  /// status cards ([BlockCardWidget]) with normally styled prose
-  /// segments; all highlight/narration offsets stay chapter-global
-  /// because each card's rawText is part of [content]. When narration
-  /// is active the flat single-text path is used instead so speech
-  /// offset math is never affected. Null keeps the legacy behavior.
   final List<ContentSpan>? spans;
-
-  /// Book and chapter identity for loading/storing highlights from the
-  /// in-memory annotations store. Omit to disable highlight rendering.
   final String? bookId;
   final String? chapterId;
-
   final double fontSize;
   final String? fontFamily;
-
-  /// Numeric reader body-text weight; `null` keeps the family default.
   final int? fontWeight;
   final double lineHeight;
   final double letterSpacing;
   final ReadingViewTheme theme;
   final TextAlignment textAlignment;
   final MarginPreset marginPreset;
+  final double? horizontalPadding;
   final bool scrollable;
   final void Function(double scrollOffset)? onScroll;
   final void Function(ScrollDirection direction)? onScrollDirectionChanged;
   final TextStyle? dropCapStyle;
   final String? chapterTitle;
 
-  /// Called with the selected text, chosen color and its [content] character
-  /// offsets when the reader taps a highlight swatch in the context menu.
-  /// Omit to hide highlighting.
   final void Function(
     String text,
     Color color,
@@ -95,602 +80,520 @@ class ChapterView extends ConsumerStatefulWidget {
     int end, {
     HighlightStyleType styleType,
   })? onHighlight;
-
-  /// Called with the selected text (and surrounding sentence, if available)
-  /// when the reader taps "Note". Omit to hide the note action.
   final void Function(String text, String? sentence)? onAddNote;
-
-  /// Called with the selected text when the reader taps "Share". Omit to
-  /// hide the share action.
   final void Function(String text)? onShare;
-
-  /// Called with the selected text when the reader taps "Search the web".
-  /// Omit to hide the search action.
   final void Function(String text)? onSearchWeb;
-
-  /// Called to speak the selected sentence once ("Listen"). Omit to hide the
-  /// listen action.
-  final void Function(String text, String? sentence, int start, int end)?
-  onListen;
-
-  /// Called to remove any stored highlight overlapping the selection's
-  /// [start, end) character range. Omit to hide the erase action.
+  final void Function(String text, String? sentence, int start, int end)? onListen;
   final void Function(int start, int end)? onErase;
-
-  /// Called when the chapter view is single-tapped to toggle the reader chrome.
   final VoidCallback? onTap;
-
-  /// The sentence currently being narrated, if this chapter is narrating.
-  /// When set, that sentence is rendered with a background tint. Omit for no
-  /// narration highlighting.
   final SpeechItem? activeSpeechItem;
-
-  /// A character offset (into [content]) to reveal once on open — a one-shot
-  /// exact-position resume. Omit for none.
   final int? restoreCharOffset;
-
-  /// Called once [restoreCharOffset] has been revealed so the parent can clear
-  /// it and avoid a repeat reveal on every rebuild.
   final void Function()? onRestoreRevealed;
-
-  /// Reports whether this chapter is narrating but its highlighted sentence is
-  /// currently out of the visible viewport (true) or back in sync (false).
-  /// Used by the parent to show/hide a "jump to narration" affordance.
   final ValueChanged<bool>? onNarrationOutOfSyncChanged;
-
-  /// Lets the parent obtain a handle to scroll this view's narration sentence
-  /// into view on demand. Invoked with the reveal callback while this chapter
-  /// is the active narrator (and only then, never with `null`). The callback
-  /// should be treated as opaque and safe to invoke at any time.
   final void Function(void Function() reveal)? onRegisterNarrationReveal;
 
-  @override
-  ConsumerState<ChapterView> createState() => _ChapterViewState();
-}
-
-class _ChapterViewState extends ConsumerState<ChapterView>
-    with SingleTickerProviderStateMixin {
   static const _spanBuilder = ChapterSpanBuilder();
   static const _selectionMenuBuilder = ChapterSelectionMenuBuilder();
   static const _narrationCoordinator = ChapterNarrationCoordinator();
 
-  final _scrollController = ScrollController();
-  final _textKey = GlobalKey();
-  double _lastScrollPos = 0;
-  bool _didInitNarration = false;
-  bool _lastReportedOutOfSync = false;
-  bool _revealAnimating = false;
-  bool _didRestoreReveal = false;
-  ScrollPosition? _listenedPosition;
-
-  /// Prose-chunk map recorded by [_buildSegmented]: each entry is
-  /// (renderStart, renderEnd, contentStart) for one contiguous run of prose
-  /// text.
-  List<(int, int, int)>? _renderContentMap;
-  List<(int, int)>? _cachedQuotes;
-  String? _lastQuotedContent;
-
-  List<(int, int)> _getQuotes(String content) {
-    if (_lastQuotedContent != content || _cachedQuotes == null) {
-      _lastQuotedContent = content;
-      _cachedQuotes = _spanBuilder.findQuoteRanges(content);
-    }
-    return _cachedQuotes!;
-  }
-
-  /// Stored user highlights for this chapter (empty when identity is absent).
-  List<HighlightEntry> get _highlights {
-    final bookId = widget.bookId;
-    final chapterId = widget.chapterId;
-    if (bookId == null || chapterId == null) return const [];
-    return ref.watch(annotationsProvider(bookId)).highlights[chapterId] ??
-        const [];
-  }
-
-  /// Glossary-replacement highlights for [content], tinted with the system
-  /// theme's secondary container so they stay readable in light and dark mode.
-  List<HighlightEntry> _glossaryHighlights(String content) {
-    final bookId = widget.bookId;
-    final chapterId = widget.chapterId;
-    if (bookId == null || chapterId == null || content.isEmpty) {
-      return const [];
-    }
-    final entries =
-        ref.watch(atlasGlossaryProvider(bookId)).valueOrNull ?? const [];
-    return glossaryHighlightRanges(
-      chapterId: chapterId,
-      content: content,
-      entries: entries,
-      color: Theme.of(context).colorScheme.secondaryContainer,
+  EdgeInsets get _padding {
+    final vPadding = switch (marginPreset) {
+      MarginPreset.narrow => AppSpacing.sm,
+      MarginPreset.normal => AppSpacing.md,
+      MarginPreset.wide => AppSpacing.lg,
+    };
+    final hPadding = horizontalPadding ??
+        switch (marginPreset) {
+          MarginPreset.narrow => AppSpacing.md,
+          MarginPreset.normal => AppSpacing.lg,
+          MarginPreset.wide => AppSpacing.xxl,
+        };
+    return EdgeInsets.symmetric(
+      horizontal: hPadding,
+      vertical: vPadding,
     );
   }
 
-  /// Fades the narration highlight in on each new sentence rather than
-  /// popping it on instantly.
-  late final AnimationController _highlightController;
-
   @override
-  void initState() {
-    super.initState();
-    _highlightController = AnimationController(
-      vsync: this,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scrollController = useScrollController();
+    final textKey = useMemoized(() => GlobalKey());
+    final lastScrollPos = useRef(0.0);
+    final lastReportedOutOfSync = useRef(false);
+    final revealAnimating = useRef(false);
+    final didRestoreReveal = useRef(false);
+    final listenedPosition = useRef<ScrollPosition?>(null);
+    final renderContentMap = useRef<List<(int, int, int)>?>(null);
+
+    final highlightController = useAnimationController(
       duration: const Duration(milliseconds: 380),
-      value: widget.activeSpeechItem != null ? 1.0 : 0.0,
+      initialValue: activeSpeechItem != null ? 1.0 : 0.0,
     );
-  }
 
-  EdgeInsets get _padding => switch (widget.marginPreset) {
-    MarginPreset.narrow => const EdgeInsets.symmetric(
-      horizontal: AppSpacing.md,
-      vertical: AppSpacing.sm,
-    ),
-    MarginPreset.normal => const EdgeInsets.symmetric(
-      horizontal: AppSpacing.lg,
-      vertical: AppSpacing.md,
-    ),
-    MarginPreset.wide => const EdgeInsets.symmetric(
-      horizontal: AppSpacing.xxl,
-      vertical: AppSpacing.lg,
-    ),
-  };
-
-  @override
-  void dispose() {
-    _listenedPosition?.removeListener(_onOuterScroll);
-    _scrollController.dispose();
-    _highlightController.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_didInitNarration) return;
-    _didInitNarration = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _ensureScrollListener();
-      _registerNarrationReveal();
-      _revealRestoreIfNeeded();
-      _refreshOutOfSync();
-    });
-  }
-
-  @override
-  void didUpdateWidget(ChapterView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _ensureScrollListener();
-      _registerNarrationReveal();
-      _revealRestoreIfNeeded();
-      if (widget.activeSpeechItem == null) {
-        _highlightController.value = 0.0;
-        _refreshOutOfSync();
-      } else if (oldWidget.activeSpeechItem?.text !=
-          widget.activeSpeechItem?.text) {
-        _highlightController.forward(from: 0.0);
-        _followActive();
-      } else {
-        _refreshOutOfSync();
-      }
-    });
-  }
-
-  void _handleScroll(ScrollNotification notification) {
-    final metrics = notification.metrics;
-    if (metrics.maxScrollExtent > 0) {
-      widget.onScroll?.call(metrics.pixels / metrics.maxScrollExtent);
+    void reportOutOfSync(bool outOfSync) {
+      if (!context.mounted || lastReportedOutOfSync.value == outOfSync) return;
+      lastReportedOutOfSync.value = outOfSync;
+      onNarrationOutOfSyncChanged?.call(outOfSync);
     }
-    if (notification is ScrollUpdateNotification) {
-      final delta = metrics.pixels - _lastScrollPos;
-      if (delta.abs() > 4) {
-        widget.onScrollDirectionChanged?.call(
-          delta > 0 ? ScrollDirection.down : ScrollDirection.up,
-        );
-      }
-      _lastScrollPos = metrics.pixels;
+
+    void refreshOutOfSync() {
+      final narrating = activeSpeechItem != null;
+      final isVisible = _narrationCoordinator.isSentenceVisible(
+        context: context,
+        textKey: textKey,
+        activeSpeechItem: activeSpeechItem,
+        content: content,
+      );
+      reportOutOfSync(narrating && !isVisible);
     }
-  }
 
-  /// Attaches a listener to the nearest scrollable's position so manual
-  /// scrolls (which may put the narrated sentence out of view) update the
-  /// "jump to narration" affordance live.
-  void _ensureScrollListener() {
-    final scrollable = Scrollable.maybeOf(context);
-    if (scrollable == null) return;
-    final position = scrollable.position;
-    if (_listenedPosition == position) return;
-    _listenedPosition?.removeListener(_onOuterScroll);
-    _listenedPosition = position;
-    position.addListener(_onOuterScroll);
-  }
+    void followActive() {
+      if (!context.mounted || revealAnimating.value) return;
+      _narrationCoordinator.revealSentence(
+        context: context,
+        textKey: textKey,
+        activeSpeechItem: activeSpeechItem,
+        content: content,
+        onAnimatingStart: () {
+          revealAnimating.value = true;
+        },
+        onAnimatingEnd: () {
+          revealAnimating.value = false;
+          if (context.mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) refreshOutOfSync();
+            });
+          }
+        },
+        onReportSync: reportOutOfSync,
+      );
+    }
 
-  void _onOuterScroll() {
-    if (_revealAnimating) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _refreshOutOfSync();
-    });
-  }
+    void revealRestoreIfNeeded() {
+      if (restoreCharOffset == null || restoreCharOffset! <= 0) return;
+      if (didRestoreReveal.value) return;
+      didRestoreReveal.value = true;
+      _narrationCoordinator.revealRestoreOffset(
+        context: context,
+        textKey: textKey,
+        restoreCharOffset: restoreCharOffset,
+        content: content,
+        onRestored: () {
+          onRestoreRevealed?.call();
+        },
+      );
+    }
 
-  /// Reports the current sync state to the parent, skipping when unchanged.
-  void _reportOutOfSync(bool outOfSync) {
-    if (!mounted || _lastReportedOutOfSync == outOfSync) return;
-    _lastReportedOutOfSync = outOfSync;
-    widget.onNarrationOutOfSyncChanged?.call(outOfSync);
-  }
+    void onOuterScroll() {
+      if (revealAnimating.value) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) refreshOutOfSync();
+      });
+    }
 
-  void _refreshOutOfSync() {
-    final narrating = widget.activeSpeechItem != null;
-    final isVisible = _narrationCoordinator.isSentenceVisible(
-      context: context,
-      textKey: _textKey,
-      activeSpeechItem: widget.activeSpeechItem,
-      content: widget.content,
-    );
-    _reportOutOfSync(narrating && !isVisible);
-  }
+    void ensureScrollListener() {
+      final scrollable = Scrollable.maybeOf(context);
+      if (scrollable == null) return;
+      final position = scrollable.position;
+      if (listenedPosition.value == position) return;
+      listenedPosition.value?.removeListener(onOuterScroll);
+      listenedPosition.value = position;
+      position.addListener(onOuterScroll);
+    }
 
-  /// Registers this view's reveal handle with the parent while it is the
-  /// active narrator (so the overlay button can call it).
-  void _registerNarrationReveal() {
-    if (widget.activeSpeechItem == null) return;
-    widget.onRegisterNarrationReveal?.call(_followActive);
-  }
+    void registerNarrationReveal() {
+      if (activeSpeechItem == null) return;
+      onRegisterNarrationReveal?.call(followActive);
+    }
 
-  /// Scrolls the nearest scrollable so the currently narrated sentence stays
-  /// in view.
-  void _followActive() {
-    if (!mounted || _revealAnimating) return;
-    _narrationCoordinator.revealSentence(
-      context: context,
-      textKey: _textKey,
-      activeSpeechItem: widget.activeSpeechItem,
-      content: widget.content,
-      onAnimatingStart: () {
-        _revealAnimating = true;
-      },
-      onAnimatingEnd: () {
-        _revealAnimating = false;
-        if (mounted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _refreshOutOfSync();
-          });
+    useEffect(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        ensureScrollListener();
+        registerNarrationReveal();
+        revealRestoreIfNeeded();
+        refreshOutOfSync();
+      });
+      return () {
+        listenedPosition.value?.removeListener(onOuterScroll);
+      };
+    }, const []);
+
+    final prevActiveText = useRef<String?>(activeSpeechItem?.text);
+    useEffect(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        ensureScrollListener();
+        registerNarrationReveal();
+        revealRestoreIfNeeded();
+        if (activeSpeechItem == null) {
+          highlightController.value = 0.0;
+          refreshOutOfSync();
+        } else if (prevActiveText.value != activeSpeechItem?.text) {
+          highlightController.forward(from: 0.0);
+          followActive();
+        } else {
+          refreshOutOfSync();
         }
-      },
-      onReportSync: _reportOutOfSync,
-    );
-  }
+        prevActiveText.value = activeSpeechItem?.text;
+      });
+      return null;
+    }, [activeSpeechItem?.text]);
 
-  /// One-shot exact-position resume: scrolls so the character at
-  /// [widget.restoreCharOffset] is in view.
-  void _revealRestoreIfNeeded() {
-    if (widget.restoreCharOffset == null || widget.restoreCharOffset! <= 0) {
-      return;
+    void handleScroll(ScrollNotification notification) {
+      final metrics = notification.metrics;
+      if (metrics.maxScrollExtent > 0) {
+        onScroll?.call(metrics.pixels / metrics.maxScrollExtent);
+      }
+      if (notification is ScrollUpdateNotification) {
+        final delta = metrics.pixels - lastScrollPos.value;
+        if (delta.abs() > 4) {
+          onScrollDirectionChanged?.call(
+            delta > 0 ? ScrollDirection.down : ScrollDirection.up,
+          );
+        }
+        lastScrollPos.value = metrics.pixels;
+      }
     }
-    if (_didRestoreReveal) return;
-    _didRestoreReveal = true;
-    _narrationCoordinator.revealRestoreOffset(
-      context: context,
-      textKey: _textKey,
-      restoreCharOffset: widget.restoreCharOffset,
-      content: widget.content,
-      onRestored: () {
-        widget.onRestoreRevealed?.call();
-      },
-    );
-  }
 
-  @override
-  Widget build(BuildContext context) {
+    final quotes = useMemoized(() => _spanBuilder.findQuoteRanges(content), [content]);
+
+    final highlights = (bookId != null && chapterId != null)
+        ? ref.watch(annotationsProvider(bookId!)).highlights[chapterId!] ??
+              const <HighlightEntry>[]
+        : const <HighlightEntry>[];
+
+    final glossaryHighlightsList = useMemoized(() {
+      if (bookId == null || chapterId == null || content.isEmpty) {
+        return const <HighlightEntry>[];
+      }
+      final entries =
+          ref.watch(atlasGlossaryProvider(bookId!)).valueOrNull ?? const [];
+      return glossaryHighlightRanges(
+        chapterId: chapterId!,
+        content: content,
+        entries: entries,
+        color: Theme.of(context).colorScheme.secondaryContainer,
+      );
+    }, [bookId, chapterId, content, ref.watch(atlasGlossaryProvider(bookId ?? ''))]);
+
+    final allHighlights = useMemoized(
+      () => [...highlights, ...glossaryHighlightsList],
+      [highlights, glossaryHighlightsList],
+    );
+
     final colorScheme = Theme.of(context).colorScheme;
     final baseStyle = TextStyle(
-      fontSize: widget.fontSize,
-      height: widget.lineHeight,
-      letterSpacing: widget.letterSpacing,
-      color: widget.theme.resolve(colorScheme).text,
-      fontWeight: widget.fontWeight != null
-          ? FontWeight(widget.fontWeight!)
-          : null,
+      fontSize: fontSize,
+      height: lineHeight,
+      letterSpacing: letterSpacing,
+      color: theme.resolve(colorScheme).text,
+      fontWeight: fontWeight != null ? FontWeight(fontWeight!) : null,
     );
 
-    if (!widget.scrollable) {
+    Widget buildSegmented(
+      TextStyle textStyle,
+      List<HighlightEntry> hls,
+      BuildContext selectionContext, {
+      required bool applyDropCap,
+    }) {
+      final (richSpans, renderMap) = _spanBuilder.buildSegmentedSpans(
+        spans: spans!,
+        content: content,
+        textStyle: textStyle,
+        readingColors: theme.resolve(colorScheme),
+        fontSize: fontSize,
+        lineHeight: lineHeight,
+        highlights: hls,
+        dropCapStyle: dropCapStyle,
+        applyDropCap: applyDropCap,
+      );
+      renderContentMap.value = renderMap;
+
+      final registrar = SelectionContainer.maybeOf(selectionContext);
+      final selectionColor = theme
+          .resolve(colorScheme)
+          .accent
+          .withValues(alpha: 0.3);
+
+      return RichText(
+        key: textKey,
+        textAlign: textAlignment.flutterTextAlign,
+        selectionRegistrar: registrar,
+        selectionColor: selectionColor,
+        text: TextSpan(children: richSpans),
+      );
+    }
+
+    Widget narrationHighlighted(
+      String c,
+      TextStyle textStyle,
+      BuildContext selectionContext,
+    ) {
+      final item = activeSpeechItem;
+      final idx = _narrationCoordinator.resolveActiveSpeechOffset(
+        item: item,
+        content: c,
+      ) ?? -1;
+
+      final registrar = SelectionContainer.maybeOf(selectionContext);
+      final accent = theme.resolve(colorScheme).accent;
+      final selectionColor = accent.withValues(alpha: 0.3);
+
+      if (item == null || idx < 0) {
+        return RichText(
+          key: textKey,
+          textAlign: textAlignment.flutterTextAlign,
+          selectionRegistrar: registrar,
+          selectionColor: selectionColor,
+          text: TextSpan(
+            children: _spanBuilder.buildQuoteAwareSpans(
+              c,
+              0,
+              c.length,
+              textStyle,
+              highlights: highlights,
+              quoteRanges: quotes,
+            ),
+          ),
+        );
+      }
+      final paraRange = _narrationCoordinator.resolveActiveParagraphRange(
+        item: item,
+        content: c,
+      );
+
+      final sStart = idx.clamp(0, c.length);
+      final sEnd = (idx + item.text.length).clamp(0, c.length);
+      final pStart = (paraRange?.start ?? sStart).clamp(0, sStart);
+      final pEnd = (paraRange?.end ?? sEnd).clamp(sEnd, c.length);
+
+      final beforeParaSpans = _spanBuilder.buildQuoteAwareSpans(
+        c,
+        0,
+        pStart,
+        textStyle,
+        highlights: highlights,
+        quoteRanges: quotes,
+      );
+      final afterParaSpans = _spanBuilder.buildQuoteAwareSpans(
+        c,
+        pEnd,
+        c.length,
+        textStyle,
+        highlights: highlights,
+        quoteRanges: quotes,
+      );
+      final beforeSentenceInParaSpans = _spanBuilder.buildQuoteAwareSpans(
+        c,
+        pStart,
+        sStart,
+        textStyle,
+        highlights: highlights,
+        quoteRanges: quotes,
+      );
+      final afterSentenceInParaSpans = _spanBuilder.buildQuoteAwareSpans(
+        c,
+        sEnd,
+        pEnd,
+        textStyle,
+        highlights: highlights,
+        quoteRanges: quotes,
+      );
+      final activeSentenceSpans = _spanBuilder.buildQuoteAwareSpans(
+        c,
+        sStart,
+        sEnd,
+        textStyle,
+        highlights: highlights,
+        quoteRanges: quotes,
+      );
+
+      return AnimatedBuilder(
+        animation: highlightController,
+        builder: (context, _) {
+          final animValue = highlightController.value;
+          final paraBg = accent.withValues(alpha: 0.10 * animValue);
+          final sentenceBg = accent.withValues(alpha: 0.28 * animValue);
+
+          TextSpan applyBg(TextSpan span, Color bg) {
+            return TextSpan(
+              text: span.text,
+              children: span.children
+                  ?.map((c) => c is TextSpan ? applyBg(c, bg) : c)
+                  .toList(),
+              style: (span.style ?? textStyle).copyWith(
+                backgroundColor: bg,
+              ),
+            );
+          }
+
+          return RichText(
+            key: textKey,
+            textAlign: textAlignment.flutterTextAlign,
+            selectionRegistrar: registrar,
+            selectionColor: selectionColor,
+            text: TextSpan(
+              children: [
+                ...beforeParaSpans,
+                ...beforeSentenceInParaSpans.map((s) => applyBg(s, paraBg)),
+                ...activeSentenceSpans.map((s) => applyBg(s, sentenceBg)),
+                ...afterSentenceInParaSpans.map((s) => applyBg(s, paraBg)),
+                ...afterParaSpans,
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    Widget buildFlat(
+      String c,
+      TextStyle textStyle,
+      List<HighlightEntry> hls,
+      TextStyle? ds,
+      BuildContext selectionContext,
+    ) {
+      if (activeSpeechItem != null) {
+        return narrationHighlighted(c, textStyle, selectionContext);
+      }
+
+      final registrar = SelectionContainer.maybeOf(selectionContext);
+      final selectionColor = theme
+          .resolve(colorScheme)
+          .accent
+          .withValues(alpha: 0.3);
+
+      if (ds != null && c.isNotEmpty) {
+        return RichText(
+          key: textKey,
+          textAlign: textAlignment.flutterTextAlign,
+          selectionRegistrar: registrar,
+          selectionColor: selectionColor,
+          text: TextSpan(
+            children: [
+              TextSpan(text: c.substring(0, 1), style: ds),
+              ..._spanBuilder.buildQuoteAwareSpans(
+                c,
+                1,
+                c.length,
+                textStyle,
+                highlights: hls,
+              ),
+            ],
+          ),
+        );
+      }
+
+      return RichText(
+        key: textKey,
+        textAlign: textAlignment.flutterTextAlign,
+        selectionRegistrar: registrar,
+        selectionColor: selectionColor,
+        text: TextSpan(
+          children: _spanBuilder.buildQuoteAwareSpans(
+            c,
+            0,
+            c.length,
+            textStyle,
+            highlights: hls,
+          ),
+        ),
+      );
+    }
+
+    Widget buildText(TextStyle style, BuildContext selectionContext) {
+      final textStyle = fontFamily != null
+          ? style.copyWith(fontFamily: fontFamily)
+          : style;
+
+      final ds = dropCapStyle;
+      final c = content;
+
+      if (activeSpeechItem != null || spans == null) {
+        renderContentMap.value = null;
+        return buildFlat(c, textStyle, allHighlights, ds, selectionContext);
+      }
+      return buildSegmented(
+        textStyle,
+        allHighlights,
+        selectionContext,
+        applyDropCap: ds != null,
+      );
+    }
+
+    Widget selectionAreaContextMenuBuilder(
+      BuildContext context,
+      SelectableRegionState selectableRegionState,
+    ) {
+      final render = _narrationCoordinator.findRenderParagraph(textKey);
+      final selectable = render is Selectable ? render as Selectable : null;
+
+      return _selectionMenuBuilder.buildContextMenu(
+        context: context,
+        selectableRegionState: selectableRegionState,
+        content: content,
+        bookId: bookId,
+        chapterId: chapterId,
+        chapterTitle: chapterTitle,
+        highlights: highlights,
+        renderContentMap: renderContentMap.value,
+        selectable: selectable,
+        renderParagraph: render,
+        onHighlight: onHighlight,
+        onAddNote: onAddNote,
+        onShare: onShare,
+        onSearchWeb: onSearchWeb,
+        onListen: onListen,
+        onErase: onErase,
+      );
+    }
+
+    void handleTap() {
+      if (onTap == null) return;
+      final render = _narrationCoordinator.findRenderParagraph(textKey);
+      final selectable = render is Selectable ? render as Selectable : null;
+      final selection = selectable?.getSelection();
+      if (selection != null && selection.startOffset != selection.endOffset) {
+        return;
+      }
+      onTap!();
+    }
+
+    if (!scrollable) {
       return SelectionArea(
-        contextMenuBuilder: _selectionAreaContextMenuBuilder,
+        contextMenuBuilder: selectionAreaContextMenuBuilder,
         child: Builder(builder: (selectionContext) {
-          final content = _buildText(baseStyle, selectionContext);
+          final textWidget = buildText(baseStyle, selectionContext);
           return GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onTap: widget.onTap,
-            child: Padding(padding: _padding, child: content),
+            onTap: handleTap,
+            child: Padding(padding: _padding, child: textWidget),
           );
         }),
       );
     }
 
     return SelectionArea(
-      contextMenuBuilder: _selectionAreaContextMenuBuilder,
+      contextMenuBuilder: selectionAreaContextMenuBuilder,
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
-          _handleScroll(notification);
+          handleScroll(notification);
           return false;
         },
         child: SingleChildScrollView(
-          controller: _scrollController,
+          controller: scrollController,
           child: Builder(builder: (selectionContext) {
-            final content = _buildText(baseStyle, selectionContext);
+            final textWidget = buildText(baseStyle, selectionContext);
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTap: widget.onTap,
-              child: Padding(padding: _padding, child: content),
+              onTap: handleTap,
+              child: Padding(padding: _padding, child: textWidget),
             );
           }),
         ),
       ),
     );
   }
-
-  Widget _buildText(TextStyle baseStyle, BuildContext selectionContext) {
-    final textStyle = widget.fontFamily != null
-        ? baseStyle.copyWith(fontFamily: widget.fontFamily)
-        : baseStyle;
-
-    final ds = widget.dropCapStyle;
-    final c = widget.content;
-    final highlights = [..._highlights, ..._glossaryHighlights(c)];
-
-    final active = widget.activeSpeechItem;
-    if (active != null || widget.spans == null) {
-      _renderContentMap = null;
-      return _buildFlat(c, textStyle, highlights, ds, selectionContext);
-    }
-    return _buildSegmented(textStyle, highlights, selectionContext, applyDropCap: ds != null);
-  }
-
-  Widget _buildFlat(
-    String c,
-    TextStyle textStyle,
-    List<HighlightEntry> highlights,
-    TextStyle? dropCapStyle,
-    BuildContext selectionContext,
-  ) {
-    final active = widget.activeSpeechItem;
-    if (active != null) {
-      return _narrationHighlighted(c, textStyle, selectionContext);
-    }
-
-    final registrar = SelectionContainer.maybeOf(selectionContext);
-    final selectionColor = widget.theme
-        .resolve(Theme.of(context).colorScheme)
-        .accent
-        .withValues(alpha: 0.3);
-
-    if (dropCapStyle != null && c.isNotEmpty) {
-      return RichText(
-        key: _textKey,
-        textAlign: widget.textAlignment.flutterTextAlign,
-        selectionRegistrar: registrar,
-        selectionColor: selectionColor,
-        text: TextSpan(
-          children: [
-            TextSpan(text: c.substring(0, 1), style: dropCapStyle),
-            ..._spanBuilder.buildQuoteAwareSpans(
-              c,
-              1,
-              c.length,
-              textStyle,
-              highlights: highlights,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RichText(
-      key: _textKey,
-      textAlign: widget.textAlignment.flutterTextAlign,
-      selectionRegistrar: registrar,
-      selectionColor: selectionColor,
-      text: TextSpan(
-        children: _spanBuilder.buildQuoteAwareSpans(
-          c,
-          0,
-          c.length,
-          textStyle,
-          highlights: highlights,
-        ),
-      ),
-    );
-  }
-
-  /// Renders the chapter as a single [RichText] with [WidgetSpan] for cards.
-  Widget _buildSegmented(
-    TextStyle textStyle,
-    List<HighlightEntry> highlights,
-    BuildContext selectionContext, {
-    required bool applyDropCap,
-  }) {
-    final (richSpans, renderMap) = _spanBuilder.buildSegmentedSpans(
-      spans: widget.spans!,
-      content: widget.content,
-      textStyle: textStyle,
-      readingColors: widget.theme.resolve(Theme.of(context).colorScheme),
-      fontSize: widget.fontSize,
-      lineHeight: widget.lineHeight,
-      highlights: highlights,
-      dropCapStyle: widget.dropCapStyle,
-      applyDropCap: applyDropCap,
-    );
-    _renderContentMap = renderMap;
-
-    final registrar = SelectionContainer.maybeOf(selectionContext);
-    final selectionColor = widget.theme
-        .resolve(Theme.of(context).colorScheme)
-        .accent
-        .withValues(alpha: 0.3);
-
-    return RichText(
-      key: _textKey,
-      textAlign: widget.textAlignment.flutterTextAlign,
-      selectionRegistrar: registrar,
-      selectionColor: selectionColor,
-      text: TextSpan(children: richSpans),
-    );
-  }
-
-  /// Renders the whole chapter as a [TextSpan], tinting the currently
-  /// narrated sentence's substring.
-  Widget _narrationHighlighted(String content, TextStyle textStyle, BuildContext selectionContext) {
-    final item = widget.activeSpeechItem;
-    final idx = _narrationCoordinator.resolveActiveSpeechOffset(
-      item: item,
-      content: content,
-    ) ?? -1;
-    final highlights = _highlights;
-    final quotes = _getQuotes(content);
-
-    final registrar = SelectionContainer.maybeOf(selectionContext);
-    final accent = widget.theme.resolve(Theme.of(context).colorScheme).accent;
-    final selectionColor = accent.withValues(alpha: 0.3);
-
-    if (item == null || idx < 0) {
-      return RichText(
-        key: _textKey,
-        textAlign: widget.textAlignment.flutterTextAlign,
-        selectionRegistrar: registrar,
-        selectionColor: selectionColor,
-        text: TextSpan(
-          children: _spanBuilder.buildQuoteAwareSpans(
-            content,
-            0,
-            content.length,
-            textStyle,
-            highlights: highlights,
-            quoteRanges: quotes,
-          ),
-        ),
-      );
-    }
-    final paraRange = _narrationCoordinator.resolveActiveParagraphRange(
-      item: item,
-      content: content,
-    );
-
-    final sStart = idx.clamp(0, content.length);
-    final sEnd = (idx + item.text.length).clamp(0, content.length);
-    final pStart = (paraRange?.start ?? sStart).clamp(0, sStart);
-    final pEnd = (paraRange?.end ?? sEnd).clamp(sEnd, content.length);
-
-    final beforeParaSpans = _spanBuilder.buildQuoteAwareSpans(
-      content,
-      0,
-      pStart,
-      textStyle,
-      highlights: highlights,
-      quoteRanges: quotes,
-    );
-    final afterParaSpans = _spanBuilder.buildQuoteAwareSpans(
-      content,
-      pEnd,
-      content.length,
-      textStyle,
-      highlights: highlights,
-      quoteRanges: quotes,
-    );
-    final beforeSentenceInParaSpans = _spanBuilder.buildQuoteAwareSpans(
-      content,
-      pStart,
-      sStart,
-      textStyle,
-      highlights: highlights,
-      quoteRanges: quotes,
-    );
-    final afterSentenceInParaSpans = _spanBuilder.buildQuoteAwareSpans(
-      content,
-      sEnd,
-      pEnd,
-      textStyle,
-      highlights: highlights,
-      quoteRanges: quotes,
-    );
-    final activeSentenceSpans = _spanBuilder.buildQuoteAwareSpans(
-      content,
-      sStart,
-      sEnd,
-      textStyle,
-      highlights: highlights,
-      quoteRanges: quotes,
-    );
-
-    return AnimatedBuilder(
-      animation: _highlightController,
-      builder: (context, _) {
-        final animValue = _highlightController.value;
-        final paraBg = accent.withValues(alpha: 0.10 * animValue);
-        final sentenceBg = accent.withValues(alpha: 0.28 * animValue);
-
-        TextSpan applyBg(TextSpan span, Color bg) {
-          return TextSpan(
-            text: span.text,
-            children: span.children
-                ?.map((c) => c is TextSpan ? applyBg(c, bg) : c)
-                .toList(),
-            style: (span.style ?? textStyle).copyWith(
-              backgroundColor: bg,
-            ),
-          );
-        }
-
-        return RichText(
-          key: _textKey,
-          textAlign: widget.textAlignment.flutterTextAlign,
-          selectionRegistrar: registrar,
-          selectionColor: selectionColor,
-          text: TextSpan(
-            children: [
-              ...beforeParaSpans,
-              ...beforeSentenceInParaSpans.map((s) => applyBg(s, paraBg)),
-              ...activeSentenceSpans.map((s) => applyBg(s, sentenceBg)),
-              ...afterSentenceInParaSpans.map((s) => applyBg(s, paraBg)),
-              ...afterParaSpans,
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _selectionAreaContextMenuBuilder(
-    BuildContext context,
-    SelectableRegionState selectableRegionState,
-  ) {
-    final bookId = widget.bookId;
-    final chapterId = widget.chapterId;
-    final highlights = (bookId != null && chapterId != null)
-        ? ref.read(annotationsProvider(bookId)).highlights[chapterId] ??
-              const []
-        : const <HighlightEntry>[];
-
-    final render = _narrationCoordinator.findRenderParagraph(_textKey);
-    final selectable = render is Selectable ? render as Selectable : null;
-
-    return _selectionMenuBuilder.buildContextMenu(
-      context: context,
-      selectableRegionState: selectableRegionState,
-      content: widget.content,
-      bookId: bookId,
-      chapterId: chapterId,
-      chapterTitle: widget.chapterTitle,
-      highlights: highlights,
-      renderContentMap: _renderContentMap,
-      selectable: selectable,
-      renderParagraph: render,
-      onHighlight: widget.onHighlight,
-      onAddNote: widget.onAddNote,
-      onShare: widget.onShare,
-      onSearchWeb: widget.onSearchWeb,
-      onListen: widget.onListen,
-      onErase: widget.onErase,
-    );
-  }
 }
+

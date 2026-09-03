@@ -88,6 +88,8 @@ void main() {
 
     expect(find.byType(PdfReaderContent), findsOneWidget);
     expect(find.byType(ReaderContent), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
   });
 
   testWidgets('non-PDF formats still use the chapter reader', (
@@ -100,5 +102,7 @@ void main() {
     await _pumpReader(tester, db, 'epub');
 
     expect(find.byType(PdfReaderContent), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
   });
 }

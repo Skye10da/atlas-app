@@ -56,3 +56,26 @@ class NovelMetadata {
   final double? rating;
   final DateTime? lastUpdated;
 }
+
+/// A trending/popular book extracted from a plugin's trending page.
+class TrendingResult {
+  const TrendingResult({
+    required this.title,
+    required this.url,
+    this.coverUrl,
+    this.author,
+    this.rating,
+    this.popularity,
+    this.genre,
+    this.description,
+  });
+
+  final String title;
+  final String url;
+  final String? coverUrl;
+  final String? author;
+  final String? rating;
+  final String? popularity;
+  final String? genre;
+  final String? description;
+}
