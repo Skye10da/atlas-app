@@ -5,6 +5,8 @@ import 'package:atlas_app/browser/domain/entities/web_bookmark.dart';
 import 'package:atlas_app/browser/domain/entities/web_history_entry.dart';
 import 'package:atlas_app/browser/domain/repository_interfaces/browser_repository_interface.dart';
 import 'package:atlas_app/browser/domain/repository_interfaces/browser_session_repository_interface.dart';
+import 'package:atlas_app/browser/domain/services/headless_webview_pool.dart';
+import 'package:atlas_app/browser/domain/services/silent_web_view_service.dart';
 import 'package:atlas_app/browser/infrastructure/engines/inapp_webview_engine.dart';
 import 'package:atlas_app/browser/infrastructure/repositories/drift_browser_repository.dart';
 import 'package:atlas_app/browser/infrastructure/repositories/json_browser_session_repository.dart';
@@ -31,6 +33,23 @@ final browserSessionRepositoryProvider =
     Provider<BrowserSessionRepositoryInterface>((ref) {
       return JsonBrowserSessionRepository();
     });
+
+/// Pool of headless web views for background Cloudflare / anti-bot challenge solving.
+final headlessWebViewPoolProvider = Provider<HeadlessWebViewPool>((ref) {
+  final pool = HeadlessWebViewPool(maxViews: 3);
+  ref.onDispose(pool.dispose);
+  return pool;
+});
+
+/// Shared [SilentWebViewService] instance backed by the headless pool.
+final silentWebViewServiceProvider = Provider<SilentWebViewService>((ref) {
+  final pool = ref.watch(headlessWebViewPoolProvider);
+  final sessionStore = ref.watch(browserSessionRepositoryProvider);
+  return SilentWebViewService(
+    pool: pool,
+    sessionStore: sessionStore,
+  );
+});
 
 final webHistoryProvider = StreamProvider<List<WebHistoryEntry>>((ref) {
   return ref

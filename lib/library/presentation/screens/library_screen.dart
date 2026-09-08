@@ -35,9 +35,11 @@ class LibraryScreen extends HookConsumerWidget {
   const LibraryScreen({
     super.key,
     this.initialGenre,
+    this.initialSort,
   });
 
   final String? initialGenre;
+  final String? initialSort;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,8 +59,17 @@ class LibraryScreen extends HookConsumerWidget {
           ref.read(libraryViewModelProvider.notifier).setGenreFilter(initialGenre!.trim());
         });
       }
+      if (initialSort != null && initialSort!.trim().isNotEmpty) {
+        Future.microtask(() {
+          if (initialSort == 'recentlyAdded') {
+            ref.read(libraryViewModelProvider.notifier).setSortOrder(LibrarySortOrder.recentlyAdded);
+          } else if (initialSort == 'recentlyRead') {
+            ref.read(libraryViewModelProvider.notifier).setSortOrder(LibrarySortOrder.recentlyRead);
+          }
+        });
+      }
       return null;
-    }, [initialGenre]);
+    }, [initialGenre, initialSort]);
 
     final libraryAsync = ref.watch(libraryViewModelProvider);
     final libraryState = libraryAsync.valueOrNull ?? const LibraryState();

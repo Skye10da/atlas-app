@@ -2,7 +2,8 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
@@ -18,6 +19,7 @@ import 'package:atlas_app/library/presentation/widgets/chapter_grouped_list.dart
 import 'package:atlas_app/library/presentation/widgets/open_reader.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/infrastructure/repositories/drift_reader_repository.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 
 class BookDetailsScreen extends ConsumerWidget {
   const BookDetailsScreen({
@@ -178,7 +180,7 @@ class _BookDetailsData {
   final String? lastReadChapterId;
 }
 
-class _BookDetailsBody extends StatelessWidget {
+class _BookDetailsBody extends HookConsumerWidget {
   const _BookDetailsBody({
     required this.book,
     required this.chapters,
@@ -200,9 +202,11 @@ class _BookDetailsBody extends StatelessWidget {
   final VoidCallback? onClose;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final progress = book.progress ?? 0;
+    final isRedownloading = useState(false);
+    final redownloadProgress = useState<(int, int)?>(null);
 
     final scrollView = CustomScrollView(
       slivers: [
@@ -317,16 +321,46 @@ class _BookDetailsBody extends StatelessWidget {
                           const Spacer(),
                         const Spacer(),
                         if (!isEmbedded) ...[
+                          if (isRedownloading.value)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 12),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          else
+                            IconButton(
+                              icon: const Icon(
+                                Icons.cloud_download_outlined,
+                                color: Colors.white,
+                              ),
+                              tooltip: 'Redownload all chapters',
+                              onPressed: () => _redownloadAll(
+                                context,
+                                ref,
+                                isRedownloading,
+                                redownloadProgress,
+                              ),
+                            ),
                           IconButton(
                             icon: const Icon(Icons.edit, color: Colors.white),
-                            onPressed: () => _editMetadata(context),
+                            onPressed: isRedownloading.value
+                                ? null
+                                : () => _editMetadata(context),
                           ),
                           IconButton(
                             icon: const Icon(
                               Icons.delete_outline,
                               color: Colors.white,
                             ),
-                            onPressed: () => _deleteBook(context),
+                            onPressed: isRedownloading.value
+                                ? null
+                                : () => _deleteBook(context),
                           ),
                         ],
                       ],
@@ -366,6 +400,36 @@ class _BookDetailsBody extends StatelessWidget {
                         '${progress.round()}% complete · ${chapters.length} chapters',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (isRedownloading.value)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Card(
+                color: theme.colorScheme.surfaceContainerHigh,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          redownloadProgress.value == null
+                              ? 'Redownloading chapters…'
+                              : 'Redownloading ${redownloadProgress.value!.$1}/${redownloadProgress.value!.$2} chapters…',
+                          style: theme.textTheme.bodyMedium,
                         ),
                       ),
                     ],
@@ -465,5 +529,66 @@ class _BookDetailsBody extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _redownloadAll(
+    BuildContext context,
+    WidgetRef ref,
+    ValueNotifier<bool> isRedownloading,
+    ValueNotifier<(int, int)?> progress,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Redownload all chapters?'),
+        content: Text(
+          'This will re-fetch all ${chapters.length} chapters from the source and overwrite the cached files (original language).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Redownload'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    isRedownloading.value = true;
+    progress.value = (0, chapters.length);
+    try {
+      final service = ref.read(chapterDownloadServiceProvider);
+      final results = await service.redownloadAllChapters(
+        book.id,
+        onProgress: (done, total) {
+          if (context.mounted) progress.value = (done, total);
+        },
+      );
+      if (!context.mounted) return;
+      final failures = results.whereType<Failure>().length;
+      // Refresh book details so chapter states update.
+      ref.invalidate(_bookDetailsProvider(book.id));
+      // Also invalidate any cached chapter content in the reader.
+      for (final ch in chapters) {
+        ref.invalidate(readerChapterContentProvider(ch));
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            failures == 0
+                ? 'Redownloaded ${chapters.length} chapters'
+                : 'Redownloaded ${chapters.length - failures}/${chapters.length} chapters ($failures failed)',
+          ),
+        ),
+      );
+    } finally {
+      if (context.mounted) {
+        isRedownloading.value = false;
+        progress.value = null;
+      }
+    }
   }
 }

@@ -56,6 +56,8 @@ class RealFlipReaderLayout extends HookConsumerWidget {
     required this.onChapterSelected,
     required this.onSettingsTap,
     this.onSearchTap,
+    this.onRedownload,
+    this.isRedownloading = false,
     required this.isBookmarked,
     required this.onBookmarkToggle,
     this.bookTitle,
@@ -81,6 +83,8 @@ class RealFlipReaderLayout extends HookConsumerWidget {
   final void Function(int chapterIndex) onChapterSelected;
   final VoidCallback onSettingsTap;
   final VoidCallback? onSearchTap;
+  final VoidCallback? onRedownload;
+  final bool isRedownloading;
   final bool isBookmarked;
   final VoidCallback onBookmarkToggle;
   final String? bookTitle;
@@ -836,6 +840,8 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                       textColor: colorScheme.onSurface,
                       onSettingsTap: onSettingsTap,
                       onSearchTap: onSearchTap,
+                      onRedownload: onRedownload,
+                      isRedownloading: isRedownloading,
                     ),
                   ),
                 ),

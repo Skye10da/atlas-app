@@ -8,7 +8,6 @@ import 'package:atlas_app/core/content_engine/block_card/block_card_detector.dar
 import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
-import 'package:atlas_app/core/session/session_refresh_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/application/chapter_download_service.dart';
 import 'package:atlas_app/reader/application/novel_export_service.dart';
@@ -87,6 +86,42 @@ final readerChapterContentProvider =
       }
 
       final result = await repo.getChapterContent(chapter.contentPath);
+      // Offline/corrupted detection — automatically redownload in original
+      // language when the file is missing, empty, or is the placeholder
+      // written by `getChapterContent` (“# Chapter Content…”). This
+      // satisfies the “offline behaviour: automatically, original” spec:
+      // the user sees the fresh content without manually tapping Retry.
+      if (result is Success<String>) {
+        final content = result.value;
+        final isPlaceholder =
+            content.trim().isEmpty ||
+            content.contains('The content file was not found') ||
+            content.startsWith('# Chapter Content');
+        if (isPlaceholder) {
+          publish(ChapterLoadPhase.gettingText);
+          final downloadService = ref.watch(chapterDownloadServiceProvider);
+          final retry = await downloadService.redownloadChapter(
+            chapter.bookId,
+            chapter.index,
+          );
+          if (retry is Success) {
+            final retried = await repo.getChapterContent(chapter.contentPath);
+            if (retried is Success<String>) {
+              publish(ChapterLoadPhase.preparing);
+              return await _applyAtlasGlossary(
+                ref,
+                chapter.bookId,
+                await _applyTranslation(ref, chapter, retried.value),
+              );
+            }
+            // Fall through to throw the retried failure below.
+            if (retried is Failure<String>) throw retried.error;
+          }
+          // Redownload failed — surface as provider error so the Retry
+          // shimmer/error UI appears (user can tap Retry again).
+          if (retry is Failure<void>) throw retry.error;
+        }
+      }
       publish(ChapterLoadPhase.preparing);
       return switch (result) {
         Success(value: final content) => await _applyAtlasGlossary(
@@ -189,53 +224,18 @@ final chapterSourceUrlProvider = FutureProvider.family<String?, ChapterEntity>((
   return result.value.sourceUrl;
 });
 
-/// Downloads [chapter]'s content, and when the fetch failed on an expired
-/// session *for the chapter currently on screen*, runs the quick re-verify
-/// flow once (per origin) and retries.
+/// Downloads [chapter]'s content. Automatic full-screen re-verify is disabled:
+/// failures (including session-expired / bot-challenge) surface through the
+/// chapter's inline error state (`ChapterContentLoader` → `Re-verify session`
+/// button), which the user taps to open the visible re-verify flow. This
+/// prevents an unsolicited fullscreen webview with no app bar from covering
+/// the reader. Silent headless recovery still runs via `WebViewTransport`
+/// → `fallbackFetcher` before this point.
 Future<Result<void>> _downloadChapterWithSessionRefresh(
   Ref ref,
   ChapterEntity chapter,
   ChapterDownloadService downloadService,
 ) async {
-  final first = await downloadService.downloadChapter(
-    chapter.bookId,
-    chapter.index,
-    targetLanguage: await _targetLanguageCode(ref, chapter.bookId),
-  );
-  if (first is! Failure) return first;
-
-  // A background prefetch of a neighboring chapter must never silently push
-  // the full-screen re-verify webview over whatever the reader is actually
-  // looking at. Only the chapter currently on screen gets the automatic
-  // recovery; every other failure (including this one) surfaces through the
-  // chapter's own error state, where "Retry" / "Re-verify session" are one
-  // tap away.
-  if (ref.read(activeChapterIdProvider) != chapter.id) return first;
-
-  final session = SessionRefreshService.instance;
-  final bookResult = await ref
-      .read(readerRepositoryProvider)
-      .getBookById(chapter.bookId);
-  if (bookResult is! Success<BookEntity>) return first;
-  final sourceUrl = bookResult.value.sourceUrl;
-  final origin = SessionRefreshService.originOf(sourceUrl);
-  final invalid = session.lastInvalidOrigin.value;
-  if (origin == null ||
-      invalid == null ||
-      !SessionRefreshService.sameOrigin(invalid, origin)) {
-    return first;
-  }
-  // One automatic re-verify per origin per cycle; a manual button remains
-  // available in the chapter error state.
-  if (session.hasAutoRefreshed(origin)) return first;
-  session.markAutoRefreshed(origin);
-  // Prefer the URL that triggered the wall (the chapter URL with its active
-  // `?service=` param) so the refresh webview opens the page that needs
-  // re-verification, falling back to the novel's source URL.
-  final seedUrl =
-      session.lastInvalidSeedUrl.value ?? Uri.tryParse(sourceUrl ?? '');
-  final ok = await session.ensureFresh(origin, seedUrl: seedUrl);
-  if (!ok) return first;
   return downloadService.downloadChapter(
     chapter.bookId,
     chapter.index,
@@ -248,6 +248,41 @@ Future<Result<void>> _downloadChapterWithSessionRefresh(
 Future<String?> _targetLanguageCode(Ref ref, String bookId) async {
   return (await ref.watch(targetLanguageProvider(bookId).future))?.code;
 }
+
+/// Explicit redownload controller — force-overwrites the cached file even
+/// when `contentState == availableOffline`. UI watches `isLoading` for
+/// disabled-until-settled shimmer. Original language only (WTR Lab
+/// re-translation is handled on display, not on disk).
+final redownloadChapterProvider =
+    FutureProvider.family<Result<void>, ChapterEntity>((ref, chapter) async {
+      final service = ref.watch(chapterDownloadServiceProvider);
+      final result = await service.redownloadChapter(
+        chapter.bookId,
+        chapter.index,
+      );
+      if (result is Success) {
+        ref.invalidate(readerChapterContentProvider(chapter));
+        // Also refresh the chapter list so `contentState`/`version` updates.
+        ref.invalidate(novelChaptersProvider(chapter.bookId));
+      }
+      return result;
+    });
+
+/// Bulk redownload — overwrites every chapter. Used by book-details
+/// “Redownload all”. Reports progress via `chapterDownloadingSetProvider`.
+final redownloadAllProvider = FutureProvider.family<List<Result<void>>, String>(
+  (ref, bookId) async {
+    final service = ref.watch(chapterDownloadServiceProvider);
+    final results = await service.redownloadAllChapters(bookId);
+    // Invalidate all chapter content providers for this book.
+    final chapters = await ref.watch(novelChaptersProvider(bookId).future);
+    for (final ch in chapters) {
+      ref.invalidate(readerChapterContentProvider(ch));
+    }
+    ref.invalidate(novelChaptersProvider(bookId));
+    return results;
+  },
+);
 
 final readerLoadingProvider = StateProvider<bool>((_) => false);
 

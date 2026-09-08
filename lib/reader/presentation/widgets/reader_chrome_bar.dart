@@ -11,6 +11,8 @@ class ReaderChromeBar extends StatelessWidget implements PreferredSizeWidget {
     required this.textColor,
     required this.onSettingsTap,
     this.onSearchTap,
+    this.onRedownload,
+    this.isRedownloading = false,
     this.leading,
     this.actions,
   });
@@ -19,6 +21,8 @@ class ReaderChromeBar extends StatelessWidget implements PreferredSizeWidget {
   final Color textColor;
   final VoidCallback onSettingsTap;
   final VoidCallback? onSearchTap;
+  final VoidCallback? onRedownload;
+  final bool isRedownloading;
   final Widget? leading;
   final List<Widget>? actions;
 
@@ -42,6 +46,21 @@ class ReaderChromeBar extends StatelessWidget implements PreferredSizeWidget {
         style: const TextStyle(fontSize: 14),
       ),
       actions: actions ?? [
+        if (onRedownload != null)
+          IconButton(
+            icon: isRedownloading
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: textColor,
+                    ),
+                  )
+                : Icon(Icons.refresh_rounded, size: 18, color: textColor),
+            tooltip: 'Redownload chapter',
+            onPressed: isRedownloading ? null : onRedownload,
+          ),
         if (onSearchTap != null)
           IconButton(
             icon: Icon(Icons.search_rounded, size: 18, color: textColor),

@@ -176,8 +176,20 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
           '# Chapter Content\n\nThe content file was not found.',
         );
       }
-      final content = await file.readAsString();
+      // Use allowMalformed so a chapter cached from a Brotli/invalid-UTF8
+      // response (FormatException at offset 1) still loads instead of
+      // crashing the provider.
+      final bytes = await file.readAsBytes();
+      final content = utf8.decode(bytes, allowMalformed: true);
       return Success(content);
+    } on FormatException {
+      // Fallback for extremely malformed files — latin1 never throws.
+      try {
+        final bytes = await File(contentPath).readAsBytes();
+        return Success(latin1.decode(bytes));
+      } catch (e2, st2) {
+        return Failure(DatabaseException('Failed to read chapter', e2), st2);
+      }
     } catch (e, st) {
       return Failure(DatabaseException('Failed to read chapter', e), st);
     }
@@ -260,6 +272,31 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
     required int totalPositions,
   }) async {
     try {
+      final now = DateTime.now();
+      final existing = await (_db.select(_db.readingProgress)
+            ..where((p) => p.id.equals(bookId)))
+          .getSingleOrNull();
+
+      int currentReadingTime = existing?.readingTimeSeconds ?? 0;
+      int sessionDuration = 0;
+      bool chapterChanged = false;
+
+      if (existing != null) {
+        chapterChanged = existing.chapterId != chapterId;
+        final elapsed = now.difference(existing.lastReadAt).inSeconds;
+        // If elapsed is within 30 minutes, credit as continuous reading
+        if (elapsed > 0 && elapsed < 1800) {
+          sessionDuration = elapsed;
+          currentReadingTime += elapsed;
+        } else {
+          sessionDuration = 60;
+          currentReadingTime += 60;
+        }
+      } else {
+        sessionDuration = 60;
+        currentReadingTime = 60;
+      }
+
       await _db
           .into(_db.readingProgress)
           .insertOnConflictUpdate(
@@ -270,10 +307,32 @@ final class DriftReaderRepository implements ReaderRepositoryInterface {
               percentage: Value(percentage),
               position: Value(position),
               totalPositions: Value(totalPositions),
-              lastReadAt: Value(DateTime.now()),
-              readingTimeSeconds: const Value(0),
+              lastReadAt: Value(now),
+              readingTimeSeconds: Value(currentReadingTime),
+              isCompleted: Value(percentage >= 0.95),
             ),
           );
+
+      // Record reading session entry for analytics
+      final today = DateTime(now.year, now.month, now.day);
+      final sessionId = '${bookId}_${now.millisecondsSinceEpoch}';
+      try {
+        await _db.customStatement(
+          '''
+          INSERT INTO reading_sessions (id, book_id, duration_seconds, chapters_read, created_at, session_date)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ''',
+          [
+            sessionId,
+            bookId,
+            sessionDuration,
+            chapterChanged ? 1 : 0,
+            now.millisecondsSinceEpoch,
+            today.millisecondsSinceEpoch,
+          ],
+        );
+      } catch (_) {}
+
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to save progress', e), st);

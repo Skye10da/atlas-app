@@ -4,8 +4,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
 import 'package:atlas_app/browser/presentation/widgets/app_session_refresh_bridge.dart';
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
+import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
@@ -90,6 +92,10 @@ class AtlasApp extends ConsumerWidget {
   Future<void> _bootstrap(WidgetRef ref) async {
     if (_bootstrapped) return;
     _bootstrapped = true;
+
+    // Registers the headless WebView pool fallback fetcher for silent Cloudflare challenge solving
+    final silentService = ref.read(silentWebViewServiceProvider);
+    WebViewFetchService.instance.fallbackFetcher = silentService.fetchHtml;
 
     ref.read(pluginSourcesProvider);
     ref.read(taskSchedulerProvider).start();

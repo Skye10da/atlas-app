@@ -11,6 +11,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   permission_handler_windows
   real_page_flip
   screen_brightness_pro
+  share_plus
   sqlite3_flutter_libs
   url_launcher_windows
 )

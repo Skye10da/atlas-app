@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/session/session_refresh_service.dart';
@@ -77,7 +78,8 @@ class ChapterContentLoader extends ConsumerWidget {
     int start,
     int end, {
     HighlightStyleType styleType,
-  })? onHighlight;
+  })?
+  onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
@@ -113,8 +115,13 @@ class ChapterContentLoader extends ConsumerWidget {
           ReaderLoadingOverlay(chapter: chapter, vt: vt),
         ],
       ),
-      error: (err, _) =>
-          _ChapterErrorState(vt: vt, chapter: chapter, error: err),
+      error: (err, _) => _ChapterErrorState(
+        vt: vt,
+        chapter: chapter,
+        error: err,
+        fontSize: fontSize,
+        lineHeight: lineHeight,
+      ),
       data: (content) {
         // Content is ready to render in the continuous layout.
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -168,15 +175,24 @@ class ChapterContentLoader extends ConsumerWidget {
 /// [SessionRefreshService.lastInvalidOrigin]), also offers a "Re-verify
 /// session" action that opens the quick source view, then reloads the
 /// chapter.
-class _ChapterErrorState extends ConsumerWidget {
+///
+/// Both actions are disabled while a retry is in-flight and the parent
+/// immediately switches to the full shimmer (`AsyncLoading`) — this guard
+/// closes the 1-frame window where rapid taps would queue duplicate
+/// `invalidate` → concurrent `readerChapterContentProvider` fetches.
+class _ChapterErrorState extends HookConsumerWidget {
   const _ChapterErrorState({
     required this.vt,
     required this.chapter,
     this.error,
+    this.fontSize = 16,
+    this.lineHeight = 1.6,
   });
 
   final ReadingViewTheme vt;
   final ChapterEntity chapter;
+  final double fontSize;
+  final double lineHeight;
 
   /// The error thrown by [readerChapterContentProvider], when available —
   /// used to show an actionable, source-specific message (e.g. "Unable to
@@ -186,9 +202,36 @@ class _ChapterErrorState extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isRetrying = useState(false);
+    final isReverifying = useState(false);
     final colorScheme = Theme.of(context).colorScheme;
     final session = SessionRefreshService.instance;
     final sourceUrlAsync = ref.watch(chapterSourceUrlProvider(chapter));
+    // Disabled-until-settled + immediate shimmer: while the provider is
+    // already loading (e.g. invalidated from outside) the buttons are
+    // disabled, and once the user taps Retry/Re-verify we immediately
+    // replace the error surface with the full shimmer so there is zero
+    // “dead” feedback. The parent `ChapterContentLoader` will also switch
+    // to `AsyncLoading` on the next frame — this just makes the shimmer
+    // appear in the same frame as the tap.
+    final providerLoading = ref
+        .watch(readerChapterContentProvider(chapter))
+        .isLoading;
+    final isBusy = isRetrying.value || isReverifying.value || providerLoading;
+    if (isBusy) {
+      return Stack(
+        children: [
+          const Positioned.fill(child: SizedBox.expand()),
+          ChapterShimmer(
+            vt: vt,
+            showHeaders: false,
+            fontSize: fontSize,
+            lineHeight: lineHeight,
+          ),
+          ReaderLoadingOverlay(chapter: chapter, vt: vt),
+        ],
+      );
+    }
     final err = error;
     final message = err is AppException
         ? err.userMessage
@@ -222,27 +265,46 @@ class _ChapterErrorState extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: () =>
-                      ref.invalidate(readerChapterContentProvider(chapter)),
+                  onPressed: isBusy
+                      ? null
+                      : () {
+                          if (isRetrying.value) return;
+                          isRetrying.value = true;
+                          ref.invalidate(readerChapterContentProvider(chapter));
+                        },
                   icon: const Icon(Icons.refresh),
                   label: const Text('Retry'),
                 ),
                 if (showReverify) ...[
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
-                    onPressed: () async {
-                      final origin = SessionRefreshService.originOf(
-                        sourceUrlAsync.valueOrNull,
-                      );
-                      if (origin == null) return;
-                      final ok = await session.ensureFresh(
-                        origin,
-                        seedUrl: Uri.tryParse(sourceUrlAsync.valueOrNull ?? ''),
-                      );
-                      if (ok && context.mounted) {
-                        ref.invalidate(readerChapterContentProvider(chapter));
-                      }
-                    },
+                    onPressed: isBusy
+                        ? null
+                        : () async {
+                            if (isReverifying.value) return;
+                            isReverifying.value = true;
+                            try {
+                              final origin = SessionRefreshService.originOf(
+                                sourceUrlAsync.valueOrNull,
+                              );
+                              if (origin == null) return;
+                              final ok = await session.ensureFresh(
+                                origin,
+                                seedUrl: Uri.tryParse(
+                                  sourceUrlAsync.valueOrNull ?? '',
+                                ),
+                              );
+                              if (ok && context.mounted) {
+                                ref.invalidate(
+                                  readerChapterContentProvider(chapter),
+                                );
+                              }
+                            } finally {
+                              if (context.mounted) {
+                                isReverifying.value = false;
+                              }
+                            }
+                          },
                     icon: const Icon(Icons.verified_user_outlined),
                     label: const Text('Re-verify session'),
                   ),

@@ -178,6 +178,7 @@ class ChapterView extends HookConsumerWidget {
         textKey: textKey,
         restoreCharOffset: restoreCharOffset,
         content: content,
+        renderContentMap: renderContentMap.value,
         onRestored: () {
           onRestoreRevealed?.call();
         },
@@ -522,10 +523,13 @@ class ChapterView extends HookConsumerWidget {
       );
     }
 
+    final activeSelectableRegion = useRef<SelectableRegionState?>(null);
+
     Widget selectionAreaContextMenuBuilder(
       BuildContext context,
       SelectableRegionState selectableRegionState,
     ) {
+      activeSelectableRegion.value = selectableRegionState;
       final render = _narrationCoordinator.findRenderParagraph(textKey);
       final selectable = render is Selectable ? render as Selectable : null;
 
@@ -549,15 +553,22 @@ class ChapterView extends HookConsumerWidget {
       );
     }
 
-    void handleTap() {
-      if (onTap == null) return;
+    void handleTap(BuildContext selectionContext) {
+      final regionState = selectionContext.findAncestorStateOfType<SelectableRegionState>() ??
+          activeSelectableRegion.value;
       final render = _narrationCoordinator.findRenderParagraph(textKey);
-      final selectable = render is Selectable ? render as Selectable : null;
-      final selection = selectable?.getSelection();
-      if (selection != null && selection.startOffset != selection.endOffset) {
+      final hasRenderSelection = render != null &&
+          render.selections.isNotEmpty && // ignore: invalid_use_of_visible_for_testing_member
+          !render.selections.first.isCollapsed; // ignore: invalid_use_of_visible_for_testing_member
+      final hasSelection = hasRenderSelection || activeSelectableRegion.value != null;
+
+      if (hasSelection) {
+        regionState?.clearSelection();
+        regionState?.hideToolbar();
+        activeSelectableRegion.value = null;
         return;
       }
-      onTap!();
+      onTap?.call();
     }
 
     if (!scrollable) {
@@ -567,7 +578,7 @@ class ChapterView extends HookConsumerWidget {
           final textWidget = buildText(baseStyle, selectionContext);
           return GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onTap: handleTap,
+            onTap: () => handleTap(selectionContext),
             child: Padding(padding: _padding, child: textWidget),
           );
         }),
@@ -587,7 +598,7 @@ class ChapterView extends HookConsumerWidget {
             final textWidget = buildText(baseStyle, selectionContext);
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTap: handleTap,
+              onTap: () => handleTap(selectionContext),
               child: Padding(padding: _padding, child: textWidget),
             );
           }),

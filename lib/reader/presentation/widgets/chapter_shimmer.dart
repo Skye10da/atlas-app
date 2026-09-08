@@ -49,10 +49,19 @@ class ChapterShimmer extends HookWidget {
     final opacity = useState(0.0);
 
     useEffect(() {
+      var cancelled = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        opacity.value = 1.0;
+        if (cancelled) return;
+        if (!context.mounted) return;
+        try {
+          opacity.value = 1.0;
+        } catch (_) {
+          // ValueNotifier was disposed during hot reload / pop — ignore.
+        }
       });
-      return null;
+      return () {
+        cancelled = true;
+      };
     }, const []);
 
     final colors = vt.resolve(Theme.of(context).colorScheme);

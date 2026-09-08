@@ -1,7 +1,7 @@
 name: atlas_app
 description: "Atlas — AI-native reading platform."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.7+7
 
 environment:
   sdk: ^3.11.0
@@ -44,6 +44,8 @@ dependencies:
 
   # Networking
   http: ^1.5.0
+  cronet_http: ^1.9.0
+  cupertino_http: ^3.0.2
 
   # HTML DOM parsing (content engine)
   html: ^0.15.5
@@ -93,6 +95,7 @@ dependencies:
   flutter_local_notifications: ^22.3.0
   permission_handler: ^13.0.1
   rxdart: ^0.28.0
+  share_plus: ^12.0.2
 
 # permission_handler_android 14.0.0 is broken (requires compileSdk 37 / AGP 9,
 # which no stable toolchain provides — see Baseflow issue #1556).

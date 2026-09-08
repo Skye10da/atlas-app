@@ -1,43 +1,82 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
-import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
 
+class _CollectionItem {
+  const _CollectionItem({
+    required this.title,
+    required this.key,
+    required this.query,
+    required this.gradientColors,
+    required this.textColor,
+    required this.icon,
+  });
+
+  final String title;
+  final String key;
+  final String query;
+  final List<Color> gradientColors;
+  final Color textColor;
+  final IconData icon;
+}
+
+/// Curated collections / genres 2-column grid backed by real library book counts.
 class GenreCarouselSection extends StatelessWidget {
-  const GenreCarouselSection({super.key});
+  const GenreCarouselSection({
+    super.key,
+    this.genreBookCounts = const {},
+  });
 
-  static const _genres = [
-    GenreMoodCategory(
+  final Map<String, int> genreBookCounts;
+
+  static const List<_CollectionItem> _collections = [
+    _CollectionItem(
       title: 'Wuxia',
-      countLabel: 'Martial Arts & Cultivation',
-      bgColor: Color(0xFF2C1814),
-      accentColor: Color(0xFFFF7043),
+      key: 'wuxia',
+      query: 'wuxia',
+      gradientColors: [Color(0xFFFDD8D8), Color(0xFFFBCFE8)],
+      textColor: Color(0xFF9D174D),
       icon: Icons.sports_martial_arts_rounded,
-      tagQuery: 'wuxia',
     ),
-    GenreMoodCategory(
-      title: 'Sci-Fi',
-      countLabel: 'Space & Cyberpunk',
-      bgColor: Color(0xFF102A43),
-      accentColor: Color(0xFF38BEC9),
-      icon: Icons.rocket_launch_rounded,
-      tagQuery: 'sci-fi',
-    ),
-    GenreMoodCategory(
-      title: 'Dark Fantasy',
-      countLabel: 'Magic & Monsters',
-      bgColor: Color(0xFF231834),
-      accentColor: Color(0xFFB794F4),
-      icon: Icons.auto_fix_high_rounded,
-      tagQuery: 'fantasy',
-    ),
-    GenreMoodCategory(
+    _CollectionItem(
       title: 'Romance',
-      countLabel: 'Drama & Royalty',
-      bgColor: Color(0xFF331422),
-      accentColor: Color(0xFFF687B3),
+      key: 'romance',
+      query: 'romance',
+      gradientColors: [Color(0xFFE8D8FD), Color(0xFFDDD6FE)],
+      textColor: Color(0xFF5B21B6),
       icon: Icons.favorite_rounded,
-      tagQuery: 'romance',
+    ),
+    _CollectionItem(
+      title: 'Sci-Fi',
+      key: 'scifi',
+      query: 'sci-fi',
+      gradientColors: [Color(0xFFD8ECFD), Color(0xFFBFDBFE)],
+      textColor: Color(0xFF1E40AF),
+      icon: Icons.rocket_launch_rounded,
+    ),
+    _CollectionItem(
+      title: 'Fantasy',
+      key: 'fantasy',
+      query: 'fantasy',
+      gradientColors: [Color(0xFFD1FAE5), Color(0xFFA7F3D0)],
+      textColor: Color(0xFF065F46),
+      icon: Icons.auto_fix_high_rounded,
+    ),
+    _CollectionItem(
+      title: 'Mystery',
+      key: 'mystery',
+      query: 'mystery',
+      gradientColors: [Color(0xFFFEF3C7), Color(0xFFFDE68A)],
+      textColor: Color(0xFF92400E),
+      icon: Icons.search_rounded,
+    ),
+    _CollectionItem(
+      title: 'Classics',
+      key: 'classic',
+      query: 'classic',
+      gradientColors: [Color(0xFFFEE2E2), Color(0xFFFECACA)],
+      textColor: Color(0xFF991B1B),
+      icon: Icons.account_balance_rounded,
     ),
   ];
 
@@ -53,84 +92,107 @@ class GenreCarouselSection extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Explore Genres',
+              'Curated Collections',
               style: TextStyle(
                 fontFamily: 'Playfair Display',
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            Text(
-              'Mood Catalogs',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.w600,
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => context.go('/library'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Text(
+                  'All genres',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.smMd),
-        SizedBox(
-          height: 112,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _genres.length,
-            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.smMd),
-            itemBuilder: (context, index) {
-              final cat = _genres[index];
-              return Material(
-                color: cat.bgColor,
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1.45,
+          ),
+          itemCount: _collections.length,
+          itemBuilder: (context, index) {
+            final item = _collections[index];
+            final count = genreBookCounts[item.key] ?? 0;
+
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
                 borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () {
-                    final query = cat.tagQuery ?? cat.title.toLowerCase();
-                    context.go('/library?genre=${Uri.encodeComponent(query)}');
-                  },
-                  child: Container(
-                    width: 140,
-                    padding: const EdgeInsets.all(AppSpacing.smMd),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: cat.accentColor.withValues(alpha: 0.3),
+                onTap: () {
+                  context.go('/library?genre=${Uri.encodeComponent(item.query)}');
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      colors: item.gradientColors,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: item.gradientColors.last.withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Icon(cat.icon, size: 22, color: cat.accentColor),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              cat.title,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: cat.accentColor,
-                              ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Icon(
+                        item.icon,
+                        size: 26,
+                        color: item.textColor.withValues(alpha: 0.9),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.title,
+                            style: TextStyle(
+                              fontFamily: 'Playfair Display',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: item.textColor,
+                              height: 1.2,
                             ),
-                            const SizedBox(height: 1),
-                            const Text(
-                              'Explore catalog',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.white70,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$count ${count == 1 ? 'book' : 'books'}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: item.textColor.withValues(alpha: 0.75),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         ),
       ],
     );

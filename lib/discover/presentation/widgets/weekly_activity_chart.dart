@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/router/app_router.dart';
 import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
 
 class WeeklyActivityChart extends StatelessWidget {
@@ -16,131 +16,112 @@ class WeeklyActivityChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    // Find max chapters in the week for relative scaling
     final maxChapters = weeklyActivity.fold<int>(
       1,
       (max, day) => day.chaptersRead > max ? day.chaptersRead : max,
     );
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => AppRouter.openAnalytics(context),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF3EDF7),
+          borderRadius: BorderRadius.circular(16),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Weekly Activity',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "This Week's Activity",
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1C1B1F),
                   ),
-                  Text(
-                    '7-day reading consistency',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 11,
-                    ),
+                ),
+                Text(
+                  '$totalChapters chapters',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF7C3AED),
                   ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '$totalChapters chapters',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (todayMinutes > 0)
-                    Text(
-                      '${todayMinutes}m today',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(
-            height: 98,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: weeklyActivity.map((day) {
-                final ratio = maxChapters > 0
-                    ? (day.chaptersRead / maxChapters).clamp(0.12, 1.0)
-                    : 0.12;
-                final barHeight = (46.0 * ratio).clamp(8.0, 46.0);
-
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (day.chaptersRead > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          '${day.chaptersRead}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: day.isToday
-                                ? colorScheme.primary
-                                : colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    Container(
-                      width: 28,
-                      height: barHeight,
-                      decoration: BoxDecoration(
-                        color: day.isToday
-                            ? colorScheme.primary
-                            : (day.chaptersRead > 0
-                                ? colorScheme.primary.withValues(alpha: 0.5)
-                                : colorScheme.surfaceContainerHighest),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      day.dayLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: day.isToday
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: day.isToday
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
+                ),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 84,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: weeklyActivity.map((day) {
+                  final ratio = maxChapters > 0
+                      ? (day.chaptersRead / maxChapters).clamp(0.08, 1.0)
+                      : 0.08;
+                  final barHeight = (68.0 * ratio).clamp(8.0, 68.0);
+                  final hasActivity = day.chaptersRead > 0;
+
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: Container(
+                                width: double.infinity,
+                                height: barHeight,
+                                decoration: BoxDecoration(
+                                  gradient: (day.isToday || hasActivity)
+                                      ? const LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [Color(0xFF7C3AED), Color(0xFF5B21B6)],
+                                        )
+                                      : null,
+                                  color: (!day.isToday && !hasActivity)
+                                      ? const Color(0xFFD1C4E9)
+                                      : null,
+                                  borderRadius: BorderRadius.circular(6),
+                                  boxShadow: day.isToday
+                                      ? [
+                                          BoxShadow(
+                                            color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            day.dayLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: day.isToday ? FontWeight.w700 : FontWeight.w500,
+                              color: day.isToday ? const Color(0xFF7C3AED) : const Color(0xFF79747E),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

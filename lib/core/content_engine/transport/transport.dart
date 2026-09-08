@@ -44,6 +44,7 @@ class TransportException implements Exception {
     this.botChallenge = false,
     this.statusCode,
     this.retryAfter,
+    this.isTransient = false,
   });
 
   final String message;
@@ -70,6 +71,13 @@ class TransportException implements Exception {
   /// Server-provided hint for when to retry (`Retry-After` header), parsed
   /// from the integer-seconds form. Null when absent or unparseable.
   final Duration? retryAfter;
+
+  /// Transient network blip (timeout / socket closed / ClientException) —
+  /// retryable via silent WebView or a fresh socket. Distinct from
+  /// [botChallenge]/[sessionExpired] so callers can distinguish network blips
+  /// from auth / challenge flows. Only set true by `HttpTransport` for
+  /// keep-alive races; generic `TransportException('boom')` stays false.
+  final bool isTransient;
 
   @override
   String toString() => 'TransportException: $message';

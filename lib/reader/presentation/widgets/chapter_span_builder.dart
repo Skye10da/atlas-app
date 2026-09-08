@@ -220,17 +220,26 @@ class ChapterSpanBuilder {
       }
     }
 
+    bool lastWasCard = false;
     for (final span in spans) {
       if (!span.isCard) {
         final prose = span.prose ?? '';
         if (prose.isEmpty) continue;
         final idx = content.indexOf(prose, cursor);
-        final start = idx >= 0 ? idx : cursor;
-        final end = (start + prose.length).clamp(start, content.length).toInt();
+        final isFirstSpan = richSpans.isEmpty;
+        final start = (!lastWasCard && !isFirstSpan && idx >= cursor)
+            ? cursor
+            : (idx >= 0 ? idx : cursor);
+        final end = idx >= 0
+            ? (idx + prose.length).clamp(start, content.length).toInt()
+            : (start + prose.length).clamp(start, content.length).toInt();
         cursor = end;
         addProseSpans(start, end);
+        lastWasCard = false;
         continue;
       }
+
+      lastWasCard = true;
 
       final card = span.card!;
       final idx = content.indexOf(card.rawText, cursor);

@@ -23,7 +23,7 @@ class AppSessionRefreshBridge extends HookConsumerWidget {
         if (navigator == null) return false;
         final result = await navigator.push<bool>(
           MaterialPageRoute<bool>(
-            fullscreenDialog: true,
+            fullscreenDialog: false,
             builder: (_) => SessionRefreshScreen(
               origin: request.origin,
               seedUrl: request.seedUrl,

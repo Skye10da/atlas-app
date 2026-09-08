@@ -43,6 +43,7 @@ class WebViewFetchService {
   WebViewFetcher? fetcher;
 
   /// Always-available background fetcher (see `silent_web_view_host.dart`),
+  /// Always-available background fetcher (see `silent_web_view_service.dart` / `headless_webview_pool.dart`),
   /// used only when the live browser cannot serve the request.
   WebViewFetcher? fallbackFetcher;
 }
@@ -123,9 +124,15 @@ class WebViewTransport implements Transport {
   /// High-performance HTTP-First execution:
   /// Executes [run] against the inner transport (fast HTTP + cookie replay).
   ///
-  /// Only on a bot challenge (Cloudflare 403/503) or session wall does it:
+  /// Only on a bot challenge (Cloudflare 403/503 or 200-masquerading challenge
+  /// body) or session wall does it:
   /// 1. Try a live open browser tab on that origin (if available).
-  /// 2. If unresolved, escalate to [SessionRefreshService] so the app can
+  /// 2. Then try the always-mounted silent background WebView
+  ///    (`SilentWebViewHost` at 1x1 — only navigates on a challenged fetch,
+  /// 2. Then try the silent headless background WebView pool
+  ///    (HeadlessInAppWebView pool — only navigates on a challenged fetch,
+  ///    idle otherwise — so no cost on startup or non-CF sites).
+  /// 3. If unresolved, escalate to [SessionRefreshService] so the app can
   ///    offer a visible re-verify pass.
   Future<T> _exec<T>(
     Future<T> Function() run,
@@ -139,20 +146,21 @@ class WebViewTransport implements Transport {
     try {
       return await run();
     } on TransportException catch (e) {
-      if (e.sessionExpired || e.botChallenge) {
-        // Try live open browser tab if present
-        final liveResult = await _tryLiveWebView(
+      final shouldFallback = e.sessionExpired || e.botChallenge || e.isTransient;
+      if (shouldFallback) {
+        final fallbacksSucceeded = await _tryWebViewFallbacks(
           url,
           headers: headers,
           method: method,
           jsonBody: jsonBody,
           binary: binary,
+          decode: decode,
         );
-        if (liveResult != null && (liveResult.body != null || liveResult.bytes != null)) {
-          return decode(liveResult);
-        }
+        if (fallbacksSucceeded != null) return fallbacksSucceeded;
 
-        // Escalate to session refresh
+        // Escalate to session refresh for bot/session, or surface transient
+        // network blip as a refresh-eligible error so the UI shows Retry /
+        // Re-verify instead of a raw ClientException string.
         SessionRefreshService.instance.markInvalid(
           url,
           seedUrl: url,
@@ -163,20 +171,62 @@ class WebViewTransport implements Transport {
           cause: e,
           sessionExpired: true,
           botChallenge: e.botChallenge,
+          statusCode: e.statusCode,
+          retryAfter: e.retryAfter,
+          isTransient: e.isTransient,
         );
       }
       rethrow;
     }
   }
 
-  Future<WebViewFetchResult?> _tryLiveWebView(
+  Future<T?> _tryWebViewFallbacks<T>(
+    Uri url, {
+    Map<String, String>? headers,
+    String? method,
+    Object? jsonBody,
+    bool binary = false,
+    required T Function(WebViewFetchResult) decode,
+  }) async {
+    // Try live open browser tab if present
+    final liveResult = await _tryFetchWith(
+      _service.fetcher,
+      url,
+      headers: headers,
+      method: method,
+      jsonBody: jsonBody,
+      binary: binary,
+    );
+    if (liveResult != null && (liveResult.body != null || liveResult.bytes != null)) {
+      return decode(liveResult);
+    }
+
+    // Then try the silent background WebView — only does work when this
+    // exact origin was challenged or transiently unreachable (lazy
+    // `_navigateTo` inside `SilentWebViewService:68`), otherwise returns
+    // null quickly.
+    final silentResult = await _tryFetchWith(
+      _service.fallbackFetcher,
+      url,
+      headers: headers,
+      method: method,
+      jsonBody: jsonBody,
+      binary: binary,
+    );
+    if (silentResult != null && (silentResult.body != null || silentResult.bytes != null)) {
+      return decode(silentResult);
+    }
+    return null;
+  }
+
+  Future<WebViewFetchResult?> _tryFetchWith(
+    WebViewFetcher? fetcher,
     Uri url, {
     Map<String, String>? headers,
     String? method,
     Object? jsonBody,
     bool binary = false,
   }) async {
-    final fetcher = _service.fetcher;
     if (fetcher == null) return null;
     try {
       final result = await fetcher(

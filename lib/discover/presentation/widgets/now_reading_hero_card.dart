@@ -17,19 +17,37 @@ class NowReadingHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (book == null) {
-      return Container(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141724),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: const Center(
-          child: Text(
-            'Add books to your library to start reading.',
-            style: TextStyle(color: Colors.white70),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'CONTINUE READING',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.5,
+              color: Color(0xFF79747E),
+            ),
           ),
-        ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Center(
+              child: Text(
+                'Add books to your library to start reading.',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          ),
+        ],
       );
     }
 
@@ -39,242 +57,203 @@ class NowReadingHeroCard extends StatelessWidget {
     final title = nowReading.title;
     final author = nowReading.author ?? 'Unknown Author';
 
-    // Calculate approximate time left: Assuming avg 250 wpm or 3 min per chapter
-    final chaptersLeft = (nowReading.totalChapters - (nowReading.totalChapters * progressVal)).round();
-    final hoursLeft = (chaptersLeft * 3 / 60).floor();
-    final minsLeft = (chaptersLeft * 3 % 60).round();
-    final timeLeftStr = hoursLeft > 0 ? '${hoursLeft}h ${minsLeft}m left' : '${minsLeft}m left';
-
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1E2238),
-            Color(0xFF131627),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F111E).withValues(alpha: 0.6),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'CONTINUE READING',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: Color(0xFF79747E),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Row: NOW READING + Circular Glowing Progress
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFFB300),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'NOW READING',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-              // Circular progress ring
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 46,
-                    height: 46,
-                    child: CircularProgressIndicator(
-                      value: progressVal > 0 ? progressVal : 0.05,
-                      strokeWidth: 3.5,
-                      backgroundColor: Colors.white12,
-                      color: const Color(0xFFFFB300),
-                    ),
-                  ),
-                  Text(
-                    '$progressPct%',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF1A1A2E),
+                Color(0xFF16213E),
+                Color(0xFF0F3460),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1A1A2E).withValues(alpha: 0.35),
+                blurRadius: 30,
+                offset: const Offset(0, 12),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-
-          // Middle Content: 3D Cover + Title/Author + Quote
-          Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: 76,
-                    height: 110,
-                    child: BookCover(
-                      coverPath: nowReading.coverPath,
-                      width: 76,
-                      height: 110,
+              // Top label & Circular Progress Ring
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'NOW READING',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                      color: Colors.white38,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontFamily: 'Playfair Display',
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: -0.3,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      author,
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 13,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
+                  SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Stack(
+                      alignment: Alignment.center,
                       children: [
-                        const Icon(
-                          Icons.schedule_rounded,
-                          size: 14,
-                          color: Color(0xFFFFB300),
+                        CircularProgressIndicator(
+                          value: progressVal > 0 ? progressVal : 0.05,
+                          strokeWidth: 3.5,
+                          backgroundColor: Colors.white12,
+                          color: const Color(0xFFA78BFA),
                         ),
-                        const SizedBox(width: 4),
                         Text(
-                          timeLeftStr,
+                          '$progressPct%',
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFFFFB300),
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // Highlight Quote if available
-          if (latestQuote != null && latestQuote!.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.format_quote_rounded,
-                    size: 16,
-                    color: Colors.white38,
                   ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      latestQuote!,
-                      style: const TextStyle(
-                        fontStyle: FontStyle.italic,
-                        fontSize: 12,
-                        color: Colors.white70,
-                        height: 1.3,
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Book Cover + Title/Author + Quote
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 114,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: BookCover(
+                              coverPath: nowReading.coverPath,
+                              width: 80,
+                              height: 114,
+                            ),
+                          ),
+                          // Spine accent border
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: 3,
+                            child: Container(
+                              color: Colors.white.withValues(alpha: 0.25),
+                            ),
+                          ),
+                        ],
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontFamily: 'Playfair Display',
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            height: 1.25,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          author,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.white54,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          latestQuote != null && latestQuote!.isNotEmpty
+                              ? '"$latestQuote"'
+                              : '"Strength is not given. It is carved from everything that tried to break you."',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.white70,
+                            height: 1.4,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
 
-          const SizedBox(height: AppSpacing.md),
-
-          // Bottom Action: Resume Reading Button
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFB300),
-                foregroundColor: const Color(0xFF131627),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: () {
-                context.push('/reader/');
-              },
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.auto_stories_rounded, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'Resume Reading',
+              // White Continue Reading Button
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF1A1A2E),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    context.push('/reader/${nowReading.id}');
+                  },
+                  icon: const Icon(Icons.auto_stories_rounded, size: 18),
+                  label: const Text(
+                    'Continue Reading',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

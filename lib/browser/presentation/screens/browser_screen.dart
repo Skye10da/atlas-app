@@ -264,6 +264,8 @@ class BrowserScreen extends HookConsumerWidget {
           ),
         );
         if (ok == true && context.mounted) {
+          await captureBrowserSession(url);
+          if (!context.mounted) return;
           final webViewService = WebViewFetchService.instance;
           final previousFetcher = webViewService.fetcher;
           final activeEngine = tabs.activeTab?.engine;
@@ -916,7 +918,14 @@ class BrowserScreen extends HookConsumerWidget {
                   bottom: AppSpacing.md,
                   child: Center(
                     child: _AddToLibraryPill(
-                      onPressed: () {
+                      onPressed: () async {
+                        // Capture current browser cookies *before* import so
+                        // CookieTransport replay has cf_clearance if the
+                        // challenge was just solved in this tab.
+                        final activeUrl = tabs.activeTab?.url;
+                        if (activeUrl != null) {
+                          await captureBrowserSession(activeUrl);
+                        }
                         final webViewService = WebViewFetchService.instance;
                         final previousFetcher = webViewService.fetcher;
                         final activeEngine = tabs.activeTab?.engine;
@@ -926,7 +935,8 @@ class BrowserScreen extends HookConsumerWidget {
                           ).fetchHtml;
                         }
 
-                        showImportUrlSheet(
+                        if (!context.mounted) return;
+                        final outcome = await showImportUrlSheet(
                           context,
                           title: 'Add to Library',
                           initialUrl: curNovelUrl,
@@ -936,14 +946,13 @@ class BrowserScreen extends HookConsumerWidget {
                                 curNovelUrl,
                                 onProgress: onProgress,
                               ),
-                        ).then((outcome) {
-                          webViewService.fetcher = previousFetcher;
-                          if (outcome == null || !context.mounted) return;
-                          final route = outcome.category == ContentCategory.novel
-                              ? '/novel/${outcome.bookId}'
-                              : '/book/${outcome.bookId}';
-                          context.go(route);
-                        });
+                        );
+                        webViewService.fetcher = previousFetcher;
+                        if (outcome == null || !context.mounted) return;
+                        final route = outcome.category == ContentCategory.novel
+                            ? '/novel/${outcome.bookId}'
+                            : '/book/${outcome.bookId}';
+                        context.go(route);
                       },
                     ),
                   ),

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:atlas_app/core/design_system/molecules/milestone_celebration_dialog.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/router/app_router.dart';
 import 'package:atlas_app/notifications/presentation/providers/notification_provider.dart';
 
 class DiscoverHeader extends ConsumerWidget {
@@ -35,10 +35,12 @@ class DiscoverHeader extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Good $timeOfDay • $dayName',
+                '$dayName $timeOfDay',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                  letterSpacing: 0.3,
                 ),
               ),
               const SizedBox(height: 2),
@@ -49,59 +51,56 @@ class DiscoverHeader extends ConsumerWidget {
                   fontSize: 26,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.5,
+                  height: 1.2,
                 ),
               ),
             ],
           ),
         ),
-        // Streak Pill
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
-            onTap: () => MilestoneCelebrationDialog.show(
-              context,
-              milestone: streakDays >= 30
-                  ? MilestoneType.streakThirtyDays
-                  : (streakDays >= 7
-                      ? MilestoneType.streakSevenDays
-                      : MilestoneType.streakThreeDays),
-              customMessage: '-day reading streak maintained! Keep up the flame.',
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: colorScheme.tertiaryContainer.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
-                border: Border.all(
-                  color: colorScheme.tertiary.withValues(alpha: 0.3),
+        const SizedBox(width: AppSpacing.sm),
+        // Streak Pill - Tapping opens full Analytics dashboard
+        InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => AppRouter.openAnalytics(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFF3E0), Color(0xFFFFE0B2)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFE65100).withValues(alpha: 0.15),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.local_fire_department_rounded,
-                    size: 18,
-                    color: colorScheme.onTertiaryContainer,
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '🔥',
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '$streakDays',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Color(0xFFE65100),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$streakDays DAY',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      letterSpacing: 0.5,
-                      color: colorScheme.onTertiaryContainer,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        // Notification Bell with Badge
+        const SizedBox(width: 8),
+        // Notification Bell with Badge Dot
         _NotificationBellBadge(unreadCount: unreadCount),
       ],
     );
@@ -128,65 +127,45 @@ class _NotificationBellBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
     final count = unreadCount.valueOrNull ?? 0;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => context.push('/notifications'),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => context.push('/notifications'),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.notifications_none_rounded,
+              size: 20,
+              color: colorScheme.onSurfaceVariant,
             ),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Icon(
-                Icons.notifications_none_rounded,
-                size: 22,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              if (count > 0)
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: colorScheme.error,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: colorScheme.surface,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        count > 99 ? '99+' : '',
-                        style: TextStyle(
-                          color: colorScheme.onError,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+            if (count > 0)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: colorScheme.error,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: colorScheme.surface,
+                      width: 1.5,
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );

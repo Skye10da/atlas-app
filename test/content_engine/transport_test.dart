@@ -128,6 +128,31 @@ void main() {
 
       expect(inner.jsonPostCalls, 2);
     });
+
+    test('evicts least recently used entry when maxEntries is exceeded', () async {
+      final inner = _CountingTransport();
+      final cached = CachedTransport(inner: inner, maxEntries: 2);
+
+      await cached.fetchHtml(Uri.parse('https://example.com/1')); // [1]
+      await cached.fetchHtml(Uri.parse('https://example.com/2')); // [1, 2]
+      expect(inner.htmlCalls, 2);
+
+      // Access 1 again, making 2 the LRU entry: [2, 1]
+      await cached.fetchHtml(Uri.parse('https://example.com/1'));
+      expect(inner.htmlCalls, 2);
+
+      // Add 3, which should evict 2 (LRU): [1, 3]
+      await cached.fetchHtml(Uri.parse('https://example.com/3'));
+      expect(inner.htmlCalls, 3);
+
+      // 1 should still be cached:
+      await cached.fetchHtml(Uri.parse('https://example.com/1'));
+      expect(inner.htmlCalls, 3);
+
+      // 2 was evicted, so fetching it calls inner transport again:
+      await cached.fetchHtml(Uri.parse('https://example.com/2'));
+      expect(inner.htmlCalls, 4);
+    });
   });
 
   group('StealthTransport', () {

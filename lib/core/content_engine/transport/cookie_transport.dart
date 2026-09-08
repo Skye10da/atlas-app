@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+import 'package:atlas_app/core/content_engine/transport/browser_header_utils.dart';
+import 'package:atlas_app/core/content_engine/transport/cronet_version_provider.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 
 /// Wraps [inner] with cookies and a User-Agent sourced from the platform
@@ -53,7 +55,9 @@ class CookieTransport implements Transport {
   Future<String> _userAgent() {
     final cached = _cachedUserAgent;
     if (cached != null) return Future.value(cached);
-    return (_userAgentLookup ??= _fetchDefaultUserAgent()).then((ua) => ua ?? _fallbackUserAgent);
+    return (_userAgentLookup ??= _fetchDefaultUserAgent()).then(
+      (ua) => ua ?? _fallbackUserAgent,
+    );
   }
 
   static String get _fallbackUserAgent {
@@ -108,8 +112,15 @@ class CookieTransport implements Transport {
       final cookies = await CookieManager.instance().getCookies(
         url: WebUri.uri(url),
       );
-      if (cookies.isNotEmpty) {
-        result['Cookie'] = cookies
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final validCookies = cookies.where((c) {
+        final expires = c.expiresDate;
+        if (expires == null) return true;
+        return expires > nowMs;
+      }).toList();
+
+      if (validCookies.isNotEmpty) {
+        result['Cookie'] = validCookies
             .map((c) => '${c.name}=${c.value}')
             .join('; ');
       }
@@ -117,18 +128,22 @@ class CookieTransport implements Transport {
       // No cookie store on this platform, or lookup failed — proceed without
       // one; [inner]'s own bot-challenge handling takes over from here.
     }
-    if (!result.containsKey('User-Agent')) {
-      final ua = await _userAgent();
-      result['User-Agent'] = ua;
+    final ua = result['User-Agent'] ?? await _userAgent();
+    // On Android prefer the real Cronet/Chromium version for `sec-ch-ua`.
+    // Falls back to UA parsing when Cronet is unavailable or on other platforms.
+    String? cronetVersion;
+    try {
+      cronetVersion = await CronetVersionProvider.getVersion().timeout(
+        const Duration(milliseconds: 300),
+      );
+    } catch (_) {
+      cronetVersion = CronetVersionProvider.cachedVersion;
     }
-    if (!result.containsKey('Accept')) {
-      result['Accept'] =
-          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8';
-    }
-    if (!result.containsKey('Accept-Language')) {
-      result['Accept-Language'] = 'en-US,en;q=0.9';
-    }
-    return result;
+    return BrowserHeaderUtils.buildBrowserHeaders(
+      userAgent: ua,
+      existingHeaders: result,
+      cronetVersion: cronetVersion,
+    );
   }
 
   @override

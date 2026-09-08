@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:atlas_app/core/content_acquisition/adapters/source_adapter.dart';
@@ -230,6 +229,37 @@ void main() {
       await manager.waitForIdle();
 
       expect(source.fetchCount, 1);
+    });
+
+    test('limits concurrent downloads per domain according to maxConcurrentPerDomain', () async {
+      final source = _FakeSource(delay: const Duration(milliseconds: 50));
+      final manager = DownloadManager(
+        cacheManager: cache,
+        workerCount: 4,
+        maxConcurrentPerDomain: 1,
+      );
+
+      final maxConcurrentSameDomain = <int>[];
+      var activeSameDomain = 0;
+
+      manager.events.listen((e) {
+        if (e.status == DownloadStatus.downloading) {
+          activeSameDomain++;
+          maxConcurrentSameDomain.add(activeSameDomain);
+        } else if (e.status == DownloadStatus.done) {
+          activeSameDomain--;
+        }
+      });
+
+      manager.enqueueMany('book1', [
+        chapter(0),
+        chapter(1),
+        chapter(2),
+      ], source);
+      await manager.waitForIdle();
+
+      expect(maxConcurrentSameDomain.reduce((a, b) => a > b ? a : b), 1);
+      expect(await cache.hasChapter('book1', 'ch2'), isTrue);
     });
   });
 }

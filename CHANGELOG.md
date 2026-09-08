@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-09-08
+
+### Added
+- **Headless WebView transport pool** — `HeadlessWebViewPool` (`lib/browser/domain/services/headless_webview_pool.dart:1`) with per-origin pooling (`scheme://host[:port]`), LRU idle eviction at capacity, coalesced pending creations (`Completer`), memory-aware caps (<2 GB→1, <3 GB→2 view, from `/proc/meminfo`), and `HeadlessWebViewPool.single` test seam; paired with `HeadlessWebEngine` (`lib/browser/infrastructure/engines/headless_web_engine.dart:1`) — a `BrowserWebEngine` implementation for off-screen challenge solving without a visible `SilentWebViewHost`.
+- **Transport hardening layer** — new modules under `lib/core/content_engine/transport/`:
+  - `browser_header_utils.dart` — canonical browser header map (Sec-CH-UA, Accept-Language, etc.) for session-consistent requests.
+  - `challenge_detector.dart` — Cloudflare / bot-challenge fingerprinting (title/body heuristics + status-code checks) driving escalation to the session-refresh flow.
+  - `cronet_version_provider.dart` — Cronet/Chrome version discovery for realistic UA rotation.
+  - `native_client_factory.dart` — factory that builds `cronet_http` / `cupertino_http` native clients per platform with unified header injection.
+- **Reading analytics & goals persistence** — new Drift tables `discover_cache`, `reading_goals`, `reading_sessions` (`lib/core/database/tables/`), plus `ReadingAnalyticsEntity` / `ReadingAnalyticsReport` (`lib/discover/domain/entities/reading_analytics_entity.dart:1`). `ReadingAnalyticsService` (`lib/discover/infrastructure/services/reading_analytics_service.dart:9`) now tracks per-book sessions, computes 7-day + 30-day activity, time-of-day breakdown, genre stats, format ratio, streak, and pace clamping.
+- **Discover intelligence** — `DiscoverSettingsStore` (persisted filter/sort prefs), `OpdsTrendingService` + `RecommendationEngine` (`lib/discover/infrastructure/services/`) for curated/OPDS trending aggregation; UI surfaced via `ReadingAnalyticsProviders`, `ReadingAnalyticsScreen`, `TrendingListScreen`, `ForYouSection`, `QuickStatsRow`, `WeeklyGoalDiscoverCard`, `TrendingBookActionSheet` (`lib/discover/presentation/`).
+- **Discover dashboard maturity** (since 1.0.6) — full dashboard (`DiscoverDashboardData`, `DriftDiscoverRepository`, `TrendingService`) with `DiscoverHeader`, `NowReadingHeroCard`, `GenreCarouselSection`, `CuratedSourcesSection`, `TrendingSection`, `WeeklyActivityChart`, `EcosystemQuickGrid`, `StatsSummaryFooter` (`lib/discover/`), backed by five new plugin selector patches (`mvlempyr`, `noveldrama`, `novel-hub`, `readnovelfull`, `royalroad`, `wtrlab` selectors + `filters.json` tuned for FreeWebNovel).
+- **Architecture remediation: MVVM library** (`d67afec`) — `LibraryViewModel` + immutable `LibraryState` (`lib/library/presentation/view_models/`), `LibraryBackupService` (`lib/library/application/library_backup_service.dart:1`), `BookProviders` / `ChapterDownloadProvider` / `ChapterExpansionProvider` / `NovelActionsController`; library screens (`library_screen.dart`, `book_details_screen.dart`, `novel_details_screen.dart`, `source_browser_screen.dart`, `source_search_screen.dart`) rewritten to `ConsumerWidget`/`HookConsumerWidget` with zero `setState`.
+- **Block card / GameLit system-card pipeline** — `BlockCardDetector`, `BlockCardModel`, `StatSheetParser` and rules `BracketedLineRule` / `CharmSystemRule` / `PlayerPanelRule` (`lib/core/content_engine/block_card/`) with themed `BlockCardWidget` / `BlockCardTheme` (`lib/reader/presentation/widgets/block_card_theme.dart:1`) rendering inline interactive cards without breaking selection/scroll.
+- **Content-acquisition hardening** — `ChapterUpdateService` (`lib/core/content_acquisition/application/chapter_update_service.dart:1`) with periodic stale-cache sweep, `BookIdNormalizer` for canonical book keys, `DownloadManager` priority/dedup/backoff/cancel improvements; `EpubUrlSource` direct-URL guard.
+- **Design-system & accessibility** — `BookBadge`, `ConfirmDeleteDialog`, `MilestoneCelebrationDialog` atoms/molecules; `AppSheet` adaptive breakpoint overhaul (`lib/core/design_system/organisms/app_sheet.dart`), `AppContextMenu`, `CoverPaletteService` for dynamic cover palettes, `SplashScreen`.
+- **Import robustness** — `EpubHtmlConverter` (HTML→Markdown fidelity), `TextImportService` (adaptive chapter splitting), resilient `EpubImportService` / `OpenedFileImportService` with best-effort cover/outline extraction.
+- **Reader feature completeness** — `BookSearchService` / `BookSearchSheet`, `ReadingPreset` presets, `AnnotationsStorageService`, `ChapterPositionResolver`, `PagerBoundary` / `ChapterPager` / `PagedPageView`, `FootnoteSheet`, `NoteEditorSheet`, `QuoteShareCardSheet` (12-variant share card), `ReaderAnnotationsSheet`, `ReaderImageWidget`, `RealFlipReaderLayout` + `PdfFlipbookView`, `PdfBottomNav`, `ReaderSettingsPreviewCard`, `WtrAiTranslateService` / `AiChatClients` (OpenAI, Anthropic, Gemini, DeepSeek, Groq + custom endpoint streaming).
+- **Android packaging** — `split-per-abi`, R8 full-mode + `proguard-rules.pro`, on-demand Google Fonts (removes 20+ bundled TTFs), `permission_handler_android:13.0.1` pin for `compileSdk 37` breakage.
+
+### Changed
+- **Web transport architecture overhaul** (`0959923`) — `HttpTransport`, `CookieTransport`, `CachedTransport`, `WebviewTransport`, `WebviewFetchResult`, `Transport` interface and `SilentWebViewService`/`WebViewPageFetcher` rewritten around `HeadlessWebViewPool`; session headers now flow via `NativeClientFactory` + `BrowserHeaderUtils`; `CachedTransport` gains `WebViewFetchResult` metadata propagation.
+- **Reader layout precision** (`0959923` + `92d010e`) — `ChapterView` (`lib/reader/presentation/widgets/chapter_view.dart:1`), `ContinuousReaderLayout`, `PagedReaderLayout` (`2887` lines reflow), `PagedPageView`, `RealFlipReaderLayout` refactored for pixel-accurate pagination, boundary bounce protection, and indexed position memory (`scrollable_positioned_list`). Chrome refactored to `ReaderChromeProvider` / `ReaderChromeBar` overlay with `ReaderBarSurface` and command palette.
+- **Library UI refinement** — `LibraryScreen` (790-line rebuild), `BookDetailsScreen`, `ImportUrlDialog` (2266-line wizard), `BookCard` / `BookshelfGrid/List/Scattered`, `ChapterGroupedList` now driven by `LibraryViewModel` selectors; `DriftLibraryRepository` + `DriftReaderRepository` gain progress-aware queries.
+- **Discover-provider polish** — `DiscoverProviders`, `DriftDiscoverRepository`, `TrendingService`, and all `WeeklyActivityChart` / `NowReadingHeroCard` etc. updated to consume the new analytics tables; `AppRouter` routes for `reading_analytics` / `trending_list`.
+- **Browser shell** — `BrowserScreen` (1796-line glass shell rebuild), `SourceImmersiveScreen` added, `AppSessionRefreshBridge` session-refresh UX, `SilentWebViewHost` widget deleted in favor of pooled headless engines.
+- **Plugin selectors** — `freewebnovel/selectors.json` + `filters.json`, all `atlas-plugins/*/selectors.json` version-bumped to `1.0.1` + strip site boilerplate from titles.
+- **Theming & fonts** — `google_fonts` removed in favor of `FontCatalogService` / `FontDownloader` on-demand catalog (`assets/data/google_fonts_catalog.json`); `Inter` / `Open Sans` / `Playfair Display` retained as base fonts; `GeneratedPluginRegistrant` (macOS/Windows/Linux) regenerated.
+- **Code style** — `dart format` tall-style applied repo-wide (`cb16860`), `analysis_options.yaml` strict lints tightened; `CLAUDE.md` Zero-`setState` Declarative State Architecture rule documented.
+
+### Fixed
+- Escalate Cloudflare bot challenges to the session-refresh flow (`bf57b2a`) — `ChallengeDetector` now correctly routes `cf_clearance` failures through `SilentWebViewService` → `SessionRefreshScreen` instead of failing silently.
+- Strip site boilerplate from titles (`a4782de`) and normalize `atlas-plugins` JSON to LF via `.gitattributes` (`53e4570`).
+- `HttpTransport` header forwarding and `CookieTransport` persistence edge cases; `DownloadManager` cancellation race.
+- Reader shimmer (`ChapterShimmer`) and span-builder (`ChapterSpanBuilder`) off-by-one and highlight-boundary clipping.
+- `QuoteShareCardSheet` snapshot race and `ReaderContent` reflow jitter on font-size change.
+
+### Performance & Tooling
+- APK size: R8 + `isMinifyEnabled`/`isShrinkResources` + `split { abi { enable true }}` in `android/app/build.gradle.kts:11` plus on-demand fonts — reduces fat APK by ~40 % vs 1.0.6.
+- CI: `analysis_files` + `dart_fix` pre-commit gate (`CLAUDE.md`) now enforced; `flutter_driver` `driver_main.dart` UI-automation entrypoint retained.
+- Test suite: 26 new tests (`headless_webview_pool_test`, `browser_header_utils_test`, `challenge_detector_test`, `native_client_factory_test`, `reading_analytics_service_test`, `trending_and_import_test`, plus block-card / normalizer / wtr AI suites) — total now 738+ passing.
+
+## [1.0.6] - 2026-08-16
+
+### Fixed
+- Re-download chapters when the WTR translation service changes (`dabde0e`) and strip site boilerplate from titles; bump family plugins to 1.0.1.
+- Silence experimental coroutine deprecation on Windows for VS 2026 (`61033e4`) and use `engine.binaryMessenger` for macOS file-open channel (`46efeed`).
+
 ## [1.0.5] - 2026-08-14
 
 ### Added

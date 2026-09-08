@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:atlas_app/core/content_engine/transport/challenge_detector.dart';
+
 /// Result of a same-origin in-page `fetch`, carrying the pieces a plain body
 /// string hides: the HTTP status and the final URL after redirects. Those let
 /// the transport tell an expired session (401/403, login redirect) apart from
@@ -26,16 +28,9 @@ class WebViewFetchResult {
   /// Final URL after redirects; null when unavailable/errored.
   final Uri? finalUrl;
 
-  /// True when the body carries Cloudflare-style bot-challenge markers. A
-  /// challenge interstitial is HTTP 403, so it must be told apart from a
-  /// genuine auth wall before [isSessionWall] can classify 403s.
-  bool get isBotChallenge {
-    final lower = body?.toLowerCase() ?? '';
-    return lower.contains('just a moment') ||
-        lower.contains('attention required') ||
-        lower.contains('challenge-platform') ||
-        lower.contains('cf_chl');
-  }
+  /// True when the body carries Cloudflare-style bot-challenge markers.
+  /// Markers are synced with `ChallengeDetector.challengeMarkers`.
+  bool get isBotChallenge => ChallengeDetector.isChallengeBody(body ?? '');
 
   /// True when the server answered with an auth/session wall rather than
   /// content: an explicit 401, a non-Cloudflare 403, or a redirect onto a

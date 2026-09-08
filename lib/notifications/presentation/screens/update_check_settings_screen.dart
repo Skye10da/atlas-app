@@ -8,9 +8,11 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/notifications/domain/entities/update_check_settings.dart';
 import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
 import 'package:atlas_app/notifications/presentation/providers/update_check_settings_provider.dart';
+import 'package:atlas_app/discover/infrastructure/services/discover_settings_store.dart';
+import 'package:atlas_app/discover/presentation/providers/discover_providers.dart';
 import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
 
-/// Global preferences for ongoing-novel chapter update checks.
+/// Global preferences for ongoing-novel chapter update checks and discover caching.
 class UpdateCheckSettingsScreen extends HookConsumerWidget {
   const UpdateCheckSettingsScreen({super.key});
 
@@ -18,6 +20,15 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final checking = useState(false);
     final testingNotification = useState(false);
+    final refreshingDiscover = useState(false);
+    final discoverInterval = useState(12);
+
+    useEffect(() {
+      DiscoverSettingsStore.getIntervalHours().then((val) {
+        discoverInterval.value = val;
+      });
+      return null;
+    }, []);
 
     final settings =
         ref.watch(updateCheckSettingsProvider).valueOrNull ??
@@ -188,7 +199,82 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.md),
 
-              // 4. Actions Section
+              // 4. Discover & Trending Feeds Update Schedule
+              _CardSection(
+                title: 'Discover & Trending Feeds',
+                child: Column(
+                  children: [
+                    ChoiceTile<int>(
+                      title: 'Feed Update Frequency',
+                      value: discoverInterval.value,
+                      options: const [
+                        (6, 'Every 6 hours'),
+                        (12, 'Every 12 hours'),
+                        (24, 'Once daily'),
+                        (0, 'Manual refresh only'),
+                      ],
+                      onChanged: (val) async {
+                        discoverInterval.value = val;
+                        await DiscoverSettingsStore.setIntervalHours(val);
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.cached_rounded, color: colors.primary),
+                      title: const Text('Refresh Discover Feeds Now'),
+                      subtitle: const Text('Fetch latest trending novels, OPDS classics, and recommendations'),
+                      trailing: refreshingDiscover.value
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.chevron_right_rounded),
+                      onTap: refreshingDiscover.value
+                          ? null
+                          : () async {
+                              refreshingDiscover.value = true;
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                final trendingService = ref.refresh(trendingServiceProvider);
+                                await trendingService.fetchAllTrending(forceRefresh: true);
+                                ref.invalidate(discoverDashboardProvider);
+                                messenger.showSnackBar(
+                                  const SnackBar(content: Text('Discover feeds refreshed.')),
+                                );
+                              } catch (e) {
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text('Could not refresh feeds: $e')),
+                                );
+                              } finally {
+                                if (context.mounted) refreshingDiscover.value = false;
+                              }
+                            },
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.delete_sweep_rounded, color: colors.error),
+                      title: const Text('Clear Discover Cache'),
+                      subtitle: const Text('Remove stored offline trending and recommendation payloads'),
+                      onTap: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final cacheService = ref.read(discoverCacheServiceProvider);
+                        await cacheService.clearCache();
+                        ref.invalidate(discoverDashboardProvider);
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Discover cache cleared.')),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // 5. Actions Section
               _CardSection(
                 title: 'Actions',
                 child: Column(

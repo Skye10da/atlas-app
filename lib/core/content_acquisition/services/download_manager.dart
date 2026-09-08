@@ -17,17 +17,23 @@ class DownloadManager {
     CacheManager? cacheManager,
     this.workerCount = 4,
     this.maxAttempts = 3,
-    this.retryBackoff = const Duration(milliseconds: 500),
+    this.retryBackoff = const Duration(milliseconds: 800),
+    this.maxConcurrentPerDomain = 1,
+    this.domainCooldown = const Duration(milliseconds: 800),
   }) : cacheManager = cacheManager ?? CacheManager();
 
   final CacheManager cacheManager;
   final int workerCount;
   final int maxAttempts;
   final Duration retryBackoff;
+  final int maxConcurrentPerDomain;
+  final Duration domainCooldown;
 
   final StreamController<DownloadEvent> _events = StreamController.broadcast();
   final List<_QueuedTask> _queue = [];
   final Map<String, _QueuedTask> _running = {};
+  final Map<String, int> _activeByDomain = {};
+  final Map<String, DateTime> _lastRequestByDomain = {};
   bool _disposed = false;
 
   Stream<DownloadEvent> get events => _events.stream;
@@ -75,60 +81,109 @@ class DownloadManager {
   }
 
   Future<void> _pump() async {
-    while (!_disposed && _running.length < workerCount && _queue.isNotEmpty) {
-      final task = _queue.removeAt(0);
+    while (!_disposed &&
+        _running.length < workerCount &&
+        _queue.isNotEmpty) {
+      int taskIndex = -1;
+      for (var i = 0; i < _queue.length; i++) {
+        final candidate = _queue[i];
+        final domain = _domainOf(candidate);
+        final active = _activeByDomain[domain] ?? 0;
+        if (active < maxConcurrentPerDomain) {
+          taskIndex = i;
+          break;
+        }
+      }
+      if (taskIndex == -1) {
+        // All queued tasks belong to domains currently at their concurrency limit.
+        break;
+      }
+
+      final task = _queue.removeAt(taskIndex);
       _running[task.key] = task;
-      unawaited(_run(task));
+      final domain = _domainOf(task);
+      _activeByDomain[domain] = (_activeByDomain[domain] ?? 0) + 1;
+      unawaited(_run(task, domain));
     }
   }
 
-  Future<void> _run(_QueuedTask task) async {
-    var attempts = 0;
-    while (attempts < maxAttempts) {
-      attempts++;
-      _events.add(
-        DownloadEvent(task.bookId, task.chapter.id, DownloadStatus.downloading),
-      );
-      try {
-        final fetched = await task.source.getChapter(task.chapter);
-        final content = fetched.content;
-        if (content == null) throw Exception('Chapter content was empty');
+  String _domainOf(_QueuedTask task) {
+    final rawUrl = task.chapter.contentUrl;
+    if (rawUrl != null && rawUrl.isNotEmpty) {
+      final uri = Uri.tryParse(rawUrl);
+      if (uri != null && uri.host.isNotEmpty) {
+        return uri.host.toLowerCase();
+      }
+    }
+    return task.source.sourceName.toLowerCase();
+  }
 
-        await cacheManager.saveChapter(
-          task.bookId,
-          ChapterCacheData(
-            id: task.chapter.id,
-            title: fetched.title.isNotEmpty
-                ? fetched.title
-                : task.chapter.title,
-            index: task.chapter.index,
-            content: content,
-            wordCount: fetched.wordCount,
-          ),
-        );
-
-        _running.remove(task.key);
+  Future<void> _run(_QueuedTask task, String domain) async {
+    try {
+      var attempts = 0;
+      while (attempts < maxAttempts) {
+        if (_disposed) return;
+        attempts++;
         _events.add(
-          DownloadEvent(task.bookId, task.chapter.id, DownloadStatus.done),
+          DownloadEvent(task.bookId, task.chapter.id, DownloadStatus.downloading),
         );
-        await _pump();
-        return;
-      } catch (e) {
-        if (attempts >= maxAttempts) {
+
+        if (domainCooldown > Duration.zero) {
+          final last = _lastRequestByDomain[domain];
+          if (last != null) {
+            final elapsed = DateTime.now().difference(last);
+            if (elapsed < domainCooldown) {
+              await Future<void>.delayed(domainCooldown - elapsed);
+            }
+          }
+          _lastRequestByDomain[domain] = DateTime.now();
+        }
+
+        try {
+          final fetched = await task.source.getChapter(task.chapter);
+          final content = fetched.content;
+          if (content == null) throw Exception('Chapter content was empty');
+
+          await cacheManager.saveChapter(
+            task.bookId,
+            ChapterCacheData(
+              id: task.chapter.id,
+              title:
+                  fetched.title.isNotEmpty ? fetched.title : task.chapter.title,
+              index: task.chapter.index,
+              content: content,
+              wordCount: fetched.wordCount,
+            ),
+          );
+
           _running.remove(task.key);
           _events.add(
-            DownloadEvent(
-              task.bookId,
-              task.chapter.id,
-              DownloadStatus.failed,
-              error: e.toString(),
-            ),
+            DownloadEvent(task.bookId, task.chapter.id, DownloadStatus.done),
           );
           await _pump();
           return;
+        } catch (e) {
+          if (attempts >= maxAttempts) {
+            _running.remove(task.key);
+            _events.add(
+              DownloadEvent(
+                task.bookId,
+                task.chapter.id,
+                DownloadStatus.failed,
+                error: e.toString(),
+              ),
+            );
+            return;
+          }
+          await Future<void>.delayed(retryBackoff * attempts);
         }
-        await Future<void>.delayed(retryBackoff * attempts);
       }
+    } finally {
+      _activeByDomain[domain] = (_activeByDomain[domain] ?? 1) - 1;
+      if ((_activeByDomain[domain] ?? 0) <= 0) {
+        _activeByDomain.remove(domain);
+      }
+      await _pump();
     }
   }
 
@@ -136,6 +191,8 @@ class DownloadManager {
     _disposed = true;
     _queue.clear();
     _running.clear();
+    _activeByDomain.clear();
+    _lastRequestByDomain.clear();
     _events.close();
   }
 }

@@ -1,3 +1,5 @@
+import 'package:atlas_app/browser/presentation/screens/source_immersive_screen.dart';
+import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +16,21 @@ class SourceBrowserScreen extends ConsumerWidget {
       '~75,000 free ebooks in the public domain',
     ),
   };
+
+  static const _knownHomeUrls = {
+    'Project Gutenberg': 'https://www.gutenberg.org',
+    'Open Library': 'https://openlibrary.org',
+    'Standard Ebooks': 'https://standardebooks.org',
+    'Feedbooks': 'https://www.feedbooks.com',
+    'Public Domain Library': 'https://publicdomainlibrary.org',
+    'Royal Road': 'https://www.royalroad.com',
+  };
+
+  static bool _isValidHttpUrl(String? url) {
+    if (url == null || url.isEmpty) return false;
+    final uri = Uri.tryParse(url);
+    return uri != null && uri.hasScheme && uri.host.isNotEmpty;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,9 +74,26 @@ class SourceBrowserScreen extends ConsumerWidget {
               child: Text(meta.description, style: theme.textTheme.bodySmall),
             ),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(
-              '/sources/${Uri.encodeComponent(source.sourceName)}',
-            ),
+            onTap: () {
+              final pluginSource =
+                  source is PluginSource ? source : null;
+              final homeUrl = pluginSource?.manifest.baseUrl ??
+                  _knownHomeUrls[source.sourceName];
+              if (_isValidHttpUrl(homeUrl)) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SourceImmersiveScreen(
+                      initialUrl: homeUrl!,
+                      sourceTitle: source.sourceName,
+                    ),
+                  ),
+                );
+              } else {
+                context.push(
+                  '/sources/${Uri.encodeComponent(source.sourceName)}',
+                );
+              }
+            },
           );
         },
       ),

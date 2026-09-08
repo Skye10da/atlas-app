@@ -15,7 +15,7 @@
     "maxPages": 75
   },
   "chapterContent": {
-    "container": ".m-read",
+    "container": ".m-read .txt",
     "title": ".m-read .top .chapter"
   },
   "metadata": {

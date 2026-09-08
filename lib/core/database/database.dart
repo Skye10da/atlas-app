@@ -42,14 +42,51 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open(super.executor);
 
   @override
-  int get schemaVersion => 11;
-
+  int get schemaVersion => 12;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     beforeOpen: (details) async {
       await customStatement('PRAGMA journal_mode=WAL;');
       await customStatement('PRAGMA busy_timeout=5000;');
       await customStatement('PRAGMA synchronous=NORMAL;');
+      // Ensure schema 11 and 12 tables exist even on initial / in-memory DB setups
+      await customStatement('''
+        CREATE TABLE IF NOT EXISTS notification_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          payload TEXT,
+          book_id TEXT,
+          is_read INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        );
+      ''');
+      await customStatement('''
+        CREATE TABLE IF NOT EXISTS reading_sessions (
+          id TEXT NOT NULL PRIMARY KEY,
+          book_id TEXT NOT NULL,
+          duration_seconds INTEGER NOT NULL,
+          chapters_read INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL,
+          session_date INTEGER NOT NULL
+        );
+      ''');
+      await customStatement('''
+        CREATE TABLE IF NOT EXISTS reading_goals (
+          id TEXT NOT NULL PRIMARY KEY,
+          weekly_chapter_target INTEGER NOT NULL DEFAULT 20,
+          daily_minute_target INTEGER NOT NULL DEFAULT 30,
+          updated_at INTEGER NOT NULL
+        );
+      ''');
+      await customStatement('''
+        CREATE TABLE IF NOT EXISTS discover_cache (
+          cache_key TEXT NOT NULL PRIMARY KEY,
+          data_json TEXT NOT NULL,
+          cached_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL
+        );
+      ''');
     },
     onUpgrade: (migrator, from, to) async {
       if (from == 1) {
@@ -146,6 +183,35 @@ class AppDatabase extends _$AppDatabase {
             book_id TEXT,
             is_read INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL
+          );
+        ''');
+      }
+      if (from <= 11) {
+        // Reading analytics & Discover caching (schema 12)
+        await customStatement('''
+          CREATE TABLE IF NOT EXISTS reading_sessions (
+            id TEXT NOT NULL PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            duration_seconds INTEGER NOT NULL,
+            chapters_read INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            session_date INTEGER NOT NULL
+          );
+        ''');
+        await customStatement('''
+          CREATE TABLE IF NOT EXISTS reading_goals (
+            id TEXT NOT NULL PRIMARY KEY,
+            weekly_chapter_target INTEGER NOT NULL DEFAULT 20,
+            daily_minute_target INTEGER NOT NULL DEFAULT 30,
+            updated_at INTEGER NOT NULL
+          );
+        ''');
+        await customStatement('''
+          CREATE TABLE IF NOT EXISTS discover_cache (
+            cache_key TEXT NOT NULL PRIMARY KEY,
+            data_json TEXT NOT NULL,
+            cached_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
           );
         ''');
       }

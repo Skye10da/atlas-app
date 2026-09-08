@@ -70,6 +70,16 @@ class ChapterDownloadService {
         NetworkException('Failed to download chapter: no connection', e),
         st,
       );
+    } on HandshakeException catch (e, st) {
+      return Failure(
+        NetworkException('Failed to download chapter: TLS handshake failed', e),
+        st,
+      );
+    } on HttpException catch (e, st) {
+      return Failure(
+        NetworkException('Failed to download chapter: ${e.message}', e),
+        st,
+      );
     } on TransportException catch (e, st) {
       // Any other source-fetch failure (timeout, bad response, blocked
       // request, unsolved bot challenge, etc.) — still network-flavored from
@@ -109,6 +119,46 @@ class ChapterDownloadService {
         ch.index,
         targetLanguage: targetLanguage,
       );
+      results.add(result);
+      completed++;
+      onProgress?.call(completed, total);
+    }
+    return results;
+  }
+
+  /// Force-redownload a chapter, overwriting the cached file even when
+  /// `contentState == availableOffline`. Used for the explicit per-chapter
+  /// “Redownload” action (`ReaderContent` → overflow menu) and the bulk
+  /// “Redownload all” in book details. Always fetches in the original
+  /// language (`targetLanguage: null`) per spec — the on-disk text is
+  /// never rewritten by translation, and redownload should restore the source.
+  Future<Result<void>> redownloadChapter(
+    String bookId,
+    int chapterIndex,
+  ) async {
+    // Bypass any contentState check and force the source fetch + overwrite.
+    // `downloadChapter` with `targetLanguage: null` fetches the original
+    // source text and `updateChapterContent` handles version bump / checksum.
+    return downloadChapter(bookId, chapterIndex);
+  }
+
+  /// Bulk force-redownload — overwrites every chapter regardless of
+  /// `contentState`. Used by book-details “Redownload all” with progress
+  /// reporting. Original language only.
+  Future<List<Result<void>>> redownloadAllChapters(
+    String bookId, {
+    void Function(int, int)? onProgress,
+  }) async {
+    final chaptersResult = await readerRepo.getChapters(bookId);
+    if (chaptersResult is! Success<List<ChapterEntity>>) {
+      return [chaptersResult];
+    }
+    final chapters = chaptersResult.value;
+    final results = <Result<void>>[];
+    final total = chapters.length;
+    int completed = 0;
+    for (final ch in chapters) {
+      final result = await downloadChapter(bookId, ch.index);
       results.add(result);
       completed++;
       onProgress?.call(completed, total);

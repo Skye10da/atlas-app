@@ -1,3 +1,4 @@
+// ignore_for_file: dead_code, unnecessary_type_check
 import 'dart:async';
 
 import 'package:flutter/material.dart' hide WordBoundary;
@@ -34,6 +35,7 @@ import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
 import 'package:atlas_app/reader/speech/speech_events.dart';
 import 'package:atlas_app/reader/speech/speech_session.dart';
 import 'package:atlas_app/reader/speech/speech_session_builder.dart';
+import 'package:atlas_app/discover/presentation/providers/reading_analytics_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
 
@@ -78,13 +80,70 @@ class ReaderContent extends HookConsumerWidget {
     final wtrRawId = useState<int?>(null);
     final restoredCheckpoint = useState<SpeechCheckpoint?>(null);
     final popInProgress = useRef<bool>(false);
+    final isRedownloading = useState<bool>(false);
+
+    // Reading session tracking for Discover Analytics
+    final sessionStartTime = useRef<DateTime>(DateTime.now());
+    final sessionViewedChapterIds = useRef<Set<String>>(<String>{});
+    // Capture analytics service before dispose — `ref` cannot be used after
+    // the widget is disposed (hooks `dispose` runs after element unmount).
+    final analyticsService = ref.watch(readingAnalyticsServiceProvider);
+    final analyticsServiceRef = useRef(analyticsService);
+    analyticsServiceRef.value = analyticsService;
+
+    void flushReadingSession() {
+      final now = DateTime.now();
+      final elapsed = now.difference(sessionStartTime.value).inSeconds;
+      final chCount = sessionViewedChapterIds.value.isEmpty
+          ? 1
+          : sessionViewedChapterIds.value.length;
+      if (elapsed >= 5) {
+        analyticsServiceRef.value.recordReadingSession(
+          bookId: bookId,
+          durationSeconds: elapsed,
+          chaptersRead: chCount,
+        );
+        sessionStartTime.value = now;
+        sessionViewedChapterIds.value.clear();
+      }
+    }
 
     void resetPosition() {
       currentSentenceIndex.value = 0;
       currentSentenceTotal.value = 0;
     }
 
+    Future<void> handleRedownload() async {
+      final ch = currentChapter.value;
+      if (ch == null || isRedownloading.value) return;
+      isRedownloading.value = true;
+      try {
+        final service = ref.read(chapterDownloadServiceProvider);
+        final result = await service.redownloadChapter(bookId, ch.index);
+        if (!context.mounted) return;
+        if (result is Success) {
+          ref.invalidate(readerChapterContentProvider(ch));
+          // Refresh chapter list so contentState/version updates in DB watch.
+          ref.invalidate(novelChaptersProvider(bookId));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Redownloaded "${ch.title}"')));
+        } else {
+          final err = (result as Failure).error;
+          final msg = err is AppException
+              ? err.userMessage
+              : 'Redownload failed — check connection and try again.';
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
+        }
+      } finally {
+        if (context.mounted) isRedownloading.value = false;
+      }
+    }
+
     Future<void> saveProgress(ChapterEntity chapter) async {
+      sessionViewedChapterIds.value.add(chapter.id);
       await repo.saveProgress(
         userId: 'local',
         bookId: bookId,
@@ -133,12 +192,16 @@ class ReaderContent extends HookConsumerWidget {
       }
     }
 
-    Future<void> syncSpeechSession(ChapterEntity chapter, String content) async {
+    Future<void> syncSpeechSession(
+      ChapterEntity chapter,
+      String content,
+    ) async {
       final engine = ref.read(speechEngineProvider);
       if (engine.session?.chapterId == chapter.id) return;
 
       final narrationSettings =
-          ref.read(narrationSettingsProvider).value ?? const NarrationSettings();
+          ref.read(narrationSettingsProvider).value ??
+          const NarrationSettings();
       final checkpoint = restoredCheckpoint.value;
       final restoreHere =
           checkpoint != null &&
@@ -185,7 +248,10 @@ class ReaderContent extends HookConsumerWidget {
         bookAuthor.value = book.author;
         bookCoverPath.value = book.coverPath;
         wtrRawId.value =
-            isWtrLabSource(sourceUrl: book.sourceUrl, sourceName: book.sourceName)
+            isWtrLabSource(
+              sourceUrl: book.sourceUrl,
+              sourceName: book.sourceName,
+            )
             ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl)
             : null;
       }
@@ -194,8 +260,7 @@ class ReaderContent extends HookConsumerWidget {
           .load(bookId);
       if (!context.mounted) return;
       restoredCheckpoint.value =
-          checkpoint != null &&
-              chList.any((c) => c.id == checkpoint.chapterId)
+          checkpoint != null && chList.any((c) => c.id == checkpoint.chapterId)
           ? checkpoint
           : null;
     }
@@ -204,7 +269,9 @@ class ReaderContent extends HookConsumerWidget {
       final result = await repo.getBookmarks(bookId);
       if (!context.mounted) return;
       if (result is Success<List<BookmarkEntity>>) {
-        bookmarkedChapterIds.value = result.value.map((b) => b.chapterId).toSet();
+        bookmarkedChapterIds.value = result.value
+            .map((b) => b.chapterId)
+            .toSet();
       }
     }
 
@@ -242,10 +309,7 @@ class ReaderContent extends HookConsumerWidget {
       currentSentenceIndex.value = progressSnap?.position ?? 0;
       initialChapterId.value = null;
 
-      await Future.wait([
-        loadBookmarks(),
-        loadNarrationContext(loaded),
-      ]);
+      await Future.wait([loadBookmarks(), loadNarrationContext(loaded)]);
 
       if (!context.mounted) return;
       loading.value = false;
@@ -301,7 +365,10 @@ class ReaderContent extends HookConsumerWidget {
     }
 
     useEffect(() {
-      final speechSub = ref.read(speechEngineProvider).events.listen(onSpeechEvent);
+      final speechSub = ref
+          .read(speechEngineProvider)
+          .events
+          .listen(onSpeechEvent);
       loadChapters();
 
       return () {
@@ -310,6 +377,7 @@ class ReaderContent extends HookConsumerWidget {
         if (currentChapter.value != null) {
           saveProgress(currentChapter.value!);
         }
+        flushReadingSession();
         platformService.value?.setKeepScreenOn(false);
         platformService.value?.resetBrightness();
       };
@@ -320,24 +388,27 @@ class ReaderContent extends HookConsumerWidget {
       queryParams = GoRouterState.of(context).uri.queryParameters;
     } catch (_) {}
 
-    useEffect(() {
-      if (!readQueryParam.value && queryParams != null) {
-        initialChapterId.value = queryParams['chapterId'];
-        final progressParam = queryParams['progress'];
-        initialScrollProgress.value = progressParam != null
-            ? double.tryParse(progressParam)
-            : null;
-        readQueryParam.value = true;
-      }
-      applySystemSettings();
-      return null;
-    }, [
-      queryParams,
-      settings.keepScreenAwake,
-      settings.brightness,
-      settings.followSystemBrightness,
-      settings.autoOptimizeBrightness,
-    ]);
+    useEffect(
+      () {
+        if (!readQueryParam.value && queryParams != null) {
+          initialChapterId.value = queryParams['chapterId'];
+          final progressParam = queryParams['progress'];
+          initialScrollProgress.value = progressParam != null
+              ? double.tryParse(progressParam)
+              : null;
+          readQueryParam.value = true;
+        }
+        applySystemSettings();
+        return null;
+      },
+      [
+        queryParams,
+        settings.keepScreenAwake,
+        settings.brightness,
+        settings.followSystemBrightness,
+        settings.autoOptimizeBrightness,
+      ],
+    );
 
     if (loading.value) {
       final colorScheme = Theme.of(context).colorScheme;
@@ -375,8 +446,7 @@ class ReaderContent extends HookConsumerWidget {
     }
 
     final isBookmarked =
-        currCh != null &&
-        bookmarkedChapterIds.value.contains(currCh.id);
+        currCh != null && bookmarkedChapterIds.value.contains(currCh.id);
 
     final savedProgress = scrollProgress.value > 0
         ? scrollProgress.value
@@ -561,6 +631,8 @@ class ReaderContent extends HookConsumerWidget {
         onScrollDirectionChanged: onScrollDirectionChanged,
         onSettingsTap: showSettingsDrawer,
         onSearchTap: showSearchSheet,
+        onRedownload: handleRedownload,
+        isRedownloading: isRedownloading.value,
         onChapterSelected: (idx) {
           resetPosition();
           currentChapter.value = chapters.value[idx];
@@ -591,6 +663,8 @@ class ReaderContent extends HookConsumerWidget {
         onChapterSelected: goToPagedChapter,
         onSettingsTap: showSettingsDrawer,
         onSearchTap: showSearchSheet,
+        onRedownload: handleRedownload,
+        isRedownloading: isRedownloading.value,
         isBookmarked: isBookmarked,
         onBookmarkToggle: toggleBookmark,
         bookTitle: bookTitle.value,
@@ -616,6 +690,8 @@ class ReaderContent extends HookConsumerWidget {
         onChapterSelected: goToPagedChapter,
         onSettingsTap: showSettingsDrawer,
         onSearchTap: showSearchSheet,
+        onRedownload: handleRedownload,
+        isRedownloading: isRedownloading.value,
         isBookmarked: isBookmarked,
         onBookmarkToggle: toggleBookmark,
         bookTitle: bookTitle.value,

@@ -1,4 +1,25 @@
 {
-  "extraStripSelectors": [".m-read .top", ".m-read .ul-list7"],
+  "extraStripSelectors": [
+    ".m-read .top",
+    ".m-read .ul-list7",
+    "#article h4",
+    ".reader-ad-skip",
+    ".read-ads",
+    "[class*=\"fnw-content-state\"]",
+    "#readerPageNav",
+    "#readerPageComments",
+    ".reader-page-nav",
+    ".reader-page-comments",
+    "#e-comments",
+    "#comments-section",
+    ".m-newest3",
+    "[id*=\"comment\"]",
+    "[class*=\"comment\"]",
+    ".chapter-end",
+    "p.tips",
+    ".text-center",
+    "#readerPageTitle",
+    "#readerPageCounter"
+  ],
   "disableDefaultStrips": false
 }

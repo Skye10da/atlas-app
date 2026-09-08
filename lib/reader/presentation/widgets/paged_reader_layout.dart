@@ -57,6 +57,8 @@ class PagedReaderLayout extends HookConsumerWidget {
     required this.onChapterSelected,
     required this.onSettingsTap,
     this.onSearchTap,
+    this.onRedownload,
+    this.isRedownloading = false,
     required this.isBookmarked,
     required this.onBookmarkToggle,
     this.bookTitle,
@@ -82,6 +84,8 @@ class PagedReaderLayout extends HookConsumerWidget {
   final void Function(int chapterIndex) onChapterSelected;
   final VoidCallback onSettingsTap;
   final VoidCallback? onSearchTap;
+  final VoidCallback? onRedownload;
+  final bool isRedownloading;
   final bool isBookmarked;
   final VoidCallback onBookmarkToggle;
   final String? bookTitle;
@@ -119,7 +123,9 @@ class PagedReaderLayout extends HookConsumerWidget {
     final contentCache = useRef<Map<int, String>>({});
     final loadedChapters = useRef<Set<int>>({});
     final failedChapters = useState<Set<int>>({});
+    final retryingChapters = useState<Set<int>>({});
     final progressNotifier = useValueNotifier(0.0);
+    final isDisposed = useRef(false);
     final cacheKey = useRef<String>('');
     final layoutWidth = useRef(0.0);
     final layoutHeight = useRef(0.0);
@@ -265,8 +271,14 @@ class PagedReaderLayout extends HookConsumerWidget {
     );
 
     void updateProgress() {
+      if (isDisposed.value) return;
+      if (!context.mounted) return;
       final value = computedProgress();
-      progressNotifier.value = value;
+      try {
+        progressNotifier.value = value;
+      } catch (_) {
+        return;
+      }
       onProgressChanged(value);
     }
 
@@ -464,6 +476,10 @@ class PagedReaderLayout extends HookConsumerWidget {
     }
 
     void onContentLoaded(int index, String content) {
+      if (retryingChapters.value.contains(index)) {
+        retryingChapters.value = Set<int>.from(retryingChapters.value)
+          ..remove(index);
+      }
       contentCache.value[index] = content;
       if (needsRepagination() || pageCache.value[index] == null) {
         schedulePagination(index, content);
@@ -476,6 +492,10 @@ class PagedReaderLayout extends HookConsumerWidget {
 
     void markChapterFailed(int index) {
       loadedChapters.value.remove(index);
+      if (retryingChapters.value.contains(index)) {
+        retryingChapters.value = Set<int>.from(retryingChapters.value)
+          ..remove(index);
+      }
       if (!context.mounted) return;
       failedChapters.value = {...failedChapters.value, index};
     }
@@ -516,6 +536,15 @@ class PagedReaderLayout extends HookConsumerWidget {
     }
 
     void retryChapter(int index) {
+      if (retryingChapters.value.contains(index)) return;
+      // Also guard against provider already loading (e.g. invalidation
+      // from outside). Disabled-until-settled: button disappears into
+      // full shimmer on next frame, this just closes the 1-frame spam window.
+      final providerState = ref.read(
+        readerChapterContentProvider(chapters[index]),
+      );
+      if (providerState is AsyncLoading) return;
+      retryingChapters.value = {...retryingChapters.value, index};
       final next = Set<int>.from(failedChapters.value)..remove(index);
       failedChapters.value = next;
       ref.invalidate(readerChapterContentProvider(chapters[index]));
@@ -598,6 +627,7 @@ class PagedReaderLayout extends HookConsumerWidget {
       chromeNotifier.initReaderChrome(isDarkTheme: isDarkTheme);
       cacheKey.value = computeCacheKey();
       return () {
+        isDisposed.value = true;
         for (final c in innerControllers.value.values) {
           c.dispose();
         }
@@ -719,11 +749,21 @@ class PagedReaderLayout extends HookConsumerWidget {
     }
 
     final nextProgress = computedProgress();
-    if (progressNotifier.value != nextProgress) {
+    bool shouldUpdateProgress = false;
+    try {
+      if (!isDisposed.value) {
+        shouldUpdateProgress = progressNotifier.value != nextProgress;
+      }
+    } catch (_) {
+      shouldUpdateProgress = false;
+    }
+    if (shouldUpdateProgress) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
+        if (isDisposed.value) return;
+        if (!context.mounted) return;
+        try {
           progressNotifier.value = nextProgress;
-        }
+        } catch (_) {}
       });
     }
 
@@ -959,11 +999,6 @@ class PagedReaderLayout extends HookConsumerWidget {
                     ),
                   );
                 } else {
-                  // The underlying page being revealed:
-                  final revealShadow = ((1.0 - absOffset) * 0.35).clamp(
-                    0.0,
-                    0.35,
-                  );
                   final slideOffset = offset.clamp(0.0, 1.0);
                   return Transform.translate(
                     offset: Offset(slideOffset * viewportWidth * 0.1, 0),
@@ -971,7 +1006,7 @@ class PagedReaderLayout extends HookConsumerWidget {
                       fit: StackFit.passthrough,
                       children: [
                         child!,
-                        Positioned.fill(
+                        const Positioned.fill(
                           child: IgnorePointer(
                             child: DecoratedBox(
                               decoration: BoxDecoration(
@@ -979,12 +1014,10 @@ class PagedReaderLayout extends HookConsumerWidget {
                                   begin: Alignment.centerLeft,
                                   end: Alignment.centerRight,
                                   colors: [
-                                    Colors.black.withValues(
-                                      alpha: revealShadow,
-                                    ),
+                                    Color.fromARGB(0, 0, 0, 0),
                                     Colors.transparent,
                                   ],
-                                  stops: const [0.0, 0.4],
+                                  stops: [0.0, 0.4],
                                 ),
                               ),
                             ),
@@ -1286,6 +1319,25 @@ class PagedReaderLayout extends HookConsumerWidget {
               overflow: TextOverflow.ellipsis,
             ),
             actions: [
+              if (onRedownload != null)
+                IconButton(
+                  icon: isRedownloading
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: vt.resolve(colorScheme).text,
+                          ),
+                        )
+                      : Icon(
+                          Icons.refresh_rounded,
+                          size: 18,
+                          color: vt.resolve(colorScheme).text,
+                        ),
+                  tooltip: 'Redownload chapter',
+                  onPressed: isRedownloading ? null : onRedownload,
+                ),
               IconButton(
                 icon: Icon(
                   Icons.text_fields,
@@ -1474,6 +1526,8 @@ class PagedReaderLayout extends HookConsumerWidget {
                       textColor: colorScheme.onSurface,
                       onSettingsTap: onSettingsTap,
                       onSearchTap: onSearchTap,
+                      onRedownload: onRedownload,
+                      isRedownloading: isRedownloading,
                     ),
                   ),
                 ),

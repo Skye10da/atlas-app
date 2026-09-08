@@ -52,7 +52,7 @@ class ChapterUpdateService {
   ChapterUpdateService({
     required this.db,
     required this.registry,
-    this.fetchTimeout = const Duration(seconds: 15),
+    this.fetchTimeout = const Duration(seconds: 60),
   });
 
   final AppDatabase db;

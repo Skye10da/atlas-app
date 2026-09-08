@@ -3,11 +3,15 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
+import 'package:atlas_app/browser/domain/engines/webview_page_fetcher.dart';
 import 'package:atlas_app/browser/infrastructure/engines/inapp_webview_engine.dart';
+import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
+import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
+import 'package:go_router/go_router.dart';
 
 /// Full-screen immersive webview for a single source.
 /// Replaces the multi-tab browser with a clean, focused browsing experience
@@ -158,7 +162,9 @@ class SourceImmersiveScreen extends HookConsumerWidget {
               ],
             ),
 
-            // Novel Detection Bottom Action Pill
+            // Novel Detection Bottom Action Pill — browser import path:
+            // captures live WebView session+cookies directly (no silent fallback)
+            // via WebViewFetchService.fetcher bound to this immersive engine.
             if (novelUrl.value != null)
               Positioned(
                 left: AppSpacing.md,
@@ -170,63 +176,86 @@ class SourceImmersiveScreen extends HookConsumerWidget {
                   borderRadius: BorderRadius.circular(
                     AppSpacing.borderRadiusLg,
                   ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(
-                      AppSpacing.borderRadiusLg,
-                    ),
-                    onTap: () {
-                      final url = novelUrl.value;
-                      if (url != null) {
-                        showImportUrlSheet(context, initialUrl: url);
+                  child: Builder(
+                    builder: (pillContext) {
+                      Future<void> handleImmersiveImport() async {
+                        final url = novelUrl.value;
+                        if (url == null) return;
+                        final uri = Uri.tryParse(url);
+                        if (uri != null) {
+                          await ref.read(browserSessionRepositoryProvider).captureForOrigin(uri);
+                        }
+                        final webViewService = WebViewFetchService.instance;
+                        final previousFetcher = webViewService.fetcher;
+                        webViewService.fetcher = WebViewPageFetcher(engine: engine).fetchHtml;
+                        try {
+                          if (!pillContext.mounted) return;
+                          final outcome = await showImportUrlSheet(
+                            pillContext,
+                            initialUrl: url,
+                            skipInputStage: true,
+                            onImport: (bytes, fileName, sheetUrl, onProgress) =>
+                                ref.read(contentAcquisitionEngineProvider).importAndSave(url, onProgress: onProgress),
+                          );
+                          if (outcome == null || !pillContext.mounted) return;
+                          final route = outcome.category == ContentCategory.novel
+                              ? '/novel/${outcome.bookId}'
+                              : '/book/${outcome.bookId}';
+                          GoRouter.of(pillContext).go(route);
+                        } finally {
+                          webViewService.fetcher = previousFetcher;
+                        }
                       }
+
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.borderRadiusLg,
+                        ),
+                        onTap: handleImmersiveImport,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.smMd,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.auto_stories_rounded,
+                                size: 20,
+                                color: colorScheme.onPrimaryContainer,
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Novel detected on this page',
+                                      style: theme.textTheme.labelMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.onPrimaryContainer,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Tap to import into library',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.onPrimaryContainer
+                                            .withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              FilledButton.tonal(
+                                onPressed: handleImmersiveImport,
+                                child: const Text('Import'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
                     },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.smMd,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.auto_stories_rounded,
-                            size: 20,
-                            color: colorScheme.onPrimaryContainer,
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Novel detected on this page',
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.onPrimaryContainer,
-                                  ),
-                                ),
-                                Text(
-                                  'Tap to import into library',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onPrimaryContainer
-                                        .withValues(alpha: 0.8),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          FilledButton.tonal(
-                            onPressed: () {
-                              final url = novelUrl.value;
-                              if (url != null) {
-                                showImportUrlSheet(context, initialUrl: url);
-                              }
-                            },
-                            child: const Text('Import'),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 ),
               ),

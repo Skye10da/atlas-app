@@ -251,6 +251,12 @@ class _ImportUrlSheet extends HookConsumerWidget {
       }
     }
 
+    bool isBotChallengeError(String? msg) {
+      if (msg == null) return false;
+      final lower = msg.toLowerCase();
+      return lower.contains('bot-check challenge') || lower.contains('cloudflare');
+    }
+
     Future<void> checkClipboard() async {
       try {
         final data = await Clipboard.getData('text/plain');
@@ -943,21 +949,42 @@ class _ImportUrlSheet extends HookConsumerWidget {
                 color: cs.errorContainer,
                 borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.error_outline, size: 16, color: cs.onErrorContainer),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      error.value!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onErrorContainer),
-                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.error_outline, size: 16, color: cs.onErrorContainer),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          error.value!,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onErrorContainer),
+                        ),
+                      ),
+                    ],
                   ),
-                  if (retryable.value)
-                    TextButton(
-                      onPressed: fetchMetadata,
-                      child: const Text('Retry'),
+                  if (retryable.value || isBotChallengeError(error.value)) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      children: [
+                        if (retryable.value)
+                          TextButton(
+                            onPressed: fetchMetadata,
+                            child: const Text('Retry'),
+                          ),
+                      ],
                     ),
+                    if (isBotChallengeError(error.value))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'Silent solve failed for this site. Use the Browser Import button — it captures session cookies directly from the live page. Or import anyway and tap ‘Re-verify session’ in the reader if the book appears with missing chapters.',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: cs.onErrorContainer.withValues(alpha: 0.85)),
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),
@@ -1266,21 +1293,42 @@ class _ImportUrlSheet extends HookConsumerWidget {
                 color: cs.errorContainer,
                 borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.error_outline, size: 16, color: cs.onErrorContainer),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      error.value!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onErrorContainer),
-                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.error_outline, size: 16, color: cs.onErrorContainer),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          error.value!,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onErrorContainer),
+                        ),
+                      ),
+                    ],
                   ),
-                  if (retryable.value)
-                    TextButton(
-                      onPressed: fetchMetadata,
-                      child: const Text('Retry'),
+                  if (retryable.value || isBotChallengeError(error.value)) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      children: [
+                        if (retryable.value)
+                          TextButton(
+                            onPressed: fetchMetadata,
+                            child: const Text('Retry'),
+                          ),
+                      ],
                     ),
+                    if (isBotChallengeError(error.value))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'Silent solve failed — use the Browser Import button (captures session cookies directly from the live page). If already imported, open the book and tap ‘Re-verify session’ in the reader.',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: cs.onErrorContainer.withValues(alpha: 0.85)),
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),

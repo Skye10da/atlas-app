@@ -131,37 +131,51 @@ class PagedPageView extends StatelessWidget {
         : textStyle;
     final cs = chapterStyle;
 
-    return Container(
-      color: vt.resolve(colorScheme).background,
-      child: Column(
-        children: [
-          if (isFirstPageOfChapter && showHeaders && cs != null)
-            ChapterHeaderBanner(
-              chapterNumber: chapterIndex + 1,
-              title: chapterTitle,
-              style: cs,
+    void handlePageTap() {
+      final primaryFocus = FocusManager.instance.primaryFocus;
+      final isEditing = primaryFocus?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
+      if (isEditing) {
+        primaryFocus?.unfocus();
+        return;
+      }
+      onTap?.call();
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: handlePageTap,
+      child: Container(
+        color: vt.resolve(colorScheme).background,
+        child: Column(
+          children: [
+            if (isFirstPageOfChapter && showHeaders && cs != null)
+              ChapterHeaderBanner(
+                chapterNumber: chapterIndex + 1,
+                title: chapterTitle,
+                style: cs,
+              ),
+            if (isFirstPageOfChapter && showHeaders && cs != null)
+              ChapterOrnamentalDivider(
+                accentColor: cs.accentColor,
+                verticalPadding: 4,
+              ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: _padding,
+                child: _buildText(context, resolvedStyle, cs),
+              ),
             ),
-          if (isFirstPageOfChapter && showHeaders && cs != null)
-            ChapterOrnamentalDivider(
-              accentColor: cs.accentColor,
-              verticalPadding: 4,
-            ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: _padding,
-              child: _buildText(context, resolvedStyle, cs),
-            ),
-          ),
-          if (isLastPageOfChapter && showHeaders) ...[
-            if (cs != null)
-              ChapterOrnamentalDivider(accentColor: cs.accentColor),
-            ChapterEndFooter(
-              chapterNumber: chapterIndex + 1,
-              textColor: vt.resolve(colorScheme).text,
-              baseFontSize: textStyle.fontSize!,
-            ),
+            if (isLastPageOfChapter && showHeaders) ...[
+              if (cs != null)
+                ChapterOrnamentalDivider(accentColor: cs.accentColor),
+              ChapterEndFooter(
+                chapterNumber: chapterIndex + 1,
+                textColor: vt.resolve(colorScheme).text,
+                baseFontSize: textStyle.fontSize!,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -174,8 +188,13 @@ class PagedPageView extends StatelessWidget {
     final spans = _pageSpans(c, resolvedStyle, pageHighlights);
 
     void handleTap() {
-      if (onTap == null) return;
-      onTap!();
+      final primaryFocus = FocusManager.instance.primaryFocus;
+      final isEditing = primaryFocus?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
+      if (isEditing) {
+        primaryFocus?.unfocus();
+        return;
+      }
+      onTap?.call();
     }
 
     if (cs != null && isFirstPageOfChapter && c.isNotEmpty) {

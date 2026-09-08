@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/browser/presentation/screens/browser_screen.dart';
@@ -8,6 +8,8 @@ import 'package:atlas_app/core/presentation/screens/splash_screen.dart';
 import 'package:atlas_app/core/router/transitions.dart';
 import 'package:atlas_app/dictionary/presentation/screens/dictionary_screen.dart';
 import 'package:atlas_app/discover/presentation/screens/discover_screen.dart';
+import 'package:atlas_app/discover/presentation/screens/reading_analytics_screen.dart';
+import 'package:atlas_app/discover/presentation/screens/trending_list_screen.dart';
 import 'package:atlas_app/library/presentation/screens/book_details_screen.dart';
 import 'package:atlas_app/library/presentation/screens/library_screen.dart';
 import 'package:atlas_app/library/presentation/screens/novel_details_screen.dart';
@@ -25,6 +27,48 @@ abstract final class AppRouter {
   /// The root navigator — pushes here appear over the shell branches (reader,
   /// detail pages) and over root-level routes alike.
   static GlobalKey<NavigatorState> get rootNavigatorKey => _rootNavigatorKey;
+
+  /// Safely navigates to the Reading Analytics dashboard.
+  /// Falls back to direct Navigator push if GoRouter has not hot-restarted yet.
+  static void openAnalytics(BuildContext context) {
+    try {
+      context.push('/analytics');
+    } catch (_) {
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(
+          builder: (_) => const ReadingAnalyticsScreen(),
+        ),
+      );
+    }
+  }
+
+  /// Safely navigates to the Trending list screen.
+  /// Falls back to direct Navigator push if GoRouter has not hot-restarted yet.
+  static void openTrending(
+    BuildContext context, {
+    String type = 'opds',
+    String? source,
+  }) {
+    try {
+      final uri = Uri(
+        path: '/trending',
+        queryParameters: {
+          'type': type,
+          'source': ?source,
+        },
+      );
+      context.push(uri.toString());
+    } catch (_) {
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(
+          builder: (_) => TrendingListScreen(
+            initialType: type,
+            initialSource: source,
+          ),
+        ),
+      );
+    }
+  }
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -106,6 +150,31 @@ abstract final class AppRouter {
           key: state.pageKey,
         ),
       ),
+      GoRoute(
+        path: '/analytics',
+        name: 'analytics',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const ReadingAnalyticsScreen(),
+          key: state.pageKey,
+        ),
+      ),
+      GoRoute(
+        path: '/trending',
+        name: 'trending',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final type = state.uri.queryParameters['type'] ?? 'opds';
+          final source = state.uri.queryParameters['source'];
+          return buildPageTransition(
+            child: TrendingListScreen(
+              initialType: type,
+              initialSource: source,
+            ),
+            key: state.pageKey,
+          );
+        },
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
@@ -132,8 +201,12 @@ abstract final class AppRouter {
                 name: 'library',
                 pageBuilder: (context, state) {
                   final genre = state.uri.queryParameters['genre'];
+                  final sort = state.uri.queryParameters['sort'];
                   return buildPageTransition(
-                    child: LibraryScreen(initialGenre: genre),
+                    child: LibraryScreen(
+                      initialGenre: genre,
+                      initialSort: sort,
+                    ),
                     key: state.pageKey,
                   );
                 },

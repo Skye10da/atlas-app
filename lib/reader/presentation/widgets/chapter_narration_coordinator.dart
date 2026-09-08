@@ -175,6 +175,28 @@ class ChapterNarrationCoordinator {
         .whenComplete(onAnimatingEnd);
   }
 
+  /// Translates a character offset in [content] to the corresponding character
+  /// offset in the laid-out [RenderParagraph], using the segment map generated
+  /// by [ChapterSpanBuilder.buildSegmentedSpans].
+  int renderOffsetFromContentOffset(
+    int contentOffset,
+    List<(int, int, int)>? map,
+  ) {
+    if (map == null || map.isEmpty) return contentOffset;
+    for (final (rStart, rEnd, cStart) in map) {
+      final len = rEnd - rStart;
+      if (contentOffset >= cStart && contentOffset < cStart + len) {
+        return rStart + (contentOffset - cStart);
+      }
+    }
+    for (final (rStart, _, cStart) in map) {
+      if (cStart >= contentOffset) {
+        return rStart;
+      }
+    }
+    return map.last.$2;
+  }
+
   /// One-shot exact position restore: jumps to [restoreCharOffset].
   void revealRestoreOffset({
     required BuildContext context,
@@ -182,6 +204,7 @@ class ChapterNarrationCoordinator {
     required int? restoreCharOffset,
     required String content,
     required VoidCallback onRestored,
+    List<(int, int, int)>? renderContentMap,
   }) {
     if (restoreCharOffset == null ||
         restoreCharOffset < 0 ||
@@ -195,9 +218,14 @@ class ChapterNarrationCoordinator {
         render != null ? RenderAbstractViewport.maybeOf(render) : null;
     if (scrollable == null || render == null || viewport == null) return;
 
+    final targetOffset = renderOffsetFromContentOffset(
+      restoreCharOffset,
+      renderContentMap,
+    );
+    final textLength = render.text.toPlainText().length;
     final edge = render
         .getOffsetForCaret(
-          TextPosition(offset: restoreCharOffset.clamp(0, content.length)),
+          TextPosition(offset: targetOffset.clamp(0, textLength)),
           Rect.zero,
         )
         .dy;

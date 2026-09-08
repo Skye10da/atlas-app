@@ -108,26 +108,12 @@ class ChapterSelectionMenuBuilder {
     } else if (renderParagraph != null &&
         renderParagraph.hasSize &&
         renderParagraph.attached) {
-      try {
-        final anchors = selectableRegionState.contextMenuAnchors;
-        final p1 = renderParagraph.globalToLocal(anchors.primaryAnchor);
-        final pos1 = renderParagraph.getPositionForOffset(p1).offset;
-        int startRender = pos1;
-        int endRender = pos1;
-        final sec = anchors.secondaryAnchor;
-        if (sec != null && sec != anchors.primaryAnchor) {
-          final p2 = renderParagraph.globalToLocal(sec);
-          final pos2 = renderParagraph.getPositionForOffset(p2).offset;
-          startRender = math.min(pos1, pos2);
-          endRender = math.max(pos1, pos2);
-        } else {
-          final wordRange =
-              renderParagraph.getWordBoundary(TextPosition(offset: pos1));
-          if (wordRange.isValid && !wordRange.isCollapsed) {
-            startRender = wordRange.start;
-            endRender = wordRange.end;
-          }
-        }
+      // ignore: invalid_use_of_visible_for_testing_member
+      final selections = renderParagraph.selections;
+      if (selections.isNotEmpty && !selections.first.isCollapsed) {
+        final sel = selections.first;
+        final startRender = math.min(sel.baseOffset, sel.extentOffset);
+        final endRender = math.max(sel.baseOffset, sel.extentOffset);
         globalStart = contentOffsetFromRenderOffset(
           startRender,
           renderContentMap,
@@ -136,7 +122,25 @@ class ChapterSelectionMenuBuilder {
           endRender,
           renderContentMap,
         );
-      } catch (_) {}
+      } else {
+        try {
+          final anchors = selectableRegionState.contextMenuAnchors;
+          final p1 = renderParagraph.globalToLocal(anchors.primaryAnchor);
+          final pos1 = renderParagraph.getPositionForOffset(p1).offset;
+          final wordRange =
+              renderParagraph.getWordBoundary(TextPosition(offset: pos1));
+          if (wordRange.isValid && !wordRange.isCollapsed) {
+            globalStart = contentOffsetFromRenderOffset(
+              wordRange.start,
+              renderContentMap,
+            );
+            globalEnd = contentOffsetFromRenderOffset(
+              wordRange.end,
+              renderContentMap,
+            );
+          }
+        } catch (_) {}
+      }
     }
 
     final hasOffsets = globalStart != null &&

@@ -49,6 +49,8 @@ class ContinuousReaderLayout extends HookConsumerWidget {
     required this.onScrollDirectionChanged,
     required this.onSettingsTap,
     this.onSearchTap,
+    this.onRedownload,
+    this.isRedownloading = false,
     required this.onChapterSelected,
     required this.isBookmarked,
     required this.onBookmarkToggle,
@@ -75,6 +77,8 @@ class ContinuousReaderLayout extends HookConsumerWidget {
   final void Function(ScrollDirection) onScrollDirectionChanged;
   final VoidCallback onSettingsTap;
   final VoidCallback? onSearchTap;
+  final VoidCallback? onRedownload;
+  final bool isRedownloading;
   final void Function(int) onChapterSelected;
   final bool isBookmarked;
   final VoidCallback onBookmarkToggle;
@@ -293,9 +297,16 @@ class ContinuousReaderLayout extends HookConsumerWidget {
           .valueOrNull;
       if (content == null || content.isEmpty) return;
       final extent = top.itemTrailingEdge - top.itemLeadingEdge;
-      final within = extent > 0
-          ? ((-top.itemLeadingEdge) / extent).clamp(0.0, 1.0)
-          : 0.0;
+      if (extent <= 0) return;
+      final viewportHeight = MediaQuery.sizeOf(context).height;
+      final totalHeightPx = extent * viewportHeight;
+      const headerHeightPx = 130.0;
+      const footerHeightPx = 110.0;
+      final contentHeightPx = math.max(1.0, totalHeightPx - headerHeightPx - footerHeightPx);
+
+      final scrolledPx = (-top.itemLeadingEdge) * viewportHeight;
+      final contentScrolledPx = (scrolledPx - headerHeightPx).clamp(0.0, contentHeightPx);
+      final within = (contentScrolledPx / contentHeightPx).clamp(0.0, 1.0);
       final charOffset = (within * content.length).round().clamp(
         0,
         content.length,
@@ -892,6 +903,8 @@ class ContinuousReaderLayout extends HookConsumerWidget {
                   textColor: colorScheme.onSurface,
                   onSettingsTap: onSettingsTap,
                   onSearchTap: onSearchTap,
+                  onRedownload: onRedownload,
+                  isRedownloading: isRedownloading,
                 ),
               ),
             ),
