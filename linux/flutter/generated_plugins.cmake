@@ -5,7 +5,6 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_linux
   desktop_drop
-  real_page_flip
   screen_brightness_pro
   sqlite3_flutter_libs
   url_launcher_linux

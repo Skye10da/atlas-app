@@ -49,75 +49,7 @@ jobs:
       # release keystore via secrets and wire it into
       # android/app/build.gradle's signingConfigs.release.
       - run: flutter pub get
-      - name: Patch real_page_flip Android build (upstream KTS is broken on Kotlin 2.2.20 / Gradle 8.11)
-        run: |
-          set -e
-          for base in "$PUB_CACHE" "$HOME/.pub-cache" "/home/runner/.pub-cache" "$(flutter pub cache dir 2>/dev/null || true)"; do
-            [ -z "$base" ] && continue
-            DIR="$base/hosted/pub.dev/real_page_flip-2.2.9/android"
-            if [ -d "$DIR" ]; then
-              echo "Patching $DIR"
-              rm -f "$DIR/build.gradle.kts"
-              cat > "$DIR/build.gradle" <<'GRADLE_EOF'
-          group 'com.chapdcha.real_page_flip'
-          version '1.0-SNAPSHOT'
-
-          buildscript {
-              ext.kotlin_version = '2.2.20'
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.11.1'
-                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-              }
-          }
-
-          rootProject.allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-
-          apply plugin: 'com.android.library'
-          apply plugin: 'kotlin-android'
-
-          android {
-              namespace 'com.chapdcha.real_page_flip'
-              compileSdk 36
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-
-              kotlinOptions {
-                  jvmTarget = '17'
-              }
-
-              sourceSets {
-                  main.java.srcDirs += 'src/main/kotlin'
-                  test.java.srcDirs += 'src/test/kotlin'
-              }
-
-              defaultConfig {
-                  minSdkVersion 24
-                  testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-              }
-          }
-
-          dependencies {
-              testImplementation "org.jetbrains.kotlin:kotlin-test:$kotlin_version"
-              testImplementation "org.mockito:mockito-core:5.0.0"
-          }
-          GRADLE_EOF
-              echo "Patched build.gradle:"
-              cat "$DIR/build.gradle"
-              break
-            fi
-          done
+      - run: dart run tool/patch_real_page_flip.dart
       - run: flutter build apk --release --split-per-abi --split-debug-info=build/app/symbols --obfuscate
       - uses: actions/upload-artifact@v7
         with:
@@ -143,6 +75,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
+      - run: dart run tool/patch_real_page_flip.dart
       - run: flutter build windows --release
       - run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath Atlas-Windows.zip
       - uses: actions/upload-artifact@v7
@@ -166,6 +99,7 @@ jobs:
       - run: sudo apt-get update -y
       - run: sudo apt-get install -y ninja-build libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
       - run: flutter pub get
+      - run: dart run tool/patch_real_page_flip.dart
       - run: flutter build linux --release
       - run: tar -czf Atlas-Linux.tar.gz -C build/linux/x64/release/bundle .
       - uses: actions/upload-artifact@v7
@@ -190,6 +124,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
+      - run: dart run tool/patch_real_page_flip.dart
       - run: flutter build ios --release --no-codesign
       # Unsigned .app — useful as a CI build-health check, not installable
       # on a real device. Kept as a short-retention artifact only; deliberately
@@ -216,6 +151,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
+      - run: dart run tool/patch_real_page_flip.dart
       - run: flutter build macos --release
       - run: zip -r Atlas-macOS.zip build/macos/Build/Products/Release/*.app
       - uses: actions/upload-artifact@v7

@@ -15,7 +15,6 @@ import flutter_inappwebview_macos
 import flutter_local_notifications
 import flutter_tts
 import pdfium_flutter
-import real_page_flip
 import screen_brightness_pro
 import share_plus
 import shared_preferences_foundation
@@ -35,7 +34,6 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FlutterLocalNotificationsPlugin.register(with: registry.registrar(forPlugin: "FlutterLocalNotificationsPlugin"))
   FlutterTtsPlugin.register(with: registry.registrar(forPlugin: "FlutterTtsPlugin"))
   PDFiumFlutterPlugin.register(with: registry.registrar(forPlugin: "PDFiumFlutterPlugin"))
-  RealPageFlipMacos.register(with: registry.registrar(forPlugin: "RealPageFlipMacos"))
   ScreenBrightnessProPlugin.register(with: registry.registrar(forPlugin: "ScreenBrightnessProPlugin"))
   SharePlusMacosPlugin.register(with: registry.registrar(forPlugin: "SharePlusMacosPlugin"))
   SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))
