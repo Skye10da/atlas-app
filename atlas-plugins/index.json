@@ -15,11 +15,11 @@
       "id": "freewebnovel",
       "version": "1.0.1",
       "checksums": {
-        "filters.json": "4a312237b28ffef236812adc1efe40707ad624835a00dc24d96407b2f9f9a473",
+        "filters.json": "ecfb3872c7ee7724568b2c4f05194044f47712bf9195f5ab5a8628dbd101280a",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
         "plugin.json": "4587d54a071d2c7b378e35438478b3e69f9a87f412dd2927a8a94b2b9bf43da3",
         "README.md": "e7e2d0a5c67e37477762d7f10c61f17b1d039b7e69e7707a40e6cea2c696d34f",
-        "selectors.json": "662890eb9fe927efefde8e51323f1aed7e0be57afa40a03e083e4c8f7dbee09f"
+        "selectors.json": "6f2b429353f596c5c94103dde854f2274c4e0db30cb9cb1c43f27684723089eb"
       }
     },
     {
@@ -29,7 +29,8 @@
         "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
         "permissions.json": "3e34f32f8ac84fcddb1f979c614d04a768b9d048e468541c73fec3870f702ae9",
         "plugin.json": "a30c7994a43e09c35ebc3321ee0c1e68f2c96af22a30a1e5c058c21c267880dc",
-        "README.md": "86807dabfa01e9b981db174e94400622fc95c2d88b371c5fbda3cba08e73cb10"
+        "README.md": "86807dabfa01e9b981db174e94400622fc95c2d88b371c5fbda3cba08e73cb10",
+        "selectors.json": "9e90da450025cd8b5b334a18a571268e236e19ea97f11ea066ad99f93078bdc7"
       }
     },
     {
@@ -38,9 +39,9 @@
       "checksums": {
         "filters.json": "2739092ad7843ef81d33a290beed7d19d1c2551012abc3dd28abca563304f8c3",
         "permissions.json": "1f52fd7af93de75b23e79b93413e77f681dd76468ee6cd85eb73bfca4e62993c",
-        "plugin.json": "3fb821e7be6be9d4268e1f58a95d9238c8f7a35ccad0f37c49f1660395104988",
+        "plugin.json": "be450ddc2d6701fd8f76cd3ccf082c26d0b089efacfb2ca559faaa53aa4de716",
         "README.md": "a294c6f1091a8efa242c10d123fac884b76863dbdd9e2fb892a3cde74affd66f",
-        "selectors.json": "2c1c4fab71b5e5cf67bc342149c094dda32c5be3637f02dcb653cc3b9a833bae"
+        "selectors.json": "65d2440577394cd3a5e19036f65a73490379db7404ec16c7e07e3b8796f21e0c"
       }
     },
     {
@@ -49,9 +50,9 @@
       "checksums": {
         "filters.json": "b21723432315ca2074ff05d7121593912b25b1138201040b750fa7fe7bc10790",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "7b19a531ff655a5aa764e0cead76850d0f91244c611fd059441412749b9d11c2",
+        "plugin.json": "bb3ef6ec1671eba3a552082433bd064777eae5856bd9585bee844295bfc1d0dc",
         "README.md": "428253c4151942e8c0cce19c63cc3e44d7580c3c8d8df670800eee12a2488b8b",
-        "selectors.json": "1eb722af991e9d7534fdaa026bde792d6b3b81f4a12f63ffa0fccbcef8b11b73"
+        "selectors.json": "f15da9da55d40553844f067882527e106d97a50c83c1e497d8ccb27c5cc34a6a"
       }
     },
     {
@@ -71,9 +72,9 @@
       "checksums": {
         "filters.json": "0068034c35164fb0c3490f0afc18190ca12fbbc8730dcacc01714a6d197fc07d",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "9cfd27fb4e8e3b89d22c511670e9c829ccdcb4abc1473274f02b54b11f47f2ea",
+        "plugin.json": "b4fe9a6e295dba1489c49cc2a54f2f25f3b709f4a4bcc37f6a7fac5e0fbcaa36",
         "README.md": "62a11357824671397268f28040fdceee2b6208ea1dad5107f6152e6f78ab11c1",
-        "selectors.json": "1daca3f3aaaa6067f7c11b3aee4b4d7a560ccf1b23b6d170410463382fa6efae"
+        "selectors.json": "2c6193864b45d752681a24bd55fc36880e37b41b9b37ad2fcd7fef01cc311d83"
       }
     },
     {
@@ -82,9 +83,9 @@
       "checksums": {
         "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
         "permissions.json": "434ec9079652826a649c0c9010de20c32482e59444f3df593f439a5c87db50a9",
-        "plugin.json": "9019a64efd8489640850ad12a818c49214e31ead19b0bf19a69e87203bd236b7",
+        "plugin.json": "4ed7a247e2386b92b53002b20b776944f9ad7852231bed36cb1494e10e1e6e3a",
         "README.md": "99519e8f4e9a4287abae0948be4f5c8dc0e4ff58e0d047fa4372551c650567af",
-        "selectors.json": "f2447a243788a1a2b5dbecaf6b81f4f96d7297e58cffafd29557ad35b1ecc728"
+        "selectors.json": "644d9c4cd9a35e503508806ebac9f591e2dc1c3106c89f8d4df9f1462b72f647"
       }
     },
     {
@@ -94,7 +95,8 @@
         "filters.json": "4fb7e3c81cc539a64e933c4146a50e5cdd7092216346b6ec330725b9c20d982a",
         "permissions.json": "fd44a88bf39ce07216b8152cad3723c3a3b15331f998f987852e7bede7051116",
         "plugin.json": "c5219677c62d26e9e87f9c14a77b95fad25dffc3dc3e7b070532e303311b69ce",
-        "README.md": "6636b8671ce97c2195f6aa959b1bd671d17a3279713cb18371457ccdb80c6131"
+        "README.md": "6636b8671ce97c2195f6aa959b1bd671d17a3279713cb18371457ccdb80c6131",
+        "selectors.json": "08a3f59fdf317bba6f760e0cc6810ff11b136c8533aa3d69f555f73226d47c2e"
       }
     }
   ]

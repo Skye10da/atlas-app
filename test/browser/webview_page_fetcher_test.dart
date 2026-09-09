@@ -217,13 +217,17 @@ void main() {
     );
 
     test('returns null when the web view is not on a page', () async {
+      // WebViewPageFetcher now allows fetches from about:blank/null (bootstrap
+      // navigation) — so a null currentUrl no longer short-circuits. The
+      // fetcher returns the canned success envelope instead of null.
       final engine = _ScriptEngine(currentUrl: null);
       final fetcher = WebViewPageFetcher(engine: engine);
 
-      expect(
-        await fetcher.fetchHtml(Uri.parse('https://novelfull.net/x.html')),
-        isNull,
+      final result = await fetcher.fetchHtml(
+        Uri.parse('https://novelfull.net/x.html'),
       );
+      expect(result, isNotNull);
+      expect(result?.body, '<html>from-page</html>');
     });
 
     test('returns null when the in-page fetch fails', () async {

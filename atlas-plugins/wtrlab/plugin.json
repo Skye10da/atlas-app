@@ -7,5 +7,5 @@
   "transport": "http",
   "baseUrl": "https://wtr-lab.com",
   "language": "en",
-  "capabilities": ["search", "chapterList", "chapterContent", "cover", "trending"]
+  "capabilities": ["search", "chapterList", "chapterContent", "cover"]
 }

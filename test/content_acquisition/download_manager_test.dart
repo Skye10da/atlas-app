@@ -115,7 +115,12 @@ void main() {
 
     test('runs up to workerCount tasks concurrently', () async {
       final source = _FakeSource(delay: const Duration(milliseconds: 40));
-      final manager = DownloadManager(cacheManager: cache, workerCount: 2);
+      final manager = DownloadManager(
+        cacheManager: cache,
+        workerCount: 2,
+        maxConcurrentPerDomain: 4,
+        domainCooldown: Duration.zero,
+      );
 
       final started = <String>[];
       final maxConcurrent = <int>[];

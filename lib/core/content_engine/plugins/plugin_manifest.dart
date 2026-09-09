@@ -25,6 +25,14 @@ class PluginManifestException implements Exception {
 /// thing that determines which compiled template interprets this manifest;
 /// everything else is data consumed by that template. The manifest itself
 /// carries no logic.
+const _defaultCapabilities = [
+  PluginCapability.search,
+  PluginCapability.chapterList,
+  PluginCapability.chapterContent,
+  PluginCapability.cover,
+  PluginCapability.trending,
+];
+
 class PluginManifest {
   const PluginManifest({
     required this.id,
@@ -37,12 +45,7 @@ class PluginManifest {
     this.language = 'en',
     this.customUserAgent,
     this.customImageHeaders = const {},
-    this.capabilities = const [
-      PluginCapability.search,
-      PluginCapability.chapterList,
-      PluginCapability.chapterContent,
-      PluginCapability.cover,
-    ],
+    this.capabilities = _defaultCapabilities,
     this.selectorsFile = 'selectors.json',
     this.filtersFile = 'filters.json',
     this.permissionsFile = 'permissions.json',
@@ -108,12 +111,7 @@ class PluginManifest {
         capabilities.add(capability);
       }
     } else {
-      capabilities.addAll(const [
-        PluginCapability.search,
-        PluginCapability.chapterList,
-        PluginCapability.chapterContent,
-        PluginCapability.cover,
-      ]);
+      capabilities.addAll(_defaultCapabilities);
     }
     if (capabilities.isEmpty) {
       throw const PluginManifestException(
