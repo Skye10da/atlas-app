@@ -29,12 +29,24 @@ class SpeechSessionBuilder {
     String? coverPath,
     String? bookTitle,
     String? author,
+    String? chapterTitle,
   }) {
-    final paragraphs = content
+    final rawParagraphs = content
         .split(_paragraphBreak)
         .map((p) => p.trim())
         .where((p) => p.isNotEmpty)
         .toList();
+
+    final paragraphs = <String>[];
+    final title = (chapterTitle ?? chapter.title).trim();
+    final shouldAnnounce =
+        settings.announceChapterTitle &&
+        title.isNotEmpty &&
+        !content.trim().startsWith(title);
+    if (shouldAnnounce) {
+      paragraphs.add(title);
+    }
+    paragraphs.addAll(rawParagraphs);
 
     final items = _splitter.splitChapter(
       bookId: bookId,

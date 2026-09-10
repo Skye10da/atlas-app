@@ -12,6 +12,7 @@ class NarrationSettings {
     this.activeProfile,
     this.ttsCacheEnabled = true,
     this.ttsCacheMaxMb = 500,
+    this.announceChapterTitle = true,
   });
 
   factory NarrationSettings.fromJson(Map<String, dynamic> json) =>
@@ -29,6 +30,7 @@ class NarrationSettings {
         activeProfile: json['activeProfile'] as String?,
         ttsCacheEnabled: json['ttsCacheEnabled'] as bool? ?? true,
         ttsCacheMaxMb: (json['ttsCacheMaxMb'] as num?)?.toInt() ?? 500,
+        announceChapterTitle: json['announceChapterTitle'] as bool? ?? true,
       );
 
   final double speechRate;
@@ -43,6 +45,7 @@ class NarrationSettings {
   final String? activeProfile;
   final bool ttsCacheEnabled;
   final int ttsCacheMaxMb;
+  final bool announceChapterTitle;
 
   NarrationSettings copyWith({
     double? speechRate,
@@ -56,6 +59,7 @@ class NarrationSettings {
     bool clearSleepTimer = false,
     bool? ttsCacheEnabled,
     int? ttsCacheMaxMb,
+    bool? announceChapterTitle,
   }) {
     return NarrationSettings(
       speechRate: speechRate ?? this.speechRate,
@@ -70,6 +74,7 @@ class NarrationSettings {
           : (activeProfile ?? this.activeProfile),
       ttsCacheEnabled: ttsCacheEnabled ?? this.ttsCacheEnabled,
       ttsCacheMaxMb: ttsCacheMaxMb ?? this.ttsCacheMaxMb,
+      announceChapterTitle: announceChapterTitle ?? this.announceChapterTitle,
     );
   }
 
@@ -83,6 +88,7 @@ class NarrationSettings {
     if (activeProfile != null) 'activeProfile': activeProfile,
     'ttsCacheEnabled': ttsCacheEnabled,
     'ttsCacheMaxMb': ttsCacheMaxMb,
+    'announceChapterTitle': announceChapterTitle,
   };
 }
 

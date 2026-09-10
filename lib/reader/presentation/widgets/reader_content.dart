@@ -221,6 +221,7 @@ class ReaderContent extends HookConsumerWidget {
         coverPath: bookCoverPath.value,
         bookTitle: bookTitle.value,
         author: bookAuthor.value,
+        chapterTitle: chapter.title,
       );
       // Set cache active book (currently-reading scope, LRU)
       if (narrationSettings.ttsCacheEnabled) {

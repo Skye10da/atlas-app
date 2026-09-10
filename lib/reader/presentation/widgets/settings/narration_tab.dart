@@ -75,6 +75,12 @@ class NarrationTab extends ConsumerWidget {
           onChanged: (v) => apply(settings.copyWith(autoAdvanceChapter: v)),
         ),
         SwitchListTile(
+          title: const Text('Announce chapter title'),
+          subtitle: const Text('Speak chapter title before each chapter'),
+          value: settings.announceChapterTitle,
+          onChanged: (v) => apply(settings.copyWith(announceChapterTitle: v)),
+        ),
+        SwitchListTile(
           title: const Text('Sync scroll to narration'),
           value: settings.syncScrollToNarration,
           onChanged: (v) => apply(settings.copyWith(syncScrollToNarration: v)),
