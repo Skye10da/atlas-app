@@ -24,6 +24,7 @@ class ChapterNarrationCoordinator {
         }
         child.visitChildren(visitor);
       }
+
       renderObject.visitChildren(visitor);
       return found;
     }
@@ -74,7 +75,10 @@ class ChapterNarrationCoordinator {
       }
     }
 
-    final speechOffset = resolveActiveSpeechOffset(item: item, content: content);
+    final speechOffset = resolveActiveSpeechOffset(
+      item: item,
+      content: content,
+    );
     if (speechOffset != null) {
       final before = content.substring(0, speechOffset);
       final prevBreak = before.lastIndexOf(RegExp(r'\n\s*\n'));
@@ -138,8 +142,9 @@ class ChapterNarrationCoordinator {
     );
     final scrollable = Scrollable.maybeOf(context);
     final render = findRenderParagraph(textKey);
-    final viewport =
-        render != null ? RenderAbstractViewport.maybeOf(render) : null;
+    final viewport = render != null
+        ? RenderAbstractViewport.maybeOf(render)
+        : null;
 
     if (activeSpeechItem == null ||
         idx == null ||
@@ -150,8 +155,9 @@ class ChapterNarrationCoordinator {
       return;
     }
 
-    final edge =
-        render.getOffsetForCaret(TextPosition(offset: idx), Rect.zero).dy;
+    final edge = render
+        .getOffsetForCaret(TextPosition(offset: idx), Rect.zero)
+        .dy;
     final revealed = viewport.getOffsetToReveal(
       render,
       0.0,
@@ -173,6 +179,25 @@ class ChapterNarrationCoordinator {
           curve: Curves.easeOut,
         )
         .whenComplete(onAnimatingEnd);
+  }
+
+  /// Inverse of [renderOffsetFromContentOffset]: maps a render offset back
+  /// to a content offset using the same segment map. Used for tap-to-skip.
+  int contentOffsetFromRenderOffset(
+    int renderOffset,
+    List<(int, int, int)>? map,
+  ) {
+    if (map == null || map.isEmpty) return renderOffset;
+    for (final (rStart, rEnd, cStart) in map) {
+      if (renderOffset >= rStart && renderOffset < rEnd) {
+        return cStart + (renderOffset - rStart);
+      }
+    }
+    for (final (rStart, _, _) in map) {
+      if (renderOffset < rStart) return 0;
+    }
+    final last = map.last;
+    return last.$3 + (last.$2 - last.$1);
   }
 
   /// Translates a character offset in [content] to the corresponding character
@@ -206,16 +231,15 @@ class ChapterNarrationCoordinator {
     required VoidCallback onRestored,
     List<(int, int, int)>? renderContentMap,
   }) {
-    if (restoreCharOffset == null ||
-        restoreCharOffset < 0 ||
-        content.isEmpty) {
+    if (restoreCharOffset == null || restoreCharOffset < 0 || content.isEmpty) {
       return;
     }
 
     final scrollable = Scrollable.maybeOf(context);
     final render = findRenderParagraph(textKey);
-    final viewport =
-        render != null ? RenderAbstractViewport.maybeOf(render) : null;
+    final viewport = render != null
+        ? RenderAbstractViewport.maybeOf(render)
+        : null;
     if (scrollable == null || render == null || viewport == null) return;
 
     final targetOffset = renderOffsetFromContentOffset(
@@ -266,8 +290,9 @@ class ChapterNarrationCoordinator {
             as RenderBox?;
     if (viewport == null || viewportBox == null) return null;
 
-    final caretTop =
-        render.getOffsetForCaret(TextPosition(offset: idx), Rect.zero).dy;
+    final caretTop = render
+        .getOffsetForCaret(TextPosition(offset: idx), Rect.zero)
+        .dy;
     final caretGlobalTop = render.localToGlobal(Offset(0, caretTop)).dy;
     final vpTop = viewportBox.localToGlobal(Offset.zero).dy;
     final vpBottom = vpTop + viewportBox.size.height;

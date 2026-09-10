@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
 import 'package:atlas_app/reader/speech/speech_engine.dart';
@@ -333,6 +336,8 @@ class AtlasPlaybackController extends BaseAudioHandler
     Uri? artUri;
     if (coverPath != null && await File(coverPath).exists()) {
       artUri = Uri.file(coverPath);
+    } else {
+      artUri = await _fallbackArtUri();
     }
 
     final bookTitle = _currentBookTitle ?? 'Atlas';
@@ -358,6 +363,20 @@ class AtlasPlaybackController extends BaseAudioHandler
 
     // Emit to the internal BehaviorSubject via the mediaItem getter
     mediaItem.add(newMediaItem);
+  }
+
+  Future<Uri?> _fallbackArtUri() async {
+    try {
+      final data = await rootBundle.load('assets/icon.png');
+      final dir = await getApplicationSupportDirectory();
+      final file = File(p.join(dir.path, 'tts_fallback_cover.png'));
+      if (!file.existsSync() || await file.length() == 0) {
+        await file.writeAsBytes(data.buffer.asUint8List());
+      }
+      return Uri.file(file.path);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _clearMediaItem() async {

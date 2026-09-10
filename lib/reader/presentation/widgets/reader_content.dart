@@ -158,15 +158,12 @@ class ReaderContent extends HookConsumerWidget {
 
     void advanceFromNarration(String finishedChapterId) {
       if (!context.mounted) return;
-      final engine = ref.read(speechEngineProvider);
-      final wasPlaying = engine.isPlaying;
       final autoAdvance =
           ref.read(narrationSettingsProvider).value?.autoAdvanceChapter ?? true;
       if (!autoAdvance) return;
       final idx = chapters.value.indexWhere((c) => c.id == finishedChapterId);
       if (idx < 0 || idx >= chapters.value.length - 1) return;
       final next = chapters.value[idx + 1];
-      autoResumeNext.value = wasPlaying;
       resetPosition();
       currentChapter.value = next;
       currentChapterIndex.value = idx + 1;
@@ -175,7 +172,8 @@ class ReaderContent extends HookConsumerWidget {
 
     void onSpeechEvent(SpeechEvent event) {
       switch (event) {
-        case ChapterFinished(:final chapterId):
+        case ChapterFinished(:final chapterId, :final wasPlaying):
+          if (wasPlaying) autoResumeNext.value = true;
           advanceFromNarration(chapterId);
         case SentenceStarted(:final item):
           ref.read(activeWordBoundaryProvider.notifier).state = null;

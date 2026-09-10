@@ -8,11 +8,13 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
+import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_narration_coordinator.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_selection_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_span_builder.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
+import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/speech/speech_models.dart';
 import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 
@@ -52,6 +54,7 @@ class ChapterView extends HookConsumerWidget {
     this.onRegisterNarrationReveal,
     this.spans,
     this.onTap,
+    this.onTextTap,
   });
 
   final String content;
@@ -79,13 +82,16 @@ class ChapterView extends HookConsumerWidget {
     int start,
     int end, {
     HighlightStyleType styleType,
-  })? onHighlight;
+  })?
+  onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
-  final void Function(String text, String? sentence, int start, int end)? onListen;
+  final void Function(String text, String? sentence, int start, int end)?
+  onListen;
   final void Function(int start, int end)? onErase;
   final VoidCallback? onTap;
+  final void Function(int charOffset)? onTextTap;
   final SpeechItem? activeSpeechItem;
   final int? restoreCharOffset;
   final void Function()? onRestoreRevealed;
@@ -102,16 +108,14 @@ class ChapterView extends HookConsumerWidget {
       MarginPreset.normal => AppSpacing.md,
       MarginPreset.wide => AppSpacing.lg,
     };
-    final hPadding = horizontalPadding ??
+    final hPadding =
+        horizontalPadding ??
         switch (marginPreset) {
           MarginPreset.narrow => AppSpacing.md,
           MarginPreset.normal => AppSpacing.lg,
           MarginPreset.wide => AppSpacing.xxl,
         };
-    return EdgeInsets.symmetric(
-      horizontal: hPadding,
-      vertical: vPadding,
-    );
+    return EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding);
   }
 
   @override
@@ -257,26 +261,36 @@ class ChapterView extends HookConsumerWidget {
       }
     }
 
-    final quotes = useMemoized(() => _spanBuilder.findQuoteRanges(content), [content]);
+    final quotes = useMemoized(() => _spanBuilder.findQuoteRanges(content), [
+      content,
+    ]);
 
     final highlights = (bookId != null && chapterId != null)
         ? ref.watch(annotationsProvider(bookId!)).highlights[chapterId!] ??
               const <HighlightEntry>[]
         : const <HighlightEntry>[];
 
-    final glossaryHighlightsList = useMemoized(() {
-      if (bookId == null || chapterId == null || content.isEmpty) {
-        return const <HighlightEntry>[];
-      }
-      final entries =
-          ref.watch(atlasGlossaryProvider(bookId!)).valueOrNull ?? const [];
-      return glossaryHighlightRanges(
-        chapterId: chapterId!,
-        content: content,
-        entries: entries,
-        color: Theme.of(context).colorScheme.secondaryContainer,
-      );
-    }, [bookId, chapterId, content, ref.watch(atlasGlossaryProvider(bookId ?? ''))]);
+    final glossaryHighlightsList = useMemoized(
+      () {
+        if (bookId == null || chapterId == null || content.isEmpty) {
+          return const <HighlightEntry>[];
+        }
+        final entries =
+            ref.watch(atlasGlossaryProvider(bookId!)).valueOrNull ?? const [];
+        return glossaryHighlightRanges(
+          chapterId: chapterId!,
+          content: content,
+          entries: entries,
+          color: Theme.of(context).colorScheme.secondaryContainer,
+        );
+      },
+      [
+        bookId,
+        chapterId,
+        content,
+        ref.watch(atlasGlossaryProvider(bookId ?? '')),
+      ],
+    );
 
     final allHighlights = useMemoized(
       () => [...highlights, ...glossaryHighlightsList],
@@ -332,10 +346,12 @@ class ChapterView extends HookConsumerWidget {
       BuildContext selectionContext,
     ) {
       final item = activeSpeechItem;
-      final idx = _narrationCoordinator.resolveActiveSpeechOffset(
-        item: item,
-        content: c,
-      ) ?? -1;
+      final idx =
+          _narrationCoordinator.resolveActiveSpeechOffset(
+            item: item,
+            content: c,
+          ) ??
+          -1;
 
       final registrar = SelectionContainer.maybeOf(selectionContext);
       final accent = theme.resolve(colorScheme).accent;
@@ -423,9 +439,7 @@ class ChapterView extends HookConsumerWidget {
               children: span.children
                   ?.map((c) => c is TextSpan ? applyBg(c, bg) : c)
                   .toList(),
-              style: (span.style ?? textStyle).copyWith(
-                backgroundColor: bg,
-              ),
+              style: (span.style ?? textStyle).copyWith(backgroundColor: bg),
             );
           }
 
@@ -553,14 +567,22 @@ class ChapterView extends HookConsumerWidget {
       );
     }
 
-    void handleTap(BuildContext selectionContext) {
-      final regionState = selectionContext.findAncestorStateOfType<SelectableRegionState>() ??
+    void handleTap(BuildContext selectionContext, {TapUpDetails? details}) {
+      final regionState =
+          selectionContext.findAncestorStateOfType<SelectableRegionState>() ??
           activeSelectableRegion.value;
       final render = _narrationCoordinator.findRenderParagraph(textKey);
-      final hasRenderSelection = render != null &&
-          render.selections.isNotEmpty && // ignore: invalid_use_of_visible_for_testing_member
-          !render.selections.first.isCollapsed; // ignore: invalid_use_of_visible_for_testing_member
-      final hasSelection = hasRenderSelection || activeSelectableRegion.value != null;
+      final hasRenderSelection =
+          render != null &&
+          render
+              .selections
+              .isNotEmpty && // ignore: invalid_use_of_visible_for_testing_member
+          !render
+              .selections
+              .first
+              .isCollapsed; // ignore: invalid_use_of_visible_for_testing_member
+      final hasSelection =
+          hasRenderSelection || activeSelectableRegion.value != null;
 
       if (hasSelection) {
         regionState?.clearSelection();
@@ -568,20 +590,62 @@ class ChapterView extends HookConsumerWidget {
         activeSelectableRegion.value = null;
         return;
       }
+      // Tap-to-skip during narration: sentence-start snap.
+      final canTapSkip =
+          (onTextTap != null || activeSpeechItem != null) &&
+          details != null &&
+          activeSpeechItem != null;
+      if (canTapSkip) {
+        final renderObj = render;
+        if (renderObj != null) {
+          try {
+            final box = renderObj;
+            final local = box.globalToLocal(details.globalPosition);
+            final pos = box.getPositionForOffset(local);
+            final renderOffset = pos.offset;
+            final contentOffset = _narrationCoordinator
+                .contentOffsetFromRenderOffset(
+                  renderOffset,
+                  renderContentMap.value,
+                );
+            final clamped = contentOffset.clamp(0, content.length);
+            if (onTextTap != null) {
+              onTextTap!.call(clamped);
+              return;
+            }
+            // Direct sentence-start seek when parent didn't provide callback.
+            final idx = const ChapterPositionResolver().sentenceIndexForOffset(
+              content,
+              clamped,
+            );
+            if (idx != null) {
+              final engine = ref.read(speechEngineProvider);
+              if (engine.session != null) {
+                // ignore: unawaited_futures
+                engine.seekTo(idx);
+                return;
+              }
+            }
+          } catch (_) {}
+        }
+      }
       onTap?.call();
     }
 
     if (!scrollable) {
       return SelectionArea(
         contextMenuBuilder: selectionAreaContextMenuBuilder,
-        child: Builder(builder: (selectionContext) {
-          final textWidget = buildText(baseStyle, selectionContext);
-          return GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: () => handleTap(selectionContext),
-            child: Padding(padding: _padding, child: textWidget),
-          );
-        }),
+        child: Builder(
+          builder: (selectionContext) {
+            final textWidget = buildText(baseStyle, selectionContext);
+            return GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapUp: (d) => handleTap(selectionContext, details: d),
+              onTap: () => handleTap(selectionContext),
+              child: Padding(padding: _padding, child: textWidget),
+            );
+          },
+        ),
       );
     }
 
@@ -594,17 +658,19 @@ class ChapterView extends HookConsumerWidget {
         },
         child: SingleChildScrollView(
           controller: scrollController,
-          child: Builder(builder: (selectionContext) {
-            final textWidget = buildText(baseStyle, selectionContext);
-            return GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () => handleTap(selectionContext),
-              child: Padding(padding: _padding, child: textWidget),
-            );
-          }),
+          child: Builder(
+            builder: (selectionContext) {
+              final textWidget = buildText(baseStyle, selectionContext);
+              return GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTapUp: (d) => handleTap(selectionContext, details: d),
+                onTap: () => handleTap(selectionContext),
+                child: Padding(padding: _padding, child: textWidget),
+              );
+            },
+          ),
         ),
       ),
     );
   }
 }
-

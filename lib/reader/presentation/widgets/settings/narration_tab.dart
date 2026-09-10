@@ -221,6 +221,7 @@ class NarrationTab extends ConsumerWidget {
     ValueChanged<double> onChanged,
   ) {
     final textTheme = Theme.of(context).textTheme;
+    final divisions = ((max - min) / 0.05).round();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -231,7 +232,14 @@ class NarrationTab extends ConsumerWidget {
             Text('${value.toStringAsFixed(2)}x', style: textTheme.bodySmall),
           ],
         ),
-        Slider(value: value, min: min, max: max, onChanged: onChanged),
+        Slider(
+          value: value.clamp(min, max),
+          min: min,
+          max: max,
+          divisions: divisions,
+          label: '${value.toStringAsFixed(2)}x',
+          onChanged: onChanged,
+        ),
       ],
     );
   }

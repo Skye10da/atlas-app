@@ -29,8 +29,9 @@ class ParagraphFinished extends SpeechEvent {
 }
 
 class ChapterFinished extends SpeechEvent {
-  const ChapterFinished(this.chapterId);
+  const ChapterFinished(this.chapterId, {this.wasPlaying = false});
   final String chapterId;
+  final bool wasPlaying;
 }
 
 /// Emitted when narration advances to a new chapter. Used to update

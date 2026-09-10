@@ -108,15 +108,32 @@ class SettingsScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Divider(
-                      height: 1,
-                      indent: 56,
-                      color: colors.outlineVariant.withValues(alpha: 0.3),
-                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
+              // Section 2b: Notifications (top-level)
+              _SectionHeader(label: 'NOTIFICATIONS', colors: colors),
+              Card(
+                elevation: 0,
+                color: colors.surfaceContainerLow,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    AppSpacing.borderRadiusLg,
+                  ),
+                  side: BorderSide(
+                    color: colors.outlineVariant.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Column(
+                  children: [
                     _MenuTile(
-                      icon: Icons.update_rounded,
-                      title: 'Novel Updates',
-                      subtitle: 'Chapter update checks and notifications',
+                      icon: Icons.notifications_active_outlined,
+                      iconColor: colors.primary,
+                      title: 'Notifications',
+                      subtitle:
+                          'Chapter updates, grouping, quiet hours & sound',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const UpdateCheckSettingsScreen(),
@@ -147,7 +164,8 @@ class SettingsScreen extends StatelessWidget {
                       icon: Icons.backup_rounded,
                       iconColor: colors.primary,
                       title: 'Library Backup & Restore',
-                      subtitle: 'Export or import your books, progress, and vocabulary',
+                      subtitle:
+                          'Export or import your books, progress, and vocabulary',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const DangerZoneScreen(),
@@ -183,11 +201,7 @@ class SettingsScreen extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Image.asset(
-                          'assets/icon.png',
-                          width: 30,
-                          height: 30,
-                        ),
+                        Image.asset('assets/icon.png', width: 30, height: 30),
                         const SizedBox(width: 6),
                         Text(
                           'Atlas',

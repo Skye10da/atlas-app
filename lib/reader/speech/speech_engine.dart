@@ -145,6 +145,27 @@ class SpeechEngine {
     await _driver.speak(prev);
   }
 
+  /// Seeks to a specific sentence index (tap-to-skip). Returns false if
+  /// index is out of bounds. Keeps the current playing state: if was playing,
+  /// resumes immediately at the new sentence.
+  Future<bool> seekTo(int sentenceIndex) async {
+    final session = _session;
+    if (session == null) return false;
+    final wasPlaying = _isPlaying;
+    if (!session.queue.seekTo(sentenceIndex)) return false;
+    final target = session.queue.current;
+    if (target == null) return false;
+    await _driver.stop();
+    _isPlaying = wasPlaying;
+    _eventsController.add(SentenceStarted(target));
+    if (wasPlaying) {
+      final peek = session.queue.peekNext();
+      if (peek != null) unawaited(_driver.warmup(peek));
+      await _driver.speak(target);
+    }
+    return true;
+  }
+
   void setSleepTimer(SleepTimerConfig? config) {
     _sleepTimer?.cancel();
     _stopAtBoundary = null;
@@ -219,13 +240,16 @@ class SpeechEngine {
       }
       await _driver.speak(next);
     } else {
+      final wasPlaying = _isPlaying;
       _isPlaying = false;
       await _recoveryStore.save(session.toCheckpoint());
       if (_stopAtBoundary == SleepTimerBoundary.endOfChapter) {
         await stop();
       }
       // Deliberately does not load the next chapter — see ASA §7.
-      _eventsController.add(ChapterFinished(session.chapterId));
+      _eventsController.add(
+        ChapterFinished(session.chapterId, wasPlaying: wasPlaying),
+      );
     }
   }
 
