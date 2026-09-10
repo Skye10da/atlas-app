@@ -202,6 +202,12 @@ class ReaderContent extends HookConsumerWidget {
       final engine = ref.read(speechEngineProvider);
       if (engine.session?.chapterId == chapter.id) return;
 
+      // Option A: defer if body empty — skip title announcement, keep auto-resume
+      if (content.trim().isEmpty) {
+        // Title-only would be built, but we skip per requirement when body missing
+        return;
+      }
+
       final narrationSettings =
           ref.read(narrationSettingsProvider).value ??
           const NarrationSettings();
@@ -211,18 +217,45 @@ class ReaderContent extends HookConsumerWidget {
           checkpoint.bookId == bookId &&
           checkpoint.chapterId == chapter.id;
 
+      final int sentenceIndex;
+      final bool isAutoNext = autoResumeNext.value;
+      if (restoreHere) {
+        sentenceIndex = checkpoint.sentenceIndex;
+      } else if (isAutoNext) {
+        // Auto-next always starts at title (0) when announce enabled, else 0
+        sentenceIndex = 0;
+      } else {
+        // Manual play: start from first paragraph on current screen, not chapter start
+        // Use current reading position (updated via onPositionChanged) as anchor
+        final pos = currentSentenceIndex.value;
+        // Validate against total sentences for this content (including title when announced)
+        // Fallback to 0 if out of range
+        sentenceIndex = pos;
+        // Clamp later after building; for now keep pos
+      }
+
       final session = _sessionBuilder.build(
         bookId: bookId,
         chapter: chapter,
         content: content,
         language: bookLanguage.value ?? 'en',
         settings: narrationSettings,
-        sentenceIndex: restoreHere ? checkpoint.sentenceIndex : 0,
+        sentenceIndex: sentenceIndex,
         coverPath: bookCoverPath.value,
         bookTitle: bookTitle.value,
         author: bookAuthor.value,
         chapterTitle: chapter.title,
       );
+      // Clamp manual position if it exceeds queue after title prepend
+      if (!restoreHere && !isAutoNext) {
+        if (session.queue.length > 0 && sentenceIndex >= session.queue.length) {
+          session.queue.seekTo(0);
+        } else if (session.queue.length > 0 &&
+            sentenceIndex > 0 &&
+            sentenceIndex < session.queue.length) {
+          // Already seeked via builder; ensure queue cursor is at sentenceIndex
+        }
+      }
       // Set cache active book (currently-reading scope, LRU)
       if (narrationSettings.ttsCacheEnabled) {
         final cache = ref.read(ttsFileCacheProvider);
