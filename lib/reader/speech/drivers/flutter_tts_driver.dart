@@ -104,7 +104,30 @@ class FlutterTtsDriver implements SpeechDriver {
   }
 
   @override
+  Future<void> warmup(SpeechItem item) async {
+    try {
+      if (item.language.isNotEmpty) {
+        await _tts.setLanguage(item.language);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Future<List<int>?> synthesizeToBytes(SpeechItem item) async {
+    // flutter_tts synthesizeToFile is platform-specific and file-based;
+    // we expose a no-op here so the cache layer can gracefully degrade to
+    // warmup-only gapless. A real file export can be wired via
+    // `synthesizeToFile` when the platform supports it.
+    return null;
+  }
+
+  @override
   Future<void> speak(SpeechItem item) async {
+    if (item.language.isNotEmpty) {
+      try {
+        await _tts.setLanguage(item.language);
+      } catch (_) {}
+    }
     await _tts.speak(item.text);
   }
 

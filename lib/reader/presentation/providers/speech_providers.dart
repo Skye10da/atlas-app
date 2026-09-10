@@ -1,6 +1,8 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/reader/speech/cache/tts_file_cache.dart';
 import 'package:atlas_app/reader/speech/drivers/flutter_tts_driver.dart';
 import 'package:atlas_app/reader/speech/playback_controller.dart';
 import 'package:atlas_app/reader/speech/persistence/recovery_store.dart';
@@ -43,6 +45,8 @@ final narrationSettingsRepositoryProvider =
     );
 
 final voiceCacheProvider = Provider<VoiceCache>((ref) => VoiceCache());
+
+final ttsFileCacheProvider = Provider<TtsFileCache>((ref) => TtsFileCache());
 
 final speechEngineProvider = Provider<SpeechEngine>((ref) {
   final engine = SpeechEngine(
@@ -142,9 +146,30 @@ final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
       ),
     );
   } catch (_) {
-    // audio_service is unsupported on Windows/Linux; narration still works via
-    // flutter_tts without the OS media session.
+    // audio_service is unsupported on some desktops before just_audio wiring;
+    // narration still works via flutter_tts without the OS media session.
   }
+  // Configure audio session for ducking/interruptions where available.
+  try {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.speech());
+    session.becomingNoisyEventStream.listen((_) {
+      controller.pause();
+    });
+    session.interruptionEventStream.listen((event) {
+      if (event.begin) {
+        if (event.type == AudioInterruptionType.duck) {
+          // Ducking handled by OS; keep playing at lower volume.
+        } else {
+          controller.pause();
+        }
+      } else {
+        if (event.type != AudioInterruptionType.duck) {
+          // Resume after call/assistant ends if needed - leave manual.
+        }
+      }
+    });
+  } catch (_) {}
 
   final cache = ref.watch(voiceCacheProvider);
   await cache.init();

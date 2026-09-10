@@ -63,6 +63,11 @@ class _FakeDriver implements SpeechDriver {
   }
 
   @override
+  Future<void> warmup(SpeechItem item) async {}
+  @override
+  Future<List<int>?> synthesizeToBytes(SpeechItem item) async => null;
+
+  @override
   Future<List<VoiceDescriptor>> listVoices() async => const [];
 
   @override

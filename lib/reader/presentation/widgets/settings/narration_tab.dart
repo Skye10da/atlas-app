@@ -50,9 +50,8 @@ class NarrationTab extends ConsumerWidget {
           settings.speechRate,
           0.4,
           2.0,
-          (v) => apply(
-            settings.copyWith(speechRate: v, clearActiveProfile: true),
-          ),
+          (v) =>
+              apply(settings.copyWith(speechRate: v, clearActiveProfile: true)),
         ),
         _labeledSlider(
           context,
@@ -71,6 +70,7 @@ class NarrationTab extends ConsumerWidget {
 
         SwitchListTile(
           title: const Text('Auto-advance chapters'),
+          subtitle: const Text('Continuously play across all chapters'),
           value: settings.autoAdvanceChapter,
           onChanged: (v) => apply(settings.copyWith(autoAdvanceChapter: v)),
         ),
@@ -79,6 +79,22 @@ class NarrationTab extends ConsumerWidget {
           value: settings.syncScrollToNarration,
           onChanged: (v) => apply(settings.copyWith(syncScrollToNarration: v)),
         ),
+        const Divider(height: AppSpacing.lg),
+        SwitchListTile(
+          title: const Text('Offline TTS cache'),
+          subtitle: const Text(
+            'Cache synthesis for faster gapless playback (currently-reading only)',
+          ),
+          value: settings.ttsCacheEnabled,
+          onChanged: (v) => apply(settings.copyWith(ttsCacheEnabled: v)),
+        ),
+        if (settings.ttsCacheEnabled) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _CacheSizePicker(
+            value: settings.ttsCacheMaxMb,
+            onChanged: (v) => apply(settings.copyWith(ttsCacheMaxMb: v)),
+          ),
+        ],
       ],
     );
   }
@@ -276,4 +292,40 @@ class _VoicePicker extends StatelessWidget {
   }
 
   bool _hasVoice(String id) => voices.any((v) => v.id == id);
+}
+
+class _CacheSizePicker extends StatelessWidget {
+  const _CacheSizePicker({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Cache size', style: textTheme.bodyMedium),
+        const SizedBox(height: AppSpacing.xs),
+        DropdownButtonFormField<int>(
+          initialValue: value,
+          decoration: const InputDecoration(
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          items: const [
+            DropdownMenuItem(value: 100, child: Text('100 MB')),
+            DropdownMenuItem(value: 250, child: Text('250 MB')),
+            DropdownMenuItem(value: 500, child: Text('500 MB')),
+            DropdownMenuItem(value: 1000, child: Text('1 GB')),
+            DropdownMenuItem(value: 0, child: Text('Unlimited')),
+          ],
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
+      ],
+    );
+  }
 }

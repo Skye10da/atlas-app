@@ -237,7 +237,8 @@ class AtlasPlaybackController extends BaseAudioHandler
       if (sentenceLength > 0) {
         final wordProgress = end / sentenceLength;
         final sentenceDuration = currentItem.estimatedDuration!;
-        final progressMs = (sentenceDuration.inMilliseconds * wordProgress).round();
+        final progressMs = (sentenceDuration.inMilliseconds * wordProgress)
+            .round();
         position += Duration(milliseconds: progressMs);
       }
     }

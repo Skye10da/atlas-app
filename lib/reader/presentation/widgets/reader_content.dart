@@ -91,6 +91,8 @@ class ReaderContent extends HookConsumerWidget {
     final analyticsServiceRef = useRef(analyticsService);
     analyticsServiceRef.value = analyticsService;
 
+    final autoResumeNext = useRef<bool>(false);
+
     void flushReadingSession() {
       final now = DateTime.now();
       final elapsed = now.difference(sessionStartTime.value).inSeconds;
@@ -156,12 +158,15 @@ class ReaderContent extends HookConsumerWidget {
 
     void advanceFromNarration(String finishedChapterId) {
       if (!context.mounted) return;
+      final engine = ref.read(speechEngineProvider);
+      final wasPlaying = engine.isPlaying;
       final autoAdvance =
           ref.read(narrationSettingsProvider).value?.autoAdvanceChapter ?? true;
       if (!autoAdvance) return;
       final idx = chapters.value.indexWhere((c) => c.id == finishedChapterId);
       if (idx < 0 || idx >= chapters.value.length - 1) return;
       final next = chapters.value[idx + 1];
+      autoResumeNext.value = wasPlaying;
       resetPosition();
       currentChapter.value = next;
       currentChapterIndex.value = idx + 1;
@@ -219,7 +224,18 @@ class ReaderContent extends HookConsumerWidget {
         bookTitle: bookTitle.value,
         author: bookAuthor.value,
       );
+      // Set cache active book (currently-reading scope, LRU)
+      if (narrationSettings.ttsCacheEnabled) {
+        final cache = ref.read(ttsFileCacheProvider);
+        unawaited(
+          cache.setActiveBook(bookId, maxMb: narrationSettings.ttsCacheMaxMb),
+        );
+      }
       await engine.loadSession(session);
+      if (autoResumeNext.value) {
+        autoResumeNext.value = false;
+        await engine.start();
+      }
     }
 
     void applySystemSettings() {

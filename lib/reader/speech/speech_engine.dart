@@ -62,11 +62,13 @@ class SpeechEngine {
       voiceId: session.settings.selectedVoiceId,
     );
     // Emit ChapterStarted so lockscreen metadata updates immediately
-    _eventsController.add(ChapterStarted(
-      chapterId: session.chapterId,
-      chapterTitle: session.currentItem?.text.split('\n').first ?? 'Chapter',
-      coverPath: session.coverPath,
-    ));
+    _eventsController.add(
+      ChapterStarted(
+        chapterId: session.chapterId,
+        chapterTitle: session.currentItem?.text.split('\n').first ?? 'Chapter',
+        coverPath: session.coverPath,
+      ),
+    );
   }
 
   /// Live-apply a settings change (rate/pitch/voice/sleep timer) without
@@ -90,6 +92,8 @@ class SpeechEngine {
     if (item == null) return;
     _isPlaying = true;
     _eventsController.add(SentenceStarted(item));
+    final peek = _session?.queue.peekNext();
+    if (peek != null) unawaited(_driver.warmup(peek));
     await _driver.speak(item);
   }
 
@@ -121,6 +125,8 @@ class SpeechEngine {
     _isPlaying = true;
     await _driver.stop();
     _eventsController.add(SentenceStarted(next));
+    final peek = session.queue.peekNext();
+    if (peek != null) unawaited(_driver.warmup(peek));
     await _driver.speak(next);
   }
 
@@ -134,6 +140,8 @@ class SpeechEngine {
     _isPlaying = true;
     await _driver.stop();
     _eventsController.add(SentenceStarted(prev));
+    final peek = session.queue.peekNext();
+    if (peek != null) unawaited(_driver.warmup(peek));
     await _driver.speak(prev);
   }
 
@@ -204,6 +212,11 @@ class SpeechEngine {
     final next = session.queue.next();
     if (next != null) {
       _eventsController.add(SentenceStarted(next));
+      // Warmup next sentence in background to reduce gap.
+      final peek = session.queue.peekNext();
+      if (peek != null) {
+        unawaited(_driver.warmup(peek));
+      }
       await _driver.speak(next);
     } else {
       _isPlaying = false;

@@ -32,6 +32,12 @@ abstract class SpeechDriver {
   /// utterance — SpeechEngine owns chunking/sequencing, not the driver.
   Future<void> speak(SpeechItem item);
 
+  /// Optional warmup for the next item to reduce gap. Default no-op.
+  Future<void> warmup(SpeechItem item) async {}
+
+  /// Optional synthesis to bytes for caching. Returns null when unsupported.
+  Future<List<int>?> synthesizeToBytes(SpeechItem item) async => null;
+
   Future<void> pause();
 
   /// Resume speaking [item] from wherever the driver left off. For drivers
