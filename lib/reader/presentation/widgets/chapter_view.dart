@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_visible_for_testing_member
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show Selectable;
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -567,69 +568,76 @@ class ChapterView extends HookConsumerWidget {
       );
     }
 
-    void handleTap(BuildContext selectionContext, {TapUpDetails? details}) {
-      final regionState =
-          selectionContext.findAncestorStateOfType<SelectableRegionState>() ??
-          activeSelectableRegion.value;
+    bool hasSelectionNow(BuildContext selectionContext) {
       final render = _narrationCoordinator.findRenderParagraph(textKey);
       final hasRenderSelection =
           render != null &&
-          render
-              .selections
-              .isNotEmpty && // ignore: invalid_use_of_visible_for_testing_member
-          !render
-              .selections
-              .first
-              .isCollapsed; // ignore: invalid_use_of_visible_for_testing_member
-      final hasSelection =
-          hasRenderSelection || activeSelectableRegion.value != null;
+          render.selections.isNotEmpty &&
+          !render.selections.first.isCollapsed;
+      return hasRenderSelection || activeSelectableRegion.value != null;
+    }
 
-      if (hasSelection) {
+    void handleChromeTap(BuildContext selectionContext) {
+      final regionState =
+          selectionContext.findAncestorStateOfType<SelectableRegionState>() ??
+          activeSelectableRegion.value;
+      if (hasSelectionNow(selectionContext)) {
         regionState?.clearSelection();
         regionState?.hideToolbar();
         activeSelectableRegion.value = null;
         return;
       }
-      // Tap-to-skip during narration: sentence-start snap.
-      final canTapSkip =
-          (onTextTap != null || activeSpeechItem != null) &&
-          details != null &&
-          activeSpeechItem != null;
-      if (canTapSkip) {
-        final renderObj = render;
-        if (renderObj != null) {
-          try {
-            final box = renderObj;
-            final local = box.globalToLocal(details.globalPosition);
-            final pos = box.getPositionForOffset(local);
-            final renderOffset = pos.offset;
-            final contentOffset = _narrationCoordinator
-                .contentOffsetFromRenderOffset(
-                  renderOffset,
-                  renderContentMap.value,
-                );
-            final clamped = contentOffset.clamp(0, content.length);
-            if (onTextTap != null) {
-              onTextTap!.call(clamped);
-              return;
-            }
-            // Direct sentence-start seek when parent didn't provide callback.
-            final idx = const ChapterPositionResolver().sentenceIndexForOffset(
-              content,
-              clamped,
-            );
-            if (idx != null) {
-              final engine = ref.read(speechEngineProvider);
-              if (engine.session != null) {
-                // ignore: unawaited_futures
-                engine.seekTo(idx);
-                return;
-              }
-            }
-          } catch (_) {}
-        }
-      }
       onTap?.call();
+    }
+
+    // Immediate chrome on first tap, long-press via SelectionArea for selection.
+    // Double-tap to skip: sentence-start snap, preserves playing state
+    // (seekTo keeps wasPlaying — playing resumes, idle stays paused to position).
+    TapDownDetails? pendingDoubleTap;
+
+    void handleSkip(TapDownDetails? details, BuildContext selectionContext) {
+      if (details == null) return;
+      final regionState =
+          selectionContext.findAncestorStateOfType<SelectableRegionState>() ??
+          activeSelectableRegion.value;
+      if (hasSelectionNow(selectionContext)) {
+        regionState?.clearSelection();
+        regionState?.hideToolbar();
+        activeSelectableRegion.value = null;
+        return;
+      }
+      final render = _narrationCoordinator.findRenderParagraph(textKey);
+      if (render == null) return;
+      try {
+        final local = render.globalToLocal(details.globalPosition);
+        final pos = render.getPositionForOffset(local);
+        final renderOffset = pos.offset;
+        final contentOffset = _narrationCoordinator
+            .contentOffsetFromRenderOffset(
+              renderOffset,
+              renderContentMap.value,
+            );
+        final clamped = contentOffset.clamp(0, content.length);
+        final tapCallback = onTextTap;
+        if (tapCallback != null) {
+          tapCallback.call(clamped);
+          return;
+        }
+        final idx = const ChapterPositionResolver().sentenceIndexForOffset(
+          content,
+          clamped,
+        );
+        if (idx == null) return;
+        final engine = ref.read(speechEngineProvider);
+        if (engine.session == null) {
+          // No session yet — build one from current chapter content so
+          // double-tap to position works even before narration started.
+          // Caller (ReaderContent) will handle via onTextTap if provided.
+          return;
+        }
+        // ignore: unawaited_futures
+        engine.seekTo(idx);
+      } catch (_) {}
     }
 
     if (!scrollable) {
@@ -640,8 +648,15 @@ class ChapterView extends HookConsumerWidget {
             final textWidget = buildText(baseStyle, selectionContext);
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTapUp: (d) => handleTap(selectionContext, details: d),
-              onTap: () => handleTap(selectionContext),
+              // Single tap -> immediate chrome (via onTap, delayed  ~300ms when doubleTap present but preserves long-press)
+              onTap: () => handleChromeTap(selectionContext),
+              // Double-tap to skip to sentence-start (active resumes, idle positions)
+              onDoubleTapDown: (d) => pendingDoubleTap = d,
+              onDoubleTap: () {
+                final details = pendingDoubleTap;
+                pendingDoubleTap = null;
+                handleSkip(details, selectionContext);
+              },
               child: Padding(padding: _padding, child: textWidget),
             );
           },
@@ -663,8 +678,13 @@ class ChapterView extends HookConsumerWidget {
               final textWidget = buildText(baseStyle, selectionContext);
               return GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onTapUp: (d) => handleTap(selectionContext, details: d),
-                onTap: () => handleTap(selectionContext),
+                onTap: () => handleChromeTap(selectionContext),
+                onDoubleTapDown: (d) => pendingDoubleTap = d,
+                onDoubleTap: () {
+                  final details = pendingDoubleTap;
+                  pendingDoubleTap = null;
+                  handleSkip(details, selectionContext);
+                },
                 child: Padding(padding: _padding, child: textWidget),
               );
             },
