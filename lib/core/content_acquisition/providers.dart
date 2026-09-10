@@ -239,14 +239,19 @@ final taskSchedulerProvider = Provider<TaskScheduler>((ref) {
           .read(chapterUpdateServiceProvider)
           .checkTrackedBooks();
       if (result.booksWithUpdates == 0) return null;
-      if (settings.notificationsEnabled) {
-        await UpdateNotificationService.instance.initialize();
-        await UpdateNotificationService.instance.showUpdateSummary(
-          result.updates
-              .map(
-                (u) => (title: u.title, bookId: u.bookId, count: u.newChapters),
-              )
-              .toList(),
+      final db = ref.read(databaseProvider);
+      await UpdateNotificationService.instance.initialize(db: db);
+      await UpdateNotificationService.instance.showUpdateSummary(
+        result.updates
+            .map(
+              (u) => (title: u.title, bookId: u.bookId, count: u.newChapters),
+            )
+            .toList(),
+        settings: settings,
+      );
+      if (settings.autoDownloadChapters) {
+        AppLogger.info(
+          'Auto-download enabled: ${result.totalNewChapters} new chapter(s) discovered; foreground prefetch will cache bodies.',
         );
       }
       return 'found ${result.totalNewChapters} new chapter(s) '

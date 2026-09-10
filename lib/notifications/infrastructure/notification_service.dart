@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -7,6 +8,36 @@ import 'package:rxdart/rxdart.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/core/router/app_router.dart';
+import 'package:atlas_app/notifications/domain/entities/update_check_settings.dart';
+import 'package:atlas_app/notifications/infrastructure/update_check_settings_store.dart';
+
+/// Top-level callback for notification actions invoked when the app is in
+/// background or terminated.
+@pragma('vm:entry-point')
+void notificationTapBackground(NotificationResponse response) async {
+  final actionId = response.actionId;
+  final payload = response.payload;
+  if (actionId == 'mark_read' && payload != null) {
+    if (payload.startsWith('/novel/')) {
+      final bookId = payload.replaceFirst('/novel/', '');
+      final db = AppDatabase();
+      try {
+        await db.customStatement(
+          'UPDATE notification_history SET is_read = 1 WHERE book_id = ?',
+          [bookId],
+        );
+        await db.customStatement(
+          'UPDATE books SET has_update = 0, new_chapter_count = 0 WHERE id = ?',
+          [bookId],
+        );
+      } catch (e) {
+        AppLogger.warning('Background notification action failed: $e');
+      } finally {
+        await db.close();
+      }
+    }
+  }
+}
 
 /// A simple data class for notification history entries.
 class NotificationEntry {
@@ -52,13 +83,22 @@ class UpdateNotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  String? _pendingLaunchPayload;
+
+  /// Consumes and clears any pending cold-start launch payload.
+  String? consumePendingLaunchPayload() {
+    final payload = _pendingLaunchPayload;
+    _pendingLaunchPayload = null;
+    return payload;
+  }
 
   /// In-memory cache of the database instance, set lazily.
   AppDatabase? _db;
 
   /// Subject that emits the current list of all notification history entries.
-  final _historyController =
-      BehaviorSubject<List<NotificationEntry>>.seeded([]);
+  final _historyController = BehaviorSubject<List<NotificationEntry>>.seeded(
+    [],
+  );
 
   /// Subject that emits the unread notification count.
   final _unreadCountController = BehaviorSubject<int>.seeded(0);
@@ -103,6 +143,7 @@ class UpdateNotificationService {
           ),
         ),
         onDidReceiveNotificationResponse: _handleTap,
+        onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
       );
       await _plugin
           .resolvePlatformSpecificImplementation<
@@ -159,53 +200,169 @@ class UpdateNotificationService {
     }
   }
 
-  /// Shows one summary notification for all books that gained chapters, e.g.
-  /// "3 new chapters — Shadow Slave (2), Other Novel (1)".
-  Future<void> showUpdateSummary(
-    List<({String title, String bookId, int count})> updates,
-  ) async {
-    if (!_initialized || updates.isEmpty) return;
-    final total = updates.fold<int>(0, (sum, u) => sum + u.count);
-    final detail = updates.length == 1
-        ? '${updates.first.title} (${updates.first.count})'
-        : updates.map((u) => '${u.title} (${u.count})').join(', ');
+  /// Ensures an Android notification channel exists for the given novel.
+  Future<void> ensureNovelChannel({
+    required String bookId,
+    required String title,
+    bool sound = true,
+    bool vibration = true,
+  }) async {
+    if (!Platform.isAndroid) return;
     try {
-      // Single-book updates deep-link straight to that novel; multi-book
-      // summaries land in the library.
-      final payload = updates.length == 1
-          ? '/novel/${updates.first.bookId}'
-          : '/library';
-      await _plugin.show(
-        id: _summaryId,
-        title: '$total new chapter${total == 1 ? '' : 's'}',
-        body: detail,
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _channelId,
-            _channelName,
-            channelDescription: _channelDescription,
-            importance: Importance.defaultImportance,
-            priority: Priority.defaultPriority,
-          ),
-        ),
-        payload: payload,
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      final channel = AndroidNotificationChannel(
+        'novel_$bookId',
+        '$title Updates',
+        description: 'New chapter releases for $title',
+        importance: Importance.high,
+        playSound: sound,
+        enableVibration: vibration,
       );
+      await androidPlugin?.createNotificationChannel(channel);
+    } catch (e) {
+      AppLogger.warning('Failed to create novel channel $bookId: $e');
+    }
+  }
 
-      // Persist each update as a separate history entry.
-      if (_db != null) {
+  /// Deletes a novel's Android notification channel when untracked or deleted.
+  Future<void> deleteNovelChannel(String bookId) async {
+    if (!Platform.isAndroid) return;
+    try {
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      await androidPlugin?.deleteNotificationChannel(
+        channelId: 'novel_$bookId',
+      );
+    } catch (e) {
+      AppLogger.warning('Failed to delete novel channel $bookId: $e');
+    }
+  }
+
+  /// Shows notification(s) for all books that gained chapters.
+  /// Respects quiet hours, sound/vibration preferences, per-novel channels,
+  /// and grouping preferences.
+  Future<void> showUpdateSummary(
+    List<({String title, String bookId, int count})> updates, {
+    UpdateCheckSettings? settings,
+  }) async {
+    if (!_initialized || updates.isEmpty) return;
+    final config = settings ?? await UpdateCheckSettingsStore.load();
+    final now = DateTime.now();
+
+    // 1. Always record in local notification_history database first
+    if (_db != null) {
+      for (final update in updates) {
+        await _db!.customStatement(
+          'INSERT INTO notification_history (title, body, payload, book_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, ?)',
+          [
+            '${update.title} has new chapters',
+            '${update.count} new chapter${update.count == 1 ? '' : 's'} available',
+            '/novel/${update.bookId}',
+            update.bookId,
+            now.toIso8601String(),
+          ],
+        );
+      }
+      await _refreshHistory();
+    }
+
+    // 2. Check if OS notifications are disabled or quiet hours are active
+    if (!config.notificationsEnabled) return;
+    if (UpdateCheckSettingsStore.isWithinQuietHours(now, config)) {
+      AppLogger.info('Notification suppressed due to active quiet hours');
+      return;
+    }
+
+    const groupKey = 'com.atlas.chapter_updates';
+    final total = updates.fold<int>(0, (sum, u) => sum + u.count);
+
+    try {
+      final showIndividual =
+          config.groupingMode == NotificationGroupingMode.individual ||
+          config.groupingMode == NotificationGroupingMode.both ||
+          updates.length == 1;
+
+      final showSummary =
+          config.groupingMode == NotificationGroupingMode.bundled ||
+          (config.groupingMode == NotificationGroupingMode.both &&
+              updates.length > 1);
+
+      if (showIndividual) {
         for (final update in updates) {
-          await _db!.customStatement(
-            'INSERT INTO notification_history (title, body, payload, book_id, is_read, created_at) VALUES (?, ?, ?, ?, 0, ?)',
-            [
-              '$total new chapter${total == 1 ? '' : 's'}',
-              '${update.title} (${update.count} new)',
-              '/novel/${update.bookId}',
-              update.bookId,
-              DateTime.now().toIso8601String(),
-            ],
+          await ensureNovelChannel(
+            bookId: update.bookId,
+            title: update.title,
+            sound: config.soundEnabled,
+            vibration: config.vibrationEnabled,
+          );
+
+          final notificationId = (update.bookId.hashCode.abs() % 40000) + 1000;
+          await _plugin.show(
+            id: notificationId,
+            title: update.title,
+            body:
+                '${update.count} new chapter${update.count == 1 ? '' : 's'} available',
+            notificationDetails: NotificationDetails(
+              android: AndroidNotificationDetails(
+                'novel_${update.bookId}',
+                '${update.title} Updates',
+                channelDescription: 'New chapter releases for ${update.title}',
+                groupKey: groupKey,
+                importance: Importance.high,
+                priority: Priority.high,
+                playSound: config.soundEnabled,
+                enableVibration: config.vibrationEnabled,
+                actions: [
+                  const AndroidNotificationAction(
+                    'read_now',
+                    'Read Now',
+                    showsUserInterface: true,
+                  ),
+                  const AndroidNotificationAction(
+                    'mark_read',
+                    'Mark Read',
+                    cancelNotification: true,
+                  ),
+                ],
+              ),
+              iOS: DarwinNotificationDetails(
+                threadIdentifier: update.bookId,
+                presentAlert: true,
+                presentBadge: true,
+                presentSound: config.soundEnabled,
+              ),
+            ),
+            payload: '/novel/${update.bookId}',
           );
         }
-        await _refreshHistory();
+      }
+
+      if (showSummary && Platform.isAndroid) {
+        final detail = updates.map((u) => '${u.title} (${u.count})').join(', ');
+        await _plugin.show(
+          id: _summaryId,
+          title: '$total new chapter${total == 1 ? '' : 's'}',
+          body: detail,
+          notificationDetails: NotificationDetails(
+            android: AndroidNotificationDetails(
+              _channelId,
+              _channelName,
+              channelDescription: _channelDescription,
+              groupKey: groupKey,
+              setAsGroupSummary: true,
+              importance: Importance.defaultImportance,
+              priority: Priority.defaultPriority,
+              playSound: config.soundEnabled,
+              enableVibration: config.vibrationEnabled,
+            ),
+          ),
+          payload: '/library',
+        );
       }
     } catch (e) {
       AppLogger.warning('Failed to show update notification: $e');
@@ -229,7 +386,8 @@ class UpdateNotificationService {
       await _plugin.show(
         id: _testNotificationId,
         title: 'Atlas test notification',
-        body: 'Notifications are working. Shown ${delay.inSeconds}s after launch.',
+        body:
+            'Notifications are working. Shown ${delay.inSeconds}s after launch.',
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
@@ -281,6 +439,20 @@ class UpdateNotificationService {
     await _refreshHistory();
   }
 
+  /// Marks all notifications for a specific novel as read and resets the book update badge.
+  Future<void> markNovelAsRead(String bookId) async {
+    if (_db == null) return;
+    await _db!.customStatement(
+      'UPDATE notification_history SET is_read = 1 WHERE book_id = ?',
+      [bookId],
+    );
+    await _db!.customStatement(
+      'UPDATE books SET has_update = 0, new_chapter_count = 0 WHERE id = ?',
+      [bookId],
+    );
+    await _refreshHistory();
+  }
+
   /// Deletes all notification history entries.
   Future<void> clearAll() async {
     if (_db == null) return;
@@ -298,12 +470,36 @@ class UpdateNotificationService {
     await _refreshHistory();
   }
 
+  /// Deletes multiple notification history entries by their ids.
+  Future<void> deleteMultiple(Set<int> ids) async {
+    if (_db == null || ids.isEmpty) return;
+    final placeholders = List.filled(ids.length, '?').join(', ');
+    await _db!.customStatement(
+      'DELETE FROM notification_history WHERE id IN ($placeholders)',
+      ids.toList(),
+    );
+    await _refreshHistory();
+  }
+
+  /// Marks multiple notification history entries as read.
+  Future<void> markMultipleAsRead(Set<int> ids) async {
+    if (_db == null || ids.isEmpty) return;
+    final placeholders = List.filled(ids.length, '?').join(', ');
+    await _db!.customStatement(
+      'UPDATE notification_history SET is_read = 1 WHERE id IN ($placeholders)',
+      ids.toList(),
+    );
+    await _refreshHistory();
+  }
+
   /// Refreshes the in-memory history list and unread count from the database.
   Future<void> _refreshHistory() async {
     if (_db == null) return;
-    final rows = await _db!.customSelect(
-      'SELECT * FROM notification_history ORDER BY created_at DESC',
-    ).get();
+    final rows = await _db!
+        .customSelect(
+          'SELECT * FROM notification_history ORDER BY created_at DESC',
+        )
+        .get();
     final entries = rows.map((row) {
       return NotificationEntry(
         id: row.read<int>('id'),
@@ -324,14 +520,15 @@ class UpdateNotificationService {
   Future<void> _handleColdStartTap() async {
     if (!isSupported) return;
     try {
-      // Check if the app was launched by tapping a notification.
-      final impl = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
-      if (impl != null) {
-        // Android: getActiveNotifications doesn't give us the launch payload.
-        // For proper cold-start handling, we'd need getNotificationAppLaunchInfo
-        // which requires flutter_local_notifications >= 17.x
-        await impl.getActiveNotifications();
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details != null && details.didNotificationLaunchApp) {
+        final payload = details.notificationResponse?.payload;
+        if (payload != null && payload.isNotEmpty) {
+          _pendingLaunchPayload = payload;
+          AppLogger.info(
+            'Captured cold-start notification launch payload: $payload',
+          );
+        }
       }
     } catch (e) {
       AppLogger.warning('Cold-start notification tap handling failed: $e');
@@ -339,8 +536,24 @@ class UpdateNotificationService {
   }
 
   static void _handleTap(NotificationResponse response) {
+    final actionId = response.actionId;
     final payload = response.payload;
     if (payload == null || payload.isEmpty) return;
+
+    if (actionId == 'read_now') {
+      if (payload.startsWith('/novel/')) {
+        final bookId = payload.replaceFirst('/novel/', '');
+        AppRouter.router.push('/reader/$bookId');
+        return;
+      }
+    } else if (actionId == 'mark_read') {
+      if (payload.startsWith('/novel/')) {
+        final bookId = payload.replaceFirst('/novel/', '');
+        unawaited(instance.markNovelAsRead(bookId));
+        return;
+      }
+    }
+
     AppRouter.router.push(payload);
   }
 

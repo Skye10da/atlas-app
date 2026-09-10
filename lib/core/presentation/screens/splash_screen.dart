@@ -4,6 +4,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
 
 class SplashScreen extends HookWidget {
   const SplashScreen({super.key});
@@ -17,10 +18,7 @@ class SplashScreen extends HookWidget {
       duration: const Duration(milliseconds: 450),
     );
     final inkRadiusAnimation = useMemoized(
-      () => CurvedAnimation(
-        parent: inkController,
-        curve: Curves.easeOutCubic,
-      ),
+      () => CurvedAnimation(parent: inkController, curve: Curves.easeOutCubic),
       [inkController],
     );
 
@@ -45,9 +43,7 @@ class SplashScreen extends HookWidget {
             curve: Interval(start, end, curve: Curves.easeIn),
           ),
         );
-        slides.add(
-          Tween<double>(begin: 24.0, end: 0.0).animate(curve),
-        );
+        slides.add(Tween<double>(begin: 24.0, end: 0.0).animate(curve));
       }
       return (fades: fades, slides: slides);
     }, [lettersController]);
@@ -57,10 +53,7 @@ class SplashScreen extends HookWidget {
       duration: const Duration(milliseconds: 400),
     );
     final subtitleFadeAnimation = useMemoized(
-      () => CurvedAnimation(
-        parent: subtitleController,
-        curve: Curves.easeIn,
-      ),
+      () => CurvedAnimation(parent: subtitleController, curve: Curves.easeIn),
       [subtitleController],
     );
     final subtitleSlideAnimation = useMemoized(
@@ -88,7 +81,14 @@ class SplashScreen extends HookWidget {
         await Future<void>.delayed(const Duration(milliseconds: 500));
         if (context.mounted && !navigated.value) {
           navigated.value = true;
-          context.go('/discover');
+          final launchPayload = UpdateNotificationService.instance
+              .consumePendingLaunchPayload();
+          if (launchPayload != null && launchPayload.isNotEmpty) {
+            context.go('/discover');
+            unawaited(context.push(launchPayload));
+          } else {
+            context.go('/discover');
+          }
         }
       }
 

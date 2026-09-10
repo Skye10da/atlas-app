@@ -41,15 +41,21 @@ Future<bool> runChapterUpdateBackgroundTask() async {
     final service = ChapterUpdateService(db: database, registry: registry);
     final result = await service.checkTrackedBooks();
 
-    if (result.booksWithUpdates > 0 && settings.notificationsEnabled) {
-      await UpdateNotificationService.instance.initialize();
+    if (result.booksWithUpdates > 0) {
+      await UpdateNotificationService.instance.initialize(db: database);
       await UpdateNotificationService.instance.showUpdateSummary(
         result.updates
             .map(
               (u) => (title: u.title, bookId: u.bookId, count: u.newChapters),
             )
             .toList(),
+        settings: settings,
       );
+      if (settings.autoDownloadChapters) {
+        AppLogger.info(
+          'Auto-download enabled: ${result.totalNewChapters} new chapter(s) discovered; content fetch will be handled by foreground prefetch.',
+        );
+      }
     }
     return true;
   } catch (e, st) {
@@ -113,6 +119,15 @@ Future<void> initializeBackgroundUpdateChecks(
   }
   try {
     await Workmanager().initialize(callbackDispatcher);
+    if (!settings.enabled) {
+      await Workmanager().cancelByUniqueName(_kChapterUpdateUniqueName);
+      return;
+    }
+
+    final networkType = settings.wifiOnly
+        ? NetworkType.unmetered
+        : NetworkType.connected;
+
     await Workmanager().registerPeriodicTask(
       _kChapterUpdateUniqueName,
       kChapterUpdateTaskName,
@@ -121,7 +136,7 @@ Future<void> initializeBackgroundUpdateChecks(
       // competes with plugin discovery and first-frame rendering otherwise.
       initialDelay: const Duration(minutes: 15),
       existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
-      constraints: Constraints(networkType: NetworkType.connected),
+      constraints: Constraints(networkType: networkType),
     );
   } catch (e) {
     AppLogger.warning('Failed to register background update checks: $e');

@@ -50,11 +50,7 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
         messenger.showSnackBar(SnackBar(content: Text(message)));
       } catch (e) {
         messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to check for updates: $e',
-            ),
-          ),
+          SnackBar(content: Text('Failed to check for updates: $e')),
         );
       } finally {
         if (context.mounted) checking.value = false;
@@ -65,16 +61,19 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
       testingNotification.value = true;
       final messenger = ScaffoldMessenger.of(context);
       try {
-        final success = await UpdateNotificationService.instance.showTestNotification(
-          delay: Duration.zero,
-        );
+        final success = await UpdateNotificationService.instance
+            .showTestNotification(delay: Duration.zero);
         if (success) {
           messenger.showSnackBar(
             const SnackBar(content: Text('Test notification sent.')),
           );
         } else {
           messenger.showSnackBar(
-            const SnackBar(content: Text('Notifications are not permitted or supported on this device.')),
+            const SnackBar(
+              content: Text(
+                'Notifications are not permitted or supported on this device.',
+              ),
+            ),
           );
         }
       } catch (e) {
@@ -112,7 +111,9 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
                   color: colors.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+                  borderRadius: BorderRadius.circular(
+                    AppSpacing.borderRadiusLg,
+                  ),
                   border: Border.all(
                     color: colors.outlineVariant.withValues(alpha: 0.35),
                   ),
@@ -122,7 +123,11 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                     CircleAvatar(
                       radius: 20,
                       backgroundColor: colors.primaryContainer,
-                      child: Icon(Icons.sync_rounded, color: colors.onPrimaryContainer, size: 22),
+                      child: Icon(
+                        Icons.sync_rounded,
+                        color: colors.onPrimaryContainer,
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.smMd),
                     Expanded(
@@ -158,9 +163,13 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Check Ongoing Novels'),
-                      subtitle: const Text('Periodically look for newly released chapters of tracked novels'),
+                      subtitle: const Text(
+                        'Periodically look for newly released chapters of tracked novels',
+                      ),
                       value: settings.enabled,
-                      onChanged: ref.read(updateCheckSettingsProvider.notifier).setEnabled,
+                      onChanged: ref
+                          .read(updateCheckSettingsProvider.notifier)
+                          .setEnabled,
                     ),
                     if (settings.enabled) ...[
                       const SizedBox(height: AppSpacing.sm),
@@ -170,11 +179,17 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                         title: 'Check Interval',
                         value: settings.intervalHours,
                         options: const [
+                          (1, 'Every hour'),
+                          (3, 'Every 3 hours'),
                           (6, 'Every 6 hours'),
                           (12, 'Every 12 hours'),
                           (24, 'Once daily'),
                         ],
-                        onChanged: ref.read(updateCheckSettingsProvider.notifier).setIntervalHours,
+                        onChanged: (val) {
+                          ref
+                              .read(updateCheckSettingsProvider.notifier)
+                              .setIntervalHours(val);
+                        },
                       ),
                     ],
                   ],
@@ -182,17 +197,170 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.md),
 
-              // 3. Notifications Section
+              // 3. Notifications & Alert Preferences
               _CardSection(
-                title: 'Notifications',
+                title: 'Notification Preferences',
                 child: Column(
                   children: [
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Chapter Notifications'),
-                      subtitle: const Text('Show a system notification when newly released chapters are discovered'),
+                      subtitle: const Text(
+                        'Show a system notification when newly released chapters are discovered',
+                      ),
                       value: settings.notificationsEnabled,
-                      onChanged: ref.read(updateCheckSettingsProvider.notifier).setNotificationsEnabled,
+                      onChanged: ref
+                          .read(updateCheckSettingsProvider.notifier)
+                          .setNotificationsEnabled,
+                    ),
+                    if (settings.notificationsEnabled) ...[
+                      const Divider(),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Play Sound'),
+                        subtitle: const Text(
+                          'Play the default alert sound for updates',
+                        ),
+                        value: settings.soundEnabled,
+                        onChanged: ref
+                            .read(updateCheckSettingsProvider.notifier)
+                            .setSoundEnabled,
+                      ),
+                      const Divider(),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Vibration'),
+                        subtitle: const Text(
+                          'Vibrate device upon receiving update alerts',
+                        ),
+                        value: settings.vibrationEnabled,
+                        onChanged: ref
+                            .read(updateCheckSettingsProvider.notifier)
+                            .setVibrationEnabled,
+                      ),
+                      const Divider(),
+                      const SizedBox(height: AppSpacing.xs),
+                      ChoiceTile<NotificationGroupingMode>(
+                        title: 'Notification Grouping',
+                        value: settings.groupingMode,
+                        options: const [
+                          (
+                            NotificationGroupingMode.both,
+                            'Grouped with separate cards',
+                          ),
+                          (
+                            NotificationGroupingMode.bundled,
+                            'Single summary card only',
+                          ),
+                          (
+                            NotificationGroupingMode.individual,
+                            'Separate novel cards only',
+                          ),
+                        ],
+                        onChanged: (mode) {
+                          ref
+                              .read(updateCheckSettingsProvider.notifier)
+                              .setGroupingMode(mode);
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // 4. Quiet Hours (Do Not Disturb)
+              if (settings.notificationsEnabled) ...[
+                _CardSection(
+                  title: 'Quiet Hours (Do Not Disturb)',
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Enable Quiet Hours'),
+                        subtitle: const Text(
+                          'Suppress audible/heads-up OS alerts during selected window',
+                        ),
+                        value: settings.quietHoursEnabled,
+                        onChanged: ref
+                            .read(updateCheckSettingsProvider.notifier)
+                            .setQuietHoursEnabled,
+                      ),
+                      if (settings.quietHoursEnabled) ...[
+                        const Divider(),
+                        ChoiceTile<int>(
+                          title: 'Starts At',
+                          value: settings.quietHoursStart,
+                          options: const [
+                            (20, '8:00 PM'),
+                            (21, '9:00 PM'),
+                            (22, '10:00 PM'),
+                            (23, '11:00 PM'),
+                            (0, '12:00 AM (Midnight)'),
+                          ],
+                          onChanged: (val) {
+                            ref
+                                .read(updateCheckSettingsProvider.notifier)
+                                .setQuietHoursWindow(
+                                  start: val,
+                                  end: settings.quietHoursEnd,
+                                );
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        ChoiceTile<int>(
+                          title: 'Ends At',
+                          value: settings.quietHoursEnd,
+                          options: const [
+                            (6, '6:00 AM'),
+                            (7, '7:00 AM'),
+                            (8, '8:00 AM'),
+                            (9, '9:00 AM'),
+                            (10, '10:00 AM'),
+                          ],
+                          onChanged: (val) {
+                            ref
+                                .read(updateCheckSettingsProvider.notifier)
+                                .setQuietHoursWindow(
+                                  start: settings.quietHoursStart,
+                                  end: val,
+                                );
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+
+              // 5. Data & Background Constraints
+              _CardSection(
+                title: 'Data & Offline Settings',
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Wi-Fi Only'),
+                      subtitle: const Text(
+                        'Run periodic background checks only when connected to unmetered Wi-Fi',
+                      ),
+                      value: settings.wifiOnly,
+                      onChanged: ref
+                          .read(updateCheckSettingsProvider.notifier)
+                          .setWifiOnly,
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Auto-Download Chapters'),
+                      subtitle: const Text(
+                        'Automatically pre-fetch new chapter text into offline storage',
+                      ),
+                      value: settings.autoDownloadChapters,
+                      onChanged: ref
+                          .read(updateCheckSettingsProvider.notifier)
+                          .setAutoDownloadChapters,
                     ),
                   ],
                 ),
@@ -222,9 +390,14 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                     const Divider(),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.cached_rounded, color: colors.primary),
+                      leading: Icon(
+                        Icons.cached_rounded,
+                        color: colors.primary,
+                      ),
                       title: const Text('Refresh Discover Feeds Now'),
-                      subtitle: const Text('Fetch latest trending novels, OPDS classics, and recommendations'),
+                      subtitle: const Text(
+                        'Fetch latest trending novels, OPDS classics, and recommendations',
+                      ),
                       trailing: refreshingDiscover.value
                           ? const SizedBox(
                               width: 20,
@@ -238,34 +411,55 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                               refreshingDiscover.value = true;
                               final messenger = ScaffoldMessenger.of(context);
                               try {
-                                final trendingService = ref.refresh(trendingServiceProvider);
-                                await trendingService.fetchAllTrending(forceRefresh: true);
+                                final trendingService = ref.refresh(
+                                  trendingServiceProvider,
+                                );
+                                await trendingService.fetchAllTrending(
+                                  forceRefresh: true,
+                                );
                                 ref.invalidate(discoverDashboardProvider);
                                 messenger.showSnackBar(
-                                  const SnackBar(content: Text('Discover feeds refreshed.')),
+                                  const SnackBar(
+                                    content: Text('Discover feeds refreshed.'),
+                                  ),
                                 );
                               } catch (e) {
                                 messenger.showSnackBar(
-                                  SnackBar(content: Text('Could not refresh feeds: $e')),
+                                  SnackBar(
+                                    content: Text(
+                                      'Could not refresh feeds: $e',
+                                    ),
+                                  ),
                                 );
                               } finally {
-                                if (context.mounted) refreshingDiscover.value = false;
+                                if (context.mounted) {
+                                  refreshingDiscover.value = false;
+                                }
                               }
                             },
                     ),
                     const Divider(),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.delete_sweep_rounded, color: colors.error),
+                      leading: Icon(
+                        Icons.delete_sweep_rounded,
+                        color: colors.error,
+                      ),
                       title: const Text('Clear Discover Cache'),
-                      subtitle: const Text('Remove stored offline trending and recommendation payloads'),
+                      subtitle: const Text(
+                        'Remove stored offline trending and recommendation payloads',
+                      ),
                       onTap: () async {
                         final messenger = ScaffoldMessenger.of(context);
-                        final cacheService = ref.read(discoverCacheServiceProvider);
+                        final cacheService = ref.read(
+                          discoverCacheServiceProvider,
+                        );
                         await cacheService.clearCache();
                         ref.invalidate(discoverDashboardProvider);
                         messenger.showSnackBar(
-                          const SnackBar(content: Text('Discover cache cleared.')),
+                          const SnackBar(
+                            content: Text('Discover cache cleared.'),
+                          ),
                         );
                       },
                     ),
@@ -281,9 +475,14 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                   children: [
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.notifications_active_outlined, color: colors.primary),
+                      leading: Icon(
+                        Icons.notifications_active_outlined,
+                        color: colors.primary,
+                      ),
                       title: const Text('Send Test Notification'),
-                      subtitle: const Text('Verify that system alerts and channel sounds are working properly'),
+                      subtitle: const Text(
+                        'Verify that system alerts and channel sounds are working properly',
+                      ),
                       trailing: testingNotification.value
                           ? const SizedBox(
                               width: 20,
@@ -291,14 +490,21 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.chevron_right_rounded),
-                      onTap: testingNotification.value ? null : sendTestNotification,
+                      onTap: testingNotification.value
+                          ? null
+                          : sendTestNotification,
                     ),
                     const Divider(),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.refresh_rounded, color: colors.primary),
+                      leading: Icon(
+                        Icons.refresh_rounded,
+                        color: colors.primary,
+                      ),
                       title: const Text('Check All Tracked Novels Now'),
-                      subtitle: const Text('Run an immediate check across your entire library'),
+                      subtitle: const Text(
+                        'Run an immediate check across your entire library',
+                      ),
                       trailing: checking.value
                           ? const SizedBox(
                               width: 20,
@@ -345,9 +551,7 @@ class _CardSection extends StatelessWidget {
         children: [
           Text(
             title,
-            style: textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: AppSpacing.smMd),
           child,

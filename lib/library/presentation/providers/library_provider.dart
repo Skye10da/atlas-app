@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,6 +19,7 @@ import 'package:atlas_app/library/infrastructure/repositories/drift_library_repo
 import 'package:atlas_app/library/presentation/view_models/library_state.dart';
 import 'package:atlas_app/library/presentation/view_models/library_view_model.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
+import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
 
 export 'package:atlas_app/library/presentation/view_models/library_state.dart';
 export 'package:atlas_app/library/presentation/view_models/library_view_model.dart';
@@ -195,12 +198,26 @@ class _LibraryDeleteActions {
 
   final Ref _ref;
 
-  Future<Result<void>> delete(String bookId) {
-    return _ref.read(libraryViewModelProvider.notifier).deleteBook(bookId);
+  Future<Result<void>> delete(String bookId) async {
+    final result = await _ref
+        .read(libraryViewModelProvider.notifier)
+        .deleteBook(bookId);
+    if (result is Success) {
+      unawaited(UpdateNotificationService.instance.deleteNovelChannel(bookId));
+    }
+    return result;
   }
 
-  Future<Result<void>> deleteMultiple(List<String> bookIds) {
-    return _ref.read(libraryViewModelProvider.notifier).deleteBooks(bookIds);
+  Future<Result<void>> deleteMultiple(List<String> bookIds) async {
+    final result = await _ref
+        .read(libraryViewModelProvider.notifier)
+        .deleteBooks(bookIds);
+    if (result is Success) {
+      for (final id in bookIds) {
+        unawaited(UpdateNotificationService.instance.deleteNovelChannel(id));
+      }
+    }
+    return result;
   }
 
   Future<Result<void>> deleteAll() {

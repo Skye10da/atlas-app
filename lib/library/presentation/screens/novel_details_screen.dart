@@ -23,6 +23,7 @@ import 'package:atlas_app/library/presentation/providers/book_providers.dart';
 import 'package:atlas_app/library/presentation/providers/chapter_download_provider.dart';
 import 'package:atlas_app/library/presentation/providers/chapter_expansion_provider.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
+import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
 import 'package:atlas_app/library/presentation/providers/novel_actions_controller.dart';
 import 'package:atlas_app/library/presentation/widgets/batch_download_sheet.dart';
 import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
@@ -126,10 +127,19 @@ class NovelDetailsScreen extends HookConsumerWidget {
                         : 'Track updates',
                     onPressed: () async {
                       final db = ref.read(databaseProvider);
+                      final newTracking = !book.updateTrackingEnabled;
                       await DriftLibraryRepository(db).setUpdateTracking(
                         book.id,
-                        !book.updateTrackingEnabled,
+                        newTracking,
                       );
+                      if (newTracking) {
+                        unawaited(UpdateNotificationService.instance.ensureNovelChannel(
+                          bookId: book.id,
+                          title: book.title,
+                        ));
+                      } else {
+                        unawaited(UpdateNotificationService.instance.deleteNovelChannel(book.id));
+                      }
                       ref.invalidate(bookDetailsProvider(bookId));
                       ref.invalidate(libraryBooksProvider);
                     },

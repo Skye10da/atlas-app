@@ -47,6 +47,66 @@ class UpdateCheckSettingsNotifier extends AsyncNotifier<UpdateCheckSettings> {
       ),
     );
   }
+
+  Future<void> setWifiOnly(bool wifiOnly) async {
+    await _persist(
+      (state.valueOrNull ?? const UpdateCheckSettings.defaults()).copyWith(
+        wifiOnly: wifiOnly,
+      ),
+    );
+  }
+
+  Future<void> setQuietHoursEnabled(bool enabled) async {
+    await _persist(
+      (state.valueOrNull ?? const UpdateCheckSettings.defaults()).copyWith(
+        quietHoursEnabled: enabled,
+      ),
+    );
+  }
+
+  Future<void> setQuietHoursWindow({
+    required int start,
+    required int end,
+  }) async {
+    await _persist(
+      (state.valueOrNull ?? const UpdateCheckSettings.defaults()).copyWith(
+        quietHoursStart: start,
+        quietHoursEnd: end,
+      ),
+    );
+  }
+
+  Future<void> setSoundEnabled(bool enabled) async {
+    await _persist(
+      (state.valueOrNull ?? const UpdateCheckSettings.defaults()).copyWith(
+        soundEnabled: enabled,
+      ),
+    );
+  }
+
+  Future<void> setVibrationEnabled(bool enabled) async {
+    await _persist(
+      (state.valueOrNull ?? const UpdateCheckSettings.defaults()).copyWith(
+        vibrationEnabled: enabled,
+      ),
+    );
+  }
+
+  Future<void> setAutoDownloadChapters(bool enabled) async {
+    await _persist(
+      (state.valueOrNull ?? const UpdateCheckSettings.defaults()).copyWith(
+        autoDownloadChapters: enabled,
+      ),
+    );
+  }
+
+  Future<void> setGroupingMode(NotificationGroupingMode mode) async {
+    await _persist(
+      (state.valueOrNull ?? const UpdateCheckSettings.defaults()).copyWith(
+        groupingMode: mode,
+      ),
+    );
+  }
 }
 
 final updateCheckSettingsProvider =
