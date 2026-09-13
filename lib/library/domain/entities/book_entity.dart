@@ -67,8 +67,9 @@ class BookEntity {
 }
 
 extension BookProgressX on BookEntity {
-  /// Normalized 0..1 fraction regardless of whether `progress` was persisted
-  /// as 0..1 or 0..100 (legacy guard). Use everywhere display needs a fraction.
+  /// Canonical 0..1 fraction. DB schema 13 stores 0..1; pre-13 0..100 rows
+  /// are migrated via `percentage/100`. Keep `>1` guard one release for
+  /// devices that haven't yet migrated.
   double get progress01 {
     final p = progress;
     if (p == null) return 0.0;

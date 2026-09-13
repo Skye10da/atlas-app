@@ -387,7 +387,7 @@ class ReadingAnalyticsService {
       totalChapters += s.read<int>('chapters_read');
     }
     final completedCount = progressRows
-        .where((p) => p.isCompleted || p.percentage >= 95)
+        .where((p) => p.isCompleted || p.percentage >= 0.95)
         .length;
     if (totalChapters < completedCount) {
       totalChapters = completedCount;

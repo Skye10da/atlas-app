@@ -42,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     beforeOpen: (details) async {
@@ -214,6 +214,25 @@ class AppDatabase extends _$AppDatabase {
             expires_at INTEGER NOT NULL
           );
         ''');
+      }
+      if (from <= 12) {
+        // Fix progress scale: 0..100 → 0..1 (thousands-scale 0.11% was inflating to 11%).
+        // Detect 0..100 DB by max>1; then divide ALL rows (including 0.11% <1) by 100.
+        try {
+          final maxRow = await customSelect(
+            'SELECT MAX(percentage) as m FROM reading_progress',
+          ).getSingle();
+          final maxVal = maxRow.read<double?>('m');
+          if (maxVal != null && maxVal > 1.0) {
+            await customStatement(
+              'UPDATE reading_progress SET percentage = percentage / 100.0 WHERE percentage IS NOT NULL',
+            );
+          }
+          // Clamp any over-100% legacy drift.
+          await customStatement(
+            'UPDATE reading_progress SET percentage = 1.0 WHERE percentage > 1.0',
+          );
+        } catch (_) {}
       }
     },
   );

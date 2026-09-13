@@ -9,8 +9,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
-import 'package:atlas_app/core/services/platform_service.dart';
-import 'package:atlas_app/core/services/platform_service_provider.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_system_provider.dart';
+import 'package:atlas_app/reader/presentation/widgets/brightness_overlay.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
@@ -68,7 +68,7 @@ class ReaderContent extends HookConsumerWidget {
     final errorMessage = useState<String?>(null);
     final bookmarkedChapterIds = useState<Set<String>>({});
     final saveDebounceTimer = useRef<Timer?>(null);
-    final platformService = useRef<PlatformService?>(null);
+    final readerSystem = ref.read(readerSystemControllerProvider);
 
     final currentSentenceIndex = useState<int>(0);
     final currentSentenceTotal = useState<int>(0);
@@ -150,7 +150,7 @@ class ReaderContent extends HookConsumerWidget {
         userId: 'local',
         bookId: bookId,
         chapterId: chapter.id,
-        percentage: scrollProgress.value * 100,
+        percentage: scrollProgress.value.clamp(0.0, 1.0),
         position: currentSentenceIndex.value,
         totalPositions: currentSentenceTotal.value,
       );
@@ -271,18 +271,7 @@ class ReaderContent extends HookConsumerWidget {
     }
 
     void applySystemSettings() {
-      final svc = ref.read(platformServiceProvider);
-      platformService.value = svc;
-      final s = settings;
-      svc.setKeepScreenOn(s.keepScreenAwake);
-      if (s.followSystemBrightness) {
-        svc.resetBrightness();
-      } else {
-        svc.setBrightness(s.brightness, smooth: true);
-      }
-      if (s.autoOptimizeBrightness) {
-        svc.optimizeForLowBattery();
-      }
+      readerSystem.applySettings(settings);
     }
 
     Future<void> loadNarrationContext(List<ChapterEntity> chList) async {
@@ -426,8 +415,7 @@ class ReaderContent extends HookConsumerWidget {
           saveProgress(currentChapter.value!);
         }
         flushReadingSession();
-        platformService.value?.setKeepScreenOn(false);
-        platformService.value?.resetBrightness();
+        readerSystem.restore();
       };
     }, const []);
 
@@ -759,7 +747,12 @@ class ReaderContent extends HookConsumerWidget {
         if (didPop) return;
         handlePop();
       },
-      child: contentWidget,
+      child: Stack(
+        children: [
+          contentWidget,
+          const Positioned.fill(child: BrightnessOverlay()),
+        ],
+      ),
     );
   }
 }
