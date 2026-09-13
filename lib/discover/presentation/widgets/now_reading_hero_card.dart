@@ -5,11 +5,7 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 
 class NowReadingHeroCard extends StatelessWidget {
-  const NowReadingHeroCard({
-    super.key,
-    required this.book,
-    this.latestQuote,
-  });
+  const NowReadingHeroCard({super.key, required this.book, this.latestQuote});
 
   final BookEntity? book;
   final String? latestQuote;
@@ -34,7 +30,11 @@ class NowReadingHeroCard extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460)],
+                colors: [
+                  Color(0xFF1A1A2E),
+                  Color(0xFF16213E),
+                  Color(0xFF0F3460),
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -52,8 +52,9 @@ class NowReadingHeroCard extends StatelessWidget {
     }
 
     final nowReading = book!;
-    final progressVal = (nowReading.progress ?? 0.0).clamp(0.0, 1.0);
-    final progressPct = (progressVal * 100).toInt();
+    final raw = nowReading.progress ?? 0.0;
+    final progressVal = (raw > 1.0 ? raw / 100 : raw).clamp(0.0, 1.0);
+    final progressPct = (progressVal * 100).round();
     final title = nowReading.title;
     final author = nowReading.author ?? 'Unknown Author';
 
@@ -74,11 +75,7 @@ class NowReadingHeroCard extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [
-                Color(0xFF1A1A2E),
-                Color(0xFF16213E),
-                Color(0xFF0F3460),
-              ],
+              colors: [Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -243,10 +240,7 @@ class NowReadingHeroCard extends StatelessWidget {
                   icon: const Icon(Icons.auto_stories_rounded, size: 18),
                   label: const Text(
                     'Continue Reading',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                   ),
                 ),
               ),

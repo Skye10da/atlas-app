@@ -53,7 +53,9 @@ class NovelDetailsScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     useEffect(() {
       unawaited(
-        ref.read(novelActionsControllerProvider.notifier).acknowledgeUpdates(bookId),
+        ref
+            .read(novelActionsControllerProvider.notifier)
+            .acknowledgeUpdates(bookId),
       );
       return null;
     }, [bookId]);
@@ -87,10 +89,7 @@ class NovelDetailsScreen extends HookConsumerWidget {
               expandedHeight: isEmbedded ? 240 : 360,
               pinned: true,
               flexibleSpace: FlexibleSpaceBar(
-                background: NovelHeroHeader(
-                  book: book,
-                  isEmbedded: isEmbedded,
-                ),
+                background: NovelHeroHeader(book: book, isEmbedded: isEmbedded),
               ),
               backgroundColor: Theme.of(context).colorScheme.surface,
               leading: isEmbedded
@@ -112,8 +111,8 @@ class NovelDetailsScreen extends HookConsumerWidget {
                   onPressed: actionsState.isLoading
                       ? null
                       : () => ref
-                          .read(novelActionsControllerProvider.notifier)
-                          .checkForUpdates(context, bookId),
+                            .read(novelActionsControllerProvider.notifier)
+                            .checkForUpdates(context, bookId),
                 ),
                 if (book.isNovel)
                   IconButton(
@@ -128,17 +127,22 @@ class NovelDetailsScreen extends HookConsumerWidget {
                     onPressed: () async {
                       final db = ref.read(databaseProvider);
                       final newTracking = !book.updateTrackingEnabled;
-                      await DriftLibraryRepository(db).setUpdateTracking(
-                        book.id,
-                        newTracking,
-                      );
+                      await DriftLibraryRepository(
+                        db,
+                      ).setUpdateTracking(book.id, newTracking);
                       if (newTracking) {
-                        unawaited(UpdateNotificationService.instance.ensureNovelChannel(
-                          bookId: book.id,
-                          title: book.title,
-                        ));
+                        unawaited(
+                          UpdateNotificationService.instance.ensureNovelChannel(
+                            bookId: book.id,
+                            title: book.title,
+                          ),
+                        );
                       } else {
-                        unawaited(UpdateNotificationService.instance.deleteNovelChannel(book.id));
+                        unawaited(
+                          UpdateNotificationService.instance.deleteNovelChannel(
+                            book.id,
+                          ),
+                        );
                       }
                       ref.invalidate(bookDetailsProvider(bookId));
                       ref.invalidate(libraryBooksProvider);
@@ -224,7 +228,8 @@ class NovelDetailsScreen extends HookConsumerWidget {
     final confirmed = await ConfirmDeleteDialog.show(
       context,
       title: 'Delete novel?',
-      message: 'This will permanently remove the novel and all reading progress.',
+      message:
+          'This will permanently remove the novel and all reading progress.',
       confirmLabel: 'Delete',
     );
     if (confirmed == true && context.mounted) {
@@ -236,9 +241,9 @@ class NovelDetailsScreen extends HookConsumerWidget {
           ref.invalidate(libraryBooksProvider);
           popOrGoToLibrary(context);
         } else if (r is Failure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(r.error.userMessage)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(r.error.userMessage)));
         }
       }
     }
@@ -301,9 +306,9 @@ class NovelDetailsScreen extends HookConsumerWidget {
       Failure(error: final error) => error.userMessage,
     };
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -326,9 +331,9 @@ class _ExportFormatSheet extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 'Export ${book.title}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 12),
@@ -397,17 +402,16 @@ class _ChapterSectionHeader extends ConsumerWidget {
         children: [
           Text(
             'Chapters',
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w600),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const Spacer(),
           Text(
             '$downloadedCount / $totalChapters',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           if (downloadedCount < totalChapters) ...[
             const SizedBox(width: 8),
@@ -589,9 +593,8 @@ class _ChapterGroup extends ConsumerWidget {
                 return _ChapterTile(
                   bookId: bookId,
                   chapter: ch,
-                  onTap: () => context.push(
-                    '/reader/$bookId?chapterId=${ch.id}',
-                  ),
+                  onTap: () =>
+                      context.push('/reader/$bookId?chapterId=${ch.id}'),
                 );
               },
             ),
@@ -614,9 +617,7 @@ class _ChapterTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDownloading = ref.watch(
-      isChapterDownloadingProvider(chapter.id),
-    );
+    final isDownloading = ref.watch(isChapterDownloadingProvider(chapter.id));
     final colors = Theme.of(context).colorScheme;
     final isDownloaded =
         chapter.contentState == ContentState.availableOffline.index;
@@ -726,7 +727,9 @@ class _ReadingTriviaCard extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    final progressPct = ((book.progress ?? 0.0) * 100).toInt().clamp(0, 100);
+    final raw = book.progress ?? 0.0;
+    final pct01 = (raw > 1 ? raw / 100 : raw).clamp(0.0, 1.0);
+    final progressPct = (pct01 * 100).round().clamp(0, 100);
     final totalCh = book.totalChapters;
     final readCh = (totalCh * (progressPct / 100)).round();
     final remainingCh = (totalCh - readCh).clamp(0, totalCh);
@@ -742,19 +745,22 @@ class _ReadingTriviaCard extends StatelessWidget {
             MilestoneCelebrationDialog.show(
               context,
               milestone: MilestoneType.firstBookFinished,
-              customMessage: 'You finished reading ${book.title}! Outstanding journey.',
+              customMessage:
+                  'You finished reading ${book.title}! Outstanding journey.',
             );
           } else if (progressPct >= 50) {
             MilestoneCelebrationDialog.show(
               context,
               milestone: MilestoneType.hundredChapters,
-              customMessage: 'Over half-way through ${book.title} ($progressPct%). Keep pushing forward!',
+              customMessage:
+                  'Over half-way through ${book.title} ($progressPct%). Keep pushing forward!',
             );
           } else {
             MilestoneCelebrationDialog.show(
               context,
               milestone: MilestoneType.streakThreeDays,
-              customMessage: 'Reading ${book.title} ($readCh / $totalCh chapters). Great momentum!',
+              customMessage:
+                  'Reading ${book.title} ($readCh / $totalCh chapters). Great momentum!',
             );
           }
         },
@@ -790,8 +796,8 @@ class _ReadingTriviaCard extends StatelessWidget {
                     variant: progressPct >= 100
                         ? BookBadgeVariant.tertiary
                         : (progressPct > 0
-                            ? BookBadgeVariant.primary
-                            : BookBadgeVariant.neutral),
+                              ? BookBadgeVariant.primary
+                              : BookBadgeVariant.neutral),
                     isCompact: true,
                   ),
                 ],
