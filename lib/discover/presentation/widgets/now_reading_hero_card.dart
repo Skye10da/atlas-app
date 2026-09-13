@@ -52,9 +52,8 @@ class NowReadingHeroCard extends StatelessWidget {
     }
 
     final nowReading = book!;
-    final raw = nowReading.progress ?? 0.0;
-    final progressVal = (raw > 1.0 ? raw / 100 : raw).clamp(0.0, 1.0);
-    final progressPct = (progressVal * 100).round();
+    final progressVal = nowReading.progress01;
+    final progressPct = nowReading.progressPct;
     final title = nowReading.title;
     final author = nowReading.author ?? 'Unknown Author';
 

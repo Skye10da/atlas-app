@@ -395,13 +395,8 @@ class ReadingAnalyticsService {
     if (totalChapters == 0 && books.isNotEmpty) {
       totalChapters = books.fold<int>(
         0,
-        (sum, b) =>
-            sum +
-            (b.progress != null
-                ? ((b.progress! / 100) * b.totalChapters).round()
-                : 0),
+        (sum, b) => sum + (b.progress01 * b.totalChapters).round(),
       );
-      if (totalChapters == 0) totalChapters = 12;
     }
 
     // Clamp unrealistic pace: if average is <1 min or >30 min per chapter,
@@ -444,7 +439,7 @@ class ReadingAnalyticsService {
     int bookChapters = 0;
 
     for (final b in books) {
-      final progressFraction = (b.progress ?? 10) / 100;
+      final progressFraction = b.progress != null ? b.progress01 : 0.10;
       if (b.isNovel) {
         novelChapters += (b.totalChapters * progressFraction).round();
         novelMins += (b.totalChapters * 15);

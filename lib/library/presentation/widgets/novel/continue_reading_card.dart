@@ -20,7 +20,7 @@ class ContinueReadingCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lastReadAsync = ref.watch(lastReadChapterProvider(book.id));
-    final progress = book.progress ?? 0;
+    final progress = book.progress01 * 100;
 
     return lastReadAsync.when(
       loading: () => const SizedBox.shrink(),
@@ -102,10 +102,10 @@ class ContinueReadingCard extends ConsumerWidget {
     final base = '/reader/${book.id}';
     String route = base;
     if (isContinue) {
-      final progress = book.progress ?? 0;
+      final progress = book.progress01 * 100;
       final params = <String, String>{'chapterId': chapter!.id};
       if (progress > 0) {
-        params['progress'] = (progress / 100).toStringAsFixed(4);
+        params['progress'] = book.progress01.toStringAsFixed(4);
       }
       final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
       route = query.isNotEmpty ? '$base?$query' : base;

@@ -65,3 +65,16 @@ class BookEntity {
 
   bool get isNovel => itemType == ContentCategory.novel;
 }
+
+extension BookProgressX on BookEntity {
+  /// Normalized 0..1 fraction regardless of whether `progress` was persisted
+  /// as 0..1 or 0..100 (legacy guard). Use everywhere display needs a fraction.
+  double get progress01 {
+    final p = progress;
+    if (p == null) return 0.0;
+    final v = p > 1.0 ? p / 100.0 : p;
+    return v.clamp(0.0, 1.0);
+  }
+
+  int get progressPct => (progress01 * 100).round().clamp(0, 100);
+}

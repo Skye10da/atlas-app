@@ -23,6 +23,7 @@ import 'package:atlas_app/library/presentation/providers/book_providers.dart';
 import 'package:atlas_app/library/presentation/providers/chapter_download_provider.dart';
 import 'package:atlas_app/library/presentation/providers/chapter_expansion_provider.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
 import 'package:atlas_app/library/presentation/providers/novel_actions_controller.dart';
 import 'package:atlas_app/library/presentation/widgets/batch_download_sheet.dart';
@@ -33,7 +34,6 @@ import 'package:atlas_app/library/presentation/widgets/novel/novel_hero_header.d
 import 'package:atlas_app/library/presentation/widgets/novel/source_attribution.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/synopsis_card.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
-import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
 import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
 
@@ -717,21 +717,24 @@ class _ChapterTile extends ConsumerWidget {
   }
 }
 
-class _ReadingTriviaCard extends StatelessWidget {
+class _ReadingTriviaCard extends ConsumerWidget {
   const _ReadingTriviaCard({required this.book});
 
   final BookEntity book;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    final raw = book.progress ?? 0.0;
-    final pct01 = (raw > 1 ? raw / 100 : raw).clamp(0.0, 1.0);
-    final progressPct = (pct01 * 100).round().clamp(0, 100);
+    final progressPct = book.progressPct;
     final totalCh = book.totalChapters;
-    final readCh = (totalCh * (progressPct / 100)).round();
+    // Prefer last-read ordinal (exact) over pct-derived rounding which inflates
+    // small progress (e.g., chapter 3 of 326 was showing 326/326 when pct rounded to 100).
+    final lastRead = ref.watch(lastReadChapterProvider(book.id)).valueOrNull;
+    final ordinalRead = lastRead != null ? lastRead.index + 1 : -1;
+    final pctRead = (totalCh * book.progress01).round();
+    final readCh = ordinalRead > 0 ? ordinalRead : pctRead;
     final remainingCh = (totalCh - readCh).clamp(0, totalCh);
     final estMinutes = remainingCh * 3;
     final estHours = (estMinutes / 60).toStringAsFixed(1);
