@@ -91,22 +91,40 @@ class CuratedSourcesSection extends StatelessWidget {
             ),
           )
         else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 2.2,
-            ),
-            itemCount: sources.length > 6 ? 6 : sources.length,
-            itemBuilder: (context, index) {
-              final source = sources[index];
-              return _SourcePillCard(
-                source: source,
-                knownHomeUrls: _knownHomeUrls,
-              );
+          Builder(
+            builder: (context) {
+              final displaySources = sources.length > 6
+                  ? sources.sublist(0, 6)
+                  : sources;
+              final rows = <Widget>[];
+              for (var i = 0; i < displaySources.length; i += 2) {
+                rows.add(
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SourcePillCard(
+                          source: displaySources[i],
+                          knownHomeUrls: _knownHomeUrls,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      if (i + 1 < displaySources.length)
+                        Expanded(
+                          child: _SourcePillCard(
+                            source: displaySources[i + 1],
+                            knownHomeUrls: _knownHomeUrls,
+                          ),
+                        )
+                      else
+                        const Expanded(child: SizedBox.shrink()),
+                    ],
+                  ),
+                );
+                if (i + 2 < displaySources.length) {
+                  rows.add(const SizedBox(height: 10));
+                }
+              }
+              return Column(children: rows);
             },
           ),
       ],
@@ -115,10 +133,7 @@ class CuratedSourcesSection extends StatelessWidget {
 }
 
 class _SourcePillCard extends StatelessWidget {
-  const _SourcePillCard({
-    required this.source,
-    required this.knownHomeUrls,
-  });
+  const _SourcePillCard({required this.source, required this.knownHomeUrls});
 
   final SearchableSource source;
   final Map<String, String> knownHomeUrls;
@@ -183,8 +198,10 @@ class _SourcePillCard extends StatelessWidget {
     final homeUrl =
         pluginSource?.manifest.baseUrl ?? knownHomeUrls[source.sourceName];
 
-    final (icon, lightBg, iconColor) =
-        _getSourceVisuals(source.sourceName, isNovel);
+    final (icon, lightBg, iconColor) = _getSourceVisuals(
+      source.sourceName,
+      isNovel,
+    );
 
     final boxBg = isDark ? iconColor.withValues(alpha: 0.2) : lightBg;
     final cardBg = isDark
@@ -207,9 +224,7 @@ class _SourcePillCard extends StatelessWidget {
               ),
             );
           } else {
-            context.push(
-              '/sources/${Uri.encodeComponent(source.sourceName)}',
-            );
+            context.push('/sources/${Uri.encodeComponent(source.sourceName)}');
           }
         },
         child: Container(

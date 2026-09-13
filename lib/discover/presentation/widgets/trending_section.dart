@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
 import 'package:atlas_app/discover/presentation/widgets/trending_book_action_sheet.dart';
 
-/// A section displaying trending/popular books from OPDS or web novel plugin sources with interactive source filter pills.
-class TrendingSection extends StatefulWidget {
+/// A section displaying trending/popular books from OPDS or web novel plugin sources
+/// with interactive source filter pills and rank tabs for MVLEMPYR / WTR-LAB.
+/// Declarative: no setState — uses hooks (flutter_hooks) per CLAUDE rules.
+class TrendingSection extends HookConsumerWidget {
   const TrendingSection({
     required this.trendingBooks,
     required this.isLoading,
@@ -20,39 +24,129 @@ class TrendingSection extends StatefulWidget {
   final VoidCallback? onRefresh;
   final VoidCallback? onViewAll;
 
-  @override
-  State<TrendingSection> createState() => _TrendingSectionState();
-}
-
-class _TrendingSectionState extends State<TrendingSection> {
-  String _selectedSource = 'All';
+  static const _mvRanks = ['weekly', 'monthly', 'alltime'];
+  static const _wtrRanks = ['daily', 'weekly'];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final selectedSource = useState('All');
+    final selectedRank = useState('weekly');
 
     // Build source list: "All" + unique sources
-    final sourceKeys = widget.trendingBooks.keys.toList();
+    final sourceKeys = trendingBooks.keys.toList();
     final sourceLabels = <String, String>{'All': 'All'};
-
     for (final sId in sourceKeys) {
-      final name = widget.trendingBooks[sId]?.firstOrNull?.sourceName ?? sId;
+      final name = trendingBooks[sId]?.firstOrNull?.sourceName ?? sId;
       sourceLabels[sId] = name;
     }
 
-    // Filter books by selected source
-    final displayBooks = <TrendingBook>[];
-    if (_selectedSource == 'All') {
-      for (final list in widget.trendingBooks.values) {
-        displayBooks.addAll(list);
+    // Filter books by selected source + drop dead listing URLs before display
+    bool isImportable(String? url) {
+      if (url == null || url.isEmpty) return false;
+      const listingSuffixes = [
+        '/novel-list/hot-novel',
+        '/sort/noveldrama-hot',
+        '/ranking',
+        '/rankings',
+        '/fiction/trending',
+        '/trending/daily',
+        '/ranking/daily',
+      ];
+      for (final s in listingSuffixes) {
+        if (url.endsWith(s) || url.endsWith('$s/')) return false;
       }
-    } else {
-      displayBooks.addAll(widget.trendingBooks[_selectedSource] ?? []);
+      final uri = Uri.tryParse(url);
+      if (uri == null || !uri.hasScheme || uri.host.isEmpty) return false;
+      return true;
     }
 
-    if (displayBooks.isEmpty && !widget.isLoading) {
-      return const SizedBox.shrink();
+    final displayBooks = <TrendingBook>[];
+    if (selectedSource.value == 'All') {
+      for (final list in trendingBooks.values) {
+        displayBooks.addAll(list.where((b) => isImportable(b.detailUrl)));
+      }
+    } else {
+      displayBooks.addAll(
+        (trendingBooks[selectedSource.value] ?? []).where(
+          (b) => isImportable(b.detailUrl),
+        ),
+      );
     }
+
+    if (displayBooks.isEmpty && !isLoading) {
+      if (trendingBooks.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontFamily: 'Playfair Display',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                ),
+              ),
+              if (onViewAll != null)
+                TextButton(onPressed: onViewAll, child: const Text('See all')),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.search_off_rounded,
+                  size: 32,
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'No titles for "${selectedSource.value}"',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Try "All" or pick another source pill.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.7,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Rank tabs visibility: only for MVLEMPYR / WTR-LAB
+    final showMvTabs =
+        selectedSource.value == 'mvlempyr' ||
+        (selectedSource.value == 'All' &&
+            trendingBooks.containsKey('mvlempyr'));
+    final showWtrTabs =
+        selectedSource.value == 'wtrlab' ||
+        (selectedSource.value == 'All' && trendingBooks.containsKey('wtrlab'));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,7 +156,7 @@ class _TrendingSectionState extends State<TrendingSection> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              widget.title,
+              title,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontFamily: 'Playfair Display',
                 fontWeight: FontWeight.w700,
@@ -72,14 +166,14 @@ class _TrendingSectionState extends State<TrendingSection> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (widget.onRefresh != null)
+                if (onRefresh != null)
                   TextButton(
-                    onPressed: widget.onRefresh,
+                    onPressed: onRefresh,
                     child: const Text('Refresh'),
                   ),
-                if (widget.onViewAll != null)
+                if (onViewAll != null)
                   TextButton(
-                    onPressed: widget.onViewAll,
+                    onPressed: onViewAll,
                     child: const Text('See all'),
                   ),
               ],
@@ -88,31 +182,84 @@ class _TrendingSectionState extends State<TrendingSection> {
         ),
         const SizedBox(height: AppSpacing.sm),
 
-        // Source Filter Pills
+        // Source Filter Pills — includes wtr/mvlempyr when installed
         if (sourceLabels.length > 1)
           SizedBox(
             height: 34,
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: sourceLabels.entries.map((entry) {
-                final isSelected = _selectedSource == entry.key;
+                final isSelected = selectedSource.value == entry.key;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: _SourcePillFilter(
                     label: entry.value,
                     isSelected: isSelected,
-                    onTap: () {
-                      setState(() => _selectedSource = entry.key);
-                    },
+                    onTap: () => selectedSource.value = entry.key,
                   ),
                 );
               }).toList(),
             ),
           ),
+        // Rank tabs for MVLEMPYR (weekly/monthly/alltime) and WTR-LAB (daily/weekly)
+        // Visual only for now — wires to future TrendingService rank param; stays gradient.
+        if (showMvTabs || showWtrTabs) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 30,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                if (showMvTabs)
+                  ..._mvRanks.map(
+                    (r) => Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ChoiceChip(
+                        label: Text(r),
+                        selected: selectedRank.value == r,
+                        onSelected: (_) => selectedRank.value = r,
+                        visualDensity: VisualDensity.compact,
+                        labelStyle: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: selectedRank.value == r
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                        selectedColor: theme.colorScheme.primary,
+                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                      ),
+                    ),
+                  ),
+                if (showWtrTabs)
+                  ..._wtrRanks.map(
+                    (r) => Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ChoiceChip(
+                        label: Text(r),
+                        selected: selectedRank.value == r,
+                        onSelected: (_) => selectedRank.value = r,
+                        visualDensity: VisualDensity.compact,
+                        labelStyle: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: selectedRank.value == r
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                        selectedColor: theme.colorScheme.primary,
+                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.md),
 
-        // Horizontal Card Carousel
-        if (widget.isLoading)
+        // Horizontal Card Carousel — stays gradient per spec
+        if (isLoading)
           const SizedBox(
             height: 240,
             child: Center(child: CircularProgressIndicator()),
@@ -150,7 +297,8 @@ class _SourcePillFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryPurple = Color(0xFF7C3AED);
+    final cs = Theme.of(context).colorScheme;
+    final primaryPurple = cs.primary;
 
     return InkWell(
       borderRadius: BorderRadius.circular(20),
@@ -161,7 +309,7 @@ class _SourcePillFilter extends StatelessWidget {
           color: isSelected ? primaryPurple : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? primaryPurple : const Color(0xFFE7E0EC),
+            color: isSelected ? primaryPurple : cs.outlineVariant,
             width: 1.5,
           ),
         ),
@@ -171,7 +319,7 @@ class _SourcePillFilter extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: isSelected ? Colors.white : const Color(0xFF79747E),
+              color: isSelected ? cs.onPrimary : cs.onSurfaceVariant,
             ),
           ),
         ),
@@ -181,10 +329,7 @@ class _SourcePillFilter extends StatelessWidget {
 }
 
 class _TrendingBookCard extends StatelessWidget {
-  const _TrendingBookCard({
-    required this.book,
-    required this.rank,
-  });
+  const _TrendingBookCard({required this.book, required this.rank});
 
   final TrendingBook book;
   final int rank;
@@ -192,8 +337,8 @@ class _TrendingBookCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-    // Palette gradients for card covers
     final gradients = [
       const [Color(0xFF1A1A2E), Color(0xFF16213E)],
       const [Color(0xFF2D1B69), Color(0xFF11998E)],
@@ -214,7 +359,6 @@ class _TrendingBookCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Cover Image with Badges
             Container(
               width: 140,
               height: 190,
@@ -232,9 +376,12 @@ class _TrendingBookCard extends StatelessWidget {
                     offset: const Offset(0, 4),
                   ),
                 ],
-                image: book.coverUrl != null
+                image: book.coverUrl != null && book.coverUrl!.isNotEmpty
                     ? DecorationImage(
-                        image: NetworkImage(book.coverUrl!),
+                        image: ResizeImage(
+                          NetworkImage(book.coverUrl!),
+                          width: 280,
+                        ),
                         fit: BoxFit.cover,
                         onError: (_, _) {},
                       )
@@ -242,7 +389,6 @@ class _TrendingBookCard extends StatelessWidget {
               ),
               child: Stack(
                 children: [
-                  // Rank Badge
                   Positioned(
                     top: 8,
                     left: 8,
@@ -268,14 +414,17 @@ class _TrendingBookCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
-                  // Hot Fire Badge
-                  if (rank <= 3 || (book.popularity != null && book.popularity!.contains('Hot')))
+                  if (rank <= 3 ||
+                      (book.popularity != null &&
+                          book.popularity!.contains('Hot')))
                     Positioned(
                       top: 8,
                       right: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFDC2626).withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(6),
@@ -297,13 +446,14 @@ class _TrendingBookCard extends StatelessWidget {
                         ),
                       ),
                     ),
-
-                  // Source Badge
                   Positioned(
                     bottom: 8,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF7C3AED).withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(6),
@@ -319,14 +469,15 @@ class _TrendingBookCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
-                  // Genre Tag
                   if (book.genre != null && book.genre!.isNotEmpty)
                     Positioned(
                       bottom: 8,
                       right: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.65),
                           borderRadius: BorderRadius.circular(6),
@@ -345,42 +496,35 @@ class _TrendingBookCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-
-            // Book Title
             Text(
               book.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: textTheme.titleSmall?.copyWith(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF1C1B1F),
                 height: 1.25,
               ),
             ),
-
-            // Book Author
             if (book.author != null)
               Text(
                 book.author!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: textTheme.bodySmall?.copyWith(
                   fontSize: 11,
                   color: colorScheme.onSurfaceVariant,
                   height: 1.2,
                 ),
               ),
-
-            // Readers count / Popularity meta
             if (book.popularity != null)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   book.popularity!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
-                    color: Color(0xFF7C3AED),
+                    color: colorScheme.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

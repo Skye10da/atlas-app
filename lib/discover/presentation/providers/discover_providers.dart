@@ -37,8 +37,17 @@ final discoverRepositoryProvider = Provider<DiscoverRepositoryInterface>((ref) {
   );
 });
 
-final discoverDashboardProvider =
-    FutureProvider<Result<DiscoverDashboardData>>((ref) async {
-  final repo = ref.watch(discoverRepositoryProvider);
-  return repo.getDashboardData();
-});
+final discoverDashboardProvider = FutureProvider<Result<DiscoverDashboardData>>(
+  (ref) async {
+    final repo = ref.watch(discoverRepositoryProvider);
+    // Wire SWR push: background trending revalidation invalidates dashboard.
+    if (repo is DriftDiscoverRepository) {
+      repo.onTrendingBackgroundUpdate = (_) {
+        // ignore: unawaited_futures
+        Future.microtask(() => ref.invalidateSelf());
+      };
+    }
+    return repo.getDashboardData();
+  },
+  dependencies: [discoverRepositoryProvider],
+);

@@ -18,25 +18,40 @@ class DiscoverSettingsStore {
   }
 }
 
+class CachedTrendingResult {
+  const CachedTrendingResult({required this.data, required this.isExpired});
+
+  final Map<String, List<TrendingBook>> data;
+  final bool isExpired;
+}
+
 class DiscoverCacheService {
   DiscoverCacheService({required AppDatabase db}) : _db = db;
 
   final AppDatabase _db;
 
   Future<Map<String, List<TrendingBook>>?> getCachedTrending() async {
+    final stale = await getCachedTrendingStale();
+    if (stale == null || stale.isExpired) return null;
+    return stale.data;
+  }
+
+  Future<CachedTrendingResult?> getCachedTrendingStale() async {
     try {
-      final rows = await _db.customSelect(
-        'SELECT data_json, expires_at FROM discover_cache WHERE cache_key = ? LIMIT 1',
-        variables: [const Variable<String>('trending_all')],
-      ).get();
+      final rows = await _db
+          .customSelect(
+            'SELECT data_json, expires_at FROM discover_cache WHERE cache_key = ? LIMIT 1',
+            variables: [const Variable<String>('trending_all')],
+          )
+          .get();
 
       if (rows.isEmpty) return null;
 
       final r = rows.first;
-      final expiresAt = DateTime.fromMillisecondsSinceEpoch(r.read<int>('expires_at'));
-      if (DateTime.now().isAfter(expiresAt)) {
-        return null;
-      }
+      final expiresAt = DateTime.fromMillisecondsSinceEpoch(
+        r.read<int>('expires_at'),
+      );
+      final isExpired = DateTime.now().isAfter(expiresAt);
 
       final jsonStr = r.read<String>('data_json');
       final Map<String, dynamic> decoded = jsonDecode(jsonStr);
@@ -50,7 +65,7 @@ class DiscoverCacheService {
               .toList();
         }
       }
-      return result;
+      return CachedTrendingResult(data: result, isExpired: isExpired);
     } catch (_) {
       return null;
     }
@@ -73,16 +88,15 @@ class DiscoverCacheService {
 
       await _db.customStatement(
         '''
-        INSERT INTO discover_cache (cache_key, category, data_json, fetched_at, expires_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO discover_cache (cache_key, data_json, cached_at, expires_at)
+        VALUES (?, ?, ?, ?)
         ON CONFLICT(cache_key) DO UPDATE SET
           data_json = excluded.data_json,
-          fetched_at = excluded.fetched_at,
+          cached_at = excluded.cached_at,
           expires_at = excluded.expires_at
         ''',
         [
           'trending_all',
-          'trending',
           jsonEncode(serialized),
           now.millisecondsSinceEpoch,
           expires.millisecondsSinceEpoch,
@@ -93,15 +107,19 @@ class DiscoverCacheService {
 
   Future<List<TrendingBook>?> getCachedRecommendations() async {
     try {
-      final rows = await _db.customSelect(
-        'SELECT data_json, expires_at FROM discover_cache WHERE cache_key = ? LIMIT 1',
-        variables: [const Variable<String>('for_you')],
-      ).get();
+      final rows = await _db
+          .customSelect(
+            'SELECT data_json, expires_at FROM discover_cache WHERE cache_key = ? LIMIT 1',
+            variables: [const Variable<String>('for_you')],
+          )
+          .get();
 
       if (rows.isEmpty) return null;
 
       final r = rows.first;
-      final expiresAt = DateTime.fromMillisecondsSinceEpoch(r.read<int>('expires_at'));
+      final expiresAt = DateTime.fromMillisecondsSinceEpoch(
+        r.read<int>('expires_at'),
+      );
       if (DateTime.now().isAfter(expiresAt)) {
         return null;
       }
@@ -131,16 +149,15 @@ class DiscoverCacheService {
 
       await _db.customStatement(
         '''
-        INSERT INTO discover_cache (cache_key, category, data_json, fetched_at, expires_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO discover_cache (cache_key, data_json, cached_at, expires_at)
+        VALUES (?, ?, ?, ?)
         ON CONFLICT(cache_key) DO UPDATE SET
           data_json = excluded.data_json,
-          fetched_at = excluded.fetched_at,
+          cached_at = excluded.cached_at,
           expires_at = excluded.expires_at
         ''',
         [
           'for_you',
-          'recommendation',
           jsonEncode(serialized),
           now.millisecondsSinceEpoch,
           expires.millisecondsSinceEpoch,
@@ -153,4 +170,3 @@ class DiscoverCacheService {
     await _db.customStatement('DELETE FROM discover_cache');
   }
 }
-

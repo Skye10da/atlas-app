@@ -39,17 +39,18 @@ class ReadingAnalyticsService {
     );
 
     // Update cumulative reading time on reading_progress
-    final existing = await (_db.select(_db.readingProgress)
-          ..where((p) => p.bookId.equals(bookId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.readingProgress,
+    )..where((p) => p.bookId.equals(bookId))).getSingleOrNull();
 
     if (existing != null) {
-      await (_db.update(_db.readingProgress)
-            ..where((p) => p.bookId.equals(bookId)))
-          .write(
+      await (_db.update(
+        _db.readingProgress,
+      )..where((p) => p.bookId.equals(bookId))).write(
         ReadingProgressCompanion(
-          readingTimeSeconds:
-              Value(existing.readingTimeSeconds + durationSeconds),
+          readingTimeSeconds: Value(
+            existing.readingTimeSeconds + durationSeconds,
+          ),
           lastReadAt: Value(now),
         ),
       );
@@ -58,10 +59,12 @@ class ReadingAnalyticsService {
 
   /// Gets the user's weekly and daily reading goals.
   Future<ReadingGoalEntity> getGoal() async {
-    final rows = await _db.customSelect(
-      'SELECT weekly_chapter_target, daily_minute_target FROM reading_goals WHERE id = ? LIMIT 1',
-      variables: [const Variable<String>('current')],
-    ).get();
+    final rows = await _db
+        .customSelect(
+          'SELECT weekly_chapter_target, daily_minute_target FROM reading_goals WHERE id = ? LIMIT 1',
+          variables: [const Variable<String>('current')],
+        )
+        .get();
 
     int weeklyTarget = 20;
     int dailyMinuteTarget = 30;
@@ -77,14 +80,16 @@ class ReadingAnalyticsService {
     final today = DateTime(now.year, now.month, now.day);
     final monday = today.subtract(Duration(days: now.weekday - 1));
 
-    final sessionRows = await _db.customSelect(
-      '''
+    final sessionRows = await _db
+        .customSelect(
+          '''
       SELECT duration_seconds, chapters_read, created_at, session_date
       FROM reading_sessions
       WHERE created_at >= ?
       ''',
-      variables: [Variable<int>(monday.millisecondsSinceEpoch)],
-    ).get();
+          variables: [Variable<int>(monday.millisecondsSinceEpoch)],
+        )
+        .get();
 
     int weeklyCompleted = 0;
     int todaySeconds = 0;
@@ -110,8 +115,12 @@ class ReadingAnalyticsService {
       for (final p in progressRows) {
         if (p.lastReadAt.isAfter(monday.subtract(const Duration(seconds: 1)))) {
           weeklyCompleted++;
-          if (p.lastReadAt.isAfter(today.subtract(const Duration(seconds: 1)))) {
-            todaySeconds += p.readingTimeSeconds > 0 ? p.readingTimeSeconds : 720;
+          if (p.lastReadAt.isAfter(
+            today.subtract(const Duration(seconds: 1)),
+          )) {
+            todaySeconds += p.readingTimeSeconds > 0
+                ? p.readingTimeSeconds
+                : 720;
           }
         }
       }
@@ -158,9 +167,11 @@ class ReadingAnalyticsService {
 
   /// Calculates current streak in days.
   Future<int> calculateStreak() async {
-    final sessionRows = await _db.customSelect(
-      'SELECT DISTINCT session_date FROM reading_sessions ORDER BY session_date DESC',
-    ).get();
+    final sessionRows = await _db
+        .customSelect(
+          'SELECT DISTINCT session_date FROM reading_sessions ORDER BY session_date DESC',
+        )
+        .get();
 
     final activeDates = <DateTime>{};
     for (final row in sessionRows) {
@@ -172,7 +183,9 @@ class ReadingAnalyticsService {
     // Fall back to reading_progress lastReadAt
     final progressRows = await _db.select(_db.readingProgress).get();
     for (final p in progressRows) {
-      activeDates.add(DateTime(p.lastReadAt.year, p.lastReadAt.month, p.lastReadAt.day));
+      activeDates.add(
+        DateTime(p.lastReadAt.year, p.lastReadAt.month, p.lastReadAt.day),
+      );
     }
 
     if (activeDates.isEmpty) return 1;
@@ -207,10 +220,18 @@ class ReadingAnalyticsService {
     };
 
     final progressRows = await _db.select(_db.readingProgress).get();
+    return getAnalyticsReportWith(books: books, progressRows: progressRows);
+  }
 
-    final sessionRows = await _db.customSelect(
-      'SELECT * FROM reading_sessions ORDER BY created_at DESC',
-    ).get();
+  /// Shared implementation that reuses already-fetched [books] and [progressRows]
+  /// to eliminate duplicate DB queries when called from DriftDiscoverRepository.
+  Future<ReadingAnalyticsReport> getAnalyticsReportWith({
+    required List<BookEntity> books,
+    required List<ReadingProgressData> progressRows,
+  }) async {
+    final sessionRows = await _db
+        .customSelect('SELECT * FROM reading_sessions ORDER BY created_at DESC')
+        .get();
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -223,7 +244,8 @@ class ReadingAnalyticsService {
     for (int i = 0; i < 7; i++) {
       final dayDate = monday.add(Duration(days: i));
       final nextDay = dayDate.add(const Duration(days: 1));
-      final isToday = dayDate.year == today.year &&
+      final isToday =
+          dayDate.year == today.year &&
           dayDate.month == today.month &&
           dayDate.day == today.day;
 
@@ -231,7 +253,9 @@ class ReadingAnalyticsService {
       int daySeconds = 0;
 
       for (final s in sessionRows) {
-        final cAt = DateTime.fromMillisecondsSinceEpoch(s.read<int>('created_at'));
+        final cAt = DateTime.fromMillisecondsSinceEpoch(
+          s.read<int>('created_at'),
+        );
         if (cAt.isAfter(dayDate.subtract(const Duration(milliseconds: 1))) &&
             cAt.isBefore(nextDay)) {
           dayChapters += s.read<int>('chapters_read');
@@ -242,7 +266,9 @@ class ReadingAnalyticsService {
       // Progress rows fallback
       if (dayChapters == 0) {
         for (final p in progressRows) {
-          if (p.lastReadAt.isAfter(dayDate.subtract(const Duration(milliseconds: 1))) &&
+          if (p.lastReadAt.isAfter(
+                dayDate.subtract(const Duration(milliseconds: 1)),
+              ) &&
               p.lastReadAt.isBefore(nextDay)) {
             dayChapters++;
             daySeconds += p.readingTimeSeconds > 0 ? p.readingTimeSeconds : 720;
@@ -272,7 +298,9 @@ class ReadingAnalyticsService {
       int daySeconds = 0;
 
       for (final s in sessionRows) {
-        final cAt = DateTime.fromMillisecondsSinceEpoch(s.read<int>('created_at'));
+        final cAt = DateTime.fromMillisecondsSinceEpoch(
+          s.read<int>('created_at'),
+        );
         if (cAt.isAfter(dayDate.subtract(const Duration(milliseconds: 1))) &&
             cAt.isBefore(nextDay)) {
           dayChapters += s.read<int>('chapters_read');
@@ -282,7 +310,9 @@ class ReadingAnalyticsService {
 
       if (dayChapters == 0) {
         for (final p in progressRows) {
-          if (p.lastReadAt.isAfter(dayDate.subtract(const Duration(milliseconds: 1))) &&
+          if (p.lastReadAt.isAfter(
+                dayDate.subtract(const Duration(milliseconds: 1)),
+              ) &&
               p.lastReadAt.isBefore(nextDay)) {
             dayChapters++;
             daySeconds += p.readingTimeSeconds > 0 ? p.readingTimeSeconds : 720;
@@ -308,7 +338,9 @@ class ReadingAnalyticsService {
     int nightMins = 0;
 
     for (final s in sessionRows) {
-      final cAt = DateTime.fromMillisecondsSinceEpoch(s.read<int>('created_at'));
+      final cAt = DateTime.fromMillisecondsSinceEpoch(
+        s.read<int>('created_at'),
+      );
       final mins = (s.read<int>('duration_seconds') / 60).round();
       final h = cAt.hour;
       if (h >= 6 && h < 12) {
@@ -354,12 +386,21 @@ class ReadingAnalyticsService {
     for (final s in sessionRows) {
       totalChapters += s.read<int>('chapters_read');
     }
-    final completedCount = progressRows.where((p) => p.isCompleted || p.percentage >= 95).length;
+    final completedCount = progressRows
+        .where((p) => p.isCompleted || p.percentage >= 95)
+        .length;
     if (totalChapters < completedCount) {
       totalChapters = completedCount;
     }
     if (totalChapters == 0 && books.isNotEmpty) {
-      totalChapters = books.fold<int>(0, (sum, b) => sum + (b.progress != null ? ((b.progress! / 100) * b.totalChapters).round() : 0));
+      totalChapters = books.fold<int>(
+        0,
+        (sum, b) =>
+            sum +
+            (b.progress != null
+                ? ((b.progress! / 100) * b.totalChapters).round()
+                : 0),
+      );
       if (totalChapters == 0) totalChapters = 12;
     }
 
@@ -394,8 +435,7 @@ class ReadingAnalyticsService {
         readingMinutes: (e.value * 45),
         percentage: pct,
       );
-    }).toList()
-      ..sort((a, b) => b.bookCount.compareTo(a.bookCount));
+    }).toList()..sort((a, b) => b.bookCount.compareTo(a.bookCount));
 
     // 6. Format ratio: novels vs books
     int novelMins = 0;
@@ -439,7 +479,9 @@ class ReadingAnalyticsService {
           bookTitle: bookTitleMap[bId] ?? 'Book #$bId',
           durationSeconds: s.read<int>('duration_seconds'),
           chaptersRead: s.read<int>('chapters_read'),
-          createdAt: DateTime.fromMillisecondsSinceEpoch(s.read<int>('created_at')),
+          createdAt: DateTime.fromMillisecondsSinceEpoch(
+            s.read<int>('created_at'),
+          ),
         ),
       );
     }
@@ -469,4 +511,3 @@ class ReadingAnalyticsService {
     );
   }
 }
-

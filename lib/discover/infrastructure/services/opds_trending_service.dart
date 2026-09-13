@@ -6,13 +6,20 @@ import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart'
 class OpdsTrendingService {
   const OpdsTrendingService();
 
+  // Coalesce concurrent fetches: two dashboard invalidations at once should
+  // share one live request instead of firing two 4s-timing-out http.get in
+  // parallel (which doubled the log: Future not completed x2).
+  static Future<Map<String, List<TrendingBook>>>? _inFlight;
+  static DateTime? _lastLogAt;
+
   static const _gutenbergDefaults = [
     TrendingBook(
       title: 'Pride and Prejudice',
       sourceId: 'gutenberg',
       sourceName: 'Gutenberg',
       author: 'Jane Austen',
-      coverUrl: 'https://www.gutenberg.org/cache/epub/1342/pg1342.cover.medium.jpg',
+      coverUrl:
+          'https://www.gutenberg.org/cache/epub/1342/pg1342.cover.medium.jpg',
       detailUrl: 'https://www.gutenberg.org/ebooks/1342',
       rating: '4.8',
       popularity: '👁 2.4K this week',
@@ -24,7 +31,8 @@ class OpdsTrendingService {
       sourceId: 'gutenberg',
       sourceName: 'Gutenberg',
       author: 'Homer',
-      coverUrl: 'https://www.gutenberg.org/cache/epub/1727/pg1727.cover.medium.jpg',
+      coverUrl:
+          'https://www.gutenberg.org/cache/epub/1727/pg1727.cover.medium.jpg',
       detailUrl: 'https://www.gutenberg.org/ebooks/1727',
       rating: '4.7',
       popularity: '👁 1.2K this week',
@@ -72,7 +80,8 @@ class OpdsTrendingService {
       sourceId: 'gutenberg',
       sourceName: 'Gutenberg',
       author: 'Herman Melville',
-      coverUrl: 'https://www.gutenberg.org/cache/epub/2701/pg2701.cover.medium.jpg',
+      coverUrl:
+          'https://www.gutenberg.org/cache/epub/2701/pg2701.cover.medium.jpg',
       detailUrl: 'https://www.gutenberg.org/ebooks/2701',
       rating: '4.5',
       popularity: '👁 1.1K this week',
@@ -84,7 +93,8 @@ class OpdsTrendingService {
       sourceId: 'gutenberg',
       sourceName: 'Gutenberg',
       author: 'F. Scott Fitzgerald',
-      coverUrl: 'https://www.gutenberg.org/cache/epub/64317/pg64317.cover.medium.jpg',
+      coverUrl:
+          'https://www.gutenberg.org/cache/epub/64317/pg64317.cover.medium.jpg',
       detailUrl: 'https://www.gutenberg.org/ebooks/64317',
       rating: '4.8',
       popularity: '👁 2.8K this week',
@@ -99,7 +109,8 @@ class OpdsTrendingService {
       sourceId: 'standard',
       sourceName: 'Std Ebooks',
       author: 'H.G. Wells',
-      coverUrl: 'https://standardebooks.org/ebooks/h-g-wells/the-time-machine/downloads/cover-thumbnail.jpg',
+      coverUrl:
+          'https://standardebooks.org/ebooks/h-g-wells/the-time-machine/downloads/cover-thumbnail.jpg',
       detailUrl: 'https://standardebooks.org/ebooks/h-g-wells/the-time-machine',
       rating: '4.7',
       popularity: '👁 1.8K this week',
@@ -111,8 +122,10 @@ class OpdsTrendingService {
       sourceId: 'standard',
       sourceName: 'Std Ebooks',
       author: 'Charles Dickens',
-      coverUrl: 'https://standardebooks.org/ebooks/charles-dickens/great-expectations/downloads/cover-thumbnail.jpg',
-      detailUrl: 'https://standardebooks.org/ebooks/charles-dickens/great-expectations',
+      coverUrl:
+          'https://standardebooks.org/ebooks/charles-dickens/great-expectations/downloads/cover-thumbnail.jpg',
+      detailUrl:
+          'https://standardebooks.org/ebooks/charles-dickens/great-expectations',
       rating: '4.6',
       popularity: '👁 1.1K this week',
       genre: 'Classic',
@@ -123,8 +136,10 @@ class OpdsTrendingService {
       sourceId: 'standard',
       sourceName: 'Std Ebooks',
       author: 'Oscar Wilde',
-      coverUrl: 'https://standardebooks.org/ebooks/oscar-wilde/the-picture-of-dorian-gray/downloads/cover-thumbnail.jpg',
-      detailUrl: 'https://standardebooks.org/ebooks/oscar-wilde/the-picture-of-dorian-gray',
+      coverUrl:
+          'https://standardebooks.org/ebooks/oscar-wilde/the-picture-of-dorian-gray/downloads/cover-thumbnail.jpg',
+      detailUrl:
+          'https://standardebooks.org/ebooks/oscar-wilde/the-picture-of-dorian-gray',
       rating: '4.8',
       popularity: '👁 1.9K this week',
       genre: 'Drama',
@@ -135,8 +150,10 @@ class OpdsTrendingService {
       sourceId: 'standard',
       sourceName: 'Std Ebooks',
       author: 'Alexandre Dumas',
-      coverUrl: 'https://standardebooks.org/ebooks/alexandre-dumas/the-count-of-monte-cristo/downloads/cover-thumbnail.jpg',
-      detailUrl: 'https://standardebooks.org/ebooks/alexandre-dumas/the-count-of-monte-cristo',
+      coverUrl:
+          'https://standardebooks.org/ebooks/alexandre-dumas/the-count-of-monte-cristo/downloads/cover-thumbnail.jpg',
+      detailUrl:
+          'https://standardebooks.org/ebooks/alexandre-dumas/the-count-of-monte-cristo',
       rating: '4.9',
       popularity: '👁 2.2K this week',
       genre: 'Adventure',
@@ -163,7 +180,8 @@ class OpdsTrendingService {
       sourceName: 'Feedbooks',
       author: 'Arthur Conan Doyle',
       coverUrl: 'https://covers.openlibrary.org/b/id/7984916-M.jpg',
-      detailUrl: 'https://www.feedbooks.com/book/64/the-adventures-of-sherlock-holmes',
+      detailUrl:
+          'https://www.feedbooks.com/book/64/the-adventures-of-sherlock-holmes',
       rating: '4.9',
       popularity: '👁 2.1K this week',
       genre: 'Mystery',
@@ -194,6 +212,14 @@ class OpdsTrendingService {
       isOpds: true,
     ),
   ];
+
+  /// Curated defaults exposed for SWR instant-cold-start without awaiting network.
+  static Map<String, List<TrendingBook>> get curatedDefaults => {
+    'gutenberg': List.of(_gutenbergDefaults),
+    'standard': List.of(_standardEbooksDefaults),
+    'feedbooks': List.of(_feedbooksDefaults),
+    'openlib': List.of(_openLibDefaults),
+  };
 
   static const _openLibDefaults = [
     TrendingBook(
@@ -259,6 +285,20 @@ class OpdsTrendingService {
   ];
 
   Future<Map<String, List<TrendingBook>>> fetchOpdsTrending() async {
+    // Deduplicate concurrent callers — both dashboard + manual refresh at once
+    // should await the same Future instead of racing two timeouts.
+    final existing = _inFlight;
+    if (existing != null) return existing;
+    final future = _fetchInternal();
+    _inFlight = future;
+    try {
+      return await future;
+    } finally {
+      _inFlight = null;
+    }
+  }
+
+  Future<Map<String, List<TrendingBook>>> _fetchInternal() async {
     final results = <String, List<TrendingBook>>{
       'gutenberg': List.of(_gutenbergDefaults),
       'standard': List.of(_standardEbooksDefaults),
@@ -267,11 +307,15 @@ class OpdsTrendingService {
     };
 
     try {
-      // Opportunistically fetch live Open Library trending API
-      final resp = await http.get(
+      // Open Library cold latency was measured at ~9.8s for 286KB (2026-09-09).
+      // 4s always timed out, flooding the log twice in parallel. Use 12s + one
+      // retry so slow first-hit still succeeds; keep curated fallback if offline.
+      final resp = await _getWithRetry(
         Uri.parse('https://openlibrary.org/trending/daily.json'),
-        headers: {'Accept': 'application/json'},
-      ).timeout(const Duration(seconds: 4));
+        headers: const {'Accept': 'application/json'},
+        timeout: const Duration(seconds: 12),
+        retries: 1,
+      );
 
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
@@ -311,10 +355,42 @@ class OpdsTrendingService {
         }
       }
     } catch (e) {
-      AppLogger.info('OPDS live fetch timed out or offline, using curated catalog: $e');
+      // Rate-limit the noisy timeout log — at most once per 30s even if two
+      // callers raced before coalescing was added.
+      final now = DateTime.now();
+      if (_lastLogAt == null ||
+          now.difference(_lastLogAt!) > const Duration(seconds: 30)) {
+        _lastLogAt = now;
+        AppLogger.info(
+          'OPDS live fetch offline/timeout, using curated catalog: $e',
+        );
+      } else {
+        AppLogger.debug('OPDS live fetch offline/timeout (throttled): $e');
+      }
     }
 
     return results;
   }
-}
 
+  Future<http.Response> _getWithRetry(
+    Uri uri, {
+    required Map<String, String> headers,
+    required Duration timeout,
+    int retries = 1,
+  }) async {
+    Object? lastError;
+    for (var attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await http.get(uri, headers: headers).timeout(timeout);
+      } catch (e) {
+        lastError = e;
+        if (attempt < retries) {
+          await Future.delayed(Duration(milliseconds: 800 * (attempt + 1)));
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw lastError ?? Exception('OPDS fetch failed');
+  }
+}

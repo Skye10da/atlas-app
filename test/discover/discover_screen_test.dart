@@ -67,9 +67,7 @@ void main() {
       weeklyCompletionPercentage: 0.65,
       currentStreak: 12,
     ),
-    genreBookCounts: const {
-      'fantasy': 1,
-    },
+    genreBookCounts: const {'fantasy': 1},
     opdsTrendingBooks: const {
       'gutenberg': [
         TrendingBook(
@@ -94,7 +92,9 @@ void main() {
     },
   );
 
-  testWidgets('DiscoverScreen renders ecosystem widgets cleanly', (tester) async {
+  testWidgets('DiscoverScreen renders ecosystem widgets cleanly', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
@@ -141,9 +141,7 @@ void main() {
             (ref) => Stream.value(3),
           ),
         ],
-        child: const MaterialApp(
-          home: DiscoverScreen(),
-        ),
+        child: const MaterialApp(home: DiscoverScreen()),
       ),
     );
 
@@ -176,32 +174,36 @@ void main() {
     expect(find.text('🔥 Web Novel Trending Now'), findsOneWidget);
 
     // 6. Curated Collections, Content Sources & Footprint (scroll down)
-    await tester.drag(find.byType(ListView).first, const Offset(0, -600));
+    final scrollable = find.byType(CustomScrollView).first;
+    await tester.drag(scrollable, const Offset(0, -600));
     await tester.pumpAndSettle();
 
     expect(find.text('Curated Collections'), findsOneWidget);
     expect(find.text('Content Sources'), findsOneWidget);
 
-    await tester.drag(find.byType(ListView).first, const Offset(0, -600));
+    await tester.drag(scrollable, const Offset(0, -600));
     await tester.pumpAndSettle();
 
     expect(find.text('Reading Footprint'), findsOneWidget);
     expect(find.text('Saved Quotes'), findsOneWidget);
   });
 
-  test('TrendingService handles fetchAllTrending with forceRefresh and fallback defaults', () async {
-    final trendingService = TrendingService(
-      pluginSources: const [],
-    );
-    // Verify getter safe default
-    expect(trendingService.opdsService, isNotNull);
+  test(
+    'TrendingService handles fetchAllTrending with forceRefresh and fallback defaults',
+    () async {
+      final trendingService = TrendingService(pluginSources: const []);
+      // Verify getter safe default
+      expect(trendingService.opdsService, isNotNull);
 
-    final results = await trendingService.fetchAllTrending(forceRefresh: true);
-    expect(results, isNotEmpty);
-    expect(results.containsKey('gutenberg'), isTrue);
-    expect(results.containsKey('standard'), isTrue);
-    expect(results.containsKey('feedbooks'), isTrue);
-    expect(results.containsKey('openlib'), isTrue);
-    expect(results['gutenberg']!.first.isOpds, isTrue);
-  });
+      final results = await trendingService.fetchAllTrending(
+        forceRefresh: true,
+      );
+      expect(results, isNotEmpty);
+      expect(results.containsKey('gutenberg'), isTrue);
+      expect(results.containsKey('standard'), isTrue);
+      expect(results.containsKey('feedbooks'), isTrue);
+      expect(results.containsKey('openlib'), isTrue);
+      expect(results['gutenberg']!.first.isOpds, isTrue);
+    },
+  );
 }

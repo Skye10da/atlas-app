@@ -4,10 +4,7 @@ import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart'
 import 'package:atlas_app/discover/presentation/widgets/trending_book_action_sheet.dart';
 
 class ForYouSection extends StatelessWidget {
-  const ForYouSection({
-    super.key,
-    required this.recommendations,
-  });
+  const ForYouSection({super.key, required this.recommendations});
 
   final List<TrendingBook> recommendations;
 
@@ -16,8 +13,10 @@ class ForYouSection extends StatelessWidget {
     if (recommendations.isEmpty) {
       return const SizedBox.shrink();
     }
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
-    // Gradient covers for recommendation cards
+    // Gradient covers for recommendation cards — stay gradient per spec
     final gradients = [
       const [Color(0xFF667EEA), Color(0xFF764BA2)],
       const [Color(0xFFF093FB), Color(0xFFF5576C)],
@@ -34,13 +33,13 @@ class ForYouSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'For You',
               style: TextStyle(
                 fontFamily: 'Playfair Display',
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1C1B1F),
+                color: cs.onSurface,
               ),
             ),
             TextButton(
@@ -91,9 +90,13 @@ class ForYouSection extends StatelessWidget {
                               offset: const Offset(0, 4),
                             ),
                           ],
-                          image: item.coverUrl != null
+                          image:
+                              item.coverUrl != null && item.coverUrl!.isNotEmpty
                               ? DecorationImage(
-                                  image: NetworkImage(item.coverUrl!),
+                                  image: ResizeImage(
+                                    NetworkImage(item.coverUrl!),
+                                    width: 300,
+                                  ),
                                   fit: BoxFit.cover,
                                   onError: (_, _) {},
                                 )
@@ -111,7 +114,9 @@ class ForYouSection extends StatelessWidget {
                                   vertical: 3,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF7C3AED).withValues(alpha: 0.95),
+                                  color: const Color(
+                                    0xFF7C3AED,
+                                  ).withValues(alpha: 0.95),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -154,28 +159,28 @@ class ForYouSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
 
-                      // Title
+                      // Title — follows theme for dark/light
                       Text(
                         item.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF1C1B1F),
+                          color: cs.onSurface,
                           height: 1.25,
                         ),
                       ),
 
-                      // Author
+                      // Author — muted via onSurfaceVariant, not hardcoded
                       if (item.author != null)
                         Text(
                           item.author!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF79747E),
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                     ],
@@ -189,4 +194,3 @@ class ForYouSection extends StatelessWidget {
     );
   }
 }
-

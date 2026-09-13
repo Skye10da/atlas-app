@@ -2,17 +2,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/discover/presentation/providers/discover_providers.dart';
+import 'package:atlas_app/discover/presentation/providers/reading_analytics_providers.dart';
 import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
 
-class SplashScreen extends HookWidget {
+class SplashScreen extends HookConsumerWidget {
   const SplashScreen({super.key});
 
   static const List<String> _letters = ['A', 't', 'l', 'a', 's'];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // 1. Ink bloom controller (0 -> 400ms)
     final inkController = useAnimationController(
       duration: const Duration(milliseconds: 450),
@@ -72,6 +75,21 @@ class SplashScreen extends HookWidget {
 
     useEffect(() {
       pulseController.repeat(reverse: true);
+
+      // Pre-warm Discover data during the 2s animation (fire-and-forget).
+      // By the time navigation fires, Riverpod cache is warm -> 0ms load.
+      Future.microtask(() {
+        unawaited(
+          ref
+              .read(discoverDashboardProvider.future)
+              .then((_) {}, onError: (_, _) {}),
+        );
+        unawaited(
+          ref
+              .read(readingAnalyticsReportProvider.future)
+              .then((_) {}, onError: (_, _) {}),
+        );
+      });
 
       Future<void> runSequence() async {
         await inkController.forward();
