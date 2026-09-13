@@ -23,7 +23,7 @@ class BookCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final progress = book.progress ?? 0;
+    final progress = book.progressPercent;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -98,7 +98,7 @@ class BookGridCard extends HookWidget {
   Widget build(BuildContext context) {
     final hovered = useState(false);
     final cs = Theme.of(context).colorScheme;
-    final progress = book.progress ?? 0;
+    final progress = book.progressPercent;
 
     return MouseRegion(
       onEnter: (_) => hovered.value = true,
@@ -117,7 +117,9 @@ class BookGridCard extends HookWidget {
             clipBehavior: Clip.antiAlias,
             shape: isSelectionMode && isSelected
                 ? RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.borderRadiusSm,
+                    ),
                     side: BorderSide(color: cs.primary, width: 2),
                   )
                 : null,
@@ -162,9 +164,7 @@ class BookGridCard extends HookWidget {
                               isSelected
                                   ? Icons.check_circle_rounded
                                   : Icons.radio_button_unchecked_rounded,
-                              color: isSelected
-                                  ? cs.primary
-                                  : Colors.white70,
+                              color: isSelected ? cs.primary : Colors.white70,
                               size: 24,
                             ),
                           ),
@@ -239,7 +239,7 @@ class _ProgressBar extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          '${progress.toStringAsFixed(0)}%',
+          '${progress.toStringAsFixed(2)}%',
           style: TextStyle(
             fontSize: 10,
             color: cs.onSurfaceVariant,
@@ -256,10 +256,7 @@ class _NewBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const BookBadge.primary(
-      label: 'NEW',
-      isCompact: true,
-    );
+    return const BookBadge.primary(label: 'NEW', isCompact: true);
   }
 }
 

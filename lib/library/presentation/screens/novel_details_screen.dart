@@ -727,7 +727,8 @@ class _ReadingTriviaCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    final progressPct = book.progressPct;
+    final progressPercent = book.progressPercent;
+    final progressLabel = book.progressLabel2;
     final totalCh = book.totalChapters;
     // Prefer last-read ordinal (exact) over pct-derived rounding which inflates
     // small progress (e.g., chapter 3 of 326 was showing 326/326 when pct rounded to 100).
@@ -744,19 +745,19 @@ class _ReadingTriviaCard extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
         onTap: () {
-          if (progressPct >= 100) {
+          if (progressPercent >= 99.995) {
             MilestoneCelebrationDialog.show(
               context,
               milestone: MilestoneType.firstBookFinished,
               customMessage:
                   'You finished reading ${book.title}! Outstanding journey.',
             );
-          } else if (progressPct >= 50) {
+          } else if (progressPercent >= 50) {
             MilestoneCelebrationDialog.show(
               context,
               milestone: MilestoneType.hundredChapters,
               customMessage:
-                  'Over half-way through ${book.title} ($progressPct%). Keep pushing forward!',
+                  'Over half-way through ${book.title} ($progressLabel%). Keep pushing forward!',
             );
           } else {
             MilestoneCelebrationDialog.show(
@@ -793,12 +794,12 @@ class _ReadingTriviaCard extends ConsumerWidget {
                   ),
                   const Spacer(),
                   BookBadge(
-                    label: progressPct >= 100
+                    label: progressPercent >= 99.995
                         ? 'Completed'
-                        : (progressPct > 0 ? 'Reading' : 'Unread'),
-                    variant: progressPct >= 100
+                        : (progressPercent > 0.005 ? 'Reading' : 'Unread'),
+                    variant: progressPercent >= 99.995
                         ? BookBadgeVariant.tertiary
-                        : (progressPct > 0
+                        : (progressPercent > 0.005
                               ? BookBadgeVariant.primary
                               : BookBadgeVariant.neutral),
                     isCompact: true,
@@ -809,7 +810,7 @@ class _ReadingTriviaCard extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _TriviaCol(label: 'Progress', value: '$progressPct%'),
+                  _TriviaCol(label: 'Progress', value: '$progressLabel%'),
                   _TriviaCol(label: 'Read', value: '$readCh / $totalCh'),
                   _TriviaCol(label: 'Est. Left', value: '${estHours}h'),
                 ],

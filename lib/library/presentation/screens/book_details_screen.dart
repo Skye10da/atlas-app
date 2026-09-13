@@ -204,7 +204,7 @@ class _BookDetailsBody extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final progress = book.progress ?? 0;
+    final progress = book.progressPercent;
     final isRedownloading = useState(false);
     final redownloadProgress = useState<(int, int)?>(null);
 
@@ -294,10 +294,14 @@ class _BookDetailsBody extends HookConsumerWidget {
                         child: FilledButton.icon(
                           onPressed: () => onOpenReader?.call(null),
                           icon: Icon(
-                            progress > 0 ? Icons.play_arrow : Icons.menu_book,
+                            progress > 0.005
+                                ? Icons.play_arrow
+                                : Icons.menu_book,
                           ),
                           label: Text(
-                            progress > 0 ? 'Continue Reading' : 'Start Reading',
+                            progress > 0.005
+                                ? 'Continue Reading'
+                                : 'Start Reading',
                           ),
                         ),
                       ),
@@ -371,7 +375,7 @@ class _BookDetailsBody extends HookConsumerWidget {
             ),
           ),
         ),
-        if (progress > 0 && progress < 100)
+        if (progress > 0.005 && progress < 99.995)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -391,13 +395,13 @@ class _BookDetailsBody extends HookConsumerWidget {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: progress / 100,
+                          value: book.progress01,
                           minHeight: 6,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${progress.round()}% complete · ${chapters.length} chapters',
+                        '${progress.toStringAsFixed(2)}% complete · ${chapters.length} chapters',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),

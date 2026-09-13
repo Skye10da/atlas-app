@@ -77,4 +77,9 @@ extension BookProgressX on BookEntity {
   }
 
   int get progressPct => (progress01 * 100).round().clamp(0, 100);
+
+  /// Precise 0..100 with 2-decimal stability for thousands of chapters.
+  double get progressPercent => progress01 * 100;
+
+  String get progressLabel2 => progressPercent.toStringAsFixed(2);
 }

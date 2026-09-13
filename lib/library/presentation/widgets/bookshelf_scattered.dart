@@ -35,10 +35,9 @@ class BookshelfScattered extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scattered = useMemoized(
-      () => _generateScattered(books.length),
-      [books.length],
-    );
+    final scattered = useMemoized(() => _generateScattered(books.length), [
+      books.length,
+    ]);
     final cs = Theme.of(context).colorScheme;
     final isDesktop = AppBreakpoints.isLarge(context);
     final coverWidth = isDesktop ? 130.0 : 90.0;
@@ -111,11 +110,11 @@ class BookshelfScattered extends HookWidget {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                if (book.progress != null && book.progress! > 0)
+                                if (book.progress01 > 0)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: LinearProgressIndicator(
-                                      value: book.progress,
+                                      value: book.progress01,
                                       minHeight: 2,
                                     ),
                                   ),

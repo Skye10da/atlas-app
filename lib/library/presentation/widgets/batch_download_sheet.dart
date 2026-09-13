@@ -28,10 +28,7 @@ class BatchDownloadSheet extends HookConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => BatchDownloadSheet(
-        book: book,
-        chapters: chapters,
-      ),
+      builder: (ctx) => BatchDownloadSheet(book: book, chapters: chapters),
     );
   }
 
@@ -55,7 +52,7 @@ class BatchDownloadSheet extends HookConsumerWidget {
         .where((c) => c.contentState != ContentState.availableOffline.index)
         .toList();
 
-    final lastReadIdx = ((book.progress ?? 0.0) * chapters.length).round();
+    final lastReadIdx = (book.progress01 * chapters.length).round();
     final remainingFromCurrent = chapters
         .skip(lastReadIdx)
         .where((c) => c.contentState != ContentState.availableOffline.index)
@@ -93,7 +90,9 @@ class BatchDownloadSheet extends HookConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Downloaded ${completed.value} chapters successfully.'),
+            content: Text(
+              'Downloaded ${completed.value} chapters successfully.',
+            ),
           ),
         );
         Navigator.of(context).pop();
@@ -135,7 +134,11 @@ class BatchDownloadSheet extends HookConsumerWidget {
             // Header
             Row(
               children: [
-                Icon(Icons.download_for_offline_rounded, color: cs.primary, size: 24),
+                Icon(
+                  Icons.download_for_offline_rounded,
+                  color: cs.primary,
+                  size: 24,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 const Expanded(
                   child: Text(
@@ -169,7 +172,9 @@ class BatchDownloadSheet extends HookConsumerWidget {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+                  borderRadius: BorderRadius.circular(
+                    AppSpacing.borderRadiusMd,
+                  ),
                   border: Border.all(
                     color: cs.outlineVariant.withValues(alpha: 0.3),
                   ),
@@ -197,9 +202,13 @@ class BatchDownloadSheet extends HookConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.borderRadiusFull,
+                      ),
                       child: LinearProgressIndicator(
-                        value: targetTotal.value > 0 ? completed.value / targetTotal.value : 0.0,
+                        value: targetTotal.value > 0
+                            ? completed.value / targetTotal.value
+                            : 0.0,
                         minHeight: 6,
                         backgroundColor: cs.surfaceContainerHighest,
                         valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
@@ -289,7 +298,9 @@ class _DownloadOptionTile extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1.0 : 0.45,
       child: Material(
-        color: isPrimary ? cs.primaryContainer.withValues(alpha: 0.6) : cs.surfaceContainerLow,
+        color: isPrimary
+            ? cs.primaryContainer.withValues(alpha: 0.6)
+            : cs.surfaceContainerLow,
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
         child: InkWell(
           borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
@@ -315,7 +326,9 @@ class _DownloadOptionTile extends StatelessWidget {
                         title,
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: isPrimary ? cs.onPrimaryContainer : cs.onSurface,
+                          color: isPrimary
+                              ? cs.onPrimaryContainer
+                              : cs.onSurface,
                         ),
                       ),
                       Text(
@@ -332,7 +345,9 @@ class _DownloadOptionTile extends StatelessWidget {
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 14,
-                  color: isPrimary ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+                  color: isPrimary
+                      ? cs.onPrimaryContainer
+                      : cs.onSurfaceVariant,
                 ),
               ],
             ),

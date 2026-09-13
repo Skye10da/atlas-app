@@ -34,8 +34,8 @@ Future<void> openReader({
     if (id != null) {
       params['chapterId'] = id;
     }
-    if (book.progress != null && book.progress! > 0) {
-      params['progress'] = (book.progress! / 100).toStringAsFixed(4);
+    if (book.progress01 > 0) {
+      params['progress'] = book.progress01.toStringAsFixed(4);
     }
   }
 

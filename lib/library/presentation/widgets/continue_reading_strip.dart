@@ -75,11 +75,8 @@ class _ContinueReadingCard extends HookWidget {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    final progressVal = book.progress ?? 0.0;
-    final normalizedProgress = progressVal > 1.0
-        ? (progressVal / 100).clamp(0.0, 1.0)
-        : progressVal.clamp(0.0, 1.0);
-    final percentLabel = '${(normalizedProgress * 100).round()}%';
+    final normalizedProgress = book.progress01;
+    final percentLabel = '${book.progressLabel2}%';
 
     return MouseRegion(
       onEnter: (_) => hovered.value = true,

@@ -60,7 +60,7 @@ class DriftDiscoverRepository implements DiscoverRepositoryInterface {
             return pB.compareTo(pA);
           });
         nowReading = activeBooks.firstWhere(
-          (b) => b.progress01 > 0.005,
+          (b) => b.progress01 > 0,
           orElse: () => activeBooks.first,
         );
       }

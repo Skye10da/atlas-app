@@ -53,7 +53,7 @@ class NowReadingHeroCard extends StatelessWidget {
 
     final nowReading = book!;
     final progressVal = nowReading.progress01;
-    final progressPct = nowReading.progressPct;
+    final progressLabel = nowReading.progressLabel2;
     final title = nowReading.title;
     final author = nowReading.author ?? 'Unknown Author';
 
@@ -116,9 +116,9 @@ class NowReadingHeroCard extends StatelessWidget {
                           color: const Color(0xFFA78BFA),
                         ),
                         Text(
-                          '$progressPct%',
+                          '$progressLabel%',
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                           ),

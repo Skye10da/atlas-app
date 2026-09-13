@@ -155,7 +155,7 @@ void main() {
     expect(find.text('NOW READING'), findsOneWidget);
     expect(find.text('Whispers of Void'), findsWidgets);
     expect(find.text('Elara Vance'), findsWidgets);
-    expect(find.text('74%'), findsOneWidget);
+    expect(find.text('74.00%'), findsOneWidget);
     expect(find.text('Continue Reading'), findsOneWidget);
     expect(find.text('"The darkness is not an ending."'), findsOneWidget);
 
