@@ -18,8 +18,11 @@ import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/domain/entities/reading_progress_snapshot.dart';
 import 'package:atlas_app/reader/domain/repository_interfaces/reader_repository_interface.dart';
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
+import 'package:atlas_app/reader/presentation/providers/pronunciation_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
+import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
+import 'package:atlas_app/reader/speech/pronunciation/models/pronunciation_rule.dart';
 import 'package:atlas_app/reader/presentation/widgets/book_search_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
@@ -45,11 +48,15 @@ class ReaderContent extends HookConsumerWidget {
     required this.repo,
     required this.bookId,
     required this.settings,
+    this.initialChapterId,
+    this.initialScrollProgress,
   });
 
   final ReaderRepositoryInterface repo;
   final String bookId;
   final ReadingSettingsEntity settings;
+  final String? initialChapterId;
+  final double? initialScrollProgress;
 
   static const _selectionSpeaker = SelectionSpeaker();
   static const _sessionBuilder = SpeechSessionBuilder();
@@ -156,51 +163,23 @@ class ReaderContent extends HookConsumerWidget {
       );
     }
 
-    void advanceFromNarration(String finishedChapterId) {
-      if (!context.mounted) return;
-      final autoAdvance =
-          ref.read(narrationSettingsProvider).value?.autoAdvanceChapter ?? true;
-      if (!autoAdvance) return;
-      final idx = chapters.value.indexWhere((c) => c.id == finishedChapterId);
-      if (idx < 0 || idx >= chapters.value.length - 1) return;
-      final next = chapters.value[idx + 1];
-      resetPosition();
-      currentChapter.value = next;
-      currentChapterIndex.value = idx + 1;
-      saveProgress(next);
-    }
-
-    void onSpeechEvent(SpeechEvent event) {
-      switch (event) {
-        case ChapterFinished(:final chapterId, :final wasPlaying):
-          if (wasPlaying) autoResumeNext.value = true;
-          advanceFromNarration(chapterId);
-        case SentenceStarted(:final item):
-          ref.read(activeWordBoundaryProvider.notifier).state = null;
-          if (item.bookId == bookId) {
-            ref.read(activeSpeechItemProvider.notifier).state = item;
-          }
-        case WordBoundary(:final item, :final start, :final end, :final word):
-          ref.read(activeWordBoundaryProvider.notifier).state = WordBoundary(
-            item,
-            start,
-            end,
-            word,
-          );
-        case SpeechStopped() || SpeechCompleted():
-          ref.read(activeSpeechItemProvider.notifier).state = null;
-          ref.read(activeWordBoundaryProvider.notifier).state = null;
-        default:
-          break;
-      }
-    }
-
     Future<void> syncSpeechSession(
       ChapterEntity chapter,
-      String content,
-    ) async {
+      String content, {
+      int? initialSentenceIndex,
+      bool? forceStart,
+    }) async {
       final engine = ref.read(speechEngineProvider);
-      if (engine.session?.chapterId == chapter.id) return;
+      if (engine.session?.chapterId == chapter.id) {
+        if (initialSentenceIndex != null) {
+          await engine.seekTo(initialSentenceIndex);
+          if ((forceStart == true || engine.hasUserInitiatedPlayback) &&
+              !engine.isPlaying) {
+            await engine.start();
+          }
+        }
+        return;
+      }
 
       // Option A: defer if body empty — skip title announcement, keep auto-resume
       if (content.trim().isEmpty) {
@@ -218,8 +197,10 @@ class ReaderContent extends HookConsumerWidget {
           checkpoint.chapterId == chapter.id;
 
       final int sentenceIndex;
-      final bool isAutoNext = autoResumeNext.value;
-      if (restoreHere) {
+      final bool isAutoNext = (forceStart ?? false) || autoResumeNext.value;
+      if (initialSentenceIndex != null) {
+        sentenceIndex = initialSentenceIndex;
+      } else if (restoreHere) {
         sentenceIndex = checkpoint.sentenceIndex;
       } else if (isAutoNext) {
         // Auto-next always starts at title (0) when announce enabled, else 0
@@ -234,6 +215,10 @@ class ReaderContent extends HookConsumerWidget {
         // Clamp later after building; for now keep pos
       }
 
+      // Pronunciation normalization — isolated, no-op when disabled (stable path unchanged)
+      final List<PronunciationRule> pronunciationRules = narrationSettings.pronunciationEnabled
+          ? await ref.read(pronunciationRepositoryProvider).getRules()
+          : const <PronunciationRule>[];
       final session = _sessionBuilder.build(
         bookId: bookId,
         chapter: chapter,
@@ -245,9 +230,10 @@ class ReaderContent extends HookConsumerWidget {
         bookTitle: bookTitle.value,
         author: bookAuthor.value,
         chapterTitle: chapter.title,
+        pronunciationRules: pronunciationRules,
       );
       // Clamp manual position if it exceeds queue after title prepend
-      if (!restoreHere && !isAutoNext) {
+      if (!restoreHere && !isAutoNext && initialSentenceIndex == null) {
         if (session.queue.length > 0 && sentenceIndex >= session.queue.length) {
           session.queue.seekTo(0);
         } else if (session.queue.length > 0 &&
@@ -264,9 +250,69 @@ class ReaderContent extends HookConsumerWidget {
         );
       }
       await engine.loadSession(session);
-      if (autoResumeNext.value) {
+      if (forceStart == true || autoResumeNext.value) {
         autoResumeNext.value = false;
-        await engine.start();
+        // Bug 1/2 fix: never auto-play on first open without user gesture.
+        // hasUserInitiatedPlayback is set only by engine.start() (manual play).
+        if (engine.hasUserInitiatedPlayback || forceStart == true) {
+          await engine.start();
+        }
+      }
+    }
+
+    Future<void> advanceFromNarration(String finishedChapterId) async {
+      if (!context.mounted) return;
+      final autoAdvance =
+          ref.read(narrationSettingsProvider).value?.autoAdvanceChapter ?? true;
+      if (!autoAdvance) return;
+      final idx = chapters.value.indexWhere((c) => c.id == finishedChapterId);
+      if (idx < 0 || idx >= chapters.value.length - 1) return;
+      final next = chapters.value[idx + 1];
+      resetPosition();
+      currentChapter.value = next;
+      currentChapterIndex.value = idx + 1;
+      await saveProgress(next);
+
+      // CRITICAL FOR SCREEN-LOCK (Symptom 4):
+      // On Android when screen is locked, Choreographer pauses VSync and addPostFrameCallback
+      // does not fire. Directly and headlessly load the new speech session so audio playback continues.
+      try {
+        final content = await ref.read(readerChapterContentProvider(next).future);
+        if (content.isNotEmpty) {
+          await syncSpeechSession(
+            next,
+            content,
+            initialSentenceIndex: 0,
+            forceStart: true,
+          );
+        }
+      } catch (_) {
+        // Fallback: the build loop will pick it up if UI renders
+      }
+    }
+
+    void onSpeechEvent(SpeechEvent event) {
+      switch (event) {
+        case ChapterFinished(:final chapterId, :final wasPlaying):
+          if (wasPlaying) autoResumeNext.value = true;
+          unawaited(advanceFromNarration(chapterId));
+        case SentenceStarted(:final item):
+          ref.read(activeWordBoundaryProvider.notifier).state = null;
+          if (item.bookId == bookId) {
+            ref.read(activeSpeechItemProvider.notifier).state = item;
+          }
+        case WordBoundary(:final item, :final start, :final end, :final word):
+          ref.read(activeWordBoundaryProvider.notifier).state = WordBoundary(
+            item,
+            start,
+            end,
+            word,
+          );
+        case SpeechStopped() || SpeechCompleted():
+          ref.read(activeSpeechItemProvider.notifier).state = null;
+          ref.read(activeWordBoundaryProvider.notifier).state = null;
+        default:
+          break;
       }
     }
 
@@ -496,6 +542,17 @@ class ReaderContent extends HookConsumerWidget {
     }
 
     void onContinuousChapterChanged(int index) {
+      final engine = ref.read(speechEngineProvider);
+      // Protect active narration from being rolled back by scroll jitter from previous chapter footer
+      if (engine.isPlaying && engine.session != null) {
+        final activeChapterId = engine.session!.chapterId;
+        final currentId = currentChapter.value?.id;
+        if (currentId == activeChapterId &&
+            chapters.value[index].id != activeChapterId) {
+          return;
+        }
+      }
+
       if (currentChapter.value?.id != chapters.value[index].id) {
         currentChapter.value = chapters.value[index];
         currentChapterIndex.value = index;
@@ -684,6 +741,34 @@ class ReaderContent extends HookConsumerWidget {
         onShare: handleShare,
         onListen: handleListen,
         onErase: handleErase,
+        onChapterTextTap: (tappedChapter, charOffset) async {
+          final content =
+              ref.read(readerChapterContentProvider(tappedChapter)).valueOrNull ??
+              await ref.read(readerChapterContentProvider(tappedChapter).future);
+          if (content == null || content.isEmpty) return;
+          final narrationSettings =
+              ref.read(narrationSettingsProvider).value ??
+              const NarrationSettings();
+          final idx = const ChapterPositionResolver().sentenceIndexForOffset(
+            content,
+            charOffset,
+            announceChapterTitle: narrationSettings.announceChapterTitle,
+            chapterTitle: tappedChapter.title,
+          );
+          final targetIndex =
+              chapters.value.indexWhere((c) => c.id == tappedChapter.id);
+          if (targetIndex >= 0) {
+            currentChapter.value = tappedChapter;
+            currentChapterIndex.value = targetIndex;
+            await saveProgress(tappedChapter);
+          }
+          await syncSpeechSession(
+            tappedChapter,
+            content,
+            initialSentenceIndex: idx ?? 0,
+            forceStart: true,
+          );
+        },
       );
     } else if (settings.readingMode == ReadingMode.realFlip) {
       contentWidget = RealFlipReaderLayout(

@@ -32,6 +32,7 @@ import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
+import 'package:atlas_app/search/presentation/providers/search_engine_provider.dart';
 import 'package:go_router/go_router.dart';
 
 const bool _kNovelDetectionEnabled = true;
@@ -447,7 +448,11 @@ class BrowserScreen extends HookConsumerWidget {
       final trimmed = raw.trim();
       if (trimmed.isEmpty) return;
       FocusManager.instance.primaryFocus?.unfocus();
-      final normalized = normalizeBrowserUrl(trimmed);
+      final engine = ref.read(selectedSearchEngineProvider);
+      final normalized = normalizeBrowserUrl(
+        trimmed,
+        searchUrlBuilder: engine.buildUrl,
+      );
       final uri = Uri.tryParse(normalized);
       if (uri == null || (uri.scheme != 'about' && uri.host.isEmpty)) {
         if (context.mounted) {
@@ -845,10 +850,8 @@ class BrowserScreen extends HookConsumerWidget {
               icon: Icons.search_rounded,
               onPressed: () {
                 dismissSelectionMenu();
-                tabs.addTab(
-                  url:
-                      'https://www.google.com/search?q=${Uri.encodeQueryComponent(sel.text)}',
-                );
+                final engine = ref.read(selectedSearchEngineProvider);
+                tabs.addTab(url: engine.buildUrl(sel.text));
               },
             ),
             AppContextMenuAction(

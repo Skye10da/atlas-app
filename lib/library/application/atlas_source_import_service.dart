@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -19,20 +20,38 @@ class AtlasSourceImportService {
 
   /// Prompts the user to pick a `.atlas` file and returns the embedded source
   /// URL. `null` means the picker was cancelled (a success result).
+  ///
+  /// On Android `MimeTypeMap` has no entry for `.atlas`, so
+  /// `FileType.custom(['atlas'])` triggers `Unsupported filter` in the native
+  /// plugin and the file is hidden by most document providers. We fall back to
+  /// `FileType.any` on Android and validate the extension ourselves.
   Future<Result<String?>> pickSourceUrl() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['atlas'],
-        withData: true,
-      );
+      FilePickerResult? result;
+      if (Platform.isAndroid) {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.any,
+          withData: true,
+        );
+      } else {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['atlas'],
+          withData: true,
+        );
+      }
 
       if (result == null || result.files.isEmpty) {
         return const Success(null);
       }
 
       final file = result.files.first;
-      final bytes = file.bytes;
+      List<int>? bytes = file.bytes;
+      if (bytes == null && file.path != null) {
+        try {
+          bytes = await File(file.path!).readAsBytes();
+        } catch (_) {}
+      }
       if (bytes == null) {
         return const Failure(ValidationException('Could not read file'));
       }

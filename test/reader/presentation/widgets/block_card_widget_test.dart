@@ -157,9 +157,17 @@ void main() {
       );
     });
 
-    test('shadows only apply on dark reader palettes', () {
+    test('shadows apply on both palettes with stronger lift on dark', () {
       expect(systemThemeFor(_darkColors()).shadows, isNotEmpty);
-      expect(systemThemeFor(_lightColors()).shadows, isEmpty);
+      expect(systemThemeFor(_lightColors()).shadows, isNotEmpty);
+      // Dark has higher alpha bloom than light.
+      final darkAlpha = systemThemeFor(
+        _darkColors(),
+      ).shadows.first.color.a;
+      final lightAlpha = systemThemeFor(
+        _lightColors(),
+      ).shadows.first.color.a;
+      expect(darkAlpha, greaterThan(lightAlpha * 0.9));
     });
 
     test(
@@ -200,4 +208,4 @@ void main() {
 }
 
 Color _cardBackgroundNear(ReadingColors colors) =>
-    Color.lerp(colors.background, const Color(0xFFB9974F), 0.07)!;
+    Color.lerp(colors.background, const Color(0xFFB9974F), 0.10)!;

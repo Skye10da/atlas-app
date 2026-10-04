@@ -33,6 +33,20 @@ class ReaderScreen extends HookConsumerWidget {
     final settingsAsync = ref.watch(readingSettingsProvider);
     final bookAsync = ref.watch(bookDetailsProvider(bookId));
 
+    // Parse deep-link / openReader query params synchronously so the reader
+    // can resolve the initial chapter before the first loadChapters() call.
+    // This eliminates the hook race where loadChapters ran with
+    // initialChapterId==null and fell back to chapter 0, triggering an
+    // offline download timeout for uncached Chapter 1.
+    String? initialChapterId;
+    double? initialScrollProgress;
+    try {
+      final q = GoRouterState.of(context).uri.queryParameters;
+      initialChapterId = q['chapterId'];
+      final prog = q['progress'];
+      if (prog != null) initialScrollProgress = double.tryParse(prog);
+    } catch (_) {}
+
     return bookAsync.when(
       loading: () => _readerShimmer(context),
       error: (_, _) => _readerShimmer(context),
@@ -59,6 +73,8 @@ class ReaderScreen extends HookConsumerWidget {
             repo: repo,
             bookId: bookId,
             settings: settings,
+            initialChapterId: initialChapterId,
+            initialScrollProgress: initialScrollProgress,
           ),
         );
       },

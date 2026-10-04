@@ -28,6 +28,8 @@ library;
 
 import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/core/content_engine/block_card/rules/bracketed_line_rule.dart';
+import 'package:atlas_app/core/content_engine/block_card/rules/football_talent_rule.dart';
+import 'package:atlas_app/core/content_engine/block_card/rules/player_panel_rule.dart';
 
 /// A single "does this look like a status block, and how do I parse it"
 /// rule. Plugins register these for site- or novel-specific formats.
@@ -202,6 +204,11 @@ class BlockCardDetector {
            [
              SystemStatusRule(),
              CultivationStatusRule(),
+             // Football — scout (CA/PA) and talent-steal are distinct
+             // enough to warrant two types; keep scout before talent so
+             // dense CA/PA blocks win over generic bracket coverage.
+             PlayerPanelRule(),
+             FootballTalentRule(),
              BracketedLineRule(),
              ..._registeredRules,
            ];
@@ -287,6 +294,12 @@ class BlockCardDetector {
       return true;
     }
     if (_dingCue.hasMatch(paragraph)) return true;
+    if (RegExp(r'possessed\s*talents|select\s*the\s*talent|it\s*will\s*take\s*\d+\s*days', caseSensitive: false)
+        .hasMatch(paragraph)) {
+      return true;
+    }
+    // Scout HUD: single `> Name :` line should start a block; allow buffering of following CA/PA lines.
+    if (RegExp(r'^\s*>\s*Name\s*[:：]', caseSensitive: false).hasMatch(paragraph)) return true;
     if (_consecutiveKv.hasMatch(paragraph)) return true;
 
     // Square-bracket units: chains ([X][Y][Z]) are always panels, and

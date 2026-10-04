@@ -8,6 +8,8 @@ import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
+import 'package:atlas_app/intelligence/domain/entities/reader_position.dart';
+import 'package:atlas_app/intelligence/presentation/chat/chat_screen.dart';
 
 class ChapterSelectionMenuBuilder {
   const ChapterSelectionMenuBuilder();
@@ -223,6 +225,25 @@ class ChapterSelectionMenuBuilder {
                   word: word,
                   sourceSentence: sentence,
                   sourceTitle: chapterTitle,
+                ),
+              );
+            },
+          ),
+        if (showSelectionActions && bookId != null)
+          AppContextMenuAction(
+            label: 'Ask Atlas about "$word"',
+            icon: Icons.psychology_outlined,
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(
+                    bookId: bookId,
+                    readerPosition: ReaderPosition(
+                      bookId: bookId,
+                      currentChapter: 1,
+                    ),
+                    initialPrompt: 'Who or what is "$word"?',
+                  ),
                 ),
               );
             },

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/database/providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_snackbar.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -98,20 +99,18 @@ class NovelActionsController extends StateNotifier<AsyncValue<void>> {
       _ref.invalidate(novelChaptersProvider(bookId));
       _ref.invalidate(libraryBooksProvider);
 
+      // Use root messenger so the snackbar survives the invalidations
+      // above (which rebuild Library/Novel screens and would dismiss a
+      // ScaffoldMessenger.of(context) snackbar). Keep snackbar-only per spec.
       if (showSnackbars && context.mounted) {
         if (outcome.success) {
           final msg = outcome.newChapters > 0
               ? 'Found ${outcome.newChapters} new chapter(s)'
               : 'Already up to date';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg)),
-          );
+          AppSnackBar.show(msg);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(outcome.error ?? 'Failed to check for updates'),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
+          AppSnackBar.showError(
+            outcome.error ?? 'Failed to check for updates',
           );
         }
       }

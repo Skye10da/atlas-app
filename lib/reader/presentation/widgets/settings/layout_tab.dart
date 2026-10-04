@@ -24,6 +24,7 @@ class LayoutTab extends StatelessWidget {
     this.desktopSheetPresentation = DesktopSheetPresentation.dialog,
     required this.horizontalPadding,
     required this.useBookSpread,
+    this.enableBlockCards = true,
     required this.onReadingModeChanged,
     required this.onKeepScreenAwakeChanged,
     required this.onBrightnessChanged,
@@ -38,6 +39,7 @@ class LayoutTab extends StatelessWidget {
     this.onDesktopSheetPresentationChanged,
     required this.onHorizontalPaddingChanged,
     required this.onUseBookSpreadChanged,
+    this.onEnableBlockCardsChanged,
   });
 
   final ReadingMode readingMode;
@@ -54,6 +56,7 @@ class LayoutTab extends StatelessWidget {
   final DesktopSheetPresentation desktopSheetPresentation;
   final double horizontalPadding;
   final bool useBookSpread;
+  final bool enableBlockCards;
 
   final ValueChanged<ReadingMode> onReadingModeChanged;
   final ValueChanged<bool> onKeepScreenAwakeChanged;
@@ -70,6 +73,7 @@ class LayoutTab extends StatelessWidget {
   onDesktopSheetPresentationChanged;
   final ValueChanged<double> onHorizontalPaddingChanged;
   final ValueChanged<bool> onUseBookSpreadChanged;
+  final ValueChanged<bool>? onEnableBlockCardsChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -374,6 +378,27 @@ class LayoutTab extends StatelessWidget {
               ),
               Icon(Icons.format_indent_increase, size: 18, color: colorScheme.onSurfaceVariant),
             ],
+          ),
+          // Content Cards (BlockCard)
+          const AppSectionHeader(title: 'Content Cards'),
+          const SizedBox(height: 4),
+          Text(
+            'Themed status cards (System, Cultivation, Scout Report, Talent Panel) overlaid on chapter text',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          SwitchListTile(
+            title: const Text('Block Cards', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            subtitle: const Text('Show themed stat cards inline with chapter prose', style: TextStyle(fontSize: 11)),
+            secondary: const Icon(Icons.dashboard_customize_outlined),
+            value: enableBlockCards,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (v) {
+              HapticFeedback.selectionClick();
+              onEnableBlockCardsChanged?.call(v);
+            },
           ),
           const SizedBox(height: AppSpacing.md),
           const AppDivider(),

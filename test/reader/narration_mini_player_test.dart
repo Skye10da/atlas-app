@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,6 +38,12 @@ class _FakeDriver implements SpeechDriver {
     String? voiceId,
     String? language,
   }) async {}
+
+  @override
+  bool get supportsFileOutput => false;
+
+  @override
+  Future<File?> synthesizeToFile(SpeechItem item) async => null;
 
   @override
   Future<void> speak(SpeechItem item) async {

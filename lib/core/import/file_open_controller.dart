@@ -53,6 +53,12 @@ class FileOpenController {
   }
 
   void _emitDesktopArguments() {
+    // On Android the VIEW Intent can surface as a file path that the
+    // Flutter engine also forwards as an initial route (e.g. /509/..).
+    // Only treat executableArguments as file opens on desktop.
+    if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
+      return;
+    }
     for (final arg in Platform.executableArguments) {
       final path = _supportedFilePath(arg);
       if (path != null) {

@@ -16,6 +16,7 @@ import 'package:atlas_app/reader/presentation/widgets/chapter_narration_coordina
 import 'package:atlas_app/reader/presentation/widgets/chapter_selection_menu.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_background.dart';
 import 'package:atlas_app/reader/presentation/widgets/word_lookup_sheet.dart';
 import 'package:atlas_app/reader/speech/speech_models.dart';
 
@@ -41,6 +42,9 @@ class PagedPageView extends StatelessWidget {
     required this.vt,
     this.showHeaders = true,
     this.chapterStyle,
+    this.customBackgroundColor,
+    this.pattern = ReaderPattern.none,
+    this.patternOpacity = 0.08,
     this.onHighlight,
     this.onAddNote,
     this.onShare,
@@ -84,13 +88,17 @@ class PagedPageView extends StatelessWidget {
   final ReadingViewTheme vt;
   final bool showHeaders;
   final ChapterStyle? chapterStyle;
+  final Color? customBackgroundColor;
+  final ReaderPattern pattern;
+  final double patternOpacity;
   final void Function(
     String text,
     Color color,
     int start,
     int end, {
     HighlightStyleType styleType,
-  })? onHighlight;
+  })?
+  onHighlight;
   final void Function(String text, String? sentence)? onAddNote;
   final void Function(String text)? onShare;
   final void Function(String text)? onSearchWeb;
@@ -111,16 +119,14 @@ class PagedPageView extends StatelessWidget {
       MarginPreset.normal => AppSpacing.md,
       MarginPreset.wide => AppSpacing.lg,
     };
-    final hPadding = horizontalPadding ??
+    final hPadding =
+        horizontalPadding ??
         switch (marginPreset) {
           MarginPreset.narrow => AppSpacing.md,
           MarginPreset.normal => AppSpacing.lg,
           MarginPreset.wide => AppSpacing.xxl,
         };
-    return EdgeInsets.symmetric(
-      horizontal: hPadding,
-      vertical: vPadding,
-    );
+    return EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding);
   }
 
   @override
@@ -133,19 +139,41 @@ class PagedPageView extends StatelessWidget {
 
     void handlePageTap() {
       final primaryFocus = FocusManager.instance.primaryFocus;
-      final isEditing = primaryFocus?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
+      final isEditing =
+          primaryFocus?.context
+              ?.findAncestorWidgetOfExactType<EditableText>() !=
+          null;
       if (isEditing) {
+        HapticFeedback.selectionClick();
         primaryFocus?.unfocus();
         return;
       }
+      HapticFeedback.lightImpact();
       onTap?.call();
     }
 
+    final readingColors = vt.resolve(colorScheme);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: handlePageTap,
-      child: Container(
-        color: vt.resolve(colorScheme).background,
+      onDoubleTapDown: (d) {
+        HapticFeedback.selectionClick();
+      },
+      onDoubleTap: () {
+        HapticFeedback.selectionClick();
+        final region = SelectionContainer.maybeOf(context);
+        // Double-tap same selection again → clear it (selectionClick already)
+        if (region != null) {
+          // Best-effort clear via primary focus editable
+          final focus = FocusManager.instance.primaryFocus;
+          focus?.unfocus();
+        }
+      },
+      child: ReaderBackground(
+        colors: readingColors,
+        customColor: customBackgroundColor,
+        pattern: pattern,
+        patternOpacity: patternOpacity,
         child: Column(
           children: [
             if (isFirstPageOfChapter && showHeaders && cs != null)
@@ -170,7 +198,7 @@ class PagedPageView extends StatelessWidget {
                 ChapterOrnamentalDivider(accentColor: cs.accentColor),
               ChapterEndFooter(
                 chapterNumber: chapterIndex + 1,
-                textColor: vt.resolve(colorScheme).text,
+                textColor: readingColors.text,
                 baseFontSize: textStyle.fontSize!,
               ),
             ],
@@ -180,7 +208,11 @@ class PagedPageView extends StatelessWidget {
     );
   }
 
-  Widget _buildText(BuildContext context, TextStyle resolvedStyle, ChapterStyle? cs) {
+  Widget _buildText(
+    BuildContext context,
+    TextStyle resolvedStyle,
+    ChapterStyle? cs,
+  ) {
     final c = content;
     final contextMenu = _contextMenuBuilder(c);
     final pageHighlights = _pageHighlights(context, c);
@@ -189,7 +221,10 @@ class PagedPageView extends StatelessWidget {
 
     void handleTap() {
       final primaryFocus = FocusManager.instance.primaryFocus;
-      final isEditing = primaryFocus?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
+      final isEditing =
+          primaryFocus?.context
+              ?.findAncestorWidgetOfExactType<EditableText>() !=
+          null;
       if (isEditing) {
         primaryFocus?.unfocus();
         return;
@@ -220,8 +255,14 @@ class PagedPageView extends StatelessWidget {
 
   /// Highlights whose chapter-global range intersects this page's slice,
   /// translated into page-local coordinates, including active narration highlights.
-  List<HighlightEntry> _pageHighlights(BuildContext context, String pageContent) {
-    if (chapterId == null || pageStartOffset >= (fullChapterContent?.length ?? pageContent.length + pageStartOffset)) {
+  List<HighlightEntry> _pageHighlights(
+    BuildContext context,
+    String pageContent,
+  ) {
+    if (chapterId == null ||
+        pageStartOffset >=
+            (fullChapterContent?.length ??
+                pageContent.length + pageStartOffset)) {
       return const [];
     }
     final out = <HighlightEntry>[];
@@ -246,19 +287,27 @@ class PagedPageView extends StatelessWidget {
         activeSpeechItem!.chapterId == chapterId &&
         fullChapterContent != null &&
         fullChapterContent!.isNotEmpty) {
-      final paraRange = const ChapterNarrationCoordinator().resolveActiveParagraphRange(
-        item: activeSpeechItem,
-        content: fullChapterContent!,
-      );
-      final speechOffset = const ChapterNarrationCoordinator().resolveActiveSpeechOffset(
-        item: activeSpeechItem,
-        content: fullChapterContent!,
-      );
+      final paraRange = const ChapterNarrationCoordinator()
+          .resolveActiveParagraphRange(
+            item: activeSpeechItem,
+            content: fullChapterContent!,
+          );
+      final speechOffset = const ChapterNarrationCoordinator()
+          .resolveActiveSpeechOffset(
+            item: activeSpeechItem,
+            content: fullChapterContent!,
+          );
       final accentColor = vt.resolve(Theme.of(context).colorScheme).accent;
 
       if (paraRange != null) {
-        final localParaStart = (paraRange.start - pageStartOffset).clamp(0, pageContent.length);
-        final localParaEnd = (paraRange.end - pageStartOffset).clamp(0, pageContent.length);
+        final localParaStart = (paraRange.start - pageStartOffset).clamp(
+          0,
+          pageContent.length,
+        );
+        final localParaEnd = (paraRange.end - pageStartOffset).clamp(
+          0,
+          pageContent.length,
+        );
         if (localParaEnd > localParaStart) {
           out.add(
             HighlightEntry(
@@ -273,8 +322,13 @@ class PagedPageView extends StatelessWidget {
       }
 
       if (speechOffset != null) {
-        final localSpeechStart = (speechOffset - pageStartOffset).clamp(0, pageContent.length);
-        final localSpeechEnd = (speechOffset + activeSpeechItem!.text.length - pageStartOffset).clamp(0, pageContent.length);
+        final localSpeechStart = (speechOffset - pageStartOffset).clamp(
+          0,
+          pageContent.length,
+        );
+        final localSpeechEnd =
+            (speechOffset + activeSpeechItem!.text.length - pageStartOffset)
+                .clamp(0, pageContent.length);
         if (localSpeechEnd > localSpeechStart) {
           out.add(
             HighlightEntry(
@@ -320,7 +374,12 @@ class PagedPageView extends StatelessWidget {
     List<HighlightEntry> pageHighlights,
   ) {
     if (pageHighlights.isEmpty) {
-      return [TextSpan(text: c.substring(startOffset, endOffset), style: resolvedStyle)];
+      return [
+        TextSpan(
+          text: c.substring(startOffset, endOffset),
+          style: resolvedStyle,
+        ),
+      ];
     }
     final cuts = <int>{startOffset, endOffset};
     for (final h in pageHighlights) {
@@ -390,7 +449,8 @@ class PagedPageView extends StatelessWidget {
     return AppContextMenu.builder(
       build: (ctx, editable, anchor) {
         final sel = editable.textEditingValue.selection;
-        final hasSelection = sel.isValid &&
+        final hasSelection =
+            sel.isValid &&
             !sel.isCollapsed &&
             sel.start >= 0 &&
             sel.end <= fullText.length &&
@@ -408,8 +468,8 @@ class PagedPageView extends StatelessWidget {
         final globalEnd = hasSelection ? chapterOffset + sel.end : 0;
         final overlappingHighlight = showSelectionActions
             ? highlights
-                .where((h) => h.overlaps(globalStart, globalEnd))
-                .firstOrNull
+                  .where((h) => h.overlaps(globalStart, globalEnd))
+                  .firstOrNull
             : null;
         final hasOverlappingHighlight = overlappingHighlight != null;
         final eraseEnabled =
@@ -551,4 +611,3 @@ class PagedPageView extends StatelessWidget {
     );
   }
 }
-

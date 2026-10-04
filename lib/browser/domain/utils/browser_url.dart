@@ -2,7 +2,10 @@
 ///
 /// Bare hosts get `https://`; anything that does not look like a URL (search
 /// phrases, single words) falls back to a search-engine query.
-String normalizeBrowserUrl(String input) {
+String normalizeBrowserUrl(
+  String input, {
+  String Function(String query)? searchUrlBuilder,
+}) {
   var url = input.trim();
   if (url.isEmpty) return url;
   if (url.startsWith('about:')) return url;
@@ -12,6 +15,7 @@ String normalizeBrowserUrl(String input) {
     if (RegExp(r'^[^:/\s]+:\d+$').hasMatch(url)) {
       return 'https://$url';
     }
+    if (searchUrlBuilder != null) return searchUrlBuilder(url);
     return browserSearchUrl(url);
   }
   if (!url.contains('://')) {
@@ -42,7 +46,15 @@ bool _hasKnownScheme(String input) {
 }
 
 /// Builds a search-engine URL for free-form address-bar [query] text.
-String browserSearchUrl(String query) {
+///
+/// Defaults to Google for backward compatibility. Prefer
+/// [SearchEngine.buildUrl] via [searchUrlBuilder] in [normalizeBrowserUrl]
+/// when an explicit engine is selected.
+String browserSearchUrl(
+  String query, {
+  String Function(String query)? searchUrlBuilder,
+}) {
+  if (searchUrlBuilder != null) return searchUrlBuilder(query);
   return 'https://www.google.com/search?q=${Uri.encodeQueryComponent(query.trim())}';
 }
 

@@ -1,12 +1,13 @@
 {
   "trending": {
     "path": "/rankings?rank=weekly",
-    "resultItem": ".ranking-item, .novel-item, .book-item",
-    "title": ".novel-title, .book-title, h3 a@text",
-    "coverUrl": ".novel-img img@src, .book-cover img@src, img@src",
-    "detailUrl": ".novel-title a@href, .book-title a@href, h3 a@href",
-    "author": ".author@text, .novel-author@text",
-    "rating": ".rating@text, .score@text",
-    "genre": ".genre-tag@text, .tag@text"
+    "resultItem": ".novelcollectionlist .searchlist, .novelcollectionlist .searchlist-mini",
+    "title": ".collection-title@text|.minititle@text",
+    "coverUrl": ".collection-image@src|img@data-src|img@src",
+    "detailUrl": ".novellink@href|.image-wrapper-link@href",
+    "author": ".auth-name@text|.mini-author-name@text",
+    "rating": ".mini-rating-text@text",
+    "popularity": ".ranking-numb@text",
+    "genre": ".genre-tagsitem a@text"
   }
 }

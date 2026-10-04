@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -66,6 +67,10 @@ class SilentWebViewService {
     bool binary = false,
   }) async {
     if (!_servable(url)) return null;
+    // Root fix: Windows headless WebView2 (CoInitialize, WebView2Loader.dll)
+    // can throw native Error that bypasses Dart catch and kills isolate
+    // (Lost connection on uncached reader open). Fail fast to HTTP fallback.
+    if (Platform.isWindows) return null;
     // On Windows the headless pool is disabled (effectiveMaxViews == 0)
     // — fail fast to HTTP fallback instead of trying to acquire a
     // HeadlessInAppWebView that will throw CoInitialize.

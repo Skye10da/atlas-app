@@ -161,6 +161,7 @@ class AtlasPlaybackController extends BaseAudioHandler
       case SpeechError():
         _positionTimer?.cancel();
         _positionTimer = null;
+        _clearMediaItem();
         playbackState.add(
           current.copyWith(
             controls: _controlsFor(playing: false),
@@ -190,11 +191,36 @@ class AtlasPlaybackController extends BaseAudioHandler
       ):
         // Update position based on word boundary - correct drift from periodic timer
         _updatePositionFromWordBoundary(item, start, end);
-      // ChapterFinished, SentenceFinished, ParagraphFinished
-      // deliberately don't touch playbackState — they're Reader-facing
-      // (chapter navigation, highlighting), not OS-media-session-facing.
-      // The Reader's own narration provider listens to _engine.events
-      // directly for those, per ASA §6/§7.
+      case ChapterFinished(:final wasPlaying):
+        // Chapter finished
+        _positionTimer?.cancel();
+        _positionTimer = null;
+        _currentPosition = Duration.zero;
+        if (wasPlaying) {
+          // Keep foreground service notification active while advancing to next chapter
+          playbackState.add(
+            current.copyWith(
+              processingState: AudioProcessingState.buffering,
+              playing: true,
+              updatePosition: Duration.zero,
+            ),
+          );
+        } else {
+          _clearMediaItem();
+          playbackState.add(
+            current.copyWith(
+              controls: _controlsFor(playing: false),
+              androidCompactActionIndices: const [0, 1, 3],
+              playing: false,
+              processingState: AudioProcessingState.completed,
+              updatePosition: Duration.zero,
+            ),
+          );
+        }
+        break;
+      // SentenceFinished, ParagraphFinished deliberately don't touch playbackState
+      // — they're Reader-facing (chapter navigation, highlighting), not OS-media-session-facing.
+      // The Reader's own narration provider listens to _engine.events directly for those.
       default:
         break;
     }

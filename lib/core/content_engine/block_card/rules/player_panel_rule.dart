@@ -2,8 +2,8 @@ import 'package:atlas_app/core/content_engine/block_card/block_card_detector.dar
 import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/core/content_engine/block_card/stat_sheet_parser.dart';
 
-/// Example novel-specific plugin rule for Football-Manager-style
-/// player scan panels, e.g.:
+/// Football scout panel for manager-style novels (Glory of the Football
+/// Manager System): CA/PA 0-200 + Key Attributes + Personal Profile.
 ///
 /// ```
 /// > Name : Kevin "Kev" Jones
@@ -16,13 +16,14 @@ import 'package:atlas_app/core/content_engine/block_card/stat_sheet_parser.dart'
 /// ```
 ///
 /// CA/PA pairs become [FieldDisplay.bar] fields with real ratios.
-/// Registered at runtime via [BlockCardDetector.registerBlockCardRule].
+/// Also covers `PERSONAL PROFILE`, `Managerial Attributes` and
+/// `THE GAFFER'S EYE` blocks from the same novel.
 class PlayerPanelRule implements BlockCardRule {
   @override
-  BlockCardType get type => BlockCardType.system;
+  BlockCardType get type => BlockCardType.footballScout;
 
   static final _signal = RegExp(
-    r'(current\s*ability|potential\s*ability|\bCA\b\s*[:：]|\bPA\b\s*[:：])',
+    r'(current\s*ability|potential\s*ability|\bCA\b\s*[:：]|\bPA\b\s*[:：]|personal\s*profile|managerial\s*attributes|the\s*gaffer.s\s*eye)',
     caseSensitive: false,
   );
 
@@ -47,11 +48,11 @@ class PlayerPanelRule implements BlockCardRule {
     if (fields.isEmpty) return null;
 
     return BlockCard(
-      type: BlockCardType.system,
+      type: BlockCardType.footballScout,
       title: title,
       subtitle: null,
       fields: fields,
-      confidence: 0.9,
+      confidence: 0.90,
       rawText: block,
     );
   }

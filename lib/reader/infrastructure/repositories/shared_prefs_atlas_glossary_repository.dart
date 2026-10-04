@@ -12,11 +12,15 @@ import 'package:atlas_app/reader/domain/repository_interfaces/atlas_glossary_rep
 class SharedPrefsAtlasGlossaryRepository implements AtlasGlossaryRepository {
   const SharedPrefsAtlasGlossaryRepository();
 
+  static Future<SharedPreferences> _getPrefs() {
+    return SharedPreferences.getInstance();
+  }
+
   static String _key(String bookId) => 'atlas_glossary_$bookId';
 
   @override
   Future<List<AtlasGlossaryEntry>> load(String bookId) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final raw = prefs.getString(_key(bookId));
     if (raw == null) return <AtlasGlossaryEntry>[];
     try {
@@ -33,10 +37,7 @@ class SharedPrefsAtlasGlossaryRepository implements AtlasGlossaryRepository {
 
   @override
   Future<void> save(String bookId, List<AtlasGlossaryEntry> entries) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _key(bookId),
-      jsonEncode([for (final e in entries) e.toJson()]),
-    );
+    final prefs = await _getPrefs();
+    await prefs.setString(_key(bookId), jsonEncode([for (final e in entries) e.toJson()]));
   }
 }

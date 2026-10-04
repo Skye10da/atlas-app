@@ -1,6 +1,7 @@
 // ignore_for_file: invalid_use_of_visible_for_testing_member
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show Selectable;
+import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -16,6 +17,7 @@ import 'package:atlas_app/reader/presentation/widgets/chapter_selection_menu.dar
 import 'package:atlas_app/reader/presentation/widgets/chapter_span_builder.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
+import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
 import 'package:atlas_app/reader/speech/speech_models.dart';
 import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 
@@ -323,6 +325,7 @@ class ChapterView extends HookConsumerWidget {
         highlights: hls,
         dropCapStyle: dropCapStyle,
         applyDropCap: applyDropCap,
+        bookId: bookId,
       );
       renderContentMap.value = renderMap;
 
@@ -582,11 +585,13 @@ class ChapterView extends HookConsumerWidget {
           selectionContext.findAncestorStateOfType<SelectableRegionState>() ??
           activeSelectableRegion.value;
       if (hasSelectionNow(selectionContext)) {
+        HapticFeedback.selectionClick();
         regionState?.clearSelection();
         regionState?.hideToolbar();
         activeSelectableRegion.value = null;
         return;
       }
+      HapticFeedback.lightImpact();
       onTap?.call();
     }
 
@@ -600,7 +605,41 @@ class ChapterView extends HookConsumerWidget {
       final regionState =
           selectionContext.findAncestorStateOfType<SelectableRegionState>() ??
           activeSelectableRegion.value;
-      if (hasSelectionNow(selectionContext)) {
+      final renderForSel = _narrationCoordinator.findRenderParagraph(textKey);
+      final hasSel = hasSelectionNow(selectionContext);
+      if (hasSel && renderForSel != null) {
+        try {
+          final local = renderForSel.globalToLocal(details.globalPosition);
+          final pos = renderForSel.getPositionForOffset(local);
+          final tapOffset = _narrationCoordinator.contentOffsetFromRenderOffset(
+            pos.offset,
+            renderContentMap.value,
+          );
+          final selections = renderForSel.selections;
+          final inSel = selections.any(
+            (s) => !s.isCollapsed && tapOffset >= s.start && tapOffset < s.end,
+          );
+          if (inSel) {
+            HapticFeedback.selectionClick();
+            regionState?.clearSelection();
+            regionState?.hideToolbar();
+            activeSelectableRegion.value = null;
+            return;
+          }
+          // Tap outside current selection → clear old selection and fall through to seek
+          HapticFeedback.selectionClick();
+          regionState?.clearSelection();
+          regionState?.hideToolbar();
+          activeSelectableRegion.value = null;
+        } catch (_) {
+          HapticFeedback.selectionClick();
+          regionState?.clearSelection();
+          regionState?.hideToolbar();
+          activeSelectableRegion.value = null;
+          return;
+        }
+      } else if (hasSel) {
+        HapticFeedback.selectionClick();
         regionState?.clearSelection();
         regionState?.hideToolbar();
         activeSelectableRegion.value = null;
@@ -620,14 +659,21 @@ class ChapterView extends HookConsumerWidget {
         final clamped = contentOffset.clamp(0, content.length);
         final tapCallback = onTextTap;
         if (tapCallback != null) {
+          HapticFeedback.selectionClick();
           tapCallback.call(clamped);
           return;
         }
+        // Get narration settings to match SpeechSessionBuilder's title prepend behavior
+        final narrationSettings =
+            ref.read(narrationSettingsProvider).value ?? const NarrationSettings();
         final idx = const ChapterPositionResolver().sentenceIndexForOffset(
           content,
           clamped,
+          announceChapterTitle: narrationSettings.announceChapterTitle,
+          chapterTitle: chapterTitle,
         );
         if (idx == null) return;
+        HapticFeedback.selectionClick();
         final engine = ref.read(speechEngineProvider);
         if (engine.session == null) {
           // No session yet — build one from current chapter content so
@@ -635,8 +681,11 @@ class ChapterView extends HookConsumerWidget {
           // Caller (ReaderContent) will handle via onTextTap if provided.
           return;
         }
-        // ignore: unawaited_futures
-        engine.seekTo(idx);
+        // Only seek if the active session matches this chapter
+        if (chapterId == null || engine.session?.chapterId == chapterId) {
+          // ignore: unawaited_futures
+          engine.seekTo(idx);
+        }
       } catch (_) {}
     }
 

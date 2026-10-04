@@ -41,102 +41,18 @@ class TrendingSection extends HookConsumerWidget {
       sourceLabels[sId] = name;
     }
 
-    // Filter books by selected source + drop dead listing URLs before display
-    bool isImportable(String? url) {
-      if (url == null || url.isEmpty) return false;
-      const listingSuffixes = [
-        '/novel-list/hot-novel',
-        '/sort/noveldrama-hot',
-        '/ranking',
-        '/rankings',
-        '/fiction/trending',
-        '/trending/daily',
-        '/ranking/daily',
-      ];
-      for (final s in listingSuffixes) {
-        if (url.endsWith(s) || url.endsWith('$s/')) return false;
-      }
-      final uri = Uri.tryParse(url);
-      if (uri == null || !uri.hasScheme || uri.host.isEmpty) return false;
-      return true;
-    }
-
+    // Filter books by selected source
     final displayBooks = <TrendingBook>[];
     if (selectedSource.value == 'All') {
       for (final list in trendingBooks.values) {
-        displayBooks.addAll(list.where((b) => isImportable(b.detailUrl)));
+        displayBooks.addAll(list);
       }
     } else {
-      displayBooks.addAll(
-        (trendingBooks[selectedSource.value] ?? []).where(
-          (b) => isImportable(b.detailUrl),
-        ),
-      );
+      displayBooks.addAll(trendingBooks[selectedSource.value] ?? []);
     }
 
     if (displayBooks.isEmpty && !isLoading) {
-      if (trendingBooks.isEmpty) {
-        return const SizedBox.shrink();
-      }
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontFamily: 'Playfair Display',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 20,
-                ),
-              ),
-              if (onViewAll != null)
-                TextButton(onPressed: onViewAll, child: const Text('See all')),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.search_off_rounded,
-                  size: 32,
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'No titles for "${selectedSource.value}"',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Try "All" or pick another source pill.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant.withValues(
-                      alpha: 0.7,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
+      return const SizedBox.shrink();
     }
 
     // Rank tabs visibility: only for MVLEMPYR / WTR-LAB

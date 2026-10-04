@@ -52,7 +52,12 @@ class MainActivity : AudioServiceActivity() {
     private fun deliverOpenedFile(intent: Intent?) {
         val uri = openedUri(intent) ?: return
         val path = copyToCache(uri) ?: return
-        channel?.invokeMethod("onFileOpened", path)
+        if (channel != null) {
+            channel?.invokeMethod("onFileOpened", path)
+        } else {
+            // Engine not ready yet — queue for Dart's getInitialOpenedFile.
+            pendingPath = path
+        }
     }
 
     private fun openedUri(intent: Intent?): Uri? =
@@ -63,15 +68,22 @@ class MainActivity : AudioServiceActivity() {
         }
 
     private fun copyToCache(uri: Uri): String? {
-        val name = queryDisplayName(uri) ?: "opened"
+        val name = queryDisplayName(uri) ?: uri.lastPathSegment ?: "opened"
         val ext = resolveExtension(uri, name)
         val file = File(cacheDir, "opened_${System.currentTimeMillis()}.$ext")
         return try {
-            contentResolver.openInputStream(uri)?.use { input ->
+            val stream = contentResolver.openInputStream(uri)
+            if (stream == null) return null
+            stream.use { input ->
                 file.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (!file.exists() || file.length() == 0L) {
+                file.delete()
+                return null
             }
             file.absolutePath
         } catch (e: Exception) {
+            try { file.delete() } catch (_: Exception) {}
             null
         }
     }
@@ -93,10 +105,16 @@ class MainActivity : AudioServiceActivity() {
     private fun resolveExtension(uri: Uri, displayName: String): String {
         val mime = try { contentResolver.getType(uri) } catch (e: Exception) { null }
         val nameExt = displayName.substringAfterLast('.', "").lowercase()
-        return when (mime) {
-            "application/epub+zip" -> "epub"
-            "application/pdf" -> "pdf"
-            else -> if (nameExt in setOf("epub", "pdf", "atlas")) nameExt else "atlas"
+        val known = setOf("epub", "pdf", "atlas", "txt", "text", "md", "markdown")
+        return when {
+            mime == "application/epub+zip" -> "epub"
+            mime == "application/pdf" -> "pdf"
+            nameExt in known -> nameExt
+            mime == "text/plain" && nameExt.isEmpty() -> "txt"
+            mime == "text/markdown" && nameExt.isEmpty() -> "md"
+            mime == "application/octet-stream" && nameExt.isNotEmpty() -> nameExt
+            nameExt.isNotEmpty() -> nameExt
+            else -> "atlas"
         }
     }
 }

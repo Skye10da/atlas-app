@@ -10,6 +10,7 @@ class ReaderChromeBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     required this.textColor,
     required this.onSettingsTap,
+    this.onIntelligenceTap,
     this.onSearchTap,
     this.onRedownload,
     this.isRedownloading = false,
@@ -20,6 +21,7 @@ class ReaderChromeBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final Color textColor;
   final VoidCallback onSettingsTap;
+  final VoidCallback? onIntelligenceTap;
   final VoidCallback? onSearchTap;
   final VoidCallback? onRedownload;
   final bool isRedownloading;
@@ -66,6 +68,12 @@ class ReaderChromeBar extends StatelessWidget implements PreferredSizeWidget {
             icon: Icon(Icons.search_rounded, size: 18, color: textColor),
             tooltip: 'Search in book',
             onPressed: onSearchTap,
+          ),
+        if (onIntelligenceTap != null)
+          IconButton(
+            icon: Icon(Icons.psychology_outlined, size: 20, color: textColor),
+            tooltip: 'Story Intelligence & Codex',
+            onPressed: onIntelligenceTap,
           ),
         IconButton(
           icon: Icon(Icons.text_fields, size: 18, color: textColor),

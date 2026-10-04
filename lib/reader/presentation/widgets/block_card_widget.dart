@@ -1,16 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/content_engine/block_card/block_card_intelligence.dart';
 import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
+import 'package:atlas_app/intelligence/presentation/providers/intelligence_providers.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/block_card_theme.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 
-/// Presentation-only widget that renders a detected [BlockCard] using
-/// the theme resolved for the active reader palette. It knows nothing
-/// about detection, parsing, or the AI extractor.
+/// Renders a detected [BlockCard] using the theme resolved for the active
+/// reader palette. Also exposes a local-only intelligence menu
+/// (confirm / not a card / change type) that writes to `story_corrections`
+/// with `entity_type='block_card'` and `book_id=<bookId>` — no global,
+/// no AI second-pass.
 class BlockCardWidget extends StatelessWidget {
-  const BlockCardWidget({super.key, required this.card, required this.colors});
+  const BlockCardWidget({
+    super.key,
+    required this.card,
+    required this.colors,
+    this.fontSize = 18,
+    this.bookId,
+  });
   final BlockCard card;
   final ReadingColors colors;
+
+  /// Current reader body font size — drives theme typography scaling
+  /// so card text stays in lockstep with prose.
+  final double fontSize;
+
+  /// Book that owns the chapter containing [card]. When null the feedback
+  /// menu is hidden (e.g. in widget tests).
+  final String? bookId;
 
   bool get _useFallback =>
       card.isLowConfidence ||
@@ -18,25 +38,41 @@ class BlockCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = resolveBlockCardTheme(card, colors);
-    final content = _useFallback ? _buildFallback(theme) : _buildThemed(theme);
+    final theme = resolveBlockCardTheme(card, colors, fontSize);
+    final content = _useFallback
+        ? _buildFallback(theme, context)
+        : _buildThemed(theme, context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: _decorate(theme, content),
     );
   }
 
   Widget _decorate(BlockCardTheme theme, Widget child) {
-    final decoration = BoxDecoration(
-      color: theme.background,
-      borderRadius: theme.radius,
-      boxShadow: theme.shadows,
-    );
-    final container = Container(
+    // Accent stripe flair — left 4px bar + subtle inner highlight so
+    // cards are instantly distinct from prose at any reader theme.
+    final inner = Container(
       width: double.infinity,
-      decoration: decoration,
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
+      decoration: BoxDecoration(
+        color: theme.background,
+        borderRadius: theme.radius,
+        boxShadow: theme.shadows,
+      ),
+      child: ClipRRect(
+        borderRadius: theme.radius,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(color: theme.glowOrAccent, width: 4),
+            ),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all((fontSize * 0.85).clamp(14.0, 18.0)),
+            child: child,
+          ),
+        ),
+      ),
     );
 
     if (theme.dashedBorder) {
@@ -45,38 +81,54 @@ class BlockCardWidget extends StatelessWidget {
           color: theme.border,
           radius: theme.radius,
         ),
-        child: container,
+        child: inner,
       );
     }
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: theme.background,
         border: theme.cardBorder,
         borderRadius: theme.radius,
         boxShadow: theme.shadows,
       ),
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
+      child: inner,
     );
   }
 
-  Widget _eyebrowRow(BlockCardTheme theme) {
+  Widget _eyebrowRow(BlockCardTheme theme, BuildContext context) {
+    // Icon scales slightly with reader fontSize for flair at large sizes.
+    final iconSize = (fontSize * 0.78).clamp(13.0, 18.0);
     return Row(
       children: [
-        Icon(theme.icon, size: 14, color: theme.glowOrAccent),
-        const SizedBox(width: 6),
-        Flexible(
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: theme.glowOrAccent.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(theme.icon, size: iconSize, color: theme.glowOrAccent),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
           child: Text(
             theme.label,
             style: theme.eyebrowStyle,
             overflow: TextOverflow.ellipsis,
           ),
         ),
+        if (bookId != null)
+          _BlockCardFeedbackMenu(
+            card: card,
+            bookId: bookId!,
+            theme: theme,
+            colors: colors,
+            fontSize: fontSize,
+          ),
       ],
     );
   }
 
-  Widget _buildThemed(BlockCardTheme theme) {
+  Widget _buildThemed(BlockCardTheme theme, BuildContext context) {
     final tagValues = <String>[...card.tags];
     final fieldWidgets = <Widget>[];
 
@@ -97,7 +149,7 @@ class BlockCardWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _eyebrowRow(theme),
+        _eyebrowRow(theme, context),
         if (card.title != null && card.title!.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(card.title!, style: theme.titleStyle),
@@ -122,11 +174,11 @@ class BlockCardWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildFallback(BlockCardTheme theme) {
+  Widget _buildFallback(BlockCardTheme theme, BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _eyebrowRow(theme),
+        _eyebrowRow(theme, context),
         if (card.title != null && card.title!.trim().isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(card.title!, style: theme.titleStyle),
@@ -134,7 +186,11 @@ class BlockCardWidget extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           card.rawText.trim(),
-          style: TextStyle(fontSize: 13, height: 1.5, color: theme.valueColor),
+          style: TextStyle(
+            fontSize: (fontSize * 0.72).clamp(11.0, 15.0),
+            height: 1.5,
+            color: theme.valueColor,
+          ),
         ),
       ],
     );
@@ -175,6 +231,7 @@ class BlockCardWidget extends StatelessWidget {
     final labelKey = field.label.toLowerCase();
     final barColor = theme.barColors[labelKey] ?? theme.glowOrAccent;
     final ratio = field.ratio ?? 0;
+    final barHeight = (fontSize * 0.30).clamp(4.0, 7.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,13 +242,13 @@ class BlockCardWidget extends StatelessWidget {
             Text(field.value, style: theme.valueStyle),
           ],
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 6),
         ClipRRect(
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(999),
           child: LinearProgressIndicator(
             value: ratio,
-            minHeight: 4,
-            backgroundColor: colors.text.withValues(alpha: 0.1),
+            minHeight: barHeight,
+            backgroundColor: colors.text.withValues(alpha: 0.10),
             valueColor: AlwaysStoppedAnimation<Color>(barColor),
           ),
         ),
@@ -200,20 +257,28 @@ class BlockCardWidget extends StatelessWidget {
   }
 
   Widget _tagRow(BlockCardTheme theme, List<String> tags) {
+    final tagFontSize = (fontSize * 0.64).clamp(10.5, 13.0);
     return Wrap(
       spacing: 6,
       runSpacing: 6,
       children: [
         for (final tag in tags)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: theme.tagBackground,
               borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: theme.glowOrAccent.withValues(alpha: 0.18),
+              ),
             ),
             child: Text(
               tag,
-              style: TextStyle(fontSize: 11.5, color: theme.tagText),
+              style: TextStyle(
+                fontSize: tagFontSize,
+                fontWeight: FontWeight.w600,
+                color: theme.tagText,
+              ),
             ),
           ),
       ],
@@ -228,6 +293,198 @@ class BlockCardWidget extends StatelessWidget {
       if (i != list.length - 1) result.add(separator);
     }
     return result;
+  }
+}
+
+class _BlockCardFeedbackMenu extends ConsumerWidget {
+  const _BlockCardFeedbackMenu({
+    required this.card,
+    required this.bookId,
+    required this.theme,
+    required this.colors,
+    required this.fontSize,
+  });
+
+  final BlockCard card;
+  final String bookId;
+  final BlockCardTheme theme;
+  final ReadingColors colors;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_horiz, size: 18, color: theme.glowOrAccent),
+      padding: EdgeInsets.zero,
+      tooltip: 'Card feedback',
+      onSelected: (value) async {
+        final repo = ref.read(correctionRepositoryProvider);
+        final messenger = ScaffoldMessenger.maybeOf(context);
+        switch (value) {
+          case 'confirm':
+            await repo.saveCorrection(
+              BlockCardFeedbackBuilder.confirm(
+                bookId: bookId,
+                rawText: card.rawText,
+              ),
+            );
+            ref.invalidate(blockCardLocalCorrectionsProvider(bookId));
+            messenger?.showSnackBar(
+              SnackBar(
+                content: const Text('Marked as correct — will stay themed'),
+                backgroundColor: theme.glowOrAccent.withValues(alpha: 0.95),
+              ),
+            );
+            break;
+          case 'reject':
+            await repo.saveCorrection(
+              BlockCardFeedbackBuilder.reject(
+                bookId: bookId,
+                rawText: card.rawText,
+              ),
+            );
+            ref.invalidate(blockCardLocalCorrectionsProvider(bookId));
+            messenger?.showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Marked not a card — will show as plain text',
+                ),
+                backgroundColor: theme.glowOrAccent.withValues(alpha: 0.95),
+              ),
+            );
+            break;
+          case 'type':
+            final chosen = await showDialog<BlockCardType>(
+              context: context,
+              builder: (ctx) => SimpleDialog(
+                title: const Text('Correct type'),
+                children: [
+                  for (final t in BlockCardType.values.where(
+                    (e) => e != BlockCardType.custom,
+                  ))
+                    SimpleDialogOption(
+                      onPressed: () => Navigator.pop(ctx, t),
+                      child: _TypeOptionRow(
+                        type: t,
+                        colors: colors,
+                        fontSize: fontSize,
+                      ),
+                    ),
+                ],
+              ),
+            );
+            if (chosen != null) {
+              await repo.saveCorrection(
+                BlockCardFeedbackBuilder.typeCorrection(
+                  bookId: bookId,
+                  rawText: card.rawText,
+                  correctedType: chosen,
+                ),
+              );
+              ref.invalidate(blockCardLocalCorrectionsProvider(bookId));
+              final chosenTheme = resolveBlockCardTheme(
+                BlockCard(type: chosen, confidence: 0.9, rawText: ''),
+                colors,
+                fontSize,
+              );
+              messenger?.showSnackBar(
+                SnackBar(
+                  content: Text('Type corrected to ${chosenTheme.label}'),
+                  backgroundColor: chosenTheme.glowOrAccent.withValues(
+                    alpha: 0.95,
+                  ),
+                ),
+              );
+            }
+            break;
+        }
+      },
+      itemBuilder: (ctx) => [
+        PopupMenuItem(
+          value: 'confirm',
+          child: Row(
+            children: [
+              Icon(
+                Icons.check_circle_outline,
+                size: 16,
+                color: theme.glowOrAccent,
+              ),
+              const SizedBox(width: 8),
+              Text('Correct', style: TextStyle(color: theme.glowOrAccent)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'reject',
+          child: Row(
+            children: [
+              Icon(Icons.block_rounded, size: 16, color: theme.labelColor),
+              const SizedBox(width: 8),
+              const Text('Not a card'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'type',
+          child: Row(
+            children: [
+              Icon(Icons.edit_rounded, size: 16, color: theme.glowOrAccent),
+              const SizedBox(width: 8),
+              Text('Change type', style: TextStyle(color: theme.glowOrAccent)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TypeOptionRow extends StatelessWidget {
+  const _TypeOptionRow({
+    required this.type,
+    required this.colors,
+    required this.fontSize,
+  });
+
+  final BlockCardType type;
+  final ReadingColors colors;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = resolveBlockCardTheme(
+      BlockCard(type: type, confidence: 0.9, rawText: ''),
+      colors,
+      fontSize,
+    );
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: theme.glowOrAccent.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(theme.icon, size: 16, color: theme.glowOrAccent),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            theme.label,
+            style: theme.eyebrowStyle.copyWith(fontSize: 11),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: theme.glowOrAccent,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ],
+    );
   }
 }
 

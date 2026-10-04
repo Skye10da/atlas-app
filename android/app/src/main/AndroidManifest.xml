@@ -32,7 +32,10 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             <!-- Open with Atlas: let the OS deliver .epub / .pdf / .atlas
-                 files opened from file managers or share sheets. -->
+                 files opened from file managers or share sheets. `pathPattern`
+                 alone is unreliable for content:// URIs (the OS path often
+                 does not end with the real file name), so we declare both
+                 mime-based and path-based filters and cover file:// as well. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -40,15 +43,24 @@
                 <data android:mimeType="application/epub+zip"/>
                 <data android:mimeType="application/pdf"/>
                 <data android:mimeType="application/octet-stream"/>
+                <data android:mimeType="text/plain"/>
+                <data android:mimeType="text/markdown"/>
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:host="*"/>
                 <data android:mimeType="*/*"/>
                 <data android:pathPattern=".*\\.epub"/>
+                <data android:pathPattern=".*\\.pdf"/>
                 <data android:pathPattern=".*\\.atlas"/>
+                <data android:pathPattern=".*\\.txt"/>
+                <data android:pathPattern=".*\\.text"/>
+                <data android:pathPattern=".*\\.md"/>
+                <data android:pathPattern=".*\\.markdown"/>
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
@@ -56,6 +68,24 @@
                 <data android:mimeType="application/epub+zip"/>
                 <data android:mimeType="application/pdf"/>
                 <data android:mimeType="application/octet-stream"/>
+                <data android:mimeType="text/plain"/>
+                <data android:mimeType="text/markdown"/>
+                <data android:mimeType="*/*"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:host="*"/>
+                <data android:mimeType="*/*"/>
+                <data android:pathPattern=".*\\.epub"/>
+                <data android:pathPattern=".*\\.pdf"/>
+                <data android:pathPattern=".*\\.atlas"/>
+                <data android:pathPattern=".*\\.txt"/>
+                <data android:pathPattern=".*\\.text"/>
+                <data android:pathPattern=".*\\.md"/>
+                <data android:pathPattern=".*\\.markdown"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

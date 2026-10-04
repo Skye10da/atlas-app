@@ -204,6 +204,55 @@ void main() {
       expect(results.containsKey('feedbooks'), isTrue);
       expect(results.containsKey('openlib'), isTrue);
       expect(results['gutenberg']!.first.isOpds, isTrue);
+      expect(results.containsKey('royalroad'), isTrue);
+      expect(results.containsKey('readnovelfull'), isTrue);
+      expect(results['royalroad']!.first.isOpds, isFalse);
+    },
+  );
+
+  test(
+    'DiscoverDashboardData correctly separates OPDS and web novels and filters empty sources',
+    () {
+      const data = DiscoverDashboardData(
+        books: [],
+        nowReading: null,
+        nowReadingLatestQuote: null,
+        streakDays: 0,
+        weeklyActivity: [],
+        weeklyTotalChapters: 0,
+        todayReadingMinutes: 0,
+        dueReviewsCount: 0,
+        totalBookmarksCount: 0,
+        totalBooksCount: 0,
+        totalChaptersReadCount: 0,
+        totalReadingHours: 0,
+        sources: [],
+        trendingBooks: {
+          'gutenberg': [
+            TrendingBook(
+              title: 'Pride',
+              sourceId: 'gutenberg',
+              sourceName: 'Gutenberg',
+              isOpds: true,
+            ),
+          ],
+          'royalroad': [
+            TrendingBook(
+              title: 'Loot',
+              sourceId: 'royalroad',
+              sourceName: 'Royal Road',
+              isOpds: false,
+            ),
+          ],
+          'empty_plugin': [],
+        },
+      );
+
+      expect(data.opdsTrendingBooks.containsKey('gutenberg'), isTrue);
+      expect(data.opdsTrendingBooks.containsKey('royalroad'), isFalse);
+      expect(data.webNovelTrendingBooks.containsKey('royalroad'), isTrue);
+      expect(data.webNovelTrendingBooks.containsKey('gutenberg'), isFalse);
+      expect(data.webNovelTrendingBooks.containsKey('empty_plugin'), isFalse);
     },
   );
 }

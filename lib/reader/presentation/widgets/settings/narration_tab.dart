@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/reader/presentation/providers/pronunciation_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
+import 'package:atlas_app/reader/presentation/views/pronunciation_sheet_view.dart';
 import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
 import 'package:atlas_app/reader/speech/speech_models.dart';
 
@@ -100,6 +102,17 @@ class NarrationTab extends ConsumerWidget {
             value: settings.ttsCacheMaxMb,
             onChanged: (v) => apply(settings.copyWith(ttsCacheMaxMb: v)),
           ),
+        ],
+        const Divider(height: AppSpacing.lg),
+        SwitchListTile(
+          title: const Text('Pronunciation'),
+          subtitle: const Text('Apply ...  --  """  and custom rules'),
+          value: settings.pronunciationEnabled,
+          onChanged: (v) => apply(settings.copyWith(pronunciationEnabled: v)),
+        ),
+        if (settings.pronunciationEnabled) ...[
+          const SizedBox(height: AppSpacing.xs),
+          const _PronunciationSection(),
         ],
       ],
     );
@@ -340,6 +353,84 @@ class _CacheSizePicker extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _PronunciationSection extends ConsumerWidget {
+  const _PronunciationSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final vm = ref.watch(pronunciationViewModelProvider);
+    final count = vm.rules.length;
+    final active = vm.rules.where((r) => r.isEnabled).length;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 600;
+        final content = Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Custom rules', style: Theme.of(context).textTheme.bodyMedium),
+                  Text('$active active / $count total', style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Flexible(
+              child: FilledButton.tonal(
+                onPressed: () => _openSheet(context, ref),
+                child: const Text('Manage'),
+              ),
+            ),
+          ],
+        );
+        if (isWide) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: content,
+            ),
+          );
+        }
+        return content;
+      },
+    );
+  }
+
+  void _openSheet(BuildContext context, WidgetRef ref) {
+    final vm = ref.read(pronunciationViewModelProvider);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (context, scrollController) {
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+                child: Row(
+                  children: [
+                    Text('Pronunciations', style: Theme.of(context).textTheme.titleSmall),
+                    const Spacer(),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(child: PronunciationSheetView(viewModel: vm)),
+            ],
+          );
+        },
+      ),
     );
   }
 }

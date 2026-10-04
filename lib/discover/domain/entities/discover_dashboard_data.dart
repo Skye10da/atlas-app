@@ -181,7 +181,7 @@ class DiscoverDashboardData {
     if (_opdsTrendingBooks != null) return _opdsTrendingBooks;
     final result = <String, List<TrendingBook>>{};
     for (final entry in (_trendingBooks ?? const <String, List<TrendingBook>>{}).entries) {
-      if (_opdsSourceIds.contains(entry.key) || entry.value.any((b) => b.isOpds)) {
+      if (entry.value.isNotEmpty && (_opdsSourceIds.contains(entry.key) || entry.value.any((b) => b.isOpds))) {
         result[entry.key] = entry.value;
       }
     }
@@ -193,7 +193,7 @@ class DiscoverDashboardData {
     if (_webNovelTrendingBooks != null) return _webNovelTrendingBooks;
     final result = <String, List<TrendingBook>>{};
     for (final entry in (_trendingBooks ?? const <String, List<TrendingBook>>{}).entries) {
-      if (!_opdsSourceIds.contains(entry.key) && !entry.value.any((b) => b.isOpds)) {
+      if (entry.value.isNotEmpty && !_opdsSourceIds.contains(entry.key) && !entry.value.any((b) => b.isOpds)) {
         result[entry.key] = entry.value;
       }
     }

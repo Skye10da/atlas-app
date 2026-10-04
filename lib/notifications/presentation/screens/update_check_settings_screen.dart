@@ -3,6 +3,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/content_acquisition/providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_snackbar.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/notifications/domain/entities/update_check_settings.dart';
@@ -38,20 +39,19 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
 
     Future<void> runCheck() async {
       checking.value = true;
-      final messenger = ScaffoldMessenger.of(context);
       try {
         final result = await ref
             .read(chapterUpdateServiceProvider)
             .checkTrackedBooks();
+        if (!context.mounted) return;
         final message = result.booksWithUpdates == 0
             ? 'No new chapters found.'
             : 'Found ${result.totalNewChapters} new chapter(s) in '
                   '${result.booksWithUpdates} novel(s).';
-        messenger.showSnackBar(SnackBar(content: Text(message)));
+        AppSnackBar.show(message);
       } catch (e) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Failed to check for updates: $e')),
-        );
+        if (!context.mounted) return;
+        AppSnackBar.showError('Failed to check for updates: $e');
       } finally {
         if (context.mounted) checking.value = false;
       }
@@ -59,27 +59,20 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
 
     Future<void> sendTestNotification() async {
       testingNotification.value = true;
-      final messenger = ScaffoldMessenger.of(context);
       try {
         final success = await UpdateNotificationService.instance
             .showTestNotification(delay: Duration.zero);
+        if (!context.mounted) return;
         if (success) {
-          messenger.showSnackBar(
-            const SnackBar(content: Text('Test notification sent.')),
-          );
+          AppSnackBar.show('Test notification sent.');
         } else {
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Notifications are not permitted or supported on this device.',
-              ),
-            ),
+          AppSnackBar.show(
+            'Notifications are not permitted or supported on this device.',
           );
         }
       } catch (e) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Could not send notification: $e')),
-        );
+        if (!context.mounted) return;
+        AppSnackBar.showError('Could not send notification: $e');
       } finally {
         if (context.mounted) testingNotification.value = false;
       }
@@ -409,7 +402,6 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                           ? null
                           : () async {
                               refreshingDiscover.value = true;
-                              final messenger = ScaffoldMessenger.of(context);
                               try {
                                 final trendingService = ref.refresh(
                                   trendingServiceProvider,
@@ -418,19 +410,11 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                                   forceRefresh: true,
                                 );
                                 ref.invalidate(discoverDashboardProvider);
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Discover feeds refreshed.'),
-                                  ),
-                                );
+                                if (!context.mounted) return;
+                                AppSnackBar.show('Discover feeds refreshed.');
                               } catch (e) {
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Could not refresh feeds: $e',
-                                    ),
-                                  ),
-                                );
+                                if (!context.mounted) return;
+                                AppSnackBar.showError('Could not refresh feeds: $e');
                               } finally {
                                 if (context.mounted) {
                                   refreshingDiscover.value = false;
@@ -450,17 +434,13 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
                         'Remove stored offline trending and recommendation payloads',
                       ),
                       onTap: () async {
-                        final messenger = ScaffoldMessenger.of(context);
                         final cacheService = ref.read(
                           discoverCacheServiceProvider,
                         );
                         await cacheService.clearCache();
                         ref.invalidate(discoverDashboardProvider);
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Discover cache cleared.'),
-                          ),
-                        );
+                        if (!context.mounted) return;
+                        AppSnackBar.show('Discover cache cleared.');
                       },
                     ),
                   ],

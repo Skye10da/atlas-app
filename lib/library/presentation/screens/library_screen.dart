@@ -21,6 +21,7 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/file_open_providers.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
+import 'package:atlas_app/core/design_system/molecules/app_snackbar.dart';
 import 'package:atlas_app/library/domain/entities/bookshelf_layout.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/book_detail_panel.dart';
@@ -221,26 +222,22 @@ class LibraryScreen extends HookConsumerWidget {
   }
 
   static Future<void> _checkAllUpdates(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final service = ref.read(chapterUpdateServiceProvider);
       final result = await ref
           .read(libraryViewModelProvider.notifier)
           .checkUpdates(service);
       if (result == null) return;
+      if (!context.mounted) return;
       final message = result.booksWithUpdates == 0
           ? 'No new chapters found.'
           : 'Found ${result.totalNewChapters} new chapter(s) in '
                 '${result.booksWithUpdates} novel(s).';
-      messenger.showSnackBar(SnackBar(content: Text(message)));
+      AppSnackBar.show(message);
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'Update check failed: '
-            '${ChapterUpdateService.describeFailure(e)}',
-          ),
-        ),
+      if (!context.mounted) return;
+      AppSnackBar.showError(
+        'Update check failed: ${ChapterUpdateService.describeFailure(e)}',
       );
     }
   }

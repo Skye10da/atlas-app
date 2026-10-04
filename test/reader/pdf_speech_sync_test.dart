@@ -27,7 +27,7 @@ void main() {
       chapter: chapter,
       content: content,
       language: 'en',
-      settings: const NarrationSettings(),
+      settings: const NarrationSettings(announceChapterTitle: false),
       coverPath: coverPath,
       bookTitle: bookTitle,
       author: null,

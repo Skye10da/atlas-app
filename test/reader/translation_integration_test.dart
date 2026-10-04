@@ -42,6 +42,7 @@ class _FakeTranslateService extends WtrWebTranslateService {
 
 void main() {
   setUp(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues({});
   });
 

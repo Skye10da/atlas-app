@@ -16,8 +16,8 @@ class HttpTransport implements Transport {
     this.timeout = const Duration(seconds: 30),
     this.transientRetryDelay = const Duration(milliseconds: 800),
     Future<void> Function(Duration)? sleep,
-  })  : _client = client ?? createNativeClient(),
-        _sleep = sleep ?? Future<void>.delayed;
+  }) : _client = client ?? createNativeClient(),
+       _sleep = sleep ?? Future<void>.delayed;
 
   final http.Client _client;
 
@@ -95,11 +95,7 @@ class HttpTransport implements Transport {
     return Duration(seconds: seconds);
   }
 
-  String _describeFailure(
-    http.Response response,
-    Uri url, {
-    required bool isChallenge,
-  }) {
+  String _describeFailure(http.Response response, Uri url, {required bool isChallenge}) {
     if (isChallenge) {
       return '${url.host} blocked this request with a bot-check challenge '
           '(Cloudflare). That site does not allow automated imports, so Atlas '
@@ -112,18 +108,12 @@ class HttpTransport implements Transport {
   /// (which [_describeFailure] already names). A site answers 401/403 when the
   /// replayed session cookie is stale or revoked — the signal that drives the
   /// quick re-verify flow.
-  bool _isSessionExpired(
-    http.Response response, {
-    required bool isChallenge,
-  }) {
+  bool _isSessionExpired(http.Response response, {required bool isChallenge}) {
     if (response.statusCode != 401 && response.statusCode != 403) return false;
     return !isChallenge;
   }
 
-  Future<http.Response> _getWithRetry(
-    Uri url, {
-    Map<String, String>? headers,
-  }) async {
+  Future<http.Response> _getWithRetry(Uri url, {Map<String, String>? headers}) async {
     // Force `Connection: close` to avoid reusing a keep-alive socket that
     // Cloudflare/frontends have already closed (the classic
     // "Connection closed before full header" race). Slightly less efficient
@@ -134,9 +124,7 @@ class HttpTransport implements Transport {
       if (headers == null || !headers.keys.any((k) => k.toLowerCase() == 'connection'))
         'Connection': 'close',
     };
-    return _withTransientRetry(
-      () => _client.get(url, headers: effectiveHeaders).timeout(timeout),
-    );
+    return _withTransientRetry(() => _client.get(url, headers: effectiveHeaders).timeout(timeout));
   }
 
   Future<http.Response> _postWithRetry(
@@ -157,9 +145,7 @@ class HttpTransport implements Transport {
     );
   }
 
-  Future<http.Response> _withTransientRetry(
-    Future<http.Response> Function() run,
-  ) async {
+  Future<http.Response> _withTransientRetry(Future<http.Response> Function() run) async {
     try {
       return await run();
     } on TimeoutException {
@@ -231,21 +217,16 @@ class HttpTransport implements Transport {
           );
         }
       }
-      throw TransportException(
-        'Connection failed: ${e.message}',
-        cause: e,
-        isTransient: true,
-      );
-    } on SocketException {
+      throw TransportException('Connection failed: ${e.message}', cause: e, isTransient: true);
+    } on SocketException catch (e) {
+      if (_isHostLookupFailure(e)) {
+        throw TransportException('Connection failed: $e', cause: e, isTransient: true);
+      }
       await _sleep(transientRetryDelay);
       try {
         return await run().timeout(timeout);
       } on SocketException catch (retry) {
-        throw TransportException(
-          'Connection failed: $retry',
-          cause: retry,
-          isTransient: true,
-        );
+        throw TransportException('Connection failed: $retry', cause: retry, isTransient: true);
       } on HttpException catch (retryHttp) {
         throw TransportException(
           'HTTP error on socket retry: $retryHttp',
@@ -276,11 +257,7 @@ class HttpTransport implements Transport {
       try {
         return await run().timeout(timeout);
       } on HttpException catch (retryHttp) {
-        throw TransportException(
-          'HTTP error: $retryHttp',
-          cause: retryHttp,
-          isTransient: true,
-        );
+        throw TransportException('HTTP error: $retryHttp', cause: retryHttp, isTransient: true);
       } on SocketException catch (retrySocket) {
         throw TransportException(
           'Connection failed on http retry: $retrySocket',
@@ -344,6 +321,16 @@ class HttpTransport implements Transport {
           isTransient: true,
         );
       }
+    } catch (e) {
+      // Root fix: any unhandled native error (e.g. libpenguin.so dlopen,
+      // WebView2 COM, Cronet JNI missing) must surface as transient
+      // TransportException, not as uncaught Error that kills the isolate
+      // (Lost connection on Windows reader open for uncached chapter).
+      throw TransportException(
+        'Unexpected transport error: $e',
+        cause: e,
+        isTransient: true,
+      );
     }
   }
 
@@ -352,6 +339,19 @@ class HttpTransport implements Transport {
     return msg.contains('connection closed before full header') ||
         msg.contains('connection closed') ||
         msg.contains('connection reset by peer');
+  }
+
+  static bool _isHostLookupFailure(SocketException e) {
+    final msg = e.message.toLowerCase();
+    final os = e.osError?.message.toLowerCase() ?? '';
+    final combined = '$msg $os';
+    return combined.contains('failed host lookup') ||
+        combined.contains('name or service not known') ||
+        combined.contains('nodename nor servname') ||
+        combined.contains('no address associated with hostname') ||
+        combined.contains('network is unreachable') ||
+        combined.contains('no route to host') ||
+        combined.contains('software caused connection abort');
   }
 
   @override
@@ -380,11 +380,7 @@ class HttpTransport implements Transport {
   }
 
   @override
-  Future<Object?> fetchJsonPost(
-    Uri url, {
-    Map<String, String>? headers,
-    Object? jsonBody,
-  }) async {
+  Future<Object?> fetchJsonPost(Uri url, {Map<String, String>? headers, Object? jsonBody}) async {
     final response = await _postWithRetry(
       url,
       headers: {'Content-Type': 'application/json', ...?headers},

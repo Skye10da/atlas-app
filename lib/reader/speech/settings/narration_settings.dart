@@ -13,7 +13,8 @@ class NarrationSettings {
     this.ttsCacheEnabled = true,
     this.ttsCacheMaxMb = 500,
     this.announceChapterTitle = true,
-  });
+    bool? pronunciationEnabled,
+  }) : _pronunciationEnabled = pronunciationEnabled;
 
   factory NarrationSettings.fromJson(Map<String, dynamic> json) =>
       NarrationSettings(
@@ -31,6 +32,7 @@ class NarrationSettings {
         ttsCacheEnabled: json['ttsCacheEnabled'] as bool? ?? true,
         ttsCacheMaxMb: (json['ttsCacheMaxMb'] as num?)?.toInt() ?? 500,
         announceChapterTitle: json['announceChapterTitle'] as bool? ?? true,
+        pronunciationEnabled: json['pronunciationEnabled'] as bool? ?? true,
       );
 
   final double speechRate;
@@ -46,6 +48,15 @@ class NarrationSettings {
   final bool ttsCacheEnabled;
   final int ttsCacheMaxMb;
   final bool announceChapterTitle;
+  final bool? _pronunciationEnabled;
+  bool get pronunciationEnabled {
+    try {
+      final v = _pronunciationEnabled;
+      return v ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
 
   NarrationSettings copyWith({
     double? speechRate,
@@ -60,6 +71,7 @@ class NarrationSettings {
     bool? ttsCacheEnabled,
     int? ttsCacheMaxMb,
     bool? announceChapterTitle,
+    bool? pronunciationEnabled,
   }) {
     return NarrationSettings(
       speechRate: speechRate ?? this.speechRate,
@@ -75,6 +87,7 @@ class NarrationSettings {
       ttsCacheEnabled: ttsCacheEnabled ?? this.ttsCacheEnabled,
       ttsCacheMaxMb: ttsCacheMaxMb ?? this.ttsCacheMaxMb,
       announceChapterTitle: announceChapterTitle ?? this.announceChapterTitle,
+      pronunciationEnabled: pronunciationEnabled ?? this.pronunciationEnabled,
     );
   }
 
@@ -89,6 +102,7 @@ class NarrationSettings {
     'ttsCacheEnabled': ttsCacheEnabled,
     'ttsCacheMaxMb': ttsCacheMaxMb,
     'announceChapterTitle': announceChapterTitle,
+    'pronunciationEnabled': pronunciationEnabled,
   };
 }
 

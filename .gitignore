@@ -45,3 +45,4 @@ web/build/
 .atlas/
 .atlas.zip
 opencode.json
+eval/

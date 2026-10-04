@@ -38,12 +38,17 @@ class SpeechEngine {
   bool _retriedCurrentItem = false;
   bool _restartedForCurrentItem = false;
   bool _isPlaying = false;
+  bool _completingItem = false;
 
   final _eventsController = StreamController<SpeechEvent>.broadcast();
   Stream<SpeechEvent> get events => _eventsController.stream;
 
   SpeechSession? get session => _session;
   bool get isPlaying => _isPlaying;
+
+  /// True after user explicitly pressed play. Gates autoResumeNext so
+  /// opening a book never auto-plays without user gesture (bug 1/2).
+  bool hasUserInitiatedPlayback = false;
 
   /// Loads a new session (e.g. a chapter's SpeechQueue) and applies its
   /// settings to the driver. Does not start playback — call [start]
@@ -88,6 +93,7 @@ class SpeechEngine {
   }
 
   Future<void> start() async {
+    hasUserInitiatedPlayback = true;
     final item = _session?.currentItem;
     if (item == null) return;
     _isPlaying = true;
@@ -206,50 +212,55 @@ class SpeechEngine {
   }
 
   Future<void> _onItemComplete() async {
-    if (!_isPlaying) return;
-    final session = _session;
-    if (session == null) return;
-    final finishedItem = session.currentItem;
-    if (finishedItem == null) return;
+    if (!_isPlaying || _completingItem) return;
+    _completingItem = true;
+    try {
+      final session = _session;
+      if (session == null) return;
+      final finishedItem = session.currentItem;
+      if (finishedItem == null) return;
 
-    _retriedCurrentItem = false;
-    _restartedForCurrentItem = false;
-    _eventsController.add(SentenceFinished(finishedItem));
-    await _checkpoint(session);
+      _retriedCurrentItem = false;
+      _restartedForCurrentItem = false;
+      _eventsController.add(SentenceFinished(finishedItem));
+      await _checkpoint(session);
 
-    final isParagraphEnd = session.queue.isLastInParagraph(finishedItem);
-    if (isParagraphEnd) {
-      _eventsController.add(ParagraphFinished(finishedItem));
-      if (_stopAtBoundary == SleepTimerBoundary.endOfParagraph ||
-          _stopAtBoundary == SleepTimerBoundary.endOfSentence) {
+      final isParagraphEnd = session.queue.isLastInParagraph(finishedItem);
+      if (isParagraphEnd) {
+        _eventsController.add(ParagraphFinished(finishedItem));
+        if (_stopAtBoundary == SleepTimerBoundary.endOfParagraph ||
+            _stopAtBoundary == SleepTimerBoundary.endOfSentence) {
+          await stop();
+          return;
+        }
+      } else if (_stopAtBoundary == SleepTimerBoundary.endOfSentence) {
         await stop();
         return;
       }
-    } else if (_stopAtBoundary == SleepTimerBoundary.endOfSentence) {
-      await stop();
-      return;
-    }
 
-    final next = session.queue.next();
-    if (next != null) {
-      _eventsController.add(SentenceStarted(next));
-      // Warmup next sentence in background to reduce gap.
-      final peek = session.queue.peekNext();
-      if (peek != null) {
-        unawaited(_driver.warmup(peek));
+      final next = session.queue.next();
+      if (next != null) {
+        _eventsController.add(SentenceStarted(next));
+        // Warmup next sentence in background to reduce gap.
+        final peek = session.queue.peekNext();
+        if (peek != null) {
+          unawaited(_driver.warmup(peek));
+        }
+        await _driver.speak(next);
+      } else {
+        final wasPlaying = _isPlaying;
+        _isPlaying = false;
+        await _recoveryStore.save(session.toCheckpoint());
+        if (_stopAtBoundary == SleepTimerBoundary.endOfChapter) {
+          await stop();
+        }
+        // Deliberately does not load the next chapter — see ASA §7.
+        _eventsController.add(
+          ChapterFinished(session.chapterId, wasPlaying: wasPlaying),
+        );
       }
-      await _driver.speak(next);
-    } else {
-      final wasPlaying = _isPlaying;
-      _isPlaying = false;
-      await _recoveryStore.save(session.toCheckpoint());
-      if (_stopAtBoundary == SleepTimerBoundary.endOfChapter) {
-        await stop();
-      }
-      // Deliberately does not load the next chapter — see ASA §7.
-      _eventsController.add(
-        ChapterFinished(session.chapterId, wasPlaying: wasPlaying),
-      );
+    } finally {
+      _completingItem = false;
     }
   }
 
@@ -308,6 +319,7 @@ class SpeechEngine {
   }
 
   Future<void> dispose() async {
+    hasUserInitiatedPlayback = false;
     _sleepTimer?.cancel();
     await _eventsController.close();
   }

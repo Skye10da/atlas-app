@@ -194,7 +194,69 @@ class TrendingService {
         isOpds: false,
       ),
     ],
+    'mvlempyr': [
+      TrendingBook(
+        title: 'Reborn as the Genius Son of the Richest Family',
+        sourceId: 'mvlempyr',
+        sourceName: 'MVLEMPYR',
+        author: 'Broccoli',
+        genre: 'Rebirth',
+        popularity: '🔥 Top 1',
+        rating: '4.8',
+        detailUrl: 'https://mvlempyr.com/rankings',
+        isOpds: false,
+      ),
+      TrendingBook(
+        title: 'Global Reincarnation: I Can See Hints',
+        sourceId: 'mvlempyr',
+        sourceName: 'MVLEMPYR',
+        author: 'Sky River',
+        genre: 'Sci-fi',
+        popularity: '🔥 Top 2',
+        rating: '4.7',
+        detailUrl: 'https://mvlempyr.com/rankings',
+        isOpds: false,
+      ),
+    ],
+    'wtrlab': [
+      TrendingBook(
+        title: 'Naruto: From Leaving Konoha',
+        sourceId: 'wtrlab',
+        sourceName: 'WTR-LAB',
+        author: 'AI Translated',
+        genre: 'Fanfic',
+        popularity: '🔥 Daily Top',
+        rating: '4.6',
+        detailUrl: 'https://wtr-lab.com/en/ranking/daily',
+        isOpds: false,
+      ),
+      TrendingBook(
+        title: 'One Piece: Admiral of the Black Flag',
+        sourceId: 'wtrlab',
+        sourceName: 'WTR-LAB',
+        author: 'Sea Pirate',
+        genre: 'Fanfic',
+        popularity: '🔥 Hot',
+        rating: '4.7',
+        detailUrl: 'https://wtr-lab.com/en/ranking/daily',
+        isOpds: false,
+      ),
+    ],
   };
+
+  static const _opdsSourceIds = {'gutenberg', 'standard', 'feedbooks', 'openlib'};
+
+  Map<String, List<TrendingBook>> _fillCuratedDefaults(
+    Map<String, List<TrendingBook>> sourceMap,
+  ) {
+    final copy = Map<String, List<TrendingBook>>.from(sourceMap);
+    for (final entry in _webNovelCuratedDefaults.entries) {
+      if (!copy.containsKey(entry.key) || copy[entry.key]!.isEmpty) {
+        copy[entry.key] = entry.value;
+      }
+    }
+    return copy;
+  }
 
   /// Fetches trending books from all accessible plugins + OPDS feeds, utilizing local cache.
   /// Stale-While-Revalidate: returns stale cache or curated defaults immediately
@@ -220,10 +282,13 @@ class TrendingService {
     if (cacheService != null) {
       final stale = await cacheService!.getCachedTrendingStale();
       if (stale != null && stale.data.isNotEmpty) {
-        if (stale.isExpired) {
-          // Fire background revalidation (push).
+        final hasWebNovels = stale.data.entries.any(
+          (e) => !_opdsSourceIds.contains(e.key) && e.value.isNotEmpty,
+        );
+        if (stale.isExpired || !hasWebNovels) {
+          // Fire background revalidation (push with forceRefresh: true to bypass cache).
           unawaited(
-            _fetchAllInternalWithCoalesce(forceRefresh: false)
+            _fetchAllInternalWithCoalesce(forceRefresh: true)
                 .then((fresh) {
                   if (onBackgroundUpdate != null) onBackgroundUpdate(fresh);
                 })
@@ -232,15 +297,15 @@ class TrendingService {
                 }),
           );
         }
-        return stale.data;
+        return _fillCuratedDefaults(stale.data);
       }
     }
 
     // No cache — return curated instantly and revalidate in background.
-    final curated = _curatedForInstalledPlugins();
+    final curated = _curatedDefaults();
     if (curated.isNotEmpty) {
       unawaited(
-        _fetchAllInternalWithCoalesce(forceRefresh: false)
+        _fetchAllInternalWithCoalesce(forceRefresh: true)
             .then((fresh) {
               if (onBackgroundUpdate != null) onBackgroundUpdate(fresh);
             })
@@ -254,7 +319,7 @@ class TrendingService {
     // No curated either — fall back to blocking fetch.
     final existing = _inFlightAll;
     if (existing != null) return existing;
-    final future = _fetchAllInternal(forceRefresh: false);
+    final future = _fetchAllInternal(forceRefresh: true);
     _inFlightAll = future;
     try {
       return await future;
@@ -277,18 +342,12 @@ class TrendingService {
     }
   }
 
-  Map<String, List<TrendingBook>> _curatedForInstalledPlugins() {
-    final installedIds = pluginSources.map((p) => p.manifest.id).toSet();
+  Map<String, List<TrendingBook>> _curatedDefaults() {
     final curated = <String, List<TrendingBook>>{};
     // OPDS curated always available for instant paint.
     curated.addAll(OpdsTrendingService.curatedDefaults);
-    for (final entry in _webNovelCuratedDefaults.entries) {
-      if (!installedIds.contains(entry.key)) continue;
-      final valid = entry.value
-          .where((b) => _isValidDetailUrl(b.detailUrl))
-          .toList();
-      if (valid.isNotEmpty) curated[entry.key] = valid;
-    }
+    // Web novel curated defaults always available for instant paint.
+    curated.addAll(_webNovelCuratedDefaults);
     return curated;
   }
 
@@ -299,7 +358,12 @@ class TrendingService {
     if (!forceRefresh && cacheService != null) {
       final cached = await cacheService!.getCachedTrending();
       if (cached != null && cached.isNotEmpty) {
-        return cached;
+        final hasWebNovels = cached.entries.any(
+          (e) => !_opdsSourceIds.contains(e.key) && e.value.isNotEmpty,
+        );
+        if (hasWebNovels) {
+          return _fillCuratedDefaults(cached);
+        }
       }
     }
 
@@ -338,111 +402,46 @@ class TrendingService {
 
     await Future.wait([opdsFuture, ...pluginFutures]);
 
-    // 4. Fill curated defaults only for installed plugins with trending capability
-    // (option 1: don't inject for uninstalled / non-trending plugins like mvlempyr, wtrlab).
-    final installedIds = pluginSources.map((p) => p.manifest.id).toSet();
-    for (final entry in _webNovelCuratedDefaults.entries) {
-      if (!installedIds.contains(entry.key)) continue;
-      if (!results.containsKey(entry.key) || results[entry.key]!.isEmpty) {
-        // Defensive: only inject detail-valid entries (skip list-page URLs).
-        final valid = entry.value
-            .where((b) => _isValidDetailUrl(b.detailUrl))
-            .toList();
-        if (valid.isNotEmpty) results[entry.key] = valid;
-      }
-    }
+    // 4. Fill in curated defaults if any supported web novel plugin returned empty
+    final merged = _fillCuratedDefaults(results);
 
     // 5. Persist to storage cache with user's configured TTL
     if (cacheService != null) {
       final ttlHours = await DiscoverSettingsStore.getIntervalHours();
-      await cacheService!.saveCachedTrending(results, ttlHours);
+      await cacheService!.saveCachedTrending(merged, ttlHours);
     }
 
-    return results;
+    return merged;
   }
 
   Future<List<TrendingBook>> _fetchTrendingForSource(
     PluginSource source,
   ) async {
-    List<TrendingBook> fallback() {
-      final raw = _webNovelCuratedDefaults[source.manifest.id];
-      if (raw == null) return const [];
-      return raw.where((b) => _isValidDetailUrl(b.detailUrl)).toList();
-    }
-
     try {
       final trendingResults = await source.getTrending();
-      if (trendingResults.isEmpty) return fallback();
-      final mapped = trendingResults
-          .where((r) => _isValidTrendingUrl(r.url, source.manifest.baseUrl))
-          .map(
-            (r) => TrendingBook(
-              title: r.title,
-              sourceId: source.manifest.id,
-              sourceName: source.manifest.sourceName,
-              author: r.author,
-              coverUrl: r.coverUrl,
-              detailUrl: r.url,
-              rating: r.rating,
-              popularity: r.popularity ?? '🔥 Trending',
-              genre: r.genre,
-              description: r.description,
-              fetchedAt: DateTime.now(),
-            ),
-          )
-          .where((b) => _isValidDetailUrl(b.detailUrl))
-          .toList();
-      if (mapped.isEmpty) return fallback();
-      return mapped;
+      if (trendingResults.isEmpty) {
+        return _webNovelCuratedDefaults[source.manifest.id] ?? const [];
+      }
+      return trendingResults.map((r) {
+        return TrendingBook(
+          title: r.title,
+          sourceId: source.manifest.id,
+          sourceName: source.manifest.sourceName,
+          author: r.author,
+          coverUrl: r.coverUrl,
+          detailUrl: r.url,
+          rating: r.rating,
+          popularity: r.popularity ?? '🔥 Trending',
+          genre: r.genre,
+          description: r.description,
+          fetchedAt: DateTime.now(),
+        );
+      }).toList();
     } catch (e) {
       AppLogger.warning(
         'Error fetching trending from ${source.manifest.id}: $e',
       );
-      return fallback();
+      return _webNovelCuratedDefaults[source.manifest.id] ?? const [];
     }
-  }
-
-  static bool _isValidDetailUrl(String? url) {
-    if (url == null || url.isEmpty) return false;
-    final uri = Uri.tryParse(url);
-    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return false;
-    // Must be deeper than domain root + trending listing.
-    // Reject bare listing pages: require path segment beyond '/'.
-    final path = uri.path;
-    if (path.isEmpty ||
-        path == '/' ||
-        path == '/novel-list/hot-novel' ||
-        path == '/sort/noveldrama-hot' ||
-        path == '/ranking' ||
-        path == '/rankings' ||
-        path == '/fiction/trending') {
-      return false;
-    }
-    // Heuristic: novel detail pages contain an identifier (id or slug).
-    // For our curated defaults, path must have at least 2 segments or a file suffix.
-    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-    if (segments.isEmpty) return false;
-    // Listing pages usually 1-2 generic segments; detail pages are specific.
-    // Accept if has 2+ segments or ends with .html or has /fiction/<id>/...
-    if (segments.length >= 2) return true;
-    if (path.endsWith('.html')) return true;
-    return segments.length == 1 && path.contains('-');
-  }
-
-  static bool _isValidTrendingUrl(String url, String baseUrl) {
-    if (url.isEmpty) return false;
-    final uri = Uri.tryParse(url);
-    final base = Uri.tryParse(baseUrl);
-    if (uri == null || !uri.hasScheme) return false;
-    // Reject URLs that equal the trending listing itself.
-    if (base != null && uri.toString() == base.toString()) return false;
-    if (url.endsWith('/novel-list/hot-novel') ||
-        url.endsWith('/sort/noveldrama-hot') ||
-        url.endsWith('/ranking') ||
-        url.endsWith('/rankings') ||
-        url.endsWith('/fiction/trending')) {
-      return false;
-    }
-    return true;
   }
 }

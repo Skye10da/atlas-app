@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -11,15 +11,21 @@ import 'package:real_page_flip/real_page_flip.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
-import 'package:atlas_app/core/services/platform_service_provider.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_system_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_chrome_provider.dart';
+import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
+import 'package:atlas_app/reader/presentation/widgets/block_card_widget.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_background.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
+import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
@@ -36,10 +42,8 @@ import 'package:atlas_app/reader/presentation/widgets/reader_bottom_nav.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_chrome_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_edge_regions.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_right_panel.dart';
-import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
-import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 
 /// Dedicated 3D physical page flip reader layout for eBooks using [PageFlipWidget]
 /// from the [real_page_flip] engine.
@@ -55,6 +59,7 @@ class RealFlipReaderLayout extends HookConsumerWidget {
     required this.onProgressChanged,
     required this.onChapterSelected,
     required this.onSettingsTap,
+    this.onIntelligenceTap,
     this.onSearchTap,
     this.onRedownload,
     this.isRedownloading = false,
@@ -82,6 +87,7 @@ class RealFlipReaderLayout extends HookConsumerWidget {
   final void Function(double progress) onProgressChanged;
   final void Function(int chapterIndex) onChapterSelected;
   final VoidCallback onSettingsTap;
+  final VoidCallback? onIntelligenceTap;
   final VoidCallback? onSearchTap;
   final VoidCallback? onRedownload;
   final bool isRedownloading;
@@ -135,6 +141,7 @@ class RealFlipReaderLayout extends HookConsumerWidget {
     final paginationEpoch = useRef(0);
     final chunkedOffset = useRef<Map<int, int>>({});
     final chunkedAccumulator = useRef<Map<int, List<String>>>({});
+    final cardPageMap = useRef<Map<int, Map<int, BlockCard>>>({});
 
     final updateTrigger = useState(0);
     void triggerUiUpdate() {
@@ -237,8 +244,9 @@ class RealFlipReaderLayout extends HookConsumerWidget {
     void applyBrightness(double newBrightness) {
       final notifier = ref.read(readingSettingsProvider.notifier);
       notifier.setBrightness(newBrightness);
-      final svc = ref.read(platformServiceProvider);
-      svc.setBrightness(newBrightness, smooth: true);
+      ref
+          .read(readerSystemControllerProvider)
+          .applyBrightnessDebounced(newBrightness);
     }
 
     void toggleChrome() {
@@ -253,6 +261,85 @@ class RealFlipReaderLayout extends HookConsumerWidget {
       if (epoch != paginationEpoch.value || !context.mounted) {
         paginationInFlight.value.remove(index);
         return;
+      }
+      final enableCards =
+          ref.read(readingSettingsProvider).valueOrNull?.enableBlockCards ??
+          true;
+      if (enableCards) {
+        final spans = ref.read(chapterBlockCardSpansProvider(chapters[index]));
+        final hasCards = spans.any((s) => s.isCard);
+        if (hasCards) {
+          final colorScheme2 = Theme.of(context).colorScheme;
+          final s2 = settings;
+          final horizontalMargin2 = s2.horizontalPadding;
+          final verticalMargin2 = switch (s2.marginPreset) {
+            MarginPreset.narrow => AppSpacing.sm,
+            MarginPreset.normal => AppSpacing.md,
+            MarginPreset.wide => AppSpacing.lg,
+          };
+          final rawHeight2 = layoutHeight.value > 0
+              ? layoutHeight.value
+              : MediaQuery.sizeOf(context).height;
+          final rawWidth2 = layoutWidth.value > 0
+              ? layoutWidth.value
+              : MediaQuery.sizeOf(context).width;
+          final contentWidth2 = effectiveContentWidth(rawWidth2);
+          final pWidth2 = contentWidth2 - horizontalMargin2 * 2;
+          final pHeight2 = rawHeight2 - verticalMargin2 * 2;
+          final baseStyle2 = TextStyle(
+            fontSize: s2.fontSize,
+            height: s2.lineHeight,
+            letterSpacing: s2.letterSpacing,
+            color: s2.theme.resolve(colorScheme2).text,
+            fontWeight: s2.fontWeight != null
+                ? FontWeight(s2.fontWeight!)
+                : null,
+          );
+          final textStyle2 = s2.fontFamily != null
+              ? baseStyle2.copyWith(fontFamily: s2.fontFamily)
+              : baseStyle2;
+          final List<String> pages = [];
+          final Map<int, BlockCard> map = {};
+          String proseBuffer = '';
+          void flushProseBuffer() {
+            if (proseBuffer.trim().isEmpty) {
+              proseBuffer = '';
+              return;
+            }
+            final chunkPages = Pager.paginate(
+              text: proseBuffer,
+              textStyle: textStyle2,
+              pageWidth: pWidth2,
+              pageHeight: pHeight2,
+            );
+            pages.addAll(chunkPages);
+            proseBuffer = '';
+          }
+
+          for (final span in spans) {
+            if (!span.isCard) {
+              final prose = span.prose ?? '';
+              if (prose.trim().isEmpty) continue;
+              if (proseBuffer.isNotEmpty) proseBuffer += '\n\n';
+              proseBuffer += prose;
+            } else {
+              flushProseBuffer();
+              final card = span.card!;
+              final marker = '\uE000BLOCKCARD:${card.hashCode}\uE001';
+              map[pages.length] = card;
+              pages.add(marker);
+            }
+          }
+          flushProseBuffer();
+          if (pages.isEmpty) pages.add('');
+          pageCache.value[index] = List.unmodifiable(pages);
+          cardPageMap.value[index] = map;
+          paginationInFlight.value.remove(index);
+          chunkedOffset.value.remove(index);
+          chunkedAccumulator.value.remove(index);
+          triggerUiUpdate();
+          return;
+        }
       }
       final colorScheme = Theme.of(context).colorScheme;
       final s = settings;
@@ -324,10 +411,15 @@ class RealFlipReaderLayout extends HookConsumerWidget {
     void ensureChapterLoaded(int index) {
       if (index < 0 || index >= chapters.length) return;
       if (loadedChapters.value.contains(index)) return;
+      final ch = chapters[index];
+      // Offline-safe: never trigger network for a chapter not cached on disk.
+      if (!File(ch.contentPath).existsSync()) {
+        loadedChapters.value.remove(index);
+        failedChapters.value = {...failedChapters.value, index};
+        return;
+      }
       loadedChapters.value.add(index);
-      final contentAsync = ref.read(
-        readerChapterContentProvider(chapters[index]),
-      );
+      final contentAsync = ref.read(readerChapterContentProvider(ch));
       contentAsync.when(
         data: (content) {
           if (content.isNotEmpty) {
@@ -476,6 +568,72 @@ class RealFlipReaderLayout extends HookConsumerWidget {
       final isFirstOfChapter = clampedPage == 0;
       final isLastOfChapter = clampedPage == pages.length - 1;
       final chapter = chapters[currentIndex];
+      final card = cardPageMap.value[currentIndex]?[clampedPage];
+      if (card != null) {
+        final readingColors = settings.theme.resolve(
+          Theme.of(context).colorScheme,
+        );
+        final vPad = switch (settings.marginPreset) {
+          MarginPreset.narrow => AppSpacing.sm,
+          MarginPreset.normal => AppSpacing.md,
+          MarginPreset.wide => AppSpacing.lg,
+        };
+        final hPad = settings.horizontalPadding;
+        return ReaderBackground(
+          colors: readingColors,
+          customColor: settings.customBackgroundColor,
+          pattern: settings.pattern,
+          patternOpacity: settings.patternOpacity,
+          child: Column(
+            children: [
+              if (isFirstOfChapter)
+                ChapterHeaderBanner(
+                  chapterNumber: currentIndex + 1,
+                  title: chapter.title,
+                  style: ChapterStyle.forChapter(
+                    currentIndex,
+                    Theme.of(context).colorScheme,
+                  ),
+                ),
+              if (isFirstOfChapter)
+                ChapterOrnamentalDivider(
+                  accentColor: ChapterStyle.forChapter(
+                    currentIndex,
+                    Theme.of(context).colorScheme,
+                  ).accentColor,
+                  verticalPadding: 4,
+                ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: hPad,
+                    vertical: vPad,
+                  ),
+                  child: BlockCardWidget(
+                    card: card,
+                    colors: readingColors,
+                    fontSize: settings.fontSize,
+                    bookId: chapter.bookId,
+                  ),
+                ),
+              ),
+              if (isLastOfChapter)
+                ChapterOrnamentalDivider(
+                  accentColor: ChapterStyle.forChapter(
+                    currentIndex,
+                    Theme.of(context).colorScheme,
+                  ).accentColor,
+                ),
+              if (isLastOfChapter)
+                ChapterEndFooter(
+                  chapterNumber: currentIndex + 1,
+                  textColor: readingColors.text,
+                  baseFontSize: settings.fontSize,
+                ),
+            ],
+          ),
+        );
+      }
 
       return PagedPageView(
         content: content,
@@ -511,6 +669,9 @@ class RealFlipReaderLayout extends HookConsumerWidget {
         vt: vt,
         showHeaders: true,
         chapterStyle: ChapterStyle.forChapter(currentIndex, colorScheme),
+        customBackgroundColor: settings.customBackgroundColor,
+        pattern: settings.pattern,
+        patternOpacity: settings.patternOpacity,
         onHighlight: onHighlight,
         onAddNote: onAddNote,
         onShare: onShare,
@@ -629,7 +790,8 @@ class RealFlipReaderLayout extends HookConsumerWidget {
         AppSheet.desktopPresentation == DesktopSheetPresentation.sidePanel;
 
     return Scaffold(
-      backgroundColor: vt.resolve(colorScheme).background,
+      backgroundColor:
+          settings.customBackgroundColor ?? vt.resolve(colorScheme).background,
       extendBodyBehindAppBar: true,
       extendBody: true,
       body: LayoutBuilder(
@@ -839,6 +1001,7 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                       title: chapters[currentIndex].title,
                       textColor: colorScheme.onSurface,
                       onSettingsTap: onSettingsTap,
+                      onIntelligenceTap: onIntelligenceTap,
                       onSearchTap: onSearchTap,
                       onRedownload: onRedownload,
                       isRedownloading: isRedownloading,

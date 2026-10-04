@@ -6,12 +6,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
+import 'package:atlas_app/browser/presentation/widgets/sheet_browser.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/dictionary_service.dart';
 import 'package:atlas_app/core/services/platform_service_provider.dart';
 import 'package:atlas_app/dictionary/domain/entities/dictionary_word_entity.dart';
 import 'package:atlas_app/dictionary/presentation/providers/dictionary_providers.dart';
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
+import 'package:atlas_app/search/presentation/providers/search_engine_provider.dart';
+import 'package:atlas_app/search/presentation/widgets/search_engine_picker.dart';
 
 class WordLookupSheet extends HookConsumerWidget {
   const WordLookupSheet({
@@ -197,7 +201,6 @@ class WordLookupSheet extends HookConsumerWidget {
         bottom: AppSpacing.lg,
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -279,22 +282,25 @@ class WordLookupSheet extends HookConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: AppSpacing.sm),
+          const SearchEnginePicker(compact: true),
           const SizedBox(height: AppSpacing.md),
-          Flexible(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: loading.value
-                  ? const _LoadingState(key: ValueKey('loading'))
-                  : error.value != null
-                  ? _ErrorState(
-                      key: const ValueKey('error'),
-                      message: error.value!,
-                      onRetry: lookup,
-                    )
-                  : result.value != null
-                  ? SingleChildScrollView(
-                      key: const ValueKey('result'),
-                      child: _DefinitionCard(
+          Expanded(
+            child: SingleChildScrollView(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: loading.value
+                    ? const _LoadingState(key: ValueKey('loading'))
+                    : error.value != null
+                    ? _ErrorState(
+                        key: const ValueKey('error'),
+                        message: error.value!,
+                        word: word,
+                        onRetry: lookup,
+                      )
+                    : result.value != null
+                    ? _DefinitionCard(
+                        key: const ValueKey('result'),
                         result: result.value!,
                         language: language.value,
                         source: source.value,
@@ -317,9 +323,9 @@ class WordLookupSheet extends HookConsumerWidget {
                             ),
                           );
                         },
-                      ),
-                    )
-                  : const SizedBox.shrink(),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('empty')),
+              ),
             ),
           ),
         ],
@@ -537,7 +543,7 @@ class _LoadingState extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -555,18 +561,25 @@ class _LoadingState extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({super.key, required this.message, required this.onRetry});
+class _ErrorState extends HookConsumerWidget {
+  const _ErrorState({
+    super.key,
+    required this.message,
+    required this.word,
+    required this.onRetry,
+  });
 
   final String message;
+  final String word;
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final engine = ref.watch(selectedSearchEngineProvider);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -583,11 +596,34 @@ class _ErrorState extends StatelessWidget {
               color: colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.sm),
           FilledButton.tonalIcon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text('Try again'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              onPressed: () async {
+                final url = engine.buildUrl(word);
+                final uri = Uri.tryParse(url);
+                if (uri != null) {
+                  await ref
+                      .read(browserSessionRepositoryProvider)
+                      .captureForOrigin(uri)
+                      .catchError((_) {});
+                }
+                if (!context.mounted) return;
+                await showSearchSheetBrowser(context, ref, url);
+              },
+              icon: const Icon(Icons.travel_explore_rounded, size: 18),
+              label: Text(
+                'Search "$word" on ${engine.label}',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
         ],
       ),
@@ -597,6 +633,7 @@ class _ErrorState extends StatelessWidget {
 
 class _DefinitionCard extends StatelessWidget {
   const _DefinitionCard({
+    super.key,
     required this.result,
     required this.language,
     required this.source,

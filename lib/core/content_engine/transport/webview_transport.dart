@@ -177,6 +177,13 @@ class WebViewTransport implements Transport {
         );
       }
       rethrow;
+    } catch (e) {
+      // Native dlopen / COM errors on Windows must not kill isolate.
+      throw TransportException(
+        'Unexpected fetch error: $e',
+        cause: e,
+        isTransient: true,
+      );
     }
   }
 

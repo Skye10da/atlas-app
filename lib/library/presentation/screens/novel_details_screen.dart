@@ -33,6 +33,8 @@ import 'package:atlas_app/library/presentation/widgets/novel/genre_tag_row.dart'
 import 'package:atlas_app/library/presentation/widgets/novel/novel_hero_header.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/source_attribution.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/synopsis_card.dart';
+import 'package:atlas_app/intelligence/presentation/widgets/reader_intelligence_sheet.dart';
+import 'package:atlas_app/intelligence/presentation/widgets/story_intelligence_card.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
 import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
@@ -149,6 +151,16 @@ class NovelDetailsScreen extends HookConsumerWidget {
                     },
                   ),
                 IconButton(
+                  icon: const Icon(Icons.psychology_outlined),
+                  tooltip: 'Story Intelligence',
+                  onPressed: () => ReaderIntelligenceSheet.show(
+                    context,
+                    bookId: book.id,
+                    bookTitle: book.title,
+                    chapterIndex: (ref.read(lastReadChapterProvider(book.id)).valueOrNull?.index ?? 0) + 1,
+                  ),
+                ),
+                IconButton(
                   icon: const Icon(Icons.file_upload_outlined),
                   tooltip: 'Export',
                   onPressed: () => _exportNovel(context, ref, book),
@@ -175,6 +187,11 @@ class NovelDetailsScreen extends HookConsumerWidget {
                     ),
                   if (wtrRawId != null) const SizedBox(height: AppSpacing.sm),
                   ContinueReadingCard(book: book),
+                  const SizedBox(height: AppSpacing.sm),
+                  StoryIntelligenceCard(
+                    bookId: book.id,
+                    bookTitle: book.title,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   _ReadingTriviaCard(book: book),
                   const SizedBox(height: AppSpacing.sm),

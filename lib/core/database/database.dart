@@ -16,6 +16,7 @@ import 'package:atlas_app/core/database/tables/web_bookmarks.dart';
 import 'package:atlas_app/core/database/tables/web_history.dart';
 import 'package:atlas_app/core/database/tables/web_tabs.dart';
 import 'package:atlas_app/core/database/tables/notification_history.dart';
+import 'package:atlas_app/intelligence/infrastructure/persistence/story_schema.dart';
 
 part 'database.g.dart';
 
@@ -42,7 +43,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 15;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     beforeOpen: (details) async {
@@ -87,6 +88,10 @@ class AppDatabase extends _$AppDatabase {
           expires_at INTEGER NOT NULL
         );
       ''');
+      // Ensure schema 14 Story Memory tables exist
+      for (final stmt in StorySchema.createStatements) {
+        await customStatement(stmt);
+      }
     },
     onUpgrade: (migrator, from, to) async {
       if (from == 1) {
@@ -232,6 +237,67 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             'UPDATE reading_progress SET percentage = 1.0 WHERE percentage > 1.0',
           );
+        } catch (_) {}
+      }
+      if (from <= 13) {
+        // Story Memory & Intelligence layer (schema 14)
+        for (final stmt in StorySchema.createStatements) {
+          try {
+            await customStatement(stmt);
+          } catch (_) {}
+        }
+        try {
+          await customStatement('DROP TABLE IF EXISTS characters;');
+        } catch (_) {}
+      }
+      if (from <= 14) {
+        // Story Memory Re-read Isolation (schema 15)
+        await customStatement('''
+          CREATE TABLE IF NOT EXISTS story_read_throughs (
+            id TEXT NOT NULL,
+            book_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            current_chapter INTEGER NOT NULL DEFAULT 1,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (book_id, id)
+          );
+        ''');
+        try {
+          await customStatement('CREATE INDEX IF NOT EXISTS idx_story_read_throughs_book ON story_read_throughs(book_id);');
+        } catch (_) {}
+
+        final tables = [
+          'story_entities',
+          'story_relationships',
+          'story_events',
+          'story_cooccurrences',
+          'story_review_queue',
+          'story_corrections',
+        ];
+        for (final table in tables) {
+          try {
+            await customStatement("ALTER TABLE $table ADD COLUMN read_through_id TEXT NOT NULL DEFAULT 'default';");
+          } catch (_) {}
+        }
+
+        try {
+          await customStatement('CREATE INDEX IF NOT EXISTS idx_story_entities_book_rt ON story_entities(book_id, read_through_id);');
+          await customStatement('CREATE INDEX IF NOT EXISTS idx_story_entities_name_rt ON story_entities(book_id, read_through_id, canonical_name);');
+          await customStatement('CREATE INDEX IF NOT EXISTS idx_story_rel_book_rt ON story_relationships(book_id, read_through_id);');
+          await customStatement('CREATE INDEX IF NOT EXISTS idx_story_events_book_rt_ch ON story_events(book_id, read_through_id, chapter);');
+          await customStatement('CREATE INDEX IF NOT EXISTS idx_story_cooccur_book_rt ON story_cooccurrences(book_id, read_through_id);');
+          await customStatement('CREATE INDEX IF NOT EXISTS idx_story_review_book_rt_status ON story_review_queue(book_id, read_through_id, status);');
+          await customStatement('CREATE INDEX IF NOT EXISTS idx_story_corr_book_rt ON story_corrections(book_id, read_through_id);');
+        } catch (_) {}
+
+        try {
+          await customStatement('''
+            INSERT OR IGNORE INTO story_read_throughs (id, book_id, name, current_chapter, is_active, created_at, updated_at)
+            SELECT DISTINCT 'default', book_id, 'Primary Read', 1, 1, strftime('%s', 'now') * 1000, strftime('%s', 'now') * 1000
+            FROM story_entities;
+          ''');
         } catch (_) {}
       }
     },

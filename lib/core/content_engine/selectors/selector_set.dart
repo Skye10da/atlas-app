@@ -469,6 +469,8 @@ class SelectorSet {
   }
 
   /// Extracts trending books from the document using [TrendingSelectors].
+  /// Skips items whose detail URL is empty or resolves to a listing page,
+  /// preventing dead cards that would import a ranking index instead of a novel.
   List<TrendingResult> applyTrending(Document doc, {required String baseUrl}) {
     final selectors = trending;
     if (selectors == null) return const [];

@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/notifications/presentation/screens/update_check_settings_screen.dart';
+import 'package:atlas_app/intelligence/presentation/settings/ai_provider_settings_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/ai_translation_settings_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/appearance_settings_screen.dart';
+import 'package:atlas_app/settings/presentation/screens/backup_restore_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/danger_zone_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/reading_settings_screen.dart';
+import 'package:atlas_app/settings/presentation/screens/search_engine_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -82,6 +85,36 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.lg),
 
+              // Section: Search & Lookup
+              _SectionHeader(label: 'SEARCH & LOOKUP', colors: colors),
+              Card(
+                elevation: 0,
+                color: colors.surfaceContainerLow,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    AppSpacing.borderRadiusLg,
+                  ),
+                  side: BorderSide(
+                    color: colors.outlineVariant.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _MenuTile(
+                      icon: Icons.travel_explore_rounded,
+                      title: 'Search Engine',
+                      subtitle: 'Google, Bing, DuckDuckGo, Brave — for lookup & address bar',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const SearchEngineSettingsScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
               // Section 2: Content & AI
               _SectionHeader(label: 'CONTENT & AI', colors: colors),
               Card(
@@ -105,6 +138,22 @@ class SettingsScreen extends StatelessWidget {
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const AiTranslationSettingsScreen(),
+                        ),
+                      ),
+                    ),
+                    Divider(
+                      height: 1,
+                      indent: 56,
+                      color: colors.outlineVariant.withValues(alpha: 0.3),
+                    ),
+                    _MenuTile(
+                      icon: Icons.psychology_outlined,
+                      iconColor: colors.primary,
+                      title: 'Story Intelligence & AI (BYOK)',
+                      subtitle: 'Ollama, llama.cpp, Gemini, OpenAI, Claude',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const AiProviderSettingsScreen(),
                         ),
                       ),
                     ),
@@ -168,7 +217,7 @@ class SettingsScreen extends StatelessWidget {
                           'Export or import your books, progress, and vocabulary',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const DangerZoneScreen(),
+                          builder: (_) => const BackupRestoreScreen(),
                         ),
                       ),
                     ),

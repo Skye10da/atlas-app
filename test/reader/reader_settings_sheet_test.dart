@@ -24,7 +24,7 @@ void main() {
   });
 
   group('ReaderSettingsSheet', () {
-    testWidgets('renders live preview card and all redesigned category tabs', (
+    testWidgets('renders theme mode switch and all redesigned category tabs', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -41,9 +41,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 1. Live Preview Card
-      expect(find.text('LIVE READING PREVIEW'), findsOneWidget);
-      expect(find.text('Chapter Four: The Silent River'), findsOneWidget);
+      // 1. Theme Mode Switch (replaced preview card)
+      expect(find.text('Theme Mode'), findsOneWidget);
+      expect(find.text('System'), findsWidgets);
+      expect(find.text('Light'), findsWidgets);
+      expect(find.text('Dark'), findsWidgets);
+      expect(find.text('LIVE READING PREVIEW'), findsNothing);
 
       // 2. Tab Bar Labels
       expect(find.text('Style'), findsOneWidget);

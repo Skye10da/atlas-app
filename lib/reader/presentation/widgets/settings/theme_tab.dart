@@ -12,6 +12,10 @@ class ThemeTab extends StatelessWidget {
   const ThemeTab({
     super.key,
     required this.theme,
+    required this.themeMode,
+    required this.pattern,
+    required this.patternOpacity,
+    required this.customBackgroundColor,
     required this.fontSize,
     this.fontFamily,
     this.fontWeight,
@@ -19,6 +23,10 @@ class ThemeTab extends StatelessWidget {
     required this.readingMode,
     required this.marginPreset,
     required this.onThemeChanged,
+    required this.onThemeModeChanged,
+    required this.onPatternChanged,
+    required this.onPatternOpacityChanged,
+    required this.onCustomBackgroundChanged,
     required this.onFontSizeChanged,
     required this.onFontFamilyChanged,
     required this.onLineHeightChanged,
@@ -28,6 +36,10 @@ class ThemeTab extends StatelessWidget {
   });
 
   final ReadingViewTheme theme;
+  final ThemeMode themeMode;
+  final ReaderPattern pattern;
+  final double patternOpacity;
+  final Color? customBackgroundColor;
   final double fontSize;
   final String? fontFamily;
   final int? fontWeight;
@@ -36,6 +48,10 @@ class ThemeTab extends StatelessWidget {
   final MarginPreset marginPreset;
 
   final ValueChanged<ReadingViewTheme> onThemeChanged;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
+  final ValueChanged<ReaderPattern> onPatternChanged;
+  final ValueChanged<double> onPatternOpacityChanged;
+  final ValueChanged<Color?> onCustomBackgroundChanged;
   final ValueChanged<double> onFontSizeChanged;
   final ValueChanged<String?> onFontFamilyChanged;
   final ValueChanged<double> onLineHeightChanged;
@@ -163,7 +179,15 @@ class ThemeTab extends StatelessWidget {
             actionLabel: 'Preview',
             action: () => _openPreview(context, theme),
           ),
-          const SizedBox(height: AppSpacing.xs),
+          const SizedBox(height: 4),
+          Text(
+            'Palette for chapter background & text — pairs with system theme mode below',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -177,6 +201,257 @@ class ThemeTab extends StatelessWidget {
                 },
               );
             }).toList(),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          // Theme Mode — integrated into Color Theme with matching language
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.brightness_6_rounded,
+                      size: 14,
+                      color: colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Theme Mode',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      switch (themeMode) {
+                        ThemeMode.system => 'System',
+                        ThemeMode.light => 'Light',
+                        ThemeMode.dark => 'Dark',
+                      },
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        label: Text('System'),
+                        icon: Icon(Icons.brightness_auto_rounded, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        label: Text('Light'),
+                        icon: Icon(Icons.light_mode_rounded, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        label: Text('Dark'),
+                        icon: Icon(Icons.dark_mode_rounded, size: 16),
+                      ),
+                    ],
+                    selected: {themeMode},
+                    onSelectionChanged: (selected) {
+                      HapticFeedback.selectionClick();
+                      onThemeModeChanged(selected.first);
+                    },
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ),
+                    showSelectedIcon: false,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.sm),
+          // Pattern picker — reader-only overlay
+          Row(
+            children: [
+              Icon(Icons.texture_rounded, size: 14, color: colorScheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Pattern',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                pattern.label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ReaderPattern.values.map((p) {
+              final isSelected = pattern == p;
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onPatternChanged(p);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? colorScheme.primaryContainer
+                        : colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.outlineVariant.withValues(alpha: 0.4),
+                      width: isSelected ? 1.8 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        p.icon,
+                        size: 14,
+                        color: isSelected
+                            ? colorScheme.onPrimaryContainer
+                            : colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        p.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          if (pattern != ReaderPattern.none) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                Text(
+                  'Opacity',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: patternOpacity.clamp(0.0, 0.20),
+                    min: 0.0,
+                    max: 0.20,
+                    divisions: 10,
+                    label: '${(patternOpacity * 100).round()}%',
+                    onChanged: (v) => onPatternOpacityChanged(v),
+                  ),
+                ),
+                Text(
+                  '${(patternOpacity * 100).round()}%',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+          // Custom background — reader-only color override
+          Row(
+            children: [
+              Icon(
+                Icons.format_paint_rounded,
+                size: 14,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Custom Background',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const Spacer(),
+              if (customBackgroundColor != null)
+                TextButton(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    onCustomBackgroundChanged(null);
+                  },
+                  child: const Text('Clear', style: TextStyle(fontSize: 11)),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _CustomBackgroundPicker(
+            selected: customBackgroundColor,
+            onSelected: (c) {
+              HapticFeedback.selectionClick();
+              onCustomBackgroundChanged(c);
+            },
+          ),
+          const SizedBox(height: 4),
+          Text(
+            customBackgroundColor == null
+                ? 'Uses theme default'
+                : 'Overrides theme — reader only',
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
           ),
 
           const SizedBox(height: AppSpacing.md),
@@ -264,7 +539,12 @@ class ThemeTab extends StatelessWidget {
                   label: 'Comfortable',
                   valueLabel: '1.6x',
                   icon: Icons.format_line_spacing,
-                  isSelected: (lineHeight - 1.6).abs() < 0.1 || (lineHeight >= 1.4 && lineHeight <= 1.7 && (lineHeight - 1.3).abs() >= 0.1 && (lineHeight - 1.9).abs() >= 0.1),
+                  isSelected:
+                      (lineHeight - 1.6).abs() < 0.1 ||
+                      (lineHeight >= 1.4 &&
+                          lineHeight <= 1.7 &&
+                          (lineHeight - 1.3).abs() >= 0.1 &&
+                          (lineHeight - 1.9).abs() >= 0.1),
                   onTap: () {
                     HapticFeedback.selectionClick();
                     onLineHeightChanged(1.6);
@@ -277,7 +557,8 @@ class ThemeTab extends StatelessWidget {
                   label: 'Relaxed',
                   valueLabel: '1.9x',
                   icon: Icons.format_line_spacing,
-                  isSelected: (lineHeight - 1.9).abs() < 0.1 || lineHeight > 1.75,
+                  isSelected:
+                      (lineHeight - 1.9).abs() < 0.1 || lineHeight > 1.75,
                   onTap: () {
                     HapticFeedback.selectionClick();
                     onLineHeightChanged(1.9);
@@ -436,11 +717,7 @@ class _ThemeSwatch extends StatelessWidget {
               ],
             ),
             child: isSelected
-                ? Icon(
-                    Icons.check,
-                    size: 20,
-                    color: colors.text,
-                  )
+                ? Icon(Icons.check, size: 20, color: colors.text)
                 : null,
           ),
           const SizedBox(height: 4),
@@ -612,6 +889,169 @@ class _DensityPill extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CustomBackgroundPicker extends StatelessWidget {
+  const _CustomBackgroundPicker({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final Color? selected;
+  final ValueChanged<Color?> onSelected;
+
+  static const _presets = [
+    null, // theme default
+    Color(0xFFFFFBF2), // paper
+    Color(0xFFFFF8E1), // parchment
+    Color(0xFFF5E6CC), // sepia
+    Color(0xFFEAF6FF), // blue
+    Color(0xFFE6F4EA), // mint
+    Color(0xFFE3F2FD), // ocean light
+    Color(0xFF1E1E1E), // dark
+    Color(0xFF2E3440), // nord dark
+    Color(0xFF070D1E), // midnight
+    Color(0xFFFFE4EC), // blush
+    Color(0xFFF3E8FF), // lavender
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        for (final c in _presets)
+          GestureDetector(
+            onTap: () => onSelected(c),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: c ?? scheme.surfaceContainerLow,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color:
+                      selected == c ||
+                          (selected == null && c == null) ||
+                          (selected != null &&
+                              c != null &&
+                              selected!.toARGB32() == c.toARGB32())
+                      ? scheme.primary
+                      : (c == null
+                            ? scheme.outlineVariant.withValues(alpha: 0.4)
+                            : Colors.black.withValues(alpha: 0.12)),
+                  width:
+                      selected == c ||
+                          (selected == null && c == null) ||
+                          (selected != null &&
+                              c != null &&
+                              selected!.toARGB32() == c.toARGB32())
+                      ? 2.5
+                      : 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: c == null
+                  ? Icon(
+                      Icons.block_rounded,
+                      size: 18,
+                      color: scheme.onSurfaceVariant,
+                    )
+                  : selected != null && c.toARGB32() == selected!.toARGB32()
+                  ? Icon(Icons.check, size: 18, color: _contrasting(c))
+                  : null,
+            ),
+          ),
+        GestureDetector(
+          onTap: () async {
+            final picked = await _showColorPicker(context, selected);
+            if (picked != null) onSelected(picked);
+          },
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const SweepGradient(
+                colors: [
+                  Colors.red,
+                  Colors.orange,
+                  Colors.yellow,
+                  Colors.green,
+                  Colors.blue,
+                  Colors.purple,
+                  Colors.red,
+                ],
+              ),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: 0.4),
+              ),
+            ),
+            child: const Icon(
+              Icons.colorize_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _contrasting(Color bg) =>
+      bg.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
+
+  Future<Color?> _showColorPicker(BuildContext context, Color? initial) async {
+    return showDialog<Color>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Pick background', style: TextStyle(fontSize: 16)),
+        content: SizedBox(
+          width: 280,
+          height: 280,
+          child: GridView.count(
+            crossAxisCount: 6,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            children: [
+              for (final c in [
+                ..._presets.where((e) => e != null).cast<Color>(),
+                ...Colors.primaries,
+                const Color(0xFF795548),
+                const Color(0xFF607D8B),
+                Colors.black,
+                Colors.white,
+              ])
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx, c),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: c,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.black12),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
   }

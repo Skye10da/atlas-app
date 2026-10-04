@@ -15,11 +15,29 @@ class ScreenBrightnessService implements PlatformService {
   }
 
   @override
-  Future<void> setBrightness(double value, {bool smooth = false}) async {
+  Future<bool> setBrightness(double value, {bool smooth = false}) async {
     try {
       await ScreenBrightnessPro.setBrightness(value, smooth: smooth);
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
+
+  @override
+  Future<bool> get canControlNativeBrightness async {
+    // Fork handles Windows VM probe internally; return true where supported.
+    try {
+      // ScreenBrightnessPro throws on unsupported (VM without DDC/CI) — treat as false.
+      await ScreenBrightnessPro.getBrightness();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> get canChangeSystemBrightness async => canControlNativeBrightness;
 
   @override
   Future<double> getBrightness() async {
@@ -31,10 +49,13 @@ class ScreenBrightnessService implements PlatformService {
   }
 
   @override
-  Future<void> resetBrightness() async {
+  Future<bool> resetBrightness() async {
     try {
       await ScreenBrightnessPro.resetBrightness();
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
@@ -63,7 +84,7 @@ class ScreenBrightnessService implements PlatformService {
   }
 
   @override
-  Future<void> optimizeForLowBattery() async {
+  Future<void> optimizeForLowBattery({double threshold = 0.2, double targetBrightness = 0.45}) async {
     try {
       await ScreenBrightnessPro.optimizeForLowBattery();
     } catch (_) {}

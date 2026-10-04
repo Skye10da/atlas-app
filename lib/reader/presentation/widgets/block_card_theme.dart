@@ -15,9 +15,12 @@ import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 
 /// Builds a concrete [BlockCardTheme] from the reader's resolved
-/// palette. Plugins register builders via [registerBlockCardTheme] so
-/// novel-specific card types are adaptive to every reader theme too.
-typedef BlockCardThemeBuilder = BlockCardTheme Function(ReadingColors colors);
+/// palette and the current reader [fontSize]. Plugins register builders
+/// via [registerBlockCardTheme] so novel-specific card types are
+/// adaptive to every reader theme too. The optional [fontSize] param
+/// is kept backwards-compatible — legacy builders can ignore it.
+typedef BlockCardThemeBuilder =
+    BlockCardTheme Function(ReadingColors colors, [double fontSize]);
 
 @immutable
 class BlockCardTheme {
@@ -76,6 +79,12 @@ class BlockCardTheme {
 
 const Color _systemHue = Color(0xFF54E1FF);
 const Color _goldHue = Color(0xFFB9974F);
+const Color _footballScoutHue = Color(0xFF1E9C6B); // emerald
+const Color _footballTalentHue = Color(0xFF8BC34A); // lime
+const Color _questHue = Color(0xFFFF9F1C); // amber parchment
+const Color _levelHue = Color(0xFFFFC93C); // bright gold
+const Color _skillHue = Color(0xFF7B61FF); // violet
+const Color _lootHue = Color(0xFFB87333); // sienna / chest brown
 
 bool _isDarkBackground(ReadingColors colors) =>
     colors.background.computeLuminance() < 0.5;
@@ -95,7 +104,7 @@ Color _adaptHue(
 }
 
 Color _cardBackground(Color hue, ReadingColors colors) {
-  final blend = _isDarkBackground(colors) ? 0.07 : 0.09;
+  final blend = _isDarkBackground(colors) ? 0.10 : 0.11;
   return Color.lerp(colors.background, hue, blend)!;
 }
 
@@ -108,7 +117,7 @@ BlockCardTheme _genreTheme({
   required String label,
   required IconData icon,
   required Color hue,
-  double fontSize = 17,
+  double readerFontSize = 18,
   required Map<String, Color> semanticBarColors,
 }) {
   final dark = _isDarkBackground(colors);
@@ -120,6 +129,14 @@ BlockCardTheme _genreTheme({
     (k, v) => MapEntry(k, _adaptHue(v, colors)),
   );
 
+  // Typography scales with the reader's body font size but is clamped
+  // so cards stay legible at extremes (14px narrow ↔ 26px wide).
+  final titleSize = (readerFontSize * 0.98).clamp(15.0, 22.0);
+  final labelSize = (readerFontSize * 0.70).clamp(11.0, 14.0);
+  final valueSize = (readerFontSize * 0.72).clamp(11.0, 15.0);
+  final eyebrowSize = (readerFontSize * 0.58).clamp(9.0, 12.0);
+  final footnoteSize = (readerFontSize * 0.64).clamp(10.0, 13.0);
+
   return BlockCardTheme(
     label: label,
     icon: icon,
@@ -130,42 +147,83 @@ BlockCardTheme _genreTheme({
     labelColor: text.withValues(alpha: 0.55),
     valueColor: text.withValues(alpha: 0.95),
     titleStyle: TextStyle(
-      fontWeight: FontWeight.w700,
-      fontSize: fontSize,
-      letterSpacing: 0.3,
+      fontWeight: FontWeight.w800,
+      fontSize: titleSize,
+      letterSpacing: 0.2,
       color: text,
-      height: 1.25,
+      height: 1.22,
     ),
-    labelStyle: TextStyle(fontSize: 12.5, color: text.withValues(alpha: 0.55)),
+    labelStyle: TextStyle(
+      fontSize: labelSize,
+      fontWeight: FontWeight.w500,
+      color: text.withValues(alpha: 0.62),
+      height: 1.35,
+    ),
     valueStyle: TextStyle(
-      fontSize: 12.5,
+      fontSize: valueSize,
       fontWeight: FontWeight.w700,
-      color: text.withValues(alpha: 0.95),
+      color: text.withValues(alpha: 0.96),
+      height: 1.35,
     ),
-    eyebrowStyle: TextStyle(fontSize: 11, letterSpacing: 2.2, color: accent),
+    eyebrowStyle: TextStyle(
+      fontSize: eyebrowSize,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 2.6,
+      color: accent,
+      height: 1.1,
+    ),
     footnoteStyle: TextStyle(
-      fontSize: 11.5,
+      fontSize: footnoteSize,
       fontStyle: FontStyle.italic,
-      color: text.withValues(alpha: 0.7),
+      color: text.withValues(alpha: 0.70),
+      height: 1.4,
     ),
-    radius: BorderRadius.zero,
-    cardBorder: Border.all(color: _borderColor(hue, colors), width: 1),
+    radius: BorderRadius.circular(12),
+    cardBorder: Border.all(color: _borderColor(hue, colors), width: 1.2),
     shadows: dark
-        ? [BoxShadow(color: hue.withValues(alpha: 0.14), blurRadius: 26)]
-        : const [],
+        ? [
+            BoxShadow(
+              color: hue.withValues(alpha: 0.16),
+              blurRadius: 28,
+              spreadRadius: 0.5,
+              offset: const Offset(0, 4),
+            ),
+            BoxShadow(
+              color: hue.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ]
+        : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 14,
+              offset: const Offset(0, 3),
+            ),
+            BoxShadow(
+              color: hue.withValues(alpha: 0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 1),
+            ),
+          ],
     barColors: barColors,
-    tagBackground: hue.withValues(alpha: dark ? 0.16 : 0.12),
-    tagText: Color.lerp(accent, text, 0.25)!,
+    tagBackground: hue.withValues(alpha: dark ? 0.18 : 0.13),
+    tagText: Color.lerp(accent, text, 0.22)!,
   );
 }
 
 /// Dark terminal/HUD-flavored theme for LitRPG-style system windows,
-/// tinted by the reader's palette.
-BlockCardTheme systemThemeFor(ReadingColors colors) => _genreTheme(
+/// tinted by the reader's palette. [readerFontSize] tracks the reader's
+/// body font size so card typography stays in lockstep with prose.
+BlockCardTheme systemThemeFor(
+  ReadingColors colors, [
+  double readerFontSize = 18,
+]) => _genreTheme(
   colors: colors,
   label: 'SYSTEM NOTIFICATION',
   icon: Icons.memory_rounded,
   hue: _systemHue,
+  readerFontSize: readerFontSize,
   semanticBarColors: const {
     'hp': Color(0xFFFF5A6E),
     'mp': Color(0xFF5AA9FF),
@@ -175,13 +233,17 @@ BlockCardTheme systemThemeFor(ReadingColors colors) => _genreTheme(
 );
 
 /// Parchment/seal-flavored theme for xianxia/wuxia cultivation status,
-/// tinted by the reader's palette.
-BlockCardTheme cultivationThemeFor(ReadingColors colors) => _genreTheme(
+/// tinted by the reader's palette. Slightly larger title multiplier for
+/// extra presence vs. system cards.
+BlockCardTheme cultivationThemeFor(
+  ReadingColors colors, [
+  double readerFontSize = 18,
+]) => _genreTheme(
   colors: colors,
   label: 'BREAKTHROUGH',
   icon: Icons.filter_hdr_rounded,
   hue: _goldHue,
-  fontSize: 20,
+  readerFontSize: (readerFontSize * 1.06).clamp(16.0, 24.0),
   semanticBarColors: const {
     'cultivation base': _goldHue,
     'dantian': _goldHue,
@@ -189,12 +251,118 @@ BlockCardTheme cultivationThemeFor(ReadingColors colors) => _genreTheme(
   },
 );
 
+BlockCardTheme footballScoutThemeFor(
+  ReadingColors colors, [
+  double readerFontSize = 18,
+]) => _genreTheme(
+  colors: colors,
+  label: 'SCOUT REPORT',
+  icon: Icons.sports_soccer_rounded,
+  hue: _footballScoutHue,
+  readerFontSize: readerFontSize,
+  semanticBarColors: const {
+    'hp': Color(0xFFFF5A6E),
+    'current ability (ca)': Color(0xFFFFB300),
+    'ca': Color(0xFFFFB300),
+    'potential ability (pa)': Color(0xFF2ECC71),
+    'pa': Color(0xFF2ECC71),
+    'pace': Color(0xFF42A5F5),
+    'finishing': Color(0xFFFF6B6B),
+    'xp': _footballScoutHue,
+  },
+);
+
+BlockCardTheme footballTalentThemeFor(
+  ReadingColors colors, [
+  double readerFontSize = 18,
+]) => _genreTheme(
+  colors: colors,
+  label: 'TALENT PANEL',
+  icon: Icons.auto_awesome_rounded,
+  hue: _footballTalentHue,
+  readerFontSize: readerFontSize,
+  semanticBarColors: const {
+    'ca': Color(0xFFFFB300),
+    'pa': Color(0xFF2ECC71),
+    'pace': Color(0xFF42A5F5),
+  },
+);
+
+BlockCardTheme questThemeFor(
+  ReadingColors colors, [
+  double readerFontSize = 18,
+]) => _genreTheme(
+  colors: colors,
+  label: 'QUEST',
+  icon: Icons.assignment_rounded,
+  hue: _questHue,
+  readerFontSize: readerFontSize,
+  semanticBarColors: const {
+    'reward': Color(0xFF2ECC71),
+    'penalty': Color(0xFFFF5A6E),
+    'difficulty': _questHue,
+    'time remaining': _questHue,
+    'requirement': _questHue,
+  },
+);
+
+BlockCardTheme levelUpThemeFor(
+  ReadingColors colors, [
+  double readerFontSize = 18,
+]) => _genreTheme(
+  colors: colors,
+  label: 'LEVEL UP!',
+  icon: Icons.arrow_upward_rounded,
+  hue: _levelHue,
+  readerFontSize: readerFontSize,
+  semanticBarColors: const {
+    'level': _levelHue,
+    'exp': Color(0xFF54E1FF),
+    'xp': _levelHue,
+  },
+);
+
+BlockCardTheme skillGainThemeFor(
+  ReadingColors colors, [
+  double readerFontSize = 18,
+]) => _genreTheme(
+  colors: colors,
+  label: 'SKILL ACQUIRED',
+  icon: Icons.psychology_rounded,
+  hue: _skillHue,
+  readerFontSize: readerFontSize,
+  semanticBarColors: const {'skill': _skillHue},
+);
+
+BlockCardTheme inventoryThemeFor(
+  ReadingColors colors, [
+  double readerFontSize = 18,
+]) => _genreTheme(
+  colors: colors,
+  label: 'LOOT',
+  icon: Icons.inventory_2_rounded,
+  hue: _lootHue,
+  readerFontSize: readerFontSize,
+  semanticBarColors: const {
+    'items': _lootHue,
+    'gold': Color(0xFFFFB300),
+    'reward': _lootHue,
+  },
+);
+
 /// Muted "we're not confident about this" fallback. Used whenever
 /// BlockCard.isLowConfidence is true, regardless of BlockCardType —
 /// a rendering fallback, not a genre. Ink tones derive from the
-/// reader's own text color so it works on any theme.
-BlockCardTheme fallbackThemeFor(ReadingColors colors) {
+/// reader's own text color so it works on any theme. Still scales
+/// with [readerFontSize] so it doesn't look shrunken at large sizes.
+BlockCardTheme fallbackThemeFor(
+  ReadingColors colors, [
+  double readerFontSize = 18,
+]) {
   final ink = colors.text;
+  final titleSize = (readerFontSize * 0.68).clamp(11.0, 14.0);
+  final bodySize = (readerFontSize * 0.70).clamp(11.0, 14.0);
+  final eyebrowSize = (readerFontSize * 0.52).clamp(9.0, 11.0);
   return BlockCardTheme(
     label: 'UNPARSED STATUS TEXT',
     icon: Icons.help_outline_rounded,
@@ -204,17 +372,33 @@ BlockCardTheme fallbackThemeFor(ReadingColors colors) {
     titleColor: ink.withValues(alpha: 0.7),
     labelColor: ink.withValues(alpha: 0.4),
     valueColor: ink.withValues(alpha: 0.7),
-    titleStyle: TextStyle(fontSize: 12.5, color: ink.withValues(alpha: 0.7)),
-    labelStyle: TextStyle(fontSize: 12.5, color: ink.withValues(alpha: 0.4)),
-    valueStyle: TextStyle(fontSize: 12.5, color: ink.withValues(alpha: 0.7)),
-    eyebrowStyle: TextStyle(
-      fontSize: 10,
-      letterSpacing: 1.5,
-      color: ink.withValues(alpha: 0.4),
+    titleStyle: TextStyle(
+      fontSize: titleSize,
+      fontWeight: FontWeight.w600,
+      color: ink.withValues(alpha: 0.75),
+      height: 1.25,
     ),
-    footnoteStyle: TextStyle(fontSize: 11, color: ink.withValues(alpha: 0.55)),
-    radius: BorderRadius.zero,
-    cardBorder: Border.all(color: ink.withValues(alpha: 0.35), width: 1),
+    labelStyle: TextStyle(
+      fontSize: bodySize,
+      color: ink.withValues(alpha: 0.5),
+    ),
+    valueStyle: TextStyle(
+      fontSize: bodySize,
+      color: ink.withValues(alpha: 0.75),
+    ),
+    eyebrowStyle: TextStyle(
+      fontSize: eyebrowSize,
+      letterSpacing: 1.6,
+      fontWeight: FontWeight.w600,
+      color: ink.withValues(alpha: 0.45),
+    ),
+    footnoteStyle: TextStyle(
+      fontSize: (readerFontSize * 0.60).clamp(10.0, 12.0),
+      color: ink.withValues(alpha: 0.55),
+      height: 1.4,
+    ),
+    radius: BorderRadius.circular(10),
+    cardBorder: Border.all(color: ink.withValues(alpha: 0.30), width: 1),
     shadows: const [],
     barColors: const {},
     tagBackground: ink.withValues(alpha: 0.06),
@@ -227,27 +411,37 @@ BlockCardTheme fallbackThemeFor(ReadingColors colors) {
 /// register new types/themes at startup (see [registerBlockCardTheme]).
 final Map<BlockCardType, BlockCardThemeBuilder> _blockCardRegistry = {
   BlockCardType.system: systemThemeFor,
-  BlockCardType.levelUp: systemThemeFor,
-  BlockCardType.skillGain: systemThemeFor,
-  BlockCardType.inventory: systemThemeFor,
-  BlockCardType.quest: systemThemeFor,
+  BlockCardType.levelUp: levelUpThemeFor,
+  BlockCardType.skillGain: skillGainThemeFor,
+  BlockCardType.inventory: inventoryThemeFor,
+  BlockCardType.quest: questThemeFor,
   BlockCardType.cultivation: cultivationThemeFor,
+  BlockCardType.footballScout: footballScoutThemeFor,
+  BlockCardType.footballTalent: footballTalentThemeFor,
   BlockCardType.custom: fallbackThemeFor,
 };
 
 /// Resolves the theme to use for a card against the active reader
-/// palette: low confidence always wins, so a mis-detected "system"
-/// block with weak field extraction still renders as the honest
-/// fallback box instead of a wrong stat sheet.
-BlockCardTheme resolveBlockCardTheme(BlockCard card, ReadingColors colors) {
-  if (card.isLowConfidence) return fallbackThemeFor(colors);
-  return (_blockCardRegistry[card.type] ?? fallbackThemeFor)(colors);
+/// palette and the current reader [fontSize]. Low confidence always
+/// wins, so a mis-detected "system" block with weak field extraction
+/// still renders as the honest fallback box instead of a wrong stat
+/// sheet. [fontSize] drives typography scaling so cards stay in
+/// lockstep with prose (clamped internally).
+BlockCardTheme resolveBlockCardTheme(
+  BlockCard card,
+  ReadingColors colors, [
+  double fontSize = 18,
+]) {
+  if (card.isLowConfidence) return fallbackThemeFor(colors, fontSize);
+  final builder = _blockCardRegistry[card.type] ?? fallbackThemeFor;
+  return builder(colors, fontSize);
 }
 
 /// For plugin/user-added block types (e.g. a novel-specific "forge
 /// affinity" card). Call once at plugin registration time. The builder
-/// receives the active [ReadingColors], so registered variants are
-/// adaptive to every reader theme automatically.
+/// receives the active [ReadingColors] and current reader font size,
+/// so registered variants are adaptive to every reader theme and stay
+/// scaled with prose automatically.
 void registerBlockCardTheme(BlockCardType type, BlockCardThemeBuilder builder) {
   _blockCardRegistry[type] = builder;
 }

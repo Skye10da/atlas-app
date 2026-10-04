@@ -1,8 +1,11 @@
+import 'dart:io' show Platform;
+
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/reader/speech/cache/tts_file_cache.dart';
+
 import 'package:atlas_app/reader/speech/drivers/flutter_tts_driver.dart';
 import 'package:atlas_app/reader/speech/playback_controller.dart';
 import 'package:atlas_app/reader/speech/persistence/recovery_store.dart';
@@ -31,9 +34,11 @@ class SpeechStartupResult {
 /// The configured voice that was persisted but is no longer installed.
 final speechDriverNoticeProvider = StateProvider<String?>((ref) => null);
 
-final speechDriverProvider = Provider<SpeechDriver>(
-  (ref) => FlutterTtsDriver(),
-);
+final speechDriverProvider = Provider<SpeechDriver>((ref) {
+  // Windows SAPI now wrapped in try/catch in FlutterTtsDriver; Noop only as fallback if SAPI throws.
+  // Keeping FlutterTtsDriver on Windows restores TTS playback (was silent with Noop).
+  return FlutterTtsDriver();
+});
 
 final speechRecoveryStoreProvider = Provider<RecoveryStore>(
   (ref) => SharedPrefsRecoveryStore(),
@@ -130,19 +135,27 @@ class NarrationSettingsController extends AsyncNotifier<NarrationSettings> {
 /// also surfaces a one-time notice when the persisted voice is gone.
 final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
   final controller = ref.watch(speechPlaybackControllerProvider);
+  // Lockscreen widget: mobile + desktop (Windows SMTC / macOS Now Playing).
+  // Previously skipped on Windows to avoid SAPI mute — now enabled with
+  // non-ongoing notification that doesn't steal focus.
   try {
     await AudioService.init(
       builder: () => controller,
-      config: const AudioServiceConfig(
+      config: AudioServiceConfig(
         androidNotificationChannelId: 'com.atlas.app.audio_service',
         androidNotificationChannelName: 'Narration',
         androidNotificationChannelDescription:
             'Background novel narration and text-to-speech',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
+        // Mobile: ongoing lockscreen widget; Desktop (Windows SMTC): non-ongoing
+        // so SAPI not ducked, still shows in System Media Controls.
+        androidNotificationOngoing: !Platform.isWindows,
+        androidStopForegroundOnPause: !Platform.isWindows,
         androidNotificationClickStartsActivity: true,
-        fastForwardInterval: Duration(seconds: 15),
-        rewindInterval: Duration(seconds: 15),
+        fastForwardInterval: const Duration(seconds: 15),
+        rewindInterval: const Duration(seconds: 15),
+        // Enables Windows/macOS/Linux system lockscreen/media keys via SMTC
+        artDownscaleWidth: 300,
+        artDownscaleHeight: 300,
       ),
     );
   } catch (_) {
@@ -150,26 +163,29 @@ final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
     // narration still works via flutter_tts without the OS media session.
   }
   // Configure audio session for ducking/interruptions where available.
-  try {
-    final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.speech());
-    session.becomingNoisyEventStream.listen((_) {
-      controller.pause();
-    });
-    session.interruptionEventStream.listen((event) {
-      if (event.begin) {
-        if (event.type == AudioInterruptionType.duck) {
-          // Ducking handled by OS; keep playing at lower volume.
+  // Skip on Windows — AudioSession speech config can duck SAPI to 0 and cause "no audio".
+  if (!Platform.isWindows) {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.speech());
+      session.becomingNoisyEventStream.listen((_) {
+        controller.pause();
+      });
+      session.interruptionEventStream.listen((event) {
+        if (event.begin) {
+          if (event.type == AudioInterruptionType.duck) {
+            // Ducking handled by OS; keep playing at lower volume.
+          } else {
+            controller.pause();
+          }
         } else {
-          controller.pause();
+          if (event.type != AudioInterruptionType.duck) {
+            // Resume after call/assistant ends if needed - leave manual.
+          }
         }
-      } else {
-        if (event.type != AudioInterruptionType.duck) {
-          // Resume after call/assistant ends if needed - leave manual.
-        }
-      }
-    });
-  } catch (_) {}
+      });
+    } catch (_) {}
+  }
 
   final cache = ref.watch(voiceCacheProvider);
   await cache.init();

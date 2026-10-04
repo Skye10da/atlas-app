@@ -39,8 +39,40 @@ class ChapterPositionResolver {
   /// Builds the flat list of sentences across the whole chapter: each entry is
   /// the character offset (within [content]) of the first character of that
   /// sentence, keyed by its flat index.
-  List<int> sentenceStartOffsets(String content) {
+  ///
+  /// If [announceChapterTitle] is true and [chapterTitle] is provided, prepends
+  /// the title as a paragraph (matching [SpeechSessionBuilder] behavior).
+  List<int> sentenceStartOffsets(
+    String content, {
+    bool announceChapterTitle = false,
+    String? chapterTitle,
+  }) {
     final offsets = <int>[];
+    
+    // Handle title prepend if enabled (matching SpeechSessionBuilder)
+    if (announceChapterTitle && chapterTitle != null && chapterTitle.trim().isNotEmpty) {
+      final title = chapterTitle.trim();
+      // Split title into sentences too
+      final titleSpans = splitter.splitParagraphSpans(title);
+      for (final span in titleSpans) {
+        offsets.add(span.offset);
+      }
+      // Add the title length + a newline as offset for body content
+      final titleLength = title.length + 1; // +1 for implied newline separator
+      // Now process body paragraphs with offset adjustment
+      for (final para in paragraphsOf(content)) {
+        final raw = para.text;
+        final trimmed = raw.trim();
+        if (trimmed.isEmpty) continue;
+        final paraOffsetInRaw = raw.indexOf(trimmed);
+        for (final span in splitter.splitParagraphSpans(trimmed)) {
+          offsets.add(titleLength + para.offset + paraOffsetInRaw + span.offset);
+        }
+      }
+      return offsets;
+    }
+    
+    // Original behavior without title
     for (final para in paragraphsOf(content)) {
       final raw = para.text;
       final trimmed = raw.trim();
@@ -54,15 +86,21 @@ class ChapterPositionResolver {
   }
 
   /// The number of sentences in [content]'s reconstructed sequence.
-  int totalSentences(String content) => sentenceStartOffsets(content).length;
+  int totalSentences(String content, {bool announceChapterTitle = false, String? chapterTitle}) =>
+      sentenceStartOffsets(content, announceChapterTitle: announceChapterTitle, chapterTitle: chapterTitle).length;
 
   /// The character offset in [content] where the sentence at flat index
   /// [flatIndex] begins. Returns `null` when [flatIndex] is out of range or
   /// the content has no sentences. This is a direct, flat-indexed analogue of
   /// the narration highlight lookup.
-  int? charOffsetForSentenceIndex(String content, int flatIndex) {
+  int? charOffsetForSentenceIndex(
+    String content,
+    int flatIndex, {
+    bool announceChapterTitle = false,
+    String? chapterTitle,
+  }) {
     if (flatIndex < 0) return null;
-    final offsets = sentenceStartOffsets(content);
+    final offsets = sentenceStartOffsets(content, announceChapterTitle: announceChapterTitle, chapterTitle: chapterTitle);
     if (offsets.isEmpty || flatIndex >= offsets.length) return null;
     return offsets[flatIndex];
   }
@@ -71,8 +109,13 @@ class ChapterPositionResolver {
   /// sentence count in one pass — for callers that need both (e.g. persisting
   /// a reading position). Cheap when [content] has few sentences; always a
   /// single scan of the content.
-  ({int index, int total}) resolve(String content, int charOffset) {
-    final offsets = sentenceStartOffsets(content);
+  ({int index, int total}) resolve(
+    String content,
+    int charOffset, {
+    bool announceChapterTitle = false,
+    String? chapterTitle,
+  }) {
+    final offsets = sentenceStartOffsets(content, announceChapterTitle: announceChapterTitle, chapterTitle: chapterTitle);
     if (offsets.isEmpty) return (index: 0, total: 0);
     var index = 0;
     if (charOffset < 0) {
@@ -93,9 +136,17 @@ class ChapterPositionResolver {
   /// The flat sentence index for the character offset [charOffset], choosing
   /// the sentence whose start is closest at/before that offset (clamped to the
   /// valid range). Returns `null` for empty content.
-  int? sentenceIndexForOffset(String content, int charOffset) {
+  ///
+  /// If [announceChapterTitle] is true and [chapterTitle] is provided, the index
+  /// accounts for the title prepend (matching SpeechSessionBuilder).
+  int? sentenceIndexForOffset(
+    String content,
+    int charOffset, {
+    bool announceChapterTitle = false,
+    String? chapterTitle,
+  }) {
     if (charOffset < 0) return null;
-    final offsets = sentenceStartOffsets(content);
+    final offsets = sentenceStartOffsets(content, announceChapterTitle: announceChapterTitle, chapterTitle: chapterTitle);
     if (offsets.isEmpty) return null;
     if (charOffset >= content.length) return offsets.length - 1;
     for (var i = offsets.length - 1; i >= 0; i--) {
@@ -112,15 +163,17 @@ class ChapterPositionResolver {
   ({int index, int total}) resolveFirstWithinRange(
     String content,
     int startOffset,
-    int endOffset,
-  ) {
-    final offsets = sentenceStartOffsets(content);
+    int endOffset, {
+    bool announceChapterTitle = false,
+    String? chapterTitle,
+  }) {
+    final offsets = sentenceStartOffsets(content, announceChapterTitle: announceChapterTitle, chapterTitle: chapterTitle);
     if (offsets.isEmpty) return (index: 0, total: 0);
     for (var i = 0; i < offsets.length; i++) {
       if (offsets[i] >= startOffset && offsets[i] < endOffset) {
         return (index: i, total: offsets.length);
       }
     }
-    return resolve(content, startOffset);
+    return resolve(content, startOffset, announceChapterTitle: announceChapterTitle, chapterTitle: chapterTitle);
   }
 }

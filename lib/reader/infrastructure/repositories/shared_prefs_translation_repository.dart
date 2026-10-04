@@ -7,6 +7,12 @@ import 'package:atlas_app/wtr/domain/entities/supported_language.dart';
 class SharedPrefsTranslationRepository implements TranslationRepository {
   const SharedPrefsTranslationRepository();
 
+  static Future<SharedPreferences>? _prefsFuture;
+
+  static Future<SharedPreferences> _getPrefs() {
+    return _prefsFuture ??= SharedPreferences.getInstance();
+  }
+
   static String _langKey(String bookId) => 'translation_lang_$bookId';
   static String _enabledKey(String bookId) => 'translation_enabled_$bookId';
 
@@ -15,31 +21,25 @@ class SharedPrefsTranslationRepository implements TranslationRepository {
     String bookId, {
     List<SupportedLanguage>? languages,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    return SupportedLanguage.fromCode(
-      prefs.getString(_langKey(bookId)),
-      languages: languages,
-    );
+    final prefs = await _getPrefs();
+    return SupportedLanguage.fromCode(prefs.getString(_langKey(bookId)), languages: languages);
   }
 
   @override
-  Future<void> saveTargetLanguage(
-    String bookId,
-    SupportedLanguage language,
-  ) async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> saveTargetLanguage(String bookId, SupportedLanguage language) async {
+    final prefs = await _getPrefs();
     await prefs.setString(_langKey(bookId), language.code);
   }
 
   @override
   Future<bool> loadEnabled(String bookId) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     return prefs.getBool(_enabledKey(bookId)) ?? false;
   }
 
   @override
   Future<void> saveEnabled(String bookId, bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     await prefs.setBool(_enabledKey(bookId), enabled);
   }
 }

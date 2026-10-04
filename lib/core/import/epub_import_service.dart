@@ -37,7 +37,12 @@ class EpubImportService {
       }
 
       final file = result.files.first;
-      final bytes = file.bytes;
+      List<int>? bytes = file.bytes;
+      if (bytes == null && file.path != null) {
+        try {
+          bytes = await File(file.path!).readAsBytes();
+        } catch (_) {}
+      }
       if (bytes == null) {
         return const Failure(ValidationException('Could not read file'));
       }

@@ -36,6 +36,10 @@ final class SharedPrefsSettingsRepository
   static const _keyScrollAnimation = 'reader_scroll_animation';
   static const _keyChromeStyle = 'reader_chrome_style';
   static const _keyDesktopSheetPresentation = 'desktop_sheet_presentation';
+  static const _keyEnableBlockCards = 'reader_enable_block_cards';
+  static const _keyReaderPattern = 'reader_pattern';
+  static const _keyCustomBgColor = 'reader_custom_bg_color';
+  static const _keyPatternOpacity = 'reader_pattern_opacity';
 
   @override
   Future<ReadingSettingsEntity> load() async {
@@ -71,8 +75,7 @@ final class SharedPrefsSettingsRepository
       keepScreenAwake: prefs.getBool(_keyKeepAwake) ?? false,
       brightness: prefs.getDouble(_keyBrightness) ?? 1.0,
       autoOptimizeBrightness: prefs.getBool(_keyAutoOptimize) ?? false,
-      followSystemBrightness:
-          prefs.getBool(_keyFollowSystemBrightness) ?? true,
+      followSystemBrightness: prefs.getBool(_keyFollowSystemBrightness) ?? true,
       theme: switch (prefs.getString(_keyTheme)) {
         'parchment' => ReadingViewTheme.parchment,
         'ivory' => ReadingViewTheme.ivory,
@@ -109,7 +112,10 @@ final class SharedPrefsSettingsRepository
         'wide' => MarginPreset.wide,
         _ => MarginPreset.normal,
       },
-      horizontalPadding: (prefs.getDouble(_keyHorizontalPadding) ?? 24.0).clamp(0.0, 80.0),
+      horizontalPadding: (prefs.getDouble(_keyHorizontalPadding) ?? 24.0).clamp(
+        0.0,
+        80.0,
+      ),
       useBookSpread: prefs.getBool(_keyUseBookSpread) ?? true,
       pageTurnAnimation: switch (prefs.getString(_keyPageTurnAnimation)) {
         'slide' => PageTurnAnimation.slide,
@@ -141,6 +147,23 @@ final class SharedPrefsSettingsRepository
         'sidePanel' => DesktopSheetPresentation.sidePanel,
         _ => DesktopSheetPresentation.dialog,
       },
+      enableBlockCards: prefs.getBool(_keyEnableBlockCards) ?? true,
+      pattern: switch (prefs.getString(_keyReaderPattern)) {
+        'paperGrain' => ReaderPattern.paperGrain,
+        'linen' => ReaderPattern.linen,
+        'dots' => ReaderPattern.dots,
+        'grid' => ReaderPattern.grid,
+        'ruled' => ReaderPattern.ruled,
+        'noise' => ReaderPattern.noise,
+        _ => ReaderPattern.none,
+      },
+      customBackgroundColor: prefs.getInt(_keyCustomBgColor) != null
+          ? Color(prefs.getInt(_keyCustomBgColor)!)
+          : null,
+      patternOpacity: (prefs.getDouble(_keyPatternOpacity) ?? 0.08).clamp(
+        0.0,
+        0.20,
+      ),
     );
   }
 
@@ -200,5 +223,16 @@ final class SharedPrefsSettingsRepository
       _keyDesktopSheetPresentation,
       settings.desktopSheetPresentation.name,
     );
+    await prefs.setBool(_keyEnableBlockCards, settings.enableBlockCards);
+    await prefs.setString(_keyReaderPattern, settings.pattern.name);
+    if (settings.customBackgroundColor != null) {
+      await prefs.setInt(
+        _keyCustomBgColor,
+        settings.customBackgroundColor!.toARGB32(),
+      );
+    } else {
+      await prefs.remove(_keyCustomBgColor);
+    }
+    await prefs.setDouble(_keyPatternOpacity, settings.patternOpacity);
   }
 }

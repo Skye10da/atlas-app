@@ -9,7 +9,6 @@ import 'package:atlas_app/reader/presentation/providers/translation_providers.da
 import 'package:atlas_app/reader/presentation/widgets/settings/glossary_tab.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/language_selector.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/layout_tab.dart';
-import 'package:atlas_app/reader/presentation/widgets/settings/reader_settings_preview_card.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/text_tab.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/theme_tab.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
@@ -51,20 +50,32 @@ class ReaderSettingsSheet extends HookConsumerWidget {
     final marginPreset = useState(initialSettings.marginPreset);
     final keepScreenAwake = useState(initialSettings.keepScreenAwake);
     final brightness = useState(initialSettings.brightness);
-    final autoOptimizeBrightness =
-        useState(initialSettings.autoOptimizeBrightness);
-    final followSystemBrightness =
-        useState(initialSettings.followSystemBrightness);
+    final autoOptimizeBrightness = useState(
+      initialSettings.autoOptimizeBrightness,
+    );
+    final followSystemBrightness = useState(
+      initialSettings.followSystemBrightness,
+    );
     final pageTurnAnimation = useState(initialSettings.pageTurnAnimation);
     final pageFlipGestureZone = useState(initialSettings.pageFlipGestureZone);
     final scrollAnimation = useState(initialSettings.scrollAnimation);
     final chromeStyle = useState(initialSettings.chromeStyle);
-    final desktopSheetPresentation =
-        useState(initialSettings.desktopSheetPresentation);
+    final desktopSheetPresentation = useState(
+      initialSettings.desktopSheetPresentation,
+    );
     final horizontalPadding = useState(initialSettings.horizontalPadding);
     final useBookSpread = useState(initialSettings.useBookSpread);
+    final enableBlockCards = useState(initialSettings.enableBlockCards);
     final enablePageFlipSound = useState(initialSettings.enablePageFlipSound);
-    final enablePageFlipHaptics = useState(initialSettings.enablePageFlipHaptics);
+    final enablePageFlipHaptics = useState(
+      initialSettings.enablePageFlipHaptics,
+    );
+    final themeMode = useState(initialSettings.themeMode);
+    final pattern = useState(initialSettings.pattern);
+    final patternOpacity = useState(initialSettings.patternOpacity);
+    final customBackgroundColor = useState(
+      initialSettings.customBackgroundColor,
+    );
 
     final bool hasWtrTab = rawId != null;
 
@@ -117,19 +128,6 @@ class ReaderSettingsSheet extends HookConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.max,
         children: [
-          // Live Interactive Reading Preview Card
-          ReaderSettingsPreviewCard(
-            theme: theme.value,
-            fontSize: fontSize.value,
-            fontFamily: fontFamily.value,
-            fontWeight: fontWeight.value,
-            lineHeight: lineHeight.value,
-            letterSpacing: letterSpacing.value,
-            textAlignment: textAlignment.value,
-            marginPreset: marginPreset.value,
-          ),
-          const SizedBox(height: AppSpacing.xs),
-
           // Primary Category Tab Bar
           TabBar(
             controller: tabController,
@@ -139,18 +137,12 @@ class ReaderSettingsSheet extends HookConsumerWidget {
             indicatorSize: TabBarIndicatorSize.label,
             labelPadding: const EdgeInsets.symmetric(horizontal: 4),
             tabs: const [
-              Tab(
-                icon: Icon(Icons.palette_outlined, size: 18),
-                text: 'Style',
-              ),
+              Tab(icon: Icon(Icons.palette_outlined, size: 18), text: 'Style'),
               Tab(
                 icon: Icon(Icons.text_fields_outlined, size: 18),
                 text: 'Typography',
               ),
-              Tab(
-                icon: Icon(Icons.tune_outlined, size: 18),
-                text: 'Display',
-              ),
+              Tab(icon: Icon(Icons.tune_outlined, size: 18), text: 'Display'),
               Tab(
                 icon: Icon(Icons.translate_outlined, size: 18),
                 text: 'Translate',
@@ -166,6 +158,10 @@ class ReaderSettingsSheet extends HookConsumerWidget {
               children: [
                 ThemeTab(
                   theme: theme.value,
+                  themeMode: themeMode.value,
+                  pattern: pattern.value,
+                  patternOpacity: patternOpacity.value,
+                  customBackgroundColor: customBackgroundColor.value,
                   fontSize: fontSize.value,
                   fontFamily: fontFamily.value,
                   fontWeight: fontWeight.value,
@@ -176,6 +172,22 @@ class ReaderSettingsSheet extends HookConsumerWidget {
                   onThemeChanged: (t) {
                     theme.value = t;
                     notifier.setTheme(t);
+                  },
+                  onThemeModeChanged: (m) {
+                    themeMode.value = m;
+                    notifier.setThemeMode(m);
+                  },
+                  onPatternChanged: (p) {
+                    pattern.value = p;
+                    notifier.setReaderPattern(p);
+                  },
+                  onPatternOpacityChanged: (v) {
+                    patternOpacity.value = v;
+                    notifier.setPatternOpacity(v);
+                  },
+                  onCustomBackgroundChanged: (c) {
+                    customBackgroundColor.value = c;
+                    notifier.setCustomBackgroundColor(c);
                   },
                   onFontSizeChanged: (v) {
                     fontSize.value = v;
@@ -256,6 +268,7 @@ class ReaderSettingsSheet extends HookConsumerWidget {
                   desktopSheetPresentation: desktopSheetPresentation.value,
                   horizontalPadding: horizontalPadding.value,
                   useBookSpread: useBookSpread.value,
+                  enableBlockCards: enableBlockCards.value,
                   onReadingModeChanged: (m) {
                     readingMode.value = m;
                     notifier.setReadingMode(m);
@@ -267,6 +280,10 @@ class ReaderSettingsSheet extends HookConsumerWidget {
                   onUseBookSpreadChanged: (v) {
                     useBookSpread.value = v;
                     notifier.setUseBookSpread(v);
+                  },
+                  onEnableBlockCardsChanged: (v) {
+                    enableBlockCards.value = v;
+                    notifier.setEnableBlockCards(v);
                   },
                   onPageTurnAnimationChanged: (a) {
                     pageTurnAnimation.value = a;

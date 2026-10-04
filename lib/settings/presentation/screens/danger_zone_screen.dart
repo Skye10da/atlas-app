@@ -10,6 +10,7 @@ import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/application/library_backup_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
+import 'package:atlas_app/settings/presentation/screens/backup_restore_screen.dart';
 
 class DangerZoneScreen extends ConsumerWidget {
   const DangerZoneScreen({super.key});
@@ -116,15 +117,25 @@ class DangerZoneScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      alignment: WrapAlignment.end,
                       children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.settings_backup_restore_rounded, size: 16),
+                          label: const Text('Open Backup Hub'),
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const BackupRestoreScreen(),
+                            ),
+                          ),
+                        ),
                         OutlinedButton.icon(
                           icon: const Icon(Icons.file_upload_outlined, size: 16),
                           label: const Text('Restore Backup'),
                           onPressed: () => _restoreBackup(context, ref),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
                         FilledButton.icon(
                           icon: const Icon(Icons.file_download_outlined, size: 16),
                           label: const Text('Export Backup'),
@@ -250,7 +261,7 @@ class DangerZoneScreen extends ConsumerWidget {
         messenger.showSnackBar(
           SnackBar(
             content: Text(
-              'Restored ${value.booksRestored} books, ${value.bookmarksRestored} bookmarks, and ${value.wordsRestored} words.',
+              'Restored ${value.totalBooks} items (${value.booksRestored} books, ${value.novelsRestored} novels), ${value.chaptersRestored} chapters, and ${value.readingProgressRestored} reading positions.',
             ),
           ),
         );

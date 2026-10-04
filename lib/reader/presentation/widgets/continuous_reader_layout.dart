@@ -9,7 +9,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
-import 'package:atlas_app/core/services/platform_service_provider.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_system_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_chrome_provider.dart';
@@ -19,6 +19,7 @@ import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.da
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_content_loader.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_background.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
@@ -48,6 +49,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
     required this.onCurrentChapterChanged,
     required this.onScrollDirectionChanged,
     required this.onSettingsTap,
+    this.onIntelligenceTap,
     this.onSearchTap,
     this.onRedownload,
     this.isRedownloading = false,
@@ -62,6 +64,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
     this.onSearchWeb,
     this.onListen,
     this.onErase,
+    this.onChapterTextTap,
     required void Function() onOpenAnnotations,
   });
 
@@ -76,6 +79,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
   final void Function(int) onCurrentChapterChanged;
   final void Function(ScrollDirection) onScrollDirectionChanged;
   final VoidCallback onSettingsTap;
+  final VoidCallback? onIntelligenceTap;
   final VoidCallback? onSearchTap;
   final VoidCallback? onRedownload;
   final bool isRedownloading;
@@ -99,6 +103,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
   final void Function(String text, String? sentence, int start, int end)?
   onListen;
   final void Function(int start, int end)? onErase;
+  final void Function(ChapterEntity chapter, int charOffset)? onChapterTextTap;
 
   static const _snapScrollDuration = Duration(milliseconds: 300);
   static const _resolver = ChapterPositionResolver();
@@ -156,9 +161,28 @@ class ContinuousReaderLayout extends HookConsumerWidget {
         (p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0,
       );
       if (visible.isEmpty) return null;
-      return visible
-          .reduce((a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b)
-          .index;
+
+      // 1. Pick the chapter that spans the reading focal line (40%-50% down the screen)
+      const focalLine = 0.45;
+      for (final p in visible) {
+        if (p.itemLeadingEdge <= focalLine && p.itemTrailingEdge >= focalLine) {
+          return p.index;
+        }
+      }
+
+      // 2. Fallback: pick the chapter with the greatest visible overlap in the viewport [0.0, 1.0]
+      ItemPosition? best;
+      double maxOverlap = -1.0;
+      for (final p in visible) {
+        final start = math.max(0.0, p.itemLeadingEdge);
+        final end = math.min(1.0, p.itemTrailingEdge);
+        final overlap = end - start;
+        if (overlap > maxOverlap) {
+          maxOverlap = overlap;
+          best = p;
+        }
+      }
+      return best?.index;
     }
 
     void syncCurrentChapter() {
@@ -175,6 +199,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
       if (index < 0 || index >= chapters.length) return;
       if (!itemScrollController.isAttached) return;
       jumpInFlight.value = true;
+      lastReportedChapterIndex.value = index;
       final canAnimate = animate && isNearCurrentViewport(index);
       if (canAnimate) {
         await itemScrollController.scrollTo(
@@ -209,11 +234,13 @@ class ContinuousReaderLayout extends HookConsumerWidget {
       autoScrollTimer.value?.cancel();
       autoScrollTimer.value = null;
       autoScrollActive.value = false;
+      if (settings.enablePageFlipHaptics) HapticFeedback.mediumImpact();
     }
 
     void startAutoScroll() {
       autoScrollTimer.value?.cancel();
       autoScrollActive.value = true;
+      if (settings.enablePageFlipHaptics) HapticFeedback.mediumImpact();
       chromeNotifier.setFullscreen(true, isDarkTheme: isDarkTheme);
       autoScrollTimer.value = Timer.periodic(const Duration(milliseconds: 50), (
         _,
@@ -234,6 +261,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
     }
 
     void toggleAutoScroll() {
+      if (settings.enablePageFlipHaptics) HapticFeedback.selectionClick();
       if (autoScrollActive.value) {
         stopAutoScroll();
       } else {
@@ -289,9 +317,13 @@ class ContinuousReaderLayout extends HookConsumerWidget {
         (p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0,
       );
       if (visible.isEmpty) return;
-      final top = visible.reduce(
-        (a, b) => a.itemLeadingEdge < b.itemLeadingEdge ? a : b,
-      );
+      final dominantIndex = currentChapterFromPositions(positions);
+      final top = dominantIndex != null
+          ? visible.firstWhere(
+              (p) => p.index == dominantIndex,
+              orElse: () => visible.first,
+            )
+          : visible.first;
       final content = ref
           .read(readerChapterContentProvider(chapters[top.index]))
           .valueOrNull;
@@ -302,10 +334,16 @@ class ContinuousReaderLayout extends HookConsumerWidget {
       final totalHeightPx = extent * viewportHeight;
       const headerHeightPx = 130.0;
       const footerHeightPx = 110.0;
-      final contentHeightPx = math.max(1.0, totalHeightPx - headerHeightPx - footerHeightPx);
+      final contentHeightPx = math.max(
+        1.0,
+        totalHeightPx - headerHeightPx - footerHeightPx,
+      );
 
       final scrolledPx = (-top.itemLeadingEdge) * viewportHeight;
-      final contentScrolledPx = (scrolledPx - headerHeightPx).clamp(0.0, contentHeightPx);
+      final contentScrolledPx = (scrolledPx - headerHeightPx).clamp(
+        0.0,
+        contentHeightPx,
+      );
       final within = (contentScrolledPx / contentHeightPx).clamp(0.0, 1.0);
       final charOffset = (within * content.length).round().clamp(
         0,
@@ -435,6 +473,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
     }
 
     void revealNarration() {
+      if (settings.enablePageFlipHaptics) HapticFeedback.lightImpact();
       final index = narratingChapterIndex();
       if (index == null || !itemScrollController.isAttached) return;
       final handle = narrationReveals.value[index];
@@ -449,8 +488,9 @@ class ContinuousReaderLayout extends HookConsumerWidget {
     void applyBrightness(double newBrightness) {
       final notifier = ref.read(readingSettingsProvider.notifier);
       notifier.setBrightness(newBrightness);
-      final svc = ref.read(platformServiceProvider);
-      svc.setBrightness(newBrightness, smooth: true);
+      ref
+          .read(readerSystemControllerProvider)
+          .applyBrightnessDebounced(newBrightness);
     }
 
     bool onScrollEnd(ScrollEndNotification notification) {
@@ -463,6 +503,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
       final page = (scrollOffset.value / viewport).round();
       final correction = page * viewport - scrollOffset.value;
       if (correction.abs() < 0.5) return false;
+      if (settings.enablePageFlipHaptics) HapticFeedback.lightImpact();
       snapInFlight.value = true;
       unawaited(
         scrollOffsetController
@@ -537,6 +578,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
     }
 
     void toggleChrome() {
+      if (settings.enablePageFlipHaptics) HapticFeedback.lightImpact();
       if (chromeState.rightPanelVisible || chromeState.narrationPanelVisible) {
         chromeNotifier.hideRightPanel();
         return;
@@ -597,6 +639,9 @@ class ContinuousReaderLayout extends HookConsumerWidget {
             onListen: onListen,
             onErase: onErase,
             onTap: toggleChrome,
+            onTextTap: onChapterTextTap != null
+                ? (offset) => onChapterTextTap!(chapter, offset)
+                : null,
           ),
           if (showHeaders)
             ChapterOrnamentalDivider(
@@ -718,245 +763,257 @@ class ContinuousReaderLayout extends HookConsumerWidget {
         isDesktop &&
         AppSheet.desktopPresentation == DesktopSheetPresentation.sidePanel;
 
+    final readingColors = vt.resolve(colorScheme);
     return Scaffold(
-      backgroundColor: vt.resolve(colorScheme).background,
+      backgroundColor:
+          settings.customBackgroundColor ?? readingColors.background,
       extendBodyBehindAppBar: true,
       extendBody: true,
-      body: Stack(
-        children: [
-          Focus(
-            autofocus: true,
-            onKeyEvent: (node, event) {
-              if (event is KeyDownEvent &&
-                  event.logicalKey == LogicalKeyboardKey.escape) {
-                if (chromeState.rightPanelVisible ||
-                    chromeState.narrationPanelVisible) {
-                  chromeNotifier.hideRightPanel();
-                  return KeyEventResult.handled;
+      body: ReaderBackground(
+        colors: readingColors,
+        customColor: settings.customBackgroundColor,
+        pattern: settings.pattern,
+        patternOpacity: settings.patternOpacity,
+        child: Stack(
+          children: [
+            Focus(
+              autofocus: true,
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.escape) {
+                  if (chromeState.rightPanelVisible ||
+                      chromeState.narrationPanelVisible) {
+                    chromeNotifier.hideRightPanel();
+                    return KeyEventResult.handled;
+                  }
                 }
-              }
-              return handleKeyEvent(node, event);
-            },
-            child: SafeArea(
-              bottom: false,
-              left: false,
-              right: false,
-              child: GestureDetector(
-                onTap: toggleChrome,
-                child: wrapWithAnimation(
-                  ScrollablePositionedList.builder(
-                    itemScrollController: itemScrollController,
-                    scrollOffsetController: scrollOffsetController,
-                    itemPositionsListener: itemPositionsListener,
-                    scrollOffsetListener: scrollOffsetListener,
-                    physics: scrollPhysics,
-                    itemCount: chapters.length,
-                    initialScrollIndex: currentChapterIndex.clamp(
-                      0,
-                      math.max(0, chapters.length - 1),
-                    ),
-                    itemBuilder: (context, index) => buildChapterBlock(
-                      chapters[index],
-                      index,
-                      showHeaders: true,
-                      restoreCharOffset: index == resumeChapterIndex
-                          ? pendingRestoreCharOffset.value
-                          : null,
-                      onRestoreRevealed: () {
-                        pendingRestoreCharOffset.value = null;
-                        restoreApplied.value = true;
-                      },
+                return handleKeyEvent(node, event);
+              },
+              child: SafeArea(
+                bottom: false,
+                left: false,
+                right: false,
+                child: GestureDetector(
+                  onTap: toggleChrome,
+                  child: wrapWithAnimation(
+                    ScrollablePositionedList.builder(
+                      itemScrollController: itemScrollController,
+                      scrollOffsetController: scrollOffsetController,
+                      itemPositionsListener: itemPositionsListener,
+                      scrollOffsetListener: scrollOffsetListener,
+                      physics: scrollPhysics,
+                      itemCount: chapters.length,
+                      initialScrollIndex: currentChapterIndex.clamp(
+                        0,
+                        math.max(0, chapters.length - 1),
+                      ),
+                      itemBuilder: (context, index) => buildChapterBlock(
+                        chapters[index],
+                        index,
+                        showHeaders: true,
+                        restoreCharOffset: index == resumeChapterIndex
+                            ? pendingRestoreCharOffset.value
+                            : null,
+                        onRestoreRevealed: () {
+                          pendingRestoreCharOffset.value = null;
+                          restoreApplied.value = true;
+                        },
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          if (!isDesktop)
-            BrightnessEdgeGestureRegion(
-              onVerticalDragStart: (details) =>
-                  chromeNotifier.onEdgeBrightnessStart(
-                    details,
-                    followSystemBrightness: settings.followSystemBrightness,
-                    currentBrightness: settings.brightness,
+            if (!isDesktop)
+              BrightnessEdgeGestureRegion(
+                onVerticalDragStart: (details) =>
+                    chromeNotifier.onEdgeBrightnessStart(
+                      details,
+                      followSystemBrightness: settings.followSystemBrightness,
+                      currentBrightness: settings.brightness,
+                    ),
+                onVerticalDragUpdate: (details) =>
+                    chromeNotifier.onEdgeBrightnessUpdate(
+                      details,
+                      onChanged: applyBrightness,
+                    ),
+                onVerticalDragEnd: chromeNotifier.onEdgeBrightnessEnd,
+              ),
+            if (autoScrollActive.value)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 24,
+                child: Center(
+                  child: _AutoScrollControl(
+                    speed: autoScrollSpeed.value,
+                    onSpeedChanged: (s) =>
+                        autoScrollSpeed.value = s.clamp(1.0, 6.0),
+                    onStop: stopAutoScroll,
+                    accent: settings.theme.resolve(colorScheme).accent,
                   ),
-              onVerticalDragUpdate: (details) => chromeNotifier
-                  .onEdgeBrightnessUpdate(details, onChanged: applyBrightness),
-              onVerticalDragEnd: chromeNotifier.onEdgeBrightnessEnd,
-            ),
-          if (autoScrollActive.value)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 24,
-              child: Center(
-                child: _AutoScrollControl(
-                  speed: autoScrollSpeed.value,
-                  onSpeedChanged: (s) =>
-                      autoScrollSpeed.value = s.clamp(1.0, 6.0),
-                  onStop: stopAutoScroll,
+                ),
+              ),
+            if (narrationOutOfSync.value && narratingChapterIndex() != null)
+              Positioned(
+                right: 16,
+                bottom: isDesktop ? 24 : 88,
+                child: _NarrationSyncButton(
                   accent: settings.theme.resolve(colorScheme).accent,
+                  onPressed: revealNarration,
                 ),
               ),
-            ),
-          if (narrationOutOfSync.value && narratingChapterIndex() != null)
-            Positioned(
-              right: 16,
-              bottom: isDesktop ? 24 : 88,
-              child: _NarrationSyncButton(
-                accent: settings.theme.resolve(colorScheme).accent,
-                onPressed: revealNarration,
-              ),
-            ),
-          if (isDesktop &&
-              (chromeState.rightPanelVisible ||
-                  chromeState.narrationPanelVisible))
-            DesktopRightPanelRegion(
-              visible:
-                  chromeState.rightPanelVisible ||
-                  chromeState.narrationPanelVisible,
-              chromeVisible: chromeState.chromeVisible,
-              panelWidth: 280.0,
-              panel: chromeState.narrationPanelVisible
-                  ? NowPlayingPanel(
-                      bookTitle: bookTitle,
-                      coverPath: coverPath,
-                      chapterTitle: chapters[currentChapterIndex].title,
-                      accent: settings.theme.resolve(colorScheme).accent,
-                      onClose: chromeNotifier.closeNarrationPanel,
-                    )
-                  : ReaderRightPanel(
-                      chapters: chapters,
-                      currentChapterIndex: currentChapterIndex,
-                      bookmarkedChapterIds: bookmarkedChapterIds,
-                      onChapterSelected: (idx) {
-                        onChapterSelected(idx);
-                        WidgetsBinding.instance.addPostFrameCallback(
-                          (_) => scrollToChapter(idx),
-                        );
-                      },
-                      onBookmarkToggle: onBookmarkToggle,
-                      isBookmarked: isBookmarked,
-                      onClose: chromeNotifier.hideRightPanel,
-                      settings: settings,
-                    ),
-            ),
-          if (chromeState.commandPaletteVisible)
-            ReaderCommandPalette(
-              chapters: chapters,
-              currentChapterIndex: currentChapterIndex,
-              onChapterSelected: (idx) {
-                onChapterSelected(idx);
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => scrollToChapter(idx),
-                );
-              },
-              onToggleBookmark: onBookmarkToggle,
-              isBookmarked: isBookmarked,
-              onToggleSettings: onSettingsTap,
-              onOpenAnnotations: () {
-                ReaderAnnotationsSheet.show(
-                  context,
-                  bookId: chapters.first.bookId,
-                  chapters: chapters,
-                  currentChapterId: chapters[currentChapterIndex].id,
-                  bookTitle: bookTitle,
-                  coverPath: coverPath,
-                  onJumpToChapter: (chId, _) {
-                    final idx = chapters.indexWhere((c) => c.id == chId);
-                    if (idx >= 0) {
-                      onChapterSelected(idx);
-                      WidgetsBinding.instance.addPostFrameCallback(
-                        (_) => scrollToChapter(idx),
-                      );
-                    }
-                  },
-                );
-              },
-              onClose: () => chromeNotifier.setCommandPaletteVisible(false),
-            ),
-          if (!chromeState.narrationPanelVisible)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: NarrationMiniPlayer(
-                bookTitle: bookTitle,
-                coverPath: coverPath,
-                chapterTitle: chapters[currentChapterIndex].title,
-                accent: settings.theme.resolve(colorScheme).accent,
-                onExpand: useSidePanels
-                    ? chromeNotifier.toggleNarrationPanel
-                    : null,
-              ),
-            ),
-          if (chromeState.chromeVisible)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: ReaderBarSurface(
-                style: settings.chromeStyle,
-                color: colorScheme.surfaceContainerHigh,
-                child: ReaderChromeBar(
-                  title: chapters[currentChapterIndex].title,
-                  textColor: colorScheme.onSurface,
-                  onSettingsTap: onSettingsTap,
-                  onSearchTap: onSearchTap,
-                  onRedownload: onRedownload,
-                  isRedownloading: isRedownloading,
-                ),
-              ),
-            ),
-          if (chromeState.chromeVisible)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: ReaderBarSurface(
-                style: settings.chromeStyle,
-                color: colorScheme.surfaceContainerHigh,
-                child: ReaderBottomNav(
-                  textColor: colorScheme.onSurface,
-                  onSettingsTap: onSettingsTap,
-                  onChapterIndexTap: () => showChapterIndex(context),
-                  onBookmarkTap: onBookmarkToggle,
-                  isBookmarked: isBookmarked,
-                  onAnnotationsTap: () {
-                    ReaderAnnotationsSheet.show(
-                      context,
-                      bookId: chapters.first.bookId,
-                      chapters: chapters,
-                      currentChapterId: chapters[currentChapterIndex].id,
-                      bookTitle: bookTitle,
-                      coverPath: coverPath,
-                      onJumpToChapter: (chId, _) {
-                        final idx = chapters.indexWhere((c) => c.id == chId);
-                        if (idx >= 0) {
+            if (isDesktop &&
+                (chromeState.rightPanelVisible ||
+                    chromeState.narrationPanelVisible))
+              DesktopRightPanelRegion(
+                visible:
+                    chromeState.rightPanelVisible ||
+                    chromeState.narrationPanelVisible,
+                chromeVisible: chromeState.chromeVisible,
+                panelWidth: 280.0,
+                panel: chromeState.narrationPanelVisible
+                    ? NowPlayingPanel(
+                        bookTitle: bookTitle,
+                        coverPath: coverPath,
+                        chapterTitle: chapters[currentChapterIndex].title,
+                        accent: settings.theme.resolve(colorScheme).accent,
+                        onClose: chromeNotifier.closeNarrationPanel,
+                      )
+                    : ReaderRightPanel(
+                        chapters: chapters,
+                        currentChapterIndex: currentChapterIndex,
+                        bookmarkedChapterIds: bookmarkedChapterIds,
+                        onChapterSelected: (idx) {
                           onChapterSelected(idx);
                           WidgetsBinding.instance.addPostFrameCallback(
                             (_) => scrollToChapter(idx),
                           );
-                        }
-                      },
-                    );
-                  },
-                  currentChapterTitle: chapters[currentChapterIndex].title,
-                  currentChapterNumber: currentChapterIndex,
-                  totalChapters: chapters.length,
-                  autoScrollActive: autoScrollActive.value,
-                  onAutoScrollToggle: toggleAutoScroll,
+                        },
+                        onBookmarkToggle: onBookmarkToggle,
+                        isBookmarked: isBookmarked,
+                        onClose: chromeNotifier.hideRightPanel,
+                        settings: settings,
+                      ),
+              ),
+            if (chromeState.commandPaletteVisible)
+              ReaderCommandPalette(
+                chapters: chapters,
+                currentChapterIndex: currentChapterIndex,
+                onChapterSelected: (idx) {
+                  onChapterSelected(idx);
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => scrollToChapter(idx),
+                  );
+                },
+                onToggleBookmark: onBookmarkToggle,
+                isBookmarked: isBookmarked,
+                onToggleSettings: onSettingsTap,
+                onOpenAnnotations: () {
+                  ReaderAnnotationsSheet.show(
+                    context,
+                    bookId: chapters.first.bookId,
+                    chapters: chapters,
+                    currentChapterId: chapters[currentChapterIndex].id,
+                    bookTitle: bookTitle,
+                    coverPath: coverPath,
+                    onJumpToChapter: (chId, _) {
+                      final idx = chapters.indexWhere((c) => c.id == chId);
+                      if (idx >= 0) {
+                        onChapterSelected(idx);
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => scrollToChapter(idx),
+                        );
+                      }
+                    },
+                  );
+                },
+                onClose: () => chromeNotifier.setCommandPaletteVisible(false),
+              ),
+            if (!chromeState.narrationPanelVisible)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: NarrationMiniPlayer(
                   bookTitle: bookTitle,
                   coverPath: coverPath,
-                  progress: progressNotifier,
-                  progressColor: settings.theme.resolve(colorScheme).accent,
-                  onListenTap: useSidePanels
+                  chapterTitle: chapters[currentChapterIndex].title,
+                  accent: settings.theme.resolve(colorScheme).accent,
+                  onExpand: useSidePanels
                       ? chromeNotifier.toggleNarrationPanel
                       : null,
                 ),
               ),
-            ),
-        ],
+            if (chromeState.chromeVisible)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: ReaderBarSurface(
+                  style: settings.chromeStyle,
+                  color: colorScheme.surfaceContainerHigh,
+                  child: ReaderChromeBar(
+                    title: chapters[currentChapterIndex].title,
+                    textColor: colorScheme.onSurface,
+                    onSettingsTap: onSettingsTap,
+                    onIntelligenceTap: onIntelligenceTap,
+                    onSearchTap: onSearchTap,
+                    onRedownload: onRedownload,
+                    isRedownloading: isRedownloading,
+                  ),
+                ),
+              ),
+            if (chromeState.chromeVisible)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: ReaderBarSurface(
+                  style: settings.chromeStyle,
+                  color: colorScheme.surfaceContainerHigh,
+                  child: ReaderBottomNav(
+                    textColor: colorScheme.onSurface,
+                    onSettingsTap: onSettingsTap,
+                    onChapterIndexTap: () => showChapterIndex(context),
+                    onBookmarkTap: onBookmarkToggle,
+                    isBookmarked: isBookmarked,
+                    onAnnotationsTap: () {
+                      ReaderAnnotationsSheet.show(
+                        context,
+                        bookId: chapters.first.bookId,
+                        chapters: chapters,
+                        currentChapterId: chapters[currentChapterIndex].id,
+                        bookTitle: bookTitle,
+                        coverPath: coverPath,
+                        onJumpToChapter: (chId, _) {
+                          final idx = chapters.indexWhere((c) => c.id == chId);
+                          if (idx >= 0) {
+                            onChapterSelected(idx);
+                            WidgetsBinding.instance.addPostFrameCallback(
+                              (_) => scrollToChapter(idx),
+                            );
+                          }
+                        },
+                      );
+                    },
+                    currentChapterTitle: chapters[currentChapterIndex].title,
+                    currentChapterNumber: currentChapterIndex,
+                    totalChapters: chapters.length,
+                    autoScrollActive: autoScrollActive.value,
+                    onAutoScrollToggle: toggleAutoScroll,
+                    bookTitle: bookTitle,
+                    coverPath: coverPath,
+                    progress: progressNotifier,
+                    progressColor: settings.theme.resolve(colorScheme).accent,
+                    onListenTap: useSidePanels
+                        ? chromeNotifier.toggleNarrationPanel
+                        : null,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -45,13 +45,18 @@ void main() {
       expect(q.cursor, 2);
     });
 
-    test('seekTo jumps and reports failure for invalid indexes', () {
+    test('seekTo jumps and clamps to valid range', () {
       final q = SpeechQueue([_item(0, 0), _item(0, 1)]);
       expect(q.seekTo(1), isTrue);
       expect(q.current!.text, 'p0 s1');
-      expect(q.seekTo(9), isFalse);
-      expect(q.seekTo(-1), isFalse);
+      // Out of bounds clamps to last valid index
+      expect(q.seekTo(9), isTrue);
+      expect(q.current!.text, 'p0 s1');
       expect(q.cursor, 1);
+      // Negative clamps to 0
+      expect(q.seekTo(-1), isTrue);
+      expect(q.current!.text, 'p0 s0');
+      expect(q.cursor, 0);
     });
 
     test('reset returns to the start', () {

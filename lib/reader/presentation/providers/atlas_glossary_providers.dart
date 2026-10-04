@@ -11,12 +11,21 @@ final atlasGlossaryRepositoryProvider = Provider<AtlasGlossaryRepository>((
   return const SharedPrefsAtlasGlossaryRepository();
 });
 
+/// Synchronous mirror of whether [atlasGlossaryProvider] is non-empty — defaults
+/// to false (empty). Used by reader fast-paths to skip async glossary lookups.
+final atlasGlossaryNotEmptySyncProvider = StateProvider.family<bool, String>((
+  ref,
+  bookId,
+) => false);
+
 /// The user's glossary entries for [bookId]. Watching this rebuilds the reader
 /// whenever a term changes, which is what makes the replacement apply at render
 /// time.
 final atlasGlossaryProvider =
-    FutureProvider.family<List<AtlasGlossaryEntry>, String>((ref, bookId) {
-      return ref.watch(atlasGlossaryRepositoryProvider).load(bookId);
+    FutureProvider.family<List<AtlasGlossaryEntry>, String>((ref, bookId) async {
+      final entries = await ref.watch(atlasGlossaryRepositoryProvider).load(bookId);
+      ref.read(atlasGlossaryNotEmptySyncProvider(bookId).notifier).state = entries.isNotEmpty;
+      return entries;
     });
 
 /// Mutation surface for the glossary. Callers invalidate
@@ -24,13 +33,14 @@ final atlasGlossaryProvider =
 final atlasGlossaryControllerProvider = Provider<AtlasGlossaryController>((
   ref,
 ) {
-  return AtlasGlossaryController(ref.watch(atlasGlossaryRepositoryProvider));
+  return AtlasGlossaryController(ref.watch(atlasGlossaryRepositoryProvider), ref);
 });
 
 class AtlasGlossaryController {
-  AtlasGlossaryController(this._repo);
+  AtlasGlossaryController(this._repo, [this._ref]);
 
   final AtlasGlossaryRepository _repo;
+  final Ref? _ref;
 
   /// Ensures [term] has a glossary entry carrying [replacement]. When an entry
   /// already exists for the term the replacement is added (or, if already one
@@ -68,6 +78,8 @@ class AtlasGlossaryController {
       );
     }
     await _repo.save(bookId, entries);
+    _ref?.read(atlasGlossaryNotEmptySyncProvider(bookId).notifier).state =
+        entries.isNotEmpty;
   }
 
   /// Adds another replacement option to an existing entry, leaving the active
@@ -88,6 +100,8 @@ class AtlasGlossaryController {
       replacements: [...entry.replacements, option],
     );
     await _repo.save(bookId, entries);
+    _ref?.read(atlasGlossaryNotEmptySyncProvider(bookId).notifier).state =
+        entries.isNotEmpty;
   }
 
   /// Makes entry [id] display its [activeIndex]-th replacement option.
@@ -112,5 +126,7 @@ class AtlasGlossaryController {
     ];
     if (updated.length == entries.length) return;
     await _repo.save(bookId, updated);
+    _ref?.read(atlasGlossaryNotEmptySyncProvider(bookId).notifier).state =
+        updated.isNotEmpty;
   }
 }

@@ -159,6 +159,43 @@ extension MarginPresetX on MarginPreset {
   };
 }
 
+/// Reader-only background pattern overlay. Painted via CustomPainter
+/// (no assets) so reader backgrounds stay distinct without APK bloat.
+/// Reader-only: stored in [ReadingSettingsEntity], not app ThemeData.
+enum ReaderPattern { none, paperGrain, linen, dots, grid, ruled, noise }
+
+extension ReaderPatternX on ReaderPattern {
+  String get label => switch (this) {
+    ReaderPattern.none => 'None',
+    ReaderPattern.paperGrain => 'Grain',
+    ReaderPattern.linen => 'Linen',
+    ReaderPattern.dots => 'Dots',
+    ReaderPattern.grid => 'Grid',
+    ReaderPattern.ruled => 'Ruled',
+    ReaderPattern.noise => 'Noise',
+  };
+
+  String get description => switch (this) {
+    ReaderPattern.none => 'Solid color',
+    ReaderPattern.paperGrain => 'Subtle paper fibers',
+    ReaderPattern.linen => 'Woven texture',
+    ReaderPattern.dots => 'Soft dotted',
+    ReaderPattern.grid => 'Light grid',
+    ReaderPattern.ruled => 'Ruled lines',
+    ReaderPattern.noise => 'Film grain',
+  };
+
+  IconData get icon => switch (this) {
+    ReaderPattern.none => Icons.block_rounded,
+    ReaderPattern.paperGrain => Icons.texture_rounded,
+    ReaderPattern.linen => Icons.view_module_rounded,
+    ReaderPattern.dots => Icons.grid_4x4_rounded,
+    ReaderPattern.grid => Icons.grid_on_rounded,
+    ReaderPattern.ruled => Icons.horizontal_rule_rounded,
+    ReaderPattern.noise => Icons.grain_rounded,
+  };
+}
+
 /// Drag gesture active zones for turning pages in page flip mode.
 enum PageFlipGestureZone {
   /// Turn from anywhere on the page (swipe across entire screen).
@@ -176,7 +213,8 @@ extension PageFlipGestureZoneX on PageFlipGestureZone {
 
   String get description => switch (this) {
     PageFlipGestureZone.fullScreen => 'Swipe anywhere to turn page',
-    PageFlipGestureZone.edgesOnly => 'Swipe from edges to turn, center is for text selection',
+    PageFlipGestureZone.edgesOnly =>
+      'Swipe from edges to turn, center is for text selection',
   };
 
   IconData get icon => switch (this) {
@@ -184,4 +222,3 @@ extension PageFlipGestureZoneX on PageFlipGestureZone {
     PageFlipGestureZone.edgesOnly => Icons.border_vertical,
   };
 }
-

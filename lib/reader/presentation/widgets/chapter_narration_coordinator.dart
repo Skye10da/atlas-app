@@ -39,21 +39,37 @@ class ChapterNarrationCoordinator {
     if (item == null || content.isEmpty) return null;
 
     final segments = const ChapterPositionResolver().paragraphsOf(content);
-    if (item.paragraphIndex >= segments.length) return null;
-    final para = segments[item.paragraphIndex];
-    final paraTrim = para.text.trim();
-    if (paraTrim.isEmpty) return null;
-    final paraOffsetInSeg = para.text.indexOf(paraTrim);
+    if (segments.isEmpty) return null;
 
-    final spans = const SentenceSplitter().splitParagraphSpans(paraTrim);
-    if (spans.isEmpty) return null;
-    final span = spans[item.sentenceIndex.clamp(0, spans.length - 1)];
-    final start = para.offset + paraOffsetInSeg + span.offset;
+    const splitter = SentenceSplitter();
 
-    if (content.startsWith(item.text, start)) return start;
+    int? tryParagraph(int pIdx) {
+      if (pIdx < 0 || pIdx >= segments.length) return null;
+      final para = segments[pIdx];
+      final paraTrim = para.text.trim();
+      if (paraTrim.isEmpty) return null;
+      final paraOffsetInSeg = para.text.indexOf(paraTrim);
 
-    final inParagraph = paraTrim.indexOf(item.text);
-    if (inParagraph >= 0) return para.offset + paraOffsetInSeg + inParagraph;
+      final spans = splitter.splitParagraphSpans(paraTrim);
+      if (spans.isEmpty) return null;
+      final span = spans[item.sentenceIndex.clamp(0, spans.length - 1)];
+      final start = para.offset + paraOffsetInSeg + span.offset;
+
+      if (content.startsWith(item.text, start)) return start;
+
+      final inParagraph = paraTrim.indexOf(item.text);
+      if (inParagraph >= 0) return para.offset + paraOffsetInSeg + inParagraph;
+      return null;
+    }
+
+    // Try direct index first
+    var result = tryParagraph(item.paragraphIndex);
+    if (result != null) return result;
+
+    // Try shifted index (accounting for prepended chapter title in SpeechSessionBuilder)
+    result = tryParagraph(item.paragraphIndex - 1);
+    if (result != null) return result;
+
     final anywhere = content.indexOf(item.text);
     return anywhere >= 0 ? anywhere : null;
   }
@@ -66,14 +82,26 @@ class ChapterNarrationCoordinator {
     if (item == null || content.isEmpty) return null;
 
     final segments = const ChapterPositionResolver().paragraphsOf(content);
-    if (item.paragraphIndex >= 0 && item.paragraphIndex < segments.length) {
-      final para = segments[item.paragraphIndex];
-      final paraTrim = para.text.trim();
-      if (paraTrim.isNotEmpty) {
-        final start = para.offset + para.text.indexOf(paraTrim);
-        return (start: start, end: start + paraTrim.length);
+    if (segments.isEmpty) return null;
+
+    ({int start, int end})? tryParagraph(int pIdx) {
+      if (pIdx >= 0 && pIdx < segments.length) {
+        final para = segments[pIdx];
+        final paraTrim = para.text.trim();
+        if (paraTrim.isNotEmpty) {
+          final start = para.offset + para.text.indexOf(paraTrim);
+          return (start: start, end: start + paraTrim.length);
+        }
       }
+      return null;
     }
+
+    // Try paragraphIndex, or paragraphIndex - 1 if title was prepended
+    var range = tryParagraph(item.paragraphIndex);
+    if (range == null && item.paragraphIndex - 1 >= 0) {
+      range = tryParagraph(item.paragraphIndex - 1);
+    }
+    if (range != null) return range;
 
     final speechOffset = resolveActiveSpeechOffset(
       item: item,

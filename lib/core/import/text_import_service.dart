@@ -49,18 +49,33 @@ class TextImportService {
   /// Prompts user to pick a TXT or Markdown file and imports it.
   Future<Result<String?>> pickAndImport() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['txt', 'text', 'md', 'markdown'],
-        withData: true,
-      );
+      final FilePickerResult? result;
+      // `markdown`/`text` have no MimeTypeMap entry on Android, so a
+      // custom filter would hide them. Use `any` on Android.
+      if (Platform.isAndroid) {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.any,
+          withData: true,
+        );
+      } else {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['txt', 'text', 'md', 'markdown'],
+          withData: true,
+        );
+      }
 
       if (result == null || result.files.isEmpty) {
         return const Success(null);
       }
 
       final file = result.files.first;
-      final bytes = file.bytes;
+      List<int>? bytes = file.bytes;
+      if (bytes == null && file.path != null) {
+        try {
+          bytes = await File(file.path!).readAsBytes();
+        } catch (_) {}
+      }
       if (bytes == null) {
         return const Failure(ValidationException('Could not read file'));
       }

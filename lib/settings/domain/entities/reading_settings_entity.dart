@@ -31,6 +31,10 @@ class ReadingSettingsEntity {
     this.chromeStyle = ReaderChromeStyle.translucent,
     this.themeMode = ThemeMode.system,
     this.desktopSheetPresentation = DesktopSheetPresentation.dialog,
+    this.enableBlockCards = true,
+    this.pattern = ReaderPattern.none,
+    this.customBackgroundColor,
+    this.patternOpacity = 0.08,
   });
 
   final String? systemFontFamily;
@@ -76,6 +80,21 @@ class ReadingSettingsEntity {
   final ReaderChromeStyle chromeStyle;
   final ThemeMode themeMode;
 
+  /// Whether to render detected BlockCards as themed widgets. When false,
+  /// chapter text is shown as plain prose (cards collapsed to fallback text).
+  final bool enableBlockCards;
+
+  /// Reader-only background pattern overlay. Painted via CustomPainter.
+  final ReaderPattern pattern;
+
+  /// Reader-only custom background color. When non-null, overrides
+  /// `theme.resolve(colors).background` when rendering reader surfaces.
+  final Color? customBackgroundColor;
+
+  /// Opacity of the pattern overlay (0.0 - 0.20). Only visible when
+  /// `pattern != none`.
+  final double patternOpacity;
+
   /// How sheets are presented on desktop-sized windows: floating centered
   /// dialogs or docked into the reader's right side panel.
   final DesktopSheetPresentation desktopSheetPresentation;
@@ -106,6 +125,11 @@ class ReadingSettingsEntity {
     ReaderChromeStyle? chromeStyle,
     ThemeMode? themeMode,
     DesktopSheetPresentation? desktopSheetPresentation,
+    bool? enableBlockCards,
+    ReaderPattern? pattern,
+    Color? customBackgroundColor,
+    double? patternOpacity,
+    bool clearCustomBackgroundColor = false,
   }) {
     return ReadingSettingsEntity(
       systemFontFamily: systemFontFamily ?? this.systemFontFamily,
@@ -137,6 +161,12 @@ class ReadingSettingsEntity {
       themeMode: themeMode ?? this.themeMode,
       desktopSheetPresentation:
           desktopSheetPresentation ?? this.desktopSheetPresentation,
+      enableBlockCards: enableBlockCards ?? this.enableBlockCards,
+      pattern: pattern ?? this.pattern,
+      customBackgroundColor: clearCustomBackgroundColor
+          ? null
+          : customBackgroundColor ?? this.customBackgroundColor,
+      patternOpacity: patternOpacity?.clamp(0.0, 0.20) ?? this.patternOpacity,
     );
   }
 }

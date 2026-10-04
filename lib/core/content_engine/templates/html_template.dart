@@ -646,15 +646,30 @@ class HtmlTemplate implements Template {
       return const [];
     }
     final trendingSelectors = selectors.trending!;
-    final path = trendingSelectors.path;
-    final uri = Uri.parse(context.plugin.baseUrl).replace(
-      path: path.startsWith('/') ? path : '/$path',
-    );
+    final rawPath = trendingSelectors.path;
+    final uri = _trendingUri(context.plugin.baseUrl, rawPath);
     final html = await context.transport.fetchHtml(
       uri,
       headers: context.plugin.requestHeaders,
     );
     final doc = parser.parse(html);
     return selectors.applyTrending(doc, baseUrl: context.plugin.baseUrl);
+  }
+
+  Uri _trendingUri(String baseUrl, String rawPath) {
+    // Support query string in trending path, e.g. "/rankings?rank=weekly".
+    final hasQuery = rawPath.contains('?');
+    if (!hasQuery) {
+      final path = rawPath.startsWith('/') ? rawPath : '/$rawPath';
+      return Uri.parse(baseUrl).replace(path: path);
+    }
+    final split = rawPath.split('?');
+    final pathPart = split[0];
+    final queryPart = split.length > 1 ? split[1] : '';
+    final path = pathPart.startsWith('/') ? pathPart : '/$pathPart';
+    final base = Uri.parse(baseUrl).replace(path: path);
+    if (queryPart.isEmpty) return base;
+    final params = Uri.splitQueryString(queryPart);
+    return base.replace(queryParameters: params);
   }
 }

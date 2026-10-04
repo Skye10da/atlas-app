@@ -28,8 +28,23 @@ class ChapterDownloadService {
     String bookId,
     int chapterIndex, {
     String? targetLanguage,
+    bool force = false,
   }) async {
     try {
+      if (!force) {
+        final chaptersResult = await readerRepo.getChapters(bookId);
+        if (chaptersResult is Success<List<ChapterEntity>>) {
+          final chapters = chaptersResult.value;
+          if (chapterIndex >= 0 && chapterIndex < chapters.length) {
+            final ch = chapters[chapterIndex];
+            final file = File(ch.contentPath);
+            if (file.existsSync() && file.lengthSync() > 0) {
+              return const Success(null);
+            }
+          }
+        }
+      }
+
       final bookResult = await readerRepo.getBookById(bookId);
       if (bookResult is! Success<BookEntity>) return bookResult;
       final book = bookResult.value;
@@ -139,7 +154,7 @@ class ChapterDownloadService {
     // Bypass any contentState check and force the source fetch + overwrite.
     // `downloadChapter` with `targetLanguage: null` fetches the original
     // source text and `updateChapterContent` handles version bump / checksum.
-    return downloadChapter(bookId, chapterIndex);
+    return downloadChapter(bookId, chapterIndex, force: true);
   }
 
   /// Bulk force-redownload — overwrites every chapter regardless of

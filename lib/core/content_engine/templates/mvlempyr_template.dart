@@ -39,6 +39,7 @@ class MvlempyrTemplate extends WordPressApiTemplate {
     PluginCapability.chapterList,
     PluginCapability.chapterContent,
     PluginCapability.cover,
+    PluginCapability.trending,
   };
 
   @override
@@ -47,6 +48,67 @@ class MvlempyrTemplate extends WordPressApiTemplate {
       PluginCapability.search,
       'MVLEMPYR does not expose site search',
     );
+  }
+
+  @override
+  Future<List<TrendingResult>> trending(PluginContext context) async {
+    // MVLEMPYR rankings are not in HTML — they are client-sorted JSON from
+    // chap.heliosarchive.online WP REST. Fetch top novel catalog and sort by
+    // weekly-rank (default) like the site's JS: Y = weekly-rank || 999999.
+    try {
+      final uri = restUri(context.plugin, '/mvl-novels', {
+        'per_page': '100',
+        'page': '1',
+      });
+      final value = await context.transport.fetchJson(
+        uri,
+        headers: context.plugin.requestHeaders,
+      );
+      final list = value is List ? value.whereType<Map>().toList() : <Map>[];
+      if (list.isEmpty) return const [];
+      // JS slices top 200 after sort; we slice top 30 for trending carousel.
+      list.sort((a, b) {
+        int rankOf(Map m) {
+          final w = m['weekly-rank'];
+          if (w is num) return w.toInt();
+          final r = m['rank'];
+          if (r is num) return r.toInt();
+          return 999999;
+        }
+
+        return rankOf(a).compareTo(rankOf(b));
+      });
+      final results = <TrendingResult>[];
+      for (final raw in list.take(30)) {
+        final name = raw['name'];
+        final slug = raw['slug'];
+        final code = raw['novel-code'];
+        if (name is! String || name.isEmpty || slug is! String || slug.isEmpty) {
+          continue;
+        }
+        results.add(TrendingResult(
+          title: name,
+          url: 'https://$_domain/novel/$slug',
+          coverUrl: code is String && code.isNotEmpty
+              ? 'https://$_assetsDomain/images/600/$code.webp'
+              : code is num
+                  ? 'https://$_assetsDomain/images/600/${code.toString()}.webp'
+                  : null,
+          author: raw['author-name'] is String ? raw['author-name'] as String : null,
+          rating: raw['average-review']?.toString(),
+          popularity: raw['weekly-rank'] is num
+              ? '⬆ #${raw['weekly-rank']}'
+              : '🔥 Trending',
+          genre: raw['genre'] is List && (raw['genre'] as List).isNotEmpty
+              ? (raw['genre'] as List).first.toString()
+              : null,
+          description: raw['synopsis-text'] is String ? raw['synopsis-text'] as String : null,
+        ));
+      }
+      return results;
+    } catch (_) {
+      return const [];
+    }
   }
 
   @override

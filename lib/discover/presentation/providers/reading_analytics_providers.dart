@@ -8,8 +8,8 @@ final readingAnalyticsServiceProvider = Provider<ReadingAnalyticsService>((ref) 
   return ReadingAnalyticsService(db: db);
 });
 
-final readingAnalyticsReportProvider =
-    FutureProvider<ReadingAnalyticsReport>((ref) async {
+final readingAnalyticsReportProvider = FutureProvider<ReadingAnalyticsReport>((ref) async {
+  ref.keepAlive();
   final service = ref.watch(readingAnalyticsServiceProvider);
   return service.getAnalyticsReport();
 });
@@ -18,4 +18,3 @@ final readingGoalProvider = FutureProvider<ReadingGoalEntity>((ref) async {
   final service = ref.watch(readingAnalyticsServiceProvider);
   return service.getGoal();
 });
-

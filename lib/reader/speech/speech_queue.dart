@@ -41,9 +41,11 @@ class SpeechQueue {
 
   /// Used on session restore (ASA §8, "Restore Queue") to jump straight to
   /// a checkpointed sentence index rather than replaying from the start.
+  /// Clamps index to valid range instead of returning false, ensuring
+  /// double-tap seek always lands somewhere valid.
   bool seekTo(int index) {
-    if (index < 0 || index >= _items.length) return false;
-    _cursor = index;
+    if (_items.isEmpty) return false;
+    _cursor = index.clamp(0, _items.length - 1);
     return true;
   }
 

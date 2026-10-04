@@ -23,6 +23,7 @@ analyzer:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
     - "**/*.drift.dart"
+    - "tool/**"
 
 custom_lint:
   rules:

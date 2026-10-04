@@ -15,6 +15,9 @@ import 'package:atlas_app/library/presentation/screens/library_screen.dart';
 import 'package:atlas_app/library/presentation/screens/novel_details_screen.dart';
 import 'package:atlas_app/library/presentation/screens/source_browser_screen.dart';
 import 'package:atlas_app/library/presentation/screens/source_search_screen.dart';
+import 'package:atlas_app/intelligence/domain/entities/reader_position.dart';
+import 'package:atlas_app/intelligence/presentation/chat/chat_screen.dart';
+import 'package:atlas_app/intelligence/presentation/settings/ai_provider_settings_screen.dart';
 import 'package:atlas_app/notifications/presentation/screens/notification_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/bookmarks_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/reader_screen.dart';
@@ -70,9 +73,68 @@ abstract final class AppRouter {
     }
   }
 
+  /// Opens the Story Intelligence Chat screen for a novel.
+  static void openStoryChat(
+    BuildContext context,
+    String bookId, {
+    int chapter = 1,
+  }) {
+    try {
+      context.push('/intelligence/chat/$bookId?chapter=$chapter');
+    } catch (_) {
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            bookId: bookId,
+            readerPosition: ReaderPosition(
+              bookId: bookId,
+              currentChapter: chapter,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Opens the AI Provider / BYOK configuration screen.
+  static void openAiSettings(BuildContext context) {
+    try {
+      context.push('/intelligence/settings');
+    } catch (_) {
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(
+          builder: (_) => const AiProviderSettingsScreen(),
+        ),
+      );
+    }
+  }
+
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
+    redirect: (context, state) {
+      // "/" has never been a valid location — send it to home instead of
+      // landing on the default error screen where "Go home" previously went
+      // to "/" and thus nowhere.
+      if (state.uri.path == '/') return '/discover';
+      // File-manager launches can surface the raw file path as a deep link
+      // (e.g. /509/folder/file.atlas). Never treat a filesystem path as a
+      // route — swallow it and land on the library; the file_open channel
+      // handles the import with a preview sheet.
+      final lower = state.uri.path.toLowerCase();
+      if (lower.endsWith('.atlas') ||
+          lower.endsWith('.epub') ||
+          lower.endsWith('.pdf') ||
+          lower.endsWith('.txt') ||
+          lower.endsWith('.md')) {
+        return '/library';
+      }
+      return null;
+    },
+    errorBuilder: (context, state) => _NotFoundScreen(
+      uri: state.uri.toString(),
+      error: state.error,
+    ),
     routes: [
       GoRoute(
         path: '/splash',
@@ -145,6 +207,7 @@ abstract final class AppRouter {
         path: '/dictionary',
         name: 'dictionary',
         parentNavigatorKey: _rootNavigatorKey,
+        redirect: (context, state) => '/search?tab=saved',
         pageBuilder: (context, state) => buildPageTransition(
           child: const DictionaryScreen(),
           key: state.pageKey,
@@ -174,6 +237,35 @@ abstract final class AppRouter {
             key: state.pageKey,
           );
         },
+      ),
+      GoRoute(
+        path: '/intelligence/chat/:bookId',
+        name: 'intelligenceChat',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final bookId = state.pathParameters['bookId']!;
+          final chStr = state.uri.queryParameters['chapter'];
+          final chapter = int.tryParse(chStr ?? '') ?? 1;
+          return buildPageTransition(
+            child: ChatScreen(
+              bookId: bookId,
+              readerPosition: ReaderPosition(
+                bookId: bookId,
+                currentChapter: chapter,
+              ),
+            ),
+            key: state.pageKey,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/intelligence/settings',
+        name: 'intelligenceSettings',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const AiProviderSettingsScreen(),
+          key: state.pageKey,
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -243,7 +335,11 @@ abstract final class AppRouter {
                 pageBuilder: (context, state) {
                   final query = state.uri.queryParameters['q'];
                   final tabStr = state.uri.queryParameters['tab'];
-                  final tabIndex = tabStr == 'dictionary' ? 1 : 0;
+                  final tabIndex = switch (tabStr) {
+                    'lookup' => 1,
+                    'saved' || 'dictionary' => 2,
+                    _ => 0,
+                  };
                   return buildPageTransition(
                     child: SearchScreen(
                       initialQuery: query,
@@ -287,5 +383,69 @@ abstract final class AppRouter {
       ),
     ],
   );
+}
+
+class _NotFoundScreen extends StatelessWidget {
+  const _NotFoundScreen({required this.uri, this.error});
+
+  final String uri;
+  final Exception? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Page not found')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.search_off_rounded, size: 56, color: cs.outline),
+              const SizedBox(height: 16),
+              Text(
+                'Page not found',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'No route for "$uri"',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: cs.onSurfaceVariant),
+                textAlign: TextAlign.center,
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  error.toString(),
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () => context.go('/discover'),
+                icon: const Icon(Icons.home_rounded),
+                label: const Text('Go to Home'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => context.go('/discover'),
+                child: const Text('Back to Discover'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 

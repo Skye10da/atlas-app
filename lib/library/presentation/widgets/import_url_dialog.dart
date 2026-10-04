@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +13,7 @@ import 'package:atlas_app/core/content_acquisition/models/content_category.dart'
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/content_acquisition/services/import_service.dart';
+import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/design_system/tokens/animation.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
@@ -280,12 +283,34 @@ class _ImportUrlSheet extends HookConsumerWidget {
       loading.value = true;
       error.value = null;
       try {
-        final result = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['epub', 'pdf', 'atlas', 'txt', 'text', 'md', 'markdown'],
-          allowMultiple: true,
-          withData: true,
-        );
+        // On Android MimeTypeMap has no entry for `.atlas`; a
+        // FileType.custom filter that includes `atlas` yields
+        // `Unsupported filter` and hides .atlas files from the picker
+        // (FileUtils.getMimeTypes skips the unknown extension). Fall back
+        // to FileType.any on Android and validate extensions in Dart.
+        final FilePickerResult? result;
+        if (Platform.isAndroid) {
+          result = await FilePicker.platform.pickFiles(
+            type: FileType.any,
+            allowMultiple: true,
+            withData: true,
+          );
+        } else {
+          result = await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: [
+              'epub',
+              'pdf',
+              'atlas',
+              'txt',
+              'text',
+              'md',
+              'markdown',
+            ],
+            allowMultiple: true,
+            withData: true,
+          );
+        }
         if (!context.mounted) return;
         if (result == null || result.files.isEmpty) {
           loading.value = false;
@@ -302,11 +327,19 @@ class _ImportUrlSheet extends HookConsumerWidget {
           final total = result.files.length;
           for (int i = 0; i < total; i++) {
             final file = result.files[i];
-            final bytes = file.bytes;
+            List<int>? bytes = file.bytes;
+            if (bytes == null && file.path != null) {
+              try {
+                bytes = await File(file.path!).readAsBytes();
+              } catch (_) {}
+            }
             if (bytes != null) {
               progress.value = (i / total);
-              await importer.importBytes(bytes, file.name);
-              importedCount++;
+              final importResult = await importer.importBytes(
+                bytes,
+                file.name,
+              );
+              if (importResult is Success<ImportOutcome>) importedCount++;
             }
           }
           progress.value = 1.0;
@@ -329,7 +362,12 @@ class _ImportUrlSheet extends HookConsumerWidget {
         }
 
         final file = result.files.first;
-        final bytes = file.bytes;
+        List<int>? bytes = file.bytes;
+        if (bytes == null && file.path != null) {
+          try {
+            bytes = await File(file.path!).readAsBytes();
+          } catch (_) {}
+        }
         if (bytes == null) {
           error.value = 'Could not read file';
           loading.value = false;

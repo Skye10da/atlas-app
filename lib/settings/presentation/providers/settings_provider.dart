@@ -219,4 +219,35 @@ class ReadingSettingsNotifier
     state = AsyncData(updated);
     await _repo.save(updated);
   }
+
+  Future<void> setEnableBlockCards(bool enabled) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(enableBlockCards: enabled);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setReaderPattern(ReaderPattern pattern) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(pattern: pattern);
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setPatternOpacity(double opacity) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(patternOpacity: opacity.clamp(0.0, 0.20));
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
+
+  Future<void> setCustomBackgroundColor(Color? color) async {
+    final current = state.valueOrNull ?? const ReadingSettingsEntity();
+    final updated = current.copyWith(
+      customBackgroundColor: color,
+      clearCustomBackgroundColor: color == null,
+    );
+    state = AsyncData(updated);
+    await _repo.save(updated);
+  }
 }

@@ -16,7 +16,7 @@ class SplashScreen extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Ink bloom controller (0 -> 400ms)
+    // 1. Ink bluv  oom controller (0 -> 400ms)
     final inkController = useAnimationController(
       duration: const Duration(milliseconds: 450),
     );

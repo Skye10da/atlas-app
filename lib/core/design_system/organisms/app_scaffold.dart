@@ -17,21 +17,31 @@ class AppShell extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final sidebarCollapsed = useState(false);
-    final width = MediaQuery.sizeOf(context).width;
-    final isDesktop = width >= AppBreakpoints.tablet;
-    final isBigDesktop = width >= AppBreakpoints.largeDesktop;
-    final isTablet = width >= AppBreakpoints.mobile && !isDesktop;
+    // Responsive by available window constraints, not physical device.
+    // Fixes "always expanding even when content does not cover everything":
+    // short content now wraps naturally and stays centered via ConstrainedBox,
+    // long content still scrolls lazily via inner ListView.builder.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        // Use width only (skill: MediaQuery.sizeOf for window, LayoutBuilder for parent)
+        // to support resizable Windows, multi-window, foldables.
+        final isDesktop = width >= AppBreakpoints.desktop;
+        final isBigDesktop = width >= AppBreakpoints.largeDesktop;
+        final isTablet = width >= AppBreakpoints.mobile && width < AppBreakpoints.desktop;
 
-    if (isDesktop) {
-      return _buildDesktopLayout(context, isBigDesktop, sidebarCollapsed);
-    }
-    if (isTablet) {
-      return _buildTabletLayout(context);
-    }
-    return _buildMobileLayout(context);
+        if (isDesktop) {
+          return _buildDesktopLayout(context, isBigDesktop, sidebarCollapsed, constraints);
+        }
+        if (isTablet) {
+          return _buildTabletLayout(context, constraints);
+        }
+        return _buildMobileLayout(context, constraints);
+      },
+    );
   }
 
-  Widget _buildDesktopLayout(BuildContext context, bool isBigDesktop, ValueNotifier<bool> sidebarCollapsed) {
+  Widget _buildDesktopLayout(BuildContext context, bool isBigDesktop, ValueNotifier<bool> sidebarCollapsed, BoxConstraints constraints) {
     final cs = Theme.of(context).colorScheme;
     final sidebarWidth = isBigDesktop && !sidebarCollapsed.value ? 260.0 : 72.0;
 
@@ -58,10 +68,24 @@ class AppShell extends HookWidget {
             width: 1,
             color: cs.outlineVariant.withValues(alpha: 0.5),
           ),
-          Expanded(
+          // Content-driven: not always Expanded — short content wraps naturally,
+          // long content scrolls lazily. Align topCenter + ConstrainedBox caps width
+          // on large screens without stretching height.
+          Flexible(
+            fit: FlexFit.loose,
             child: Stack(
               children: [
-                Positioned.fill(child: navigationShell),
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: AppBreakpoints.readerContentMaxWidth,
+                      ),
+                      child: navigationShell,
+                    ),
+                  ),
+                ),
                 const Positioned(
                   left: AppSpacing.md,
                   right: AppSpacing.md,
@@ -76,7 +100,7 @@ class AppShell extends HookWidget {
     );
   }
 
-  Widget _buildTabletLayout(BuildContext context) {
+  Widget _buildTabletLayout(BuildContext context, BoxConstraints constraints) {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -124,10 +148,21 @@ class AppShell extends HookWidget {
             width: 1,
             color: cs.outlineVariant.withValues(alpha: 0.5),
           ),
-          Expanded(
+          Flexible(
+            fit: FlexFit.loose,
             child: Stack(
               children: [
-                Positioned.fill(child: navigationShell),
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: AppBreakpoints.readerContentMaxWidth,
+                      ),
+                      child: navigationShell,
+                    ),
+                  ),
+                ),
                 const Positioned(
                   left: AppSpacing.md,
                   right: AppSpacing.md,
@@ -142,16 +177,30 @@ class AppShell extends HookWidget {
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context) {
+  Widget _buildMobileLayout(BuildContext context, BoxConstraints constraints) {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: cs.surface,
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(child: navigationShell),
-          // System-wide narration mini player sitting directly above bottom bar
-          const NarrationMiniPlayer(),
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.formContentMaxWidth,
+                ),
+                child: navigationShell,
+              ),
+            ),
+          ),
+          const Positioned(
+            left: AppSpacing.md,
+            right: AppSpacing.md,
+            bottom: AppSpacing.sm,
+            child: NarrationMiniPlayer(),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(

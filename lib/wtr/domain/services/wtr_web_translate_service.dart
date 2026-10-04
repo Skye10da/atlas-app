@@ -61,6 +61,16 @@ class WtrWebTranslateService {
               ? translated[i]
               : null;
         }
+      } on TransportException catch (e) {
+        // Network / timeout / offline — remaining chunks will also fail, so
+        // bail immediately and return original paragraphs for every untranslated
+        // chunk instead of hanging on each one in sequence.
+        if (e.isTransient) break;
+        // Non-transient (e.g. bad response format): keep original for this
+        // chunk only and try the next one.
+        for (var i = 0; i < chunk.paragraphs.length; i++) {
+          result[chunk.offset + i] = null;
+        }
       } on Object {
         // Keep the original text for this chunk.
         for (var i = 0; i < chunk.paragraphs.length; i++) {

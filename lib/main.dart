@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
+
+import 'package:path/path.dart' as p;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +18,8 @@ import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/file_open_providers.dart';
 import 'package:atlas_app/core/import/opened_file_import_service.dart';
 import 'package:atlas_app/core/router/app_router.dart';
+import 'package:atlas_app/library/presentation/providers/library_provider.dart';
+import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 import 'package:atlas_app/core/services/window_theme_channel.dart';
 import 'package:atlas_app/core/theme/app_theme.dart';
 import 'package:atlas_app/core/theme/local_fonts.dart';
@@ -22,6 +27,7 @@ import 'package:atlas_app/notifications/infrastructure/background_update_check.d
 import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
 import 'package:atlas_app/notifications/presentation/providers/update_check_settings_provider.dart';
 import 'package:atlas_app/notifications/infrastructure/update_check_settings_store.dart';
+import 'package:atlas_app/reader/presentation/providers/lockscreen_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
@@ -99,7 +105,18 @@ class AtlasApp extends ConsumerWidget {
 
     ref.read(pluginSourcesProvider);
     ref.read(taskSchedulerProvider).start();
-    ref.read(speechStartupProvider);
+    try {
+      ref.read(speechStartupProvider);
+    } catch (_) {}
+    // Lockscreen music notification widget — mobile (MediaStyle) + desktop (SMTC/MPRIS)
+    // Keeps ViewModel alive so SpeechEvents → LockscreenRepository → audio_service
+    try {
+      ref.read(lockscreenViewModelProvider);
+    } catch (_) {}
+    // Sherpa ONNX is lazy-initialized only when an offline voice pack is
+    // actually selected (OfflineNeuralDriver._ensureSherpaInit). Eager init
+    // here was crashing Windows at startup (missing VC++ runtime / DLL load
+    // failure propagates as unhandled native exception) — do not init here.
     // Wires the platform-backed WTR-Lab runtime (SharedPreferences preference
     // store + WebView-cookie session) and restores the persisted auth state so
     // reading starts authenticated-aware.
@@ -145,6 +162,14 @@ class AtlasApp extends ConsumerWidget {
     OpenedFileImportService importer,
     String path,
   ) async {
+    // Try preview-confirm flow like the file picker: read bytes, show the
+    // import sheet with a NovelModel preview, let the user confirm. If no
+    // BuildContext is available yet (very early cold start) fall back to
+    // silent auto-import then navigate to the novel details page.
+    final handled = await _tryPreviewImport(ref, importer, path);
+    if (handled) return;
+
+    // Silent fallback (no context or preview failed).
     final result = await importer.import(path);
     switch (result) {
       case Success(value: final outcome):
@@ -154,19 +179,138 @@ class AtlasApp extends ConsumerWidget {
     }
   }
 
+  /// Shows the confirmation sheet when a context is available. Returns true
+  /// if the sheet took over (navigation already handled), false to fall back
+  /// to silent import.
+  Future<bool> _tryPreviewImport(
+    WidgetRef ref,
+    OpenedFileImportService importer,
+    String path,
+  ) async {
+    // Wait briefly for a navigator context on cold start.
+    BuildContext? ctx;
+    for (var i = 0; i < 10; i++) {
+      ctx = AppRouter.rootNavigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) break;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      ctx = AppRouter.rootNavigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) break;
+    }
+    if (ctx == null || !ctx.mounted) return false;
+
+    try {
+      final file = File(path);
+      if (!await file.exists()) return false;
+      final bytes = await file.readAsBytes();
+      final fileName = p.basename(path);
+      final ext = p.extension(fileName).toLowerCase();
+      if (!['.atlas', '.epub', '.pdf', '.txt', '.text', '.md', '.markdown']
+          .contains(ext)) {
+        return false;
+      }
+      if (!ctx.mounted) return false;
+
+      // Build preview model without importing, mirroring import_url_dialog pickFile.
+      final preview = await _extractPreviewForBytes(ref, bytes, fileName);
+      if (preview == null) return false;
+      if (!ctx.mounted) return false;
+
+      final outcome = await showImportUrlSheet(
+        ctx,
+        mode: ImportSheetMode.combined,
+        title: 'Add to library',
+        previewModel: preview,
+        onImport: (b, f, url, onProgress) async {
+          final useBytes = b ?? bytes;
+          final useName = f ?? fileName;
+          onProgress(0.1);
+          final res = await importer.importBytes(useBytes, useName);
+          onProgress(1.0);
+          // Clean up the sandbox copy after a preview import (importBytes does not).
+          if (importer.shouldDeleteTempCopy(path)) {
+            try {
+              await File(path).delete();
+            } catch (_) {}
+          }
+          if (res is Success<ImportOutcome>) return res.value;
+          if (res is Failure<ImportOutcome>) throw res.error;
+          throw Exception('Import cancelled');
+        },
+      );
+
+      if (outcome != null) {
+        await _navigateImported(outcome);
+      } else {
+        // User dismissed sheet without importing — still clean up temp copy.
+        if (importer.shouldDeleteTempCopy(path)) {
+          try {
+            await File(path).delete();
+          } catch (_) {}
+        }
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<dynamic> _extractPreviewForBytes(
+    WidgetRef ref,
+    List<int> bytes,
+    String fileName,
+  ) async {
+    final lower = fileName.toLowerCase();
+    try {
+      if (lower.endsWith('.atlas')) {
+        final svc = ref.read(atlasSourceImportServiceProvider);
+        return await svc.extractMetadata(bytes, fileName);
+      } else if (lower.endsWith('.pdf')) {
+        final svc = ref.read(pdfImportServiceProvider);
+        return await svc.extractMetadata(bytes, fileName);
+      } else if (lower.endsWith('.txt') ||
+          lower.endsWith('.text') ||
+          lower.endsWith('.md') ||
+          lower.endsWith('.markdown')) {
+        final svc = ref.read(textImportServiceProvider);
+        return await svc.extractMetadata(bytes, fileName);
+      } else {
+        final svc = ref.read(libraryImportServiceProvider);
+        return await svc.extractMetadata(bytes, fileName);
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _navigateImported(ImportOutcome outcome) async {
     final route = outcome.category == ContentCategory.novel
         ? '/novel/${outcome.bookId}'
         : '/book/${outcome.bookId}';
-    // Retry once in case the navigator isn't mounted yet on a cold-start open.
-    for (var attempt = 0; attempt < 2; attempt++) {
+    // Retry in case the navigator isn't mounted yet on a cold-start open.
+    for (var attempt = 0; attempt < 3; attempt++) {
       try {
-        await AppRouter.router.push(route);
+        // ignore: unawaited_futures
+        AppRouter.router.push(route);
         return;
       } catch (_) {
-        await Future<void>.delayed(const Duration(milliseconds: 250));
+        // GoException when route isn't ready — try go() next.
+        try {
+          AppRouter.router.go(route);
+          return;
+        } catch (_) {}
+        await Future<void>.delayed(const Duration(milliseconds: 300));
       }
     }
+    // Last resort: direct Navigator on the root key.
+    try {
+      final ctx = AppRouter.rootNavigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        // ignore: use_build_context_synchronously
+        AppRouter.router.go(route);
+        return;
+      }
+    } catch (_) {}
+    _showToast('Imported — open it from your library.');
   }
 
   void _showToast(String message) {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -10,15 +11,21 @@ import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
-import 'package:atlas_app/core/services/platform_service_provider.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_system_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/annotations_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_chrome_provider.dart';
+import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
+import 'package:atlas_app/reader/presentation/widgets/block_card_widget.dart';
+import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_background.dart';
+import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
+import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
 import 'package:atlas_app/reader/presentation/utils/pager_boundary.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
@@ -39,10 +46,8 @@ import 'package:atlas_app/reader/presentation/widgets/reader_chrome_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_command_palette.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_edge_regions.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_right_panel.dart';
-import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
-import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 
 class PagedReaderLayout extends HookConsumerWidget {
   const PagedReaderLayout({
@@ -56,6 +61,7 @@ class PagedReaderLayout extends HookConsumerWidget {
     required this.onProgressChanged,
     required this.onChapterSelected,
     required this.onSettingsTap,
+    this.onIntelligenceTap,
     this.onSearchTap,
     this.onRedownload,
     this.isRedownloading = false,
@@ -83,6 +89,7 @@ class PagedReaderLayout extends HookConsumerWidget {
   final void Function(double progress) onProgressChanged;
   final void Function(int chapterIndex) onChapterSelected;
   final VoidCallback onSettingsTap;
+  final VoidCallback? onIntelligenceTap;
   final VoidCallback? onSearchTap;
   final VoidCallback? onRedownload;
   final bool isRedownloading;
@@ -142,6 +149,7 @@ class PagedReaderLayout extends HookConsumerWidget {
     final paginationEpoch = useRef(0);
     final chunkedOffset = useRef<Map<int, int>>({});
     final chunkedAccumulator = useRef<Map<int, List<String>>>({});
+    final cardPageMap = useRef<Map<int, Map<int, BlockCard>>>({});
 
     final updateTrigger = useState(0);
     void triggerUiUpdate() {
@@ -350,8 +358,9 @@ class PagedReaderLayout extends HookConsumerWidget {
     void applyBrightness(double newBrightness) {
       final notifier = ref.read(readingSettingsProvider.notifier);
       notifier.setBrightness(newBrightness);
-      final svc = ref.read(platformServiceProvider);
-      svc.setBrightness(newBrightness, smooth: true);
+      ref
+          .read(readerSystemControllerProvider)
+          .applyBrightnessDebounced(newBrightness);
     }
 
     void clampInnerAfterRepagination(int chapterIdx) {
@@ -392,6 +401,93 @@ class PagedReaderLayout extends HookConsumerWidget {
       if (epoch != paginationEpoch.value || !context.mounted) {
         paginationInFlight.value.remove(index);
         return;
+      }
+      // BlockCard: if enabled and spans contain cards, build card-interleaved pages.
+      final enableCards =
+          ref.read(readingSettingsProvider).valueOrNull?.enableBlockCards ??
+          true;
+      if (enableCards) {
+        final spans = ref.read(chapterBlockCardSpansProvider(chapters[index]));
+        final hasCards = spans.any((s) => s.isCard);
+        if (hasCards) {
+          final colorScheme2 = Theme.of(context).colorScheme;
+          final s2 = settings;
+          final horizontalMargin2 = s2.horizontalPadding;
+          final verticalMargin2 = switch (s2.marginPreset) {
+            MarginPreset.narrow => AppSpacing.sm,
+            MarginPreset.normal => AppSpacing.md,
+            MarginPreset.wide => AppSpacing.lg,
+          };
+          final rawHeight2 = layoutHeight.value > 0
+              ? layoutHeight.value
+              : MediaQuery.sizeOf(context).height;
+          final width2 = pageWidthForCurrentMode();
+          final pWidth2 = width2 - horizontalMargin2 * 2;
+          final pHeight2 = rawHeight2 - verticalMargin2 * 2;
+          final baseStyle2 = TextStyle(
+            fontSize: s2.fontSize,
+            height: s2.lineHeight,
+            letterSpacing: s2.letterSpacing,
+            color: s2.theme.resolve(colorScheme2).text,
+            fontWeight: s2.fontWeight != null
+                ? FontWeight(s2.fontWeight!)
+                : null,
+          );
+          final textStyle2 = s2.fontFamily != null
+              ? baseStyle2.copyWith(fontFamily: s2.fontFamily)
+              : baseStyle2;
+          final List<String> pages = [];
+          final Map<int, BlockCard> map = {};
+          String proseBuffer = '';
+          void flushProseBuffer() {
+            if (proseBuffer.trim().isEmpty) {
+              proseBuffer = '';
+              return;
+            }
+            final chunkPages = Pager.paginate(
+              text: proseBuffer,
+              textStyle: textStyle2,
+              pageWidth: pWidth2,
+              pageHeight: pHeight2,
+            );
+            pages.addAll(chunkPages);
+            proseBuffer = '';
+          }
+
+          for (final span in spans) {
+            if (!span.isCard) {
+              final prose = span.prose ?? '';
+              if (prose.trim().isEmpty) continue;
+              if (proseBuffer.isNotEmpty) proseBuffer += '\n\n';
+              proseBuffer += prose;
+            } else {
+              flushProseBuffer();
+              final card = span.card!;
+              final marker = '\uE000BLOCKCARD:${card.hashCode}\uE001';
+              map[pages.length] = card;
+              pages.add(marker);
+            }
+          }
+          flushProseBuffer();
+          if (pages.isEmpty) pages.add('');
+          pageCache.value[index] = List.unmodifiable(pages);
+          cardPageMap.value[index] = map;
+          paginationInFlight.value.remove(index);
+          chunkedOffset.value.remove(index);
+          chunkedAccumulator.value.remove(index);
+          evictDistantCaches();
+          ref.read(chapterLoadPhaseProvider(chapters[index]).notifier).state =
+              ChapterLoadPhase.done;
+          if (context.mounted) {
+            clampInnerAfterRepagination(index);
+            if (index == chapterIndex.value) {
+              updateProgress();
+              if (!restorePending.value) reportPositionFromCurrentPage();
+            }
+            triggerUiUpdate();
+          }
+          return;
+        }
       }
       final colorScheme = Theme.of(context).colorScheme;
       final s = settings;
@@ -522,8 +618,16 @@ class PagedReaderLayout extends HookConsumerWidget {
           failedChapters.value.contains(index)) {
         return;
       }
-      loadedChapters.value.add(index);
       final chapter = chapters[index];
+      // Offline-safe: never trigger network for a chapter not cached on disk.
+      if (!File(chapter.contentPath).existsSync()) {
+        loadedChapters.value.remove(index);
+        if (context.mounted) {
+          failedChapters.value = {...failedChapters.value, index};
+        }
+        return;
+      }
+      loadedChapters.value.add(index);
       final cached = ref.read(readerChapterContentProvider(chapter));
       cached.whenOrNull(
         data: (content) => WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -554,8 +658,9 @@ class PagedReaderLayout extends HookConsumerWidget {
     void scheduleNeighborPrefetch(int currentIndex, int chapterCount) {
       if (neighborPrefetchScheduledFor.value == currentIndex) return;
       neighborPrefetchScheduledFor.value = currentIndex;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!context.mounted) return;
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!context.mounted || isDisposed.value) return;
+        if (chapterIndex.value != currentIndex) return;
         if (currentIndex > 0) ensureChapterLoaded(currentIndex - 1);
         if (currentIndex < chapterCount - 1) {
           ensureChapterLoaded(currentIndex + 1);
@@ -567,12 +672,7 @@ class PagedReaderLayout extends HookConsumerWidget {
       if (chapterIdx == chapterIndex.value) return;
       chapterIndex.value = chapterIdx;
       ensureChapterLoaded(chapterIdx);
-      if (chapterIdx + 1 < chapters.length) {
-        ensureChapterLoaded(chapterIdx + 1);
-      }
-      if (chapterIdx > 0) {
-        ensureChapterLoaded(chapterIdx - 1);
-      }
+      scheduleNeighborPrefetch(chapterIdx, chapters.length);
       reportPositionFromCurrentPage();
       onPageChanged(chapterIdx);
       updateProgress();
@@ -852,6 +952,64 @@ class PagedReaderLayout extends HookConsumerWidget {
       final isFirstOfChapter = clampedPage == 0;
       final isLastOfChapter = clampedPage == pages.length - 1;
       final chapter = chList[chIdx];
+      final card = cardPageMap.value[chIdx]?[clampedPage];
+      if (card != null) {
+        final readingColors = settings.theme.resolve(cs);
+        final vPad = switch (settings.marginPreset) {
+          MarginPreset.narrow => AppSpacing.sm,
+          MarginPreset.normal => AppSpacing.md,
+          MarginPreset.wide => AppSpacing.lg,
+        };
+        final hPad = settings.horizontalPadding;
+        return GestureDetector(
+          onTap: handlePageTextTap,
+          child: ReaderBackground(
+            colors: readingColors,
+            customColor: settings.customBackgroundColor,
+            pattern: settings.pattern,
+            patternOpacity: settings.patternOpacity,
+            child: Column(
+              children: [
+                if (isFirstOfChapter && showHeaders)
+                  ChapterHeaderBanner(
+                    chapterNumber: chIdx + 1,
+                    title: chapter.title,
+                    style: ChapterStyle.forChapter(chIdx, cs),
+                  ),
+                if (isFirstOfChapter && showHeaders)
+                  ChapterOrnamentalDivider(
+                    accentColor: ChapterStyle.forChapter(chIdx, cs).accentColor,
+                    verticalPadding: 4,
+                  ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: hPad,
+                      vertical: vPad,
+                    ),
+                    child: BlockCardWidget(
+                      card: card,
+                      colors: readingColors,
+                      fontSize: settings.fontSize,
+                      bookId: chapter.bookId,
+                    ),
+                  ),
+                ),
+                if (isLastOfChapter && showHeaders)
+                  ChapterOrnamentalDivider(
+                    accentColor: ChapterStyle.forChapter(chIdx, cs).accentColor,
+                  ),
+                if (isLastOfChapter && showHeaders)
+                  ChapterEndFooter(
+                    chapterNumber: chIdx + 1,
+                    textColor: readingColors.text,
+                    baseFontSize: settings.fontSize,
+                  ),
+              ],
+            ),
+          ),
+        );
+      }
 
       return PagedPageView(
         content: content,
@@ -884,6 +1042,9 @@ class PagedReaderLayout extends HookConsumerWidget {
         vt: rvt,
         showHeaders: showHeaders,
         chapterStyle: ChapterStyle.forChapter(chIdx, cs),
+        customBackgroundColor: settings.customBackgroundColor,
+        pattern: settings.pattern,
+        patternOpacity: settings.patternOpacity,
         onHighlight: onHighlight,
         onAddNote: onAddNote,
         onShare: onShare,
@@ -1240,7 +1401,9 @@ class PagedReaderLayout extends HookConsumerWidget {
     }) {
       final pages = pageCache.value[chIdx];
       if (pages == null || pages.isEmpty) {
-        ensureChapterLoaded(chIdx);
+        if (chIdx == chapterIndex.value) {
+          ensureChapterLoaded(chIdx);
+        }
         return buildChapterLoadingState(chIdx, rvt, showHeaders: true, cs: cs);
       }
       return ChapterPager(
@@ -1304,7 +1467,9 @@ class PagedReaderLayout extends HookConsumerWidget {
 
     if (!contentCache.value.containsKey(currentIndex)) {
       return Scaffold(
-        backgroundColor: vt.resolve(colorScheme).background,
+        backgroundColor:
+            settings.customBackgroundColor ??
+            vt.resolve(colorScheme).background,
         extendBodyBehindAppBar: true,
         appBar: ReaderBarSurface(
           style: settings.chromeStyle,
@@ -1368,7 +1533,8 @@ class PagedReaderLayout extends HookConsumerWidget {
         AppSheet.desktopPresentation == DesktopSheetPresentation.sidePanel;
 
     return Scaffold(
-      backgroundColor: vt.resolve(colorScheme).background,
+      backgroundColor:
+          settings.customBackgroundColor ?? vt.resolve(colorScheme).background,
       extendBodyBehindAppBar: true,
       extendBody: true,
       body: LayoutBuilder(
@@ -1525,6 +1691,7 @@ class PagedReaderLayout extends HookConsumerWidget {
                       title: chapters[currentIndex].title,
                       textColor: colorScheme.onSurface,
                       onSettingsTap: onSettingsTap,
+                      onIntelligenceTap: onIntelligenceTap,
                       onSearchTap: onSearchTap,
                       onRedownload: onRedownload,
                       isRedownloading: isRedownloading,

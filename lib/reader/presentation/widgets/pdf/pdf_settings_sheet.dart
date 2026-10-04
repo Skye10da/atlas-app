@@ -87,6 +87,75 @@ class PdfSettingsSheet extends ConsumerWidget {
             const SizedBox(height: AppSpacing.lg),
             const Divider(),
             const SizedBox(height: AppSpacing.sm),
+            Text('Display & Brightness', style: textTheme.labelLarge),
+            const SizedBox(height: AppSpacing.xs),
+            SettingsGroup(
+              children: [
+                SwitchTile(
+                  title: 'Follow system brightness',
+                  subtitle: 'Use device system brightness setting',
+                  value: settings.followSystemBrightness,
+                  onChanged: notifier.setFollowSystemBrightness,
+                ),
+                if (!settings.followSystemBrightness)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Brightness',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            Text(
+                              '${(settings.brightness * 100).round()}%',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            const Icon(Icons.brightness_low, size: 18),
+                            Expanded(
+                              child: Slider(
+                                value: settings.brightness.clamp(0.0, 1.0),
+                                min: 0.0,
+                                max: 1.0,
+                                divisions: 20,
+                                onChanged: notifier.setBrightness,
+                              ),
+                            ),
+                            const Icon(Icons.brightness_high, size: 18),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                SwitchTile(
+                  title: 'Keep screen awake',
+                  subtitle: 'Prevent the screen from turning off while reading',
+                  value: settings.keepScreenAwake,
+                  onChanged: notifier.setKeepScreenAwake,
+                ),
+                SwitchTile(
+                  title: 'Auto dim on low battery',
+                  subtitle: 'Reduce brightness when battery is low',
+                  value: settings.autoOptimizeBrightness,
+                  onChanged: notifier.setAutoOptimizeBrightness,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
             Text('Options & Sensory', style: textTheme.labelLarge),
             const SizedBox(height: AppSpacing.xs),
             SettingsGroup(
@@ -102,12 +171,6 @@ class PdfSettingsSheet extends ConsumerWidget {
                   subtitle: 'Feel physical paper vibrations during swipe',
                   value: settings.enablePageFlipHaptics,
                   onChanged: notifier.setPageFlipHaptics,
-                ),
-                SwitchTile(
-                  title: 'Keep screen awake',
-                  subtitle: 'Prevent the screen from turning off while reading',
-                  value: settings.keepScreenAwake,
-                  onChanged: notifier.setKeepScreenAwake,
                 ),
               ],
             ),

@@ -386,23 +386,42 @@ class _SettingsTab extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              Text('Brightness', style: textTheme.labelSmall),
-              Row(
-                children: [
-                  const Icon(Icons.brightness_low, size: 16),
-                  Expanded(
-                    child: Slider(
-                      value: settings.brightness,
-                      min: 0.0,
-                      max: 1.0,
-                      divisions: 20,
-                      label: settings.brightness.toStringAsFixed(2),
-                      onChanged: (v) => notifier.setBrightness(v),
-                    ),
-                  ),
-                  const Icon(Icons.brightness_high, size: 16),
-                ],
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text(
+                  'Follow system brightness',
+                  style: TextStyle(fontSize: 13),
+                ),
+                value: settings.followSystemBrightness,
+                onChanged: (v) => notifier.setFollowSystemBrightness(v),
               ),
+              if (!settings.followSystemBrightness) ...[
+                Text('Brightness', style: textTheme.labelSmall),
+                Row(
+                  children: [
+                    const Icon(Icons.brightness_low, size: 16),
+                    Expanded(
+                      child: Slider(
+                        value: settings.brightness,
+                        min: 0.0,
+                        max: 1.0,
+                        divisions: 20,
+                        label: settings.brightness.toStringAsFixed(2),
+                        onChanged: (v) => notifier.setBrightness(v),
+                      ),
+                    ),
+                    const Icon(Icons.brightness_high, size: 16),
+                  ],
+                ),
+              ] else
+                const Padding(
+                  padding: EdgeInsets.only(top: 2, bottom: 6),
+                  child: Text(
+                    'Using device system brightness',
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ),
               const SizedBox(height: AppSpacing.sm),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

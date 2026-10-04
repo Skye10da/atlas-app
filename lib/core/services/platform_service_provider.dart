@@ -14,6 +14,15 @@ final platformServiceProvider = Provider<PlatformService>((ref) {
   return ScreenBrightnessService();
 });
 
+final nativeBrightnessAvailableProvider = FutureProvider<bool>((ref) async {
+  final svc = ref.watch(platformServiceProvider);
+  try {
+    return await svc.canControlNativeBrightness;
+  } catch (_) {
+    return false;
+  }
+});
+
 final stubPlatformServiceProvider = Provider<PlatformService>((ref) {
   return StubPlatformService();
 });

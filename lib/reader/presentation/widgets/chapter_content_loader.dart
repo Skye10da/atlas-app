@@ -38,6 +38,7 @@ class ChapterContentLoader extends ConsumerWidget {
     this.onListen,
     this.onErase,
     this.onTap,
+    this.onTextTap,
   });
 
   final ChapterEntity chapter;
@@ -87,6 +88,7 @@ class ChapterContentLoader extends ConsumerWidget {
   onListen;
   final void Function(int start, int end)? onErase;
   final VoidCallback? onTap;
+  final void Function(int charOffset)? onTextTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -99,8 +101,6 @@ class ChapterContentLoader extends ConsumerWidget {
         : null;
 
     final blockCardSpans = ref.watch(chapterBlockCardSpansProvider(chapter));
-
-    final colorScheme = Theme.of(context).colorScheme;
 
     return contentAsync.when(
       loading: () => Stack(
@@ -132,38 +132,41 @@ class ChapterContentLoader extends ConsumerWidget {
             prefetchNeighboringChapters(ref, chapter);
           }
         });
-        return Container(
-          color: vt.resolve(colorScheme).background,
-          child: ChapterView(
-            content: content,
-            bookId: chapter.bookId,
-            chapterId: chapter.id,
-            fontSize: fontSize,
-            fontFamily: fontFamily,
-            fontWeight: fontWeight,
-            lineHeight: lineHeight,
-            letterSpacing: letterSpacing,
-            theme: vt,
-            textAlignment: textAlignment,
-            marginPreset: marginPreset,
-            horizontalPadding: horizontalPadding,
-            scrollable: scrollable,
-            dropCapStyle: chapterStyle?.dropCapStyle,
-            chapterTitle: chapter.title,
-            restoreCharOffset: restoreCharOffset,
-            onRestoreRevealed: onRestoreRevealed,
-            activeSpeechItem: activeForThisChapter,
-            onNarrationOutOfSyncChanged: onNarrationOutOfSyncChanged,
-            onRegisterNarrationReveal: onRegisterNarrationReveal,
-            onHighlight: onHighlight,
-            onAddNote: onAddNote,
-            onShare: onShare,
-            onSearchWeb: onSearchWeb,
-            onListen: onListen,
-            onErase: onErase,
-            onTap: onTap,
-            spans: blockCardSpans,
-          ),
+        // Transparent wrapper so the outer [ReaderBackground] (which paints
+        // customBackgroundColor + pattern for the whole reader) remains
+        // visible behind the text. Previously this used an opaque
+        // `vt.resolve(...).background` Container which obscured the custom
+        // background/pattern precisely where text was rendered.
+        return ChapterView(
+          content: content,
+          bookId: chapter.bookId,
+          chapterId: chapter.id,
+          fontSize: fontSize,
+          fontFamily: fontFamily,
+          fontWeight: fontWeight,
+          lineHeight: lineHeight,
+          letterSpacing: letterSpacing,
+          theme: vt,
+          textAlignment: textAlignment,
+          marginPreset: marginPreset,
+          horizontalPadding: horizontalPadding,
+          scrollable: scrollable,
+          dropCapStyle: chapterStyle?.dropCapStyle,
+          chapterTitle: chapter.title,
+          restoreCharOffset: restoreCharOffset,
+          onRestoreRevealed: onRestoreRevealed,
+          activeSpeechItem: activeForThisChapter,
+          onNarrationOutOfSyncChanged: onNarrationOutOfSyncChanged,
+          onRegisterNarrationReveal: onRegisterNarrationReveal,
+          onHighlight: onHighlight,
+          onAddNote: onAddNote,
+          onShare: onShare,
+          onSearchWeb: onSearchWeb,
+          onListen: onListen,
+          onErase: onErase,
+          onTap: onTap,
+          onTextTap: onTextTap,
+          spans: blockCardSpans,
         );
       },
     );

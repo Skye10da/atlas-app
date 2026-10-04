@@ -124,7 +124,9 @@ class ChapterSpanBuilder {
     TextStyle? dropCapStyle,
     bool applyDropCap = false,
     String? bookDir,
+    String? bookId,
   }) {
+    bookDir ??= bookId;
     final paragraphGapHeight = fontSize * lineHeight * 0.6;
     var cursor = 0;
     var dropCapUsed = false;

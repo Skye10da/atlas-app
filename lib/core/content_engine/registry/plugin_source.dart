@@ -126,13 +126,19 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
     final refs = await template.chapterList(_context, novel.sourceUrl);
     return List.generate(
       refs.length,
-      (i) => ChapterModel(
-        id: _chapterId(refs[i].url, i),
-        title: refs[i].title,
-        index: i,
-        contentUrl: refs[i].url,
-        publishedAt: refs[i].publishedAt,
-      ),
+      (i) {
+        final raw = refs[i].title;
+        // Preserve site-supplied “Chapter N” — only guard truly empty parser
+        // glitches to avoid blank duplicate indices.
+        final title = raw.trim().isEmpty ? 'Chapter ${i + 1}' : raw;
+        return ChapterModel(
+          id: _chapterId(refs[i].url, i),
+          title: title,
+          index: i,
+          contentUrl: refs[i].url,
+          publishedAt: refs[i].publishedAt,
+        );
+      },
     );
   }
 

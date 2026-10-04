@@ -15,6 +15,8 @@ enum BlockCardType {
   skillGain, // skill/ability acquired
   levelUp, // level-up notification
   inventory, // loot/item acquisition
+  footballScout, // football scout/manager report: CA/PA 0-200 + Key Attributes
+  footballTalent, // football ability-steal/possessed talents grade panel
   custom, // unrecognized but block-like text (renders as fallback)
 }
 

@@ -126,6 +126,7 @@ class WtrLabTemplate implements Template {
     PluginCapability.chapterList,
     PluginCapability.chapterContent,
     PluginCapability.cover,
+    PluginCapability.trending,
   };
 
   Uri _api(PluginContext context, String path) =>
@@ -857,5 +858,60 @@ class WtrLabTemplate implements Template {
       .replaceAll('>', '&gt;');
 
   @override
-  Future<List<TrendingResult>> trending(PluginContext context) async => const [];
+  Future<List<TrendingResult>> trending(PluginContext context) async {
+    try {
+      final html = await context.transport.fetchHtml(
+        Uri.parse('${context.plugin.baseUrl}/en/ranking/daily'),
+        headers: context.plugin.requestHeaders,
+      );
+      // Prefer __NEXT_DATA__ JSON (SSR) — immune to class churn.
+      final nextData = _parseNextData(html);
+      if (nextData != null) {
+        final props = nextData['props'];
+        if (props is Map) {
+          final pageProps = props['pageProps'];
+          if (pageProps is Map) {
+            final list = pageProps['list'];
+            if (list is List && list.isNotEmpty) {
+              final results = <TrendingResult>[];
+              for (final raw in list.take(30).whereType<Map>()) {
+                final data = raw['data'];
+                final slug = raw['slug'];
+                final rawId = raw['raw_id'];
+                if (data is! Map || slug is! String || rawId is! num) continue;
+                final fields = Map<String, Object?>.from(data);
+                final title = fields['title'];
+                if (title is! String || title.isEmpty) continue;
+                results.add(TrendingResult(
+                  title: title,
+                  url: 'https://wtr-lab.com/en/novel/${rawId.toInt()}/$slug',
+                  coverUrl: fields['image'] is String ? fields['image'] as String : null,
+                  author: fields['author'] is String ? fields['author'] as String : null,
+                  rating: raw['rating']?.toString(),
+                  popularity: raw['view_count'] is num
+                      ? '👁 ${raw['view_count']}'
+                      : '🔥 Trending',
+                  genre: null,
+                  description: fields['description'] is String
+                      ? fields['description'] as String
+                      : null,
+                ));
+              }
+              if (results.isNotEmpty) return results;
+            }
+          }
+        }
+      }
+      // Fallback: DOM scraping via selectors if JSON absent.
+      final doc = HtmlTemplate.parser.parse(html);
+      final selResults = context.selectors?.applyTrending(
+            doc,
+            baseUrl: context.plugin.baseUrl,
+          ) ??
+          const [];
+      return selResults;
+    } catch (_) {
+      return const [];
+    }
+  }
 }
