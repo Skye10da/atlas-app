@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -11,6 +12,7 @@ import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/core/session/session_refresh_service.dart';
 import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
@@ -579,12 +581,77 @@ class _BookDetailsBody extends HookConsumerWidget {
       for (final ch in chapters) {
         ref.invalidate(readerChapterContentProvider(ch));
       }
+
+      // A bot-check wall on the source origin is recoverable: offer the same
+      // quick re-verify the reader and import sheet use, then retry.
+      final bookOrigin = SessionRefreshService.originOf(book.sourceUrl);
+      final latched = SessionRefreshService.instance.lastInvalidOrigin.value;
+      final challenge =
+          failures > 0 &&
+          bookOrigin != null &&
+          latched != null &&
+          SessionRefreshService.sameOrigin(latched, bookOrigin);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            failures == 0
+            challenge
+                ? 'Redownload blocked by a bot check. Re-verify the session to continue.'
+                : failures == 0
                 ? 'Redownloaded ${chapters.length} chapters'
                 : 'Redownloaded ${chapters.length - failures}/${chapters.length} chapters ($failures failed)',
+          ),
+          duration: challenge
+              ? const Duration(seconds: 8)
+              : const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: challenge ? 'Re-verify' : 'Dismiss',
+            onPressed: !challenge
+                ? () {}
+                : () => unawaited(() async {
+                    final ok = await SessionRefreshService.instance
+                        .ensureFresh(
+                          bookOrigin,
+                          seedUrl: Uri.tryParse(book.sourceUrl ?? ''),
+                        );
+                    if (!ok || !context.mounted) return;
+                    // Re-run the same bulk redownload now that fresh cookies
+                    // are captured for the origin.
+                    isRedownloading.value = true;
+                    progress.value = (0, chapters.length);
+                    try {
+                      final retry = await ref
+                          .read(chapterDownloadServiceProvider)
+                          .redownloadAllChapters(
+                            book.id,
+                            onProgress: (done, total) {
+                              if (context.mounted) {
+                                progress.value = (done, total);
+                              }
+                            },
+                          );
+                      if (!context.mounted) return;
+                      ref.invalidate(_bookDetailsProvider(book.id));
+                      for (final ch in chapters) {
+                        ref.invalidate(readerChapterContentProvider(ch));
+                      }
+                      final stillFailing = retry.whereType<Failure>().length;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            stillFailing == 0
+                                ? 'Redownloaded ${chapters.length} chapters'
+                                : 'Redownloaded ${chapters.length - stillFailing}/${chapters.length} chapters ($stillFailing failed)',
+                          ),
+                        ),
+                      );
+                    } finally {
+                      if (context.mounted) {
+                        isRedownloading.value = false;
+                        progress.value = null;
+                      }
+                    }
+                  }()),
           ),
         ),
       );

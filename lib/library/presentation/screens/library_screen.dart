@@ -620,12 +620,16 @@ class _BookshelfContent extends HookConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            isSelectionMode
-                                ? 'Select books'
-                                : 'Bookshelf',
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                          Expanded(
+                            child: Text(
+                              isSelectionMode
+                                  ? 'Select books'
+                                  : 'Bookshelf',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
                           ),
                           Row(
                             children: [

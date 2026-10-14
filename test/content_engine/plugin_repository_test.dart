@@ -11,6 +11,7 @@ import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_models.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 class _LimitedTemplate implements Template {
   const _LimitedTemplate();
@@ -99,6 +100,7 @@ void main() {
   PluginRepository repo({TemplateRegistry? registry}) => PluginRepository(
     baseDirectory: baseDir,
     templateRegistry: registry ?? TemplateRegistry.defaults,
+    database: AppDatabase.memory(),
   );
 
   group('PluginRepository.load', () {

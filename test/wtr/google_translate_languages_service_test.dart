@@ -19,6 +19,15 @@ class _FakeTransport implements Transport {
       throw UnimplementedError();
 
   @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
   Future<String> fetchHtmlPost(
     Uri url, {
     Map<String, String>? headers,
@@ -44,6 +53,15 @@ class _ThrowingTransport implements Transport {
 
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async =>
       throw UnimplementedError();
 
   @override
@@ -146,7 +164,7 @@ void main() {
       expect(resolveCountryCodeForLanguage('ig'), 'NG');
       expect(resolveCountryCodeForLanguage('zu'), 'ZA');
       expect(resolveCountryCodeForLanguage('af'), 'ZA');
-      expect(resolveCountryCodeForLanguage('xh'), 'ZA');
+      expect(resolveCountryCodeForLanguage('ig'), 'ZA');
       expect(resolveCountryCodeForLanguage('zh-TW'), 'TW');
       expect(resolveCountryCodeForLanguage('zh-CN'), 'CN');
       expect(resolveCountryCodeForLanguage('fr-CA'), 'CA');

@@ -32,4 +32,22 @@ class ChapterEntity {
 
   bool get hasNextChapter => index < totalChapters - 1;
   bool get hasPrevChapter => index > 0;
+
+  /// Value equality on the chapter's stable identity (`id` / `bookId` /
+  /// `index`). Riverpod `family` providers key by `==`, so without this
+  /// two [ChapterEntity] instances carrying the same chapter (e.g. one
+  /// from `ReaderContent`'s list and one from `novelChaptersProvider`'s
+  /// prefetch) were treated as different family keys — breaking prefetch
+  /// reuse and phase/overlay sync.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChapterEntity &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          bookId == other.bookId &&
+          index == other.index;
+
+  @override
+  int get hashCode => Object.hash(id, bookId, index);
 }

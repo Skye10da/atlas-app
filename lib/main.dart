@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,6 +99,16 @@ class AtlasApp extends ConsumerWidget {
   Future<void> _bootstrap(WidgetRef ref) async {
     if (_bootstrapped) return;
     _bootstrapped = true;
+
+    // Pre-warm SharedPreferences so the reader's first chapter open
+    // doesn't pay cold SharedPrefs init. `_applyTranslation` and
+    // `_applyAtlasGlossary` await the translation/glossary `.future`
+    // providers right after the "Preparing reader" phase is published;
+    // on a cold start those block on `SharedPreferences.getInstance()`,
+    // which used to stall the reader until it was closed and reopened
+    // (by which point SharedPrefs was cached). Warming it here removes
+    // that first-open latency.
+    unawaited(SharedPreferences.getInstance());
 
     // Registers the headless WebView pool fallback fetcher for silent Cloudflare challenge solving
     final silentService = ref.read(silentWebViewServiceProvider);

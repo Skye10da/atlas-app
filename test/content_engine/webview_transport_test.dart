@@ -50,6 +50,17 @@ class _CountingInner implements Transport {
     bytesCalls++;
     return [1, 2, 3];
   }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
+    htmlCalls++;
+    return '<html>conditional</html>';
+  }
 }
 
 class _ThrowingInner implements Transport {
@@ -87,6 +98,16 @@ class _ThrowingInner implements Transport {
 
   @override
   Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {
+    throw error;
+  }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
     throw error;
   }
 }
@@ -138,6 +159,18 @@ class _MutableInner implements Transport {
     if (e != null) throw e;
     return [1, 2, 3];
   }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
+    final e = error;
+    if (e != null) throw e;
+    return '<html>conditional</html>';
+  }
 }
 
 void main() {
@@ -177,7 +210,7 @@ void main() {
       final inner = _CountingInner();
       final transport = WebViewTransport(inner: inner);
       service.fetcher =
-          (url, {headers, method, jsonBody, binary = false}) async =>
+          (url, {headers, method, jsonBody, formBody, binary = false}) async =>
               const WebViewFetchResult(body: '<html>webview</html>');
 
       final body = await transport.fetchHtmlPost(
@@ -195,7 +228,7 @@ void main() {
       );
       final transport = WebViewTransport(inner: inner);
       service.fetcher =
-          (u, {headers, method, jsonBody, binary = false}) async =>
+          (u, {headers, method, jsonBody, formBody, binary = false}) async =>
               const WebViewFetchResult(body: '<html>from-live-webview</html>');
 
       expect(
@@ -210,7 +243,7 @@ void main() {
       );
       final transport = WebViewTransport(inner: inner);
       service.fetcher =
-          (u, {headers, method, jsonBody, binary = false}) async =>
+          (u, {headers, method, jsonBody, formBody, binary = false}) async =>
               WebViewFetchResult(
                 bytes: Uint8List.fromList([10, 20, 30]),
                 status: 200,

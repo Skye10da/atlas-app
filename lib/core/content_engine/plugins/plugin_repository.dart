@@ -10,6 +10,7 @@ import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/content_engine/transport/transport_registry.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 /// Loads plugin manifests from `<baseDirectory>/<pluginId>/plugin.json` and
 /// resolves them into runnable [PluginSource]s.
@@ -22,12 +23,14 @@ class PluginRepository {
   PluginRepository({
     required this.baseDirectory,
     required this.templateRegistry,
+    required this.database,
     TransportRegistry? transportRegistry,
   }) : transportRegistry = transportRegistry ?? const TransportRegistry();
 
   final Directory baseDirectory;
   final TemplateRegistry templateRegistry;
   final TransportRegistry transportRegistry;
+  final AppDatabase database;
 
   Directory pluginDir(String pluginId) =>
       Directory(p.join(baseDirectory.path, pluginId));
@@ -95,6 +98,7 @@ class PluginRepository {
       manifest: manifest,
       template: template,
       transport: transport,
+      database: database,
       selectors: selectors,
       filters: filters,
       permissions: permissions,

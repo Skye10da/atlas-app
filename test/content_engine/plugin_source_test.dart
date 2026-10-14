@@ -10,6 +10,7 @@ import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
 import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 import 'test_fixtures.dart';
 
@@ -27,6 +28,7 @@ void main() {
         manifest: buildManifest(baseUrl: 'https://www.example.com'),
         template: const HtmlTemplate(),
         transport: FakeTransport(),
+        database: AppDatabase.memory(),
       );
 
       expect(
@@ -53,6 +55,7 @@ void main() {
         manifest: buildManifest(),
         template: const HtmlTemplate(),
         transport: transport,
+        database: AppDatabase.memory(),
       );
 
       final result = await source.getMetadata(
@@ -89,6 +92,7 @@ void main() {
         template: const HtmlTemplate(),
         transport: transport,
         selectors: selectors,
+        database: AppDatabase.memory(),
       );
 
       final chapters = await source.getChapters(novel);
@@ -122,6 +126,7 @@ void main() {
         template: const HtmlTemplate(),
         transport: transport,
         selectors: selectors,
+        database: AppDatabase.memory(),
       );
       const chapter = ChapterModel(
         id: '/chapter/1#ch0',
@@ -161,6 +166,7 @@ void main() {
           template: const HtmlTemplate(),
           transport: transport,
           selectors: selectors,
+          database: AppDatabase.memory(),
         );
 
         final response = await source.search(
@@ -187,6 +193,7 @@ void main() {
           ),
           template: const HtmlTemplate(),
           transport: FakeTransport(),
+          database: AppDatabase.memory(),
         );
 
         await expectLater(
@@ -212,6 +219,7 @@ void main() {
           manifest: manifest,
           template: const HtmlTemplate(),
           transport: FakeTransport(),
+          database: AppDatabase.memory(),
         ),
         throwsA(isA<PluginManifestException>()),
       );

@@ -13,6 +13,7 @@ import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/content_engine/templates/wtrlab_template.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:atlas_app/core/content_engine/transport/transport_registry.dart';
+import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/wtr/domain/repository_interfaces/wtr_session_repository.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_authentication_manager.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_chapter_provider.dart';
@@ -138,6 +139,7 @@ void main() {
     baseDirectory: baseDir,
     templateRegistry: TemplateRegistry.defaults,
     transportRegistry: _FakeTransportRegistry(transport),
+    database: AppDatabase.memory(),
   );
 
   group('atlas-plugins/wtrlab/plugin.json', () {

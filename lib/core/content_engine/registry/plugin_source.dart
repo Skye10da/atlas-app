@@ -14,6 +14,7 @@ import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_models.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 /// The load-bearing seam between the plugin engine and the existing
 /// acquisition UI: adapts a [Template] + [PluginManifest] to the existing
@@ -25,6 +26,7 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
     required this.manifest,
     required this.template,
     required this.transport,
+    required this.database,
     this.selectors,
     this.filters,
     this.permissions,
@@ -35,6 +37,7 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
   final PluginManifest manifest;
   final Template template;
   final Transport transport;
+  final AppDatabase database;
   final SelectorSet? selectors;
   final PluginFilters? filters;
   final PluginPermissions? permissions;
@@ -45,6 +48,7 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
     selectors: selectors,
     filters: filters,
     permissions: permissions,
+    database: database,
   );
 
   PluginContext _contextFor(String? language) => PluginContext(
@@ -54,6 +58,7 @@ class PluginSource implements SourceAdapter, SearchableSource, RichSource {
     filters: filters,
     permissions: permissions,
     language: language,
+    database: database,
   );
 
   void _validateCapabilities() {

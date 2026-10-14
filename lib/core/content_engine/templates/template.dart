@@ -5,6 +5,7 @@ import 'package:atlas_app/core/content_engine/plugins/plugin_permissions.dart';
 import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
 import 'package:atlas_app/core/content_engine/templates/template_models.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 /// Everything a template needs to service one request. Bundled so the Template
 /// contract stays small and templates can reach filters, selectors and
@@ -17,6 +18,7 @@ class PluginContext {
     this.filters,
     this.permissions,
     this.language,
+    this.database,
   });
 
   final PluginManifest plugin;
@@ -28,6 +30,9 @@ class PluginContext {
   /// User-selected target language for a request, overriding the plugin
   /// manifest's default. Null means "use the plugin default".
   final String? language;
+
+  /// Database for healing engine and other persistence needs.
+  final AppDatabase? database;
 
   /// The language this request should be served in: the user's override when
   /// set, otherwise the plugin manifest's declared language.

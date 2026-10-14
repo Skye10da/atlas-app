@@ -18,6 +18,7 @@ import 'package:atlas_app/core/design_system/tokens/animation.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/import/file_open_providers.dart';
+import 'package:atlas_app/core/session/session_refresh_service.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart'
     show ProgressPainter;
@@ -196,6 +197,9 @@ class _ImportUrlSheet extends HookConsumerWidget {
     final loading = useState(false);
     final retryable = useState(false);
     final expanding = useState(false);
+    // True while the quick re-verify webview is open for this URL, so the
+    // error surface can disable its actions instead of stacking a second run.
+    final reverifying = useState(false);
 
     final fileBytes = useState<List<int>?>(null);
     final fileName = useState<String?>(null);
@@ -227,12 +231,92 @@ class _ImportUrlSheet extends HookConsumerWidget {
           .catchError((_) {});
     }
 
+    bool isBotChallengeError(String? msg) {
+      if (msg == null) return false;
+      final lower = msg.toLowerCase();
+      return lower.contains('bot-check challenge') || lower.contains('cloudflare');
+    }
+
+    /// The URL the current attempt is importing — the typed/initial URL, or the
+    /// browser-supplied one when this sheet was opened for a single page.
+    String currentUrl() => initialUrl ?? urlController.text.trim();
+
+    /// Opens the quick re-verify webview (the same one the reader uses) so the
+    /// user can clear the site's bot check, then retries [retry].
+    ///
+    /// The transport stack silently attempts a headless solve first
+    /// (`WebViewTransport` → `SilentWebViewService`) and latches the failure on
+    /// [SessionRefreshService] when that fails. This is the visible escalation:
+    /// once the challenge passes, fresh cookies are captured for the origin, so
+    /// the retry replays them ([CookieTransport]) or is served by the silent
+    /// webview.
+    ///
+    /// [force] bypasses the one-shot auto gate so the manual button still works
+    /// after an automatic attempt was made.
+    ///
+    /// Failures from [retry] are swallowed: the retry entry points report their
+    /// own errors into [error] / [loading], and an escaping exception here would
+    /// surface as an unhandled async error because both the automatic and the
+    /// button call sites are fire-and-forget.
+    Future<void> reverifyAndRetry(Future<void> Function() retry, {bool force = false}) async {
+      if (reverifying.value) return;
+      final session = SessionRefreshService.instance;
+      final url = currentUrl();
+      final origin = SessionRefreshService.originOf(url);
+      if (origin == null) return;
+      if (!force && session.hasAutoRefreshed(origin)) return;
+      session.markAutoRefreshed(origin);
+      reverifying.value = true;
+      try {
+        final ok = await session.ensureFresh(
+          origin,
+          seedUrl: Uri.tryParse(url),
+        );
+        if (!ok || !context.mounted) return;
+        await retry();
+      } catch (_) {
+        // Already surfaced by the retry's own error handling.
+      } finally {
+        if (context.mounted) reverifying.value = false;
+      }
+    }
+
+    /// Runs [action], and on a Cloudflare bot-check escalates to the visible
+    /// re-verify screen before surfacing the error.
+    ///
+    /// The automatic attempt fires once per origin per app cycle; afterwards the
+    /// error surface keeps a manual "Re-verify session" action.
+    Future<void> withChallengeRecovery(Future<void> Function() action) async {
+      try {
+        await action();
+      } on ImportException catch (e) {
+        if (!context.mounted) return;
+        final isRetryable = !e.message.contains('No source plugin');
+        error.value = e.message;
+        loading.value = false;
+        retryable.value = isRetryable;
+        if (isBotChallengeError(e.message)) {
+          // Re-enter through this wrapper so a retry that is challenged again
+          // reports it the same way instead of throwing out of the handler.
+          unawaited(reverifyAndRetry(() => withChallengeRecovery(action)));
+        }
+      } catch (e) {
+        if (!context.mounted) return;
+        error.value = 'Failed to fetch metadata: $e';
+        loading.value = false;
+        retryable.value = true;
+        if (isBotChallengeError('$e')) {
+          unawaited(reverifyAndRetry(() => withChallengeRecovery(action)));
+        }
+      }
+    }
+
     Future<void> fetchMetadata() async {
       final url = urlController.text.trim();
       if (url.isEmpty) return;
       loading.value = true;
       error.value = null;
-      try {
+      await withChallengeRecovery(() async {
         final engine = ref.read(contentAcquisitionEngineProvider);
         final model = await engine.fetchMetadata(url);
         if (!context.mounted) return;
@@ -240,24 +324,7 @@ class _ImportUrlSheet extends HookConsumerWidget {
         stage.value = _SheetStage.preview;
         loading.value = false;
         fetchCoverBytes(model);
-      } on ImportException catch (e) {
-        if (!context.mounted) return;
-        final isRetryable = !e.message.contains('No source plugin');
-        error.value = e.message;
-        loading.value = false;
-        retryable.value = isRetryable;
-      } catch (e) {
-        if (!context.mounted) return;
-        error.value = 'Failed to fetch metadata: $e';
-        loading.value = false;
-        retryable.value = true;
-      }
-    }
-
-    bool isBotChallengeError(String? msg) {
-      if (msg == null) return false;
-      final lower = msg.toLowerCase();
-      return lower.contains('bot-check challenge') || lower.contains('cloudflare');
+      });
     }
 
     Future<void> checkClipboard() async {
@@ -452,6 +519,9 @@ class _ImportUrlSheet extends HookConsumerWidget {
         error.value = e.message;
         stage.value = _SheetStage.input;
         retryable.value = false;
+        if (isBotChallengeError(e.message)) {
+          unawaited(reverifyAndRetry(startImport));
+        }
       } on ImportRedirect catch (_) {
         if (!context.mounted) return;
         error.value =
@@ -1007,9 +1077,35 @@ class _ImportUrlSheet extends HookConsumerWidget {
                     Wrap(
                       spacing: AppSpacing.sm,
                       children: [
+                        if (isBotChallengeError(error.value))
+                          OutlinedButton.icon(
+                            onPressed: reverifying.value
+                                ? null
+                                : () => unawaited(
+                                    reverifyAndRetry(
+                                      fetchMetadata,
+                                      force: true,
+                                    ),
+                                  ),
+                            icon: reverifying.value
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.verified_user_outlined,
+                                    size: 18,
+                                  ),
+                            label: const Text('Re-verify session'),
+                          ),
                         if (retryable.value)
                           TextButton(
-                            onPressed: fetchMetadata,
+                            onPressed: reverifying.value
+                                ? null
+                                : fetchMetadata,
                             child: const Text('Retry'),
                           ),
                       ],
@@ -1018,7 +1114,7 @@ class _ImportUrlSheet extends HookConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          'Silent solve failed for this site. Use the Browser Import button — it captures session cookies directly from the live page. Or import anyway and tap ‘Re-verify session’ in the reader if the book appears with missing chapters.',
+                          'This site checks for bots. Re-verify session opens the page so you can pass the check — Atlas then captures the cookies and retries silently.',
                           style: Theme.of(context).textTheme.labelSmall?.copyWith(color: cs.onErrorContainer.withValues(alpha: 0.85)),
                         ),
                       ),
@@ -1351,9 +1447,35 @@ class _ImportUrlSheet extends HookConsumerWidget {
                     Wrap(
                       spacing: AppSpacing.sm,
                       children: [
+                        if (isBotChallengeError(error.value))
+                          OutlinedButton.icon(
+                            onPressed: reverifying.value
+                                ? null
+                                : () => unawaited(
+                                    reverifyAndRetry(
+                                      fetchMetadata,
+                                      force: true,
+                                    ),
+                                  ),
+                            icon: reverifying.value
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.verified_user_outlined,
+                                    size: 18,
+                                  ),
+                            label: const Text('Re-verify session'),
+                          ),
                         if (retryable.value)
                           TextButton(
-                            onPressed: fetchMetadata,
+                            onPressed: reverifying.value
+                                ? null
+                                : fetchMetadata,
                             child: const Text('Retry'),
                           ),
                       ],
@@ -1362,7 +1484,7 @@ class _ImportUrlSheet extends HookConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          'Silent solve failed — use the Browser Import button (captures session cookies directly from the live page). If already imported, open the book and tap ‘Re-verify session’ in the reader.',
+                          'This site checks for bots. Re-verify session opens the page so you can pass the check — Atlas then captures the cookies and retries silently.',
                           style: Theme.of(context).textTheme.labelSmall?.copyWith(color: cs.onErrorContainer.withValues(alpha: 0.85)),
                         ),
                       ),

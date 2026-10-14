@@ -12,6 +12,7 @@ import 'package:atlas_app/core/content_acquisition/adapters/source_registry.dart
 import 'package:atlas_app/core/content_engine/plugins/plugin_repository.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/database/database.dart';
+import 'package:atlas_app/core/content_engine/transport/domain_governor.dart';
 import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/notifications/domain/entities/update_check_settings.dart';
 import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
@@ -38,7 +39,11 @@ Future<bool> runChapterUpdateBackgroundTask() async {
     if (!settings.enabled) return true;
 
     final registry = await _buildPluginRegistry();
-    final service = ChapterUpdateService(db: database, registry: registry);
+    final service = ChapterUpdateService(
+      db: database,
+      registry: registry,
+      governor: DomainGovernor.instance,
+    );
     final result = await service.checkTrackedBooks();
 
     if (result.booksWithUpdates > 0) {
@@ -76,9 +81,11 @@ Future<SourceRegistry> _buildPluginRegistry() async {
   try {
     final supportDir = await getApplicationSupportDirectory();
     final pluginsDir = Directory(p.join(supportDir.path, 'plugins'));
+    final database = AppDatabase.open(AppDatabase().executor);
     final repository = PluginRepository(
       baseDirectory: pluginsDir,
       templateRegistry: TemplateRegistry.defaults,
+      database: database,
     );
     for (final manifest in await repository.loadAll()) {
       try {
@@ -87,6 +94,7 @@ Future<SourceRegistry> _buildPluginRegistry() async {
         AppLogger.warning('Skipping plugin "${manifest.id}": $e');
       }
     }
+    await database.close();
   } catch (e) {
     AppLogger.warning('Plugin discovery failed in background isolate: $e');
   }

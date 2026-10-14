@@ -84,6 +84,19 @@ class FakeTransport implements Transport {
     final body = await fetchHtml(url, headers: headers);
     return body.codeUnits;
   }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
+    htmlCalls++;
+    final body = htmlByUrl[url.toString()] ?? htmlByPath[url.path];
+    if (body == null) throw TransportException('No fixture for $url');
+    return body;
+  }
 }
 
 PluginManifest buildManifest({

@@ -12,6 +12,7 @@ import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:atlas_app/core/content_engine/transport/transport_registry.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 import 'test_fixtures.dart';
 
@@ -270,6 +271,7 @@ void main() {
     baseDirectory: baseDir,
     templateRegistry: TemplateRegistry.defaults,
     transportRegistry: _FakeTransportRegistry(transport),
+    database: AppDatabase.memory(),
   );
 
   group('atlas-plugins/novelfull/plugin.json', () {

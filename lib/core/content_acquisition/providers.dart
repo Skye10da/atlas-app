@@ -24,6 +24,7 @@ import 'package:atlas_app/core/content_engine/scheduler/task_scheduler.dart';
 import 'package:atlas_app/core/content_engine/storage/document_cache.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/content_engine/transport/cookie_transport.dart';
+import 'package:atlas_app/core/content_engine/transport/domain_governor.dart';
 import 'package:atlas_app/core/content_engine/transport/http_transport.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/database/providers.dart';
@@ -58,6 +59,7 @@ final sourceRegistryProvider = Provider<SourceRegistry>((ref) {
 /// directly from that local directory and the GitHub sync is skipped entirely.
 final pluginSourcesProvider = FutureProvider<List<PluginSource>>((ref) async {
   final templateRegistry = TemplateRegistry.defaults;
+  final database = ref.watch(databaseProvider);
 
   final localOverride = GithubPluginDistributionConfig.localPluginsDir;
   final Directory pluginsDir;
@@ -75,6 +77,7 @@ final pluginSourcesProvider = FutureProvider<List<PluginSource>>((ref) async {
       ),
       targetDirectory: pluginsDir,
       templateRegistry: templateRegistry,
+      database: database,
     );
     try {
       final updates = await updater.sync();
@@ -94,6 +97,7 @@ final pluginSourcesProvider = FutureProvider<List<PluginSource>>((ref) async {
   final repository = PluginRepository(
     baseDirectory: pluginsDir,
     templateRegistry: templateRegistry,
+    database: database,
   );
   final manifests = await repository.loadAll();
   final registry = ref.watch(sourceRegistryProvider);
@@ -129,6 +133,7 @@ final chapterUpdateServiceProvider = Provider<ChapterUpdateService>((ref) {
   return ChapterUpdateService(
     db: ref.watch(databaseProvider),
     registry: ref.watch(sourceRegistryProvider),
+    governor: DomainGovernor.instance,
   );
 });
 
@@ -195,6 +200,7 @@ final taskSchedulerProvider = Provider<TaskScheduler>((ref) {
         ),
         targetDirectory: pluginsDir,
         templateRegistry: templateRegistry,
+        database: ref.watch(databaseProvider),
       );
       final updates = await updater.sync();
       final applied = updates

@@ -88,4 +88,19 @@ class OfflineTransport implements Transport {
     }
     return value;
   }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
+    final body = _html[url.toString()];
+    if (body == null) {
+      throw TransportException('Offline cache miss: $url');
+    }
+    // For offline, we can't do conditional - just return the cached body
+    return body;
+  }
 }

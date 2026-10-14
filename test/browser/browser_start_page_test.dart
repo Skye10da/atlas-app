@@ -10,6 +10,7 @@ import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/content_acquisition/sources/gutenberg_source.dart';
 import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/content_engine/templates/html_template.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 import '../content_engine/test_fixtures.dart';
 
@@ -27,6 +28,7 @@ void main() {
           ),
           template: const HtmlTemplate(),
           transport: FakeTransport(),
+          database: AppDatabase.memory(),
         ),
       );
 

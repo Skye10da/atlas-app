@@ -186,4 +186,19 @@ class CookieTransport implements Transport {
   Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {
     return inner.fetchBytes(url, headers: await _augment(url, headers));
   }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
+    return inner.fetchHtmlConditional(
+      url,
+      headers: await _augment(url, headers),
+      etag: etag,
+      lastModified: lastModified,
+    );
+  }
 }

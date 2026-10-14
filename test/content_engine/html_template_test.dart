@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:atlas_app/core/content_engine/plugins/plugin_filters.dart';
+import 'package:atlas_app/core/content_engine/selectors/selector_miss_exception.dart';
 import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
 import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
@@ -45,7 +46,7 @@ void main() {
     });
 
     test(
-      'falls back to the whole body when no selectors are configured',
+      'throws SelectorMissException when no selectors are configured',
       () async {
         final transport = FakeTransport()
           ..addHtml(
@@ -54,12 +55,15 @@ void main() {
           );
         final context = buildContext(transport: transport);
 
-        final doc = await const HtmlTemplate().chapterContent(
-          context,
-          'https://example.com/ch/2',
+        expect(
+          () => const HtmlTemplate().chapterContent(
+            context,
+            'https://example.com/ch/2',
+          ),
+          throwsA(isA<SelectorMissException>()
+              .having((e) => e.role, 'role', 'chapterContent.container')
+              .having((e) => e.pluginId, 'pluginId', 'test-plugin')),
         );
-
-        expect(doc.renderToText(), contains('Just a body.'));
       },
     );
   });

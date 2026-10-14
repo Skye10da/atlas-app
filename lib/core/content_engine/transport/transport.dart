@@ -6,6 +6,17 @@
 abstract interface class Transport {
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers});
 
+  /// Conditional GET using ETag/If-Modified-Since.
+  /// Returns null if 304 Not Modified (content unchanged), otherwise the new HTML.
+  /// [etag] and [lastModified] are optional; if provided they are sent as
+  /// `If-None-Match` / `If-Modified-Since` headers.
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  });
+
   /// Sends an `application/x-www-form-urlencoded` POST and returns the body.
   /// Used by sites whose data lives behind a form action instead of a plain
   /// GET — e.g. the WordPress Madara manga/novel theme's chapter archive,

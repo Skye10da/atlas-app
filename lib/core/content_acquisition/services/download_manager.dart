@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:atlas_app/core/content_acquisition/adapters/source_adapter.dart';
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
 import 'package:atlas_app/core/content_acquisition/services/cache_manager.dart';
+import 'package:atlas_app/core/content_engine/plugins/plugin_permissions.dart';
+import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
+import 'package:atlas_app/core/content_engine/transport/domain_governor.dart';
 
 /// Priorities for [DownloadManager.enqueue]. Higher priority items run first
 /// when the worker pool has free slots.
@@ -12,28 +15,27 @@ enum DownloadPriority { background, normal, high }
 /// priority queue, and each task retries with backoff up to [maxAttempts]
 /// before it is reported failed. The public surface matches what
 /// `ContentAcquisitionEngine` and `PrefetchEngine` consume.
+///
+/// Uses [DomainGovernor] for per-origin concurrency, politeness, and backoff.
 class DownloadManager {
   DownloadManager({
     CacheManager? cacheManager,
     this.workerCount = 4,
     this.maxAttempts = 3,
     this.retryBackoff = const Duration(milliseconds: 800),
-    this.maxConcurrentPerDomain = 1,
-    this.domainCooldown = const Duration(milliseconds: 800),
-  }) : cacheManager = cacheManager ?? CacheManager();
+  }) : cacheManager = cacheManager ?? CacheManager(),
+       _governor = DomainGovernor.instance;
 
   final CacheManager cacheManager;
   final int workerCount;
   final int maxAttempts;
   final Duration retryBackoff;
-  final int maxConcurrentPerDomain;
-  final Duration domainCooldown;
+  final DomainGovernor _governor;
 
   final StreamController<DownloadEvent> _events = StreamController.broadcast();
   final List<_QueuedTask> _queue = [];
   final Map<String, _QueuedTask> _running = {};
-  final Map<String, int> _activeByDomain = {};
-  final Map<String, DateTime> _lastRequestByDomain = {};
+  final Map<String, Permit> _permits = {};
   bool _disposed = false;
 
   Stream<DownloadEvent> get events => _events.stream;
@@ -88,23 +90,40 @@ class DownloadManager {
       for (var i = 0; i < _queue.length; i++) {
         final candidate = _queue[i];
         final domain = _domainOf(candidate);
-        final active = _activeByDomain[domain] ?? 0;
-        if (active < maxConcurrentPerDomain) {
+        // Try to acquire a permit from DomainGovernor (non-blocking check)
+        final state = _governor.getState(Uri.parse('https://$domain'));
+        final effectivePermissions = _getEffectivePermissions(candidate.source);
+        if (state.activeCount < effectivePermissions.maxConcurrentRequests) {
           taskIndex = i;
           break;
         }
       }
       if (taskIndex == -1) {
         // All queued tasks belong to domains currently at their concurrency limit.
-        break;
+        // Wait a bit and retry.
+        await Future.delayed(const Duration(milliseconds: 50));
+        continue;
       }
 
       final task = _queue.removeAt(taskIndex);
       _running[task.key] = task;
       final domain = _domainOf(task);
-      _activeByDomain[domain] = (_activeByDomain[domain] ?? 0) + 1;
-      unawaited(_run(task, domain));
+      // Acquire permit (will wait if needed)
+      final permit = await _governor.acquire(
+        Uri.parse('https://$domain'),
+        permissions: _getEffectivePermissions(task.source),
+      );
+      _permits[task.key] = permit;
+      unawaited(_run(task, domain, permit));
     }
+  }
+
+  PluginPermissions _getEffectivePermissions(SourceAdapter source) {
+    // Try to get permissions from plugin source if available
+    if (source is PluginSource) {
+      return source.permissions ?? const PluginPermissions();
+    }
+    return const PluginPermissions();
   }
 
   String _domainOf(_QueuedTask task) {
@@ -118,7 +137,7 @@ class DownloadManager {
     return task.source.sourceName.toLowerCase();
   }
 
-  Future<void> _run(_QueuedTask task, String domain) async {
+  Future<void> _run(_QueuedTask task, String domain, Permit permit) async {
     try {
       var attempts = 0;
       while (attempts < maxAttempts) {
@@ -127,17 +146,6 @@ class DownloadManager {
         _events.add(
           DownloadEvent(task.bookId, task.chapter.id, DownloadStatus.downloading),
         );
-
-        if (domainCooldown > Duration.zero) {
-          final last = _lastRequestByDomain[domain];
-          if (last != null) {
-            final elapsed = DateTime.now().difference(last);
-            if (elapsed < domainCooldown) {
-              await Future<void>.delayed(domainCooldown - elapsed);
-            }
-          }
-          _lastRequestByDomain[domain] = DateTime.now();
-        }
 
         try {
           final fetched = await task.source.getChapter(task.chapter);
@@ -157,6 +165,7 @@ class DownloadManager {
           );
 
           _running.remove(task.key);
+          _permits.remove(task.key)?.release();
           _events.add(
             DownloadEvent(task.bookId, task.chapter.id, DownloadStatus.done),
           );
@@ -165,6 +174,7 @@ class DownloadManager {
         } catch (e) {
           if (attempts >= maxAttempts) {
             _running.remove(task.key);
+            _permits.remove(task.key)?.release();
             _events.add(
               DownloadEvent(
                 task.bookId,
@@ -179,10 +189,8 @@ class DownloadManager {
         }
       }
     } finally {
-      _activeByDomain[domain] = (_activeByDomain[domain] ?? 1) - 1;
-      if ((_activeByDomain[domain] ?? 0) <= 0) {
-        _activeByDomain.remove(domain);
-      }
+      // Permit released on success or final failure
+      _permits.remove(task.key)?.release();
       await _pump();
     }
   }
@@ -191,8 +199,7 @@ class DownloadManager {
     _disposed = true;
     _queue.clear();
     _running.clear();
-    _activeByDomain.clear();
-    _lastRequestByDomain.clear();
+    _permits.clear();
     _events.close();
   }
 }

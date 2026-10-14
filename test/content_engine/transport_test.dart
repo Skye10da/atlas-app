@@ -63,6 +63,18 @@ class _CountingTransport implements Transport {
     seenHeaders.add(headers);
     return [1, 2, 3];
   }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
+    htmlCalls++;
+    seenHeaders.add(headers);
+    return '<html>conditional</html>';
+  }
 }
 
 void main() {

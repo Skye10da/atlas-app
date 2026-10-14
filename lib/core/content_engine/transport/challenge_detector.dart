@@ -109,6 +109,9 @@ abstract final class ChallengeDetector {
     // the document title itself is the Cloudflare interstitial title.
 
     // Title-less fragment containing Cloudflare's generic interstitial phrase.
+    // Only flag as challenge if the document title itself matches the
+    // Cloudflare interstitial title — avoids false positives from novel
+    // dialogue containing "just a moment" / "attention required".
     if (lower.contains('just a moment') ||
         lower.contains('attention required')) {
       final title = RegExp(
@@ -120,7 +123,8 @@ abstract final class ChallengeDetector {
               title.contains('attention required'))) {
         return true;
       }
-      return true;
+      // No interstitial title → not a challenge page.
+      return false;
     }
 
     return false;

@@ -345,4 +345,12 @@ class _PagedPostsTransport implements Transport {
   Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {
     throw TransportException('No fixture for $url');
   }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async => throw UnimplementedError();
 }

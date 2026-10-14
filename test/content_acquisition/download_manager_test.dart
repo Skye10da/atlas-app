@@ -118,8 +118,6 @@ void main() {
       final manager = DownloadManager(
         cacheManager: cache,
         workerCount: 2,
-        maxConcurrentPerDomain: 4,
-        domainCooldown: Duration.zero,
       );
 
       final started = <String>[];
@@ -236,12 +234,12 @@ void main() {
       expect(source.fetchCount, 1);
     });
 
-    test('limits concurrent downloads per domain according to maxConcurrentPerDomain', () async {
+    test('limits concurrent downloads per domain via DomainGovernor', () async {
       final source = _FakeSource(delay: const Duration(milliseconds: 50));
+      // Default permissions have maxConcurrentRequests=2
       final manager = DownloadManager(
         cacheManager: cache,
         workerCount: 4,
-        maxConcurrentPerDomain: 1,
       );
 
       final maxConcurrentSameDomain = <int>[];
@@ -263,7 +261,7 @@ void main() {
       ], source);
       await manager.waitForIdle();
 
-      expect(maxConcurrentSameDomain.reduce((a, b) => a > b ? a : b), 1);
+      expect(maxConcurrentSameDomain.reduce((a, b) => a > b ? a : b), 2);
       expect(await cache.hasChapter('book1', 'ch2'), isTrue);
     });
   });

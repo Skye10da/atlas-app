@@ -44,7 +44,12 @@ class BookshelfGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth;
+        // The GridView is wrapped in 24px of horizontal padding below, so
+        // measure from the width the grid actually receives. Computing columns
+        // and tile width from the unpadded width makes real tiles narrower
+        // than `tileWidth`, which shrinks the aspect-ratio-derived tile height
+        // below what the card's cover + info section need.
+        final availableWidth = max(0.0, constraints.maxWidth - 48);
         final idealColumns =
             ((availableWidth + crossSpacing) / (coverWidth + crossSpacing))
                 .floor()
@@ -69,7 +74,9 @@ class BookshelfGrid extends StatelessWidget {
                   crossAxisCount: columns,
                   mainAxisSpacing: mainSpacing,
                   crossAxisSpacing: crossSpacing,
-                  childAspectRatio: tileWidth / (coverHeight + 100),
+                  // Pin the tile height so it always leaves room for the
+                  // fixed-size cover plus the title/author section below it.
+                  mainAxisExtent: coverHeight + 100,
                 ),
                 itemCount: books.length,
                 itemBuilder: (context, index) {

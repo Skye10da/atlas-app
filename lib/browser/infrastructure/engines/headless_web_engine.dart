@@ -76,30 +76,56 @@ class HeadlessWebEngine implements BrowserWebEngine {
             javaScriptEnabled: true,
             isInspectable: false,
             cacheEnabled: true,
+            contentBlockers: [],
           ),
+          // These are load-bearing, not cosmetic. `SilentWebViewService`
+          // decides whether a navigation settled by watching `isLoading` flip
+          // back to false, and decides same-origin eligibility from
+          // `currentUrl`; without them `isLoading` latches true forever (every
+          // `_navigateTo` then burns the full 45s timeout and reports failure)
+          // and `currentUrl` stays null (the in-page fetch is treated as
+          // cross-origin). Mirrors the visible engine's wiring.
           onLoadStart: (controller, url) {
+            if (_disposed) return;
             _isLoading.value = true;
-            _currentUrl.value = url?.toString();
+            if (url != null) _currentUrl.value = url.toString();
           },
           onLoadStop: (controller, url) {
+            if (_disposed) return;
             _isLoading.value = false;
-            _currentUrl.value = url?.toString();
+            _progress.value = 1;
+            if (url != null) _currentUrl.value = url.toString();
           },
-          onReceivedError: (controller, request, error) {
-            _isLoading.value = false;
-            _lastError.value = error.description;
+          onUpdateVisitedHistory: (controller, url, isReload) {
+            if (_disposed) return;
+            if (url != null) _currentUrl.value = url.toString();
           },
           onProgressChanged: (controller, progress) {
+            if (_disposed) return;
             _progress.value = progress / 100.0;
           },
           onTitleChanged: (controller, title) {
-            _currentTitle.value = title;
+            if (_disposed) return;
+            if (title != null && title.isNotEmpty) _currentTitle.value = title;
+          },
+          onReceivedError: (controller, request, error) {
+            if (_disposed) return;
+            // Only a failed *main-frame* navigation ends the load. Clearing on
+            // sub-resource errors would report the document as settled while it
+            // is still loading, and the caller would read a half-built DOM.
+            // A null request is treated as the document failing, so the engine
+            // never latches in "loading".
+            if (request.isForMainFrame == false) return;
+            _isLoading.value = false;
+            _lastError.value = error.description;
           },
         );
 
-        await _headless!.run();
         _controller = _headless!.webViewController;
 
+        await _headless!.run();
+
+        // Set up JS handlers after creation
         for (final entry in _jsHandlers.entries) {
           _controller?.addJavaScriptHandler(
             handlerName: entry.key,
@@ -141,16 +167,22 @@ class HeadlessWebEngine implements BrowserWebEngine {
 
   @override
   ValueNotifier<String?> get currentUrl => _currentUrl;
+
   @override
   ValueNotifier<String?> get currentTitle => _currentTitle;
+
   @override
   ValueNotifier<String?> get lastError => _lastError;
+
   @override
   ValueNotifier<double> get progress => _progress;
+
   @override
   ValueNotifier<bool> get canGoBack => _canGoBack;
+
   @override
   ValueNotifier<bool> get canGoForward => _canGoForward;
+
   @override
   ValueNotifier<bool> get isLoading => _isLoading;
 
@@ -183,53 +215,63 @@ class HeadlessWebEngine implements BrowserWebEngine {
   }
 
   @override
-  Future<void> goHome() async {}
+  Future<void> goHome() async {
+    await _ensureInitialized();
+    await _controller?.loadUrl(urlRequest: URLRequest(url: WebUri('about:blank')));
+  }
+
   @override
   Future<void> goBack() async => _controller?.goBack();
+
   @override
   Future<void> goForward() async => _controller?.goForward();
+
   @override
   Future<void> reload() async => _controller?.reload();
+
   @override
   Future<void> stop() async => _controller?.stopLoading();
+
   @override
   Future<int> search(String query) async => 0;
+
   @override
   Future<bool> findNext() async => false;
+
   @override
   Future<bool> findPrevious() async => false;
+
   @override
   Future<void> clearFind() async {}
+
+  @override
+  Future<void> clearSelection() async {}
+
+  @override
+  Future<void> selectAllInPage() async {}
+
   @override
   Future<void> setSelectionListener(
     void Function(WebSelection selection)? listener,
   ) async {}
-  @override
-  Future<void> clearSelection() async {}
-  @override
-  Future<void> selectAllInPage() async {}
+
   @override
   Future<void> setDownloadListener(
     void Function(String url, String? mimeType)? listener,
   ) async {}
 
   @override
-  Widget buildView() => const SizedBox.shrink();
+  Widget buildView() {
+    // Headless engine doesn't build a visible view; return empty container.
+    return const SizedBox.shrink();
+  }
 
   @override
   void dispose() {
-    if (_disposed) return;
     _disposed = true;
     _headless?.dispose();
     _headless = null;
     _controller = null;
-    _currentUrl.dispose();
-    _currentTitle.dispose();
-    _lastError.dispose();
-    _progress.dispose();
-    _canGoBack.dispose();
-    _canGoForward.dispose();
-    _isLoading.dispose();
+    _initCompleter = null;
   }
 }
-

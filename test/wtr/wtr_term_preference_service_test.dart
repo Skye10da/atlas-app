@@ -5,7 +5,6 @@ import 'package:atlas_app/wtr/domain/services/wtr_term_preference_service.dart';
 
 import '../content_engine/test_fixtures.dart';
 
-/// Records the full URL of every `fetchJson` call.
 class _RecordingTransport implements Transport {
   _RecordingTransport(this.inner);
 
@@ -15,6 +14,20 @@ class _RecordingTransport implements Transport {
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) =>
       inner.fetchHtml(url, headers: headers);
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async =>
+      inner.fetchHtmlConditional(
+        url,
+        headers: headers,
+        etag: etag,
+        lastModified: lastModified,
+      );
 
   @override
   Future<String> fetchHtmlPost(

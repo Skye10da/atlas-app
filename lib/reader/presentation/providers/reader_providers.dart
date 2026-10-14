@@ -18,6 +18,7 @@ import 'package:atlas_app/reader/application/chapter_download_service.dart';
 import 'package:atlas_app/reader/application/novel_export_service.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
+import 'package:atlas_app/reader/domain/entities/atlas_glossary_entry.dart';
 import 'package:atlas_app/reader/domain/services/atlas_glossary_applier.dart';
 import 'package:atlas_app/reader/infrastructure/repositories/drift_reader_repository.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
@@ -295,7 +296,16 @@ Future<String> _applyTranslation(Ref ref, ChapterEntity chapter, String content)
 
   // Fast path: translation off => no drift, no network. Saves 1 drift query
   // on every cached-chapter open (the common offline, already-downloaded case).
-  final enabled = await ref.watch(translationEnabledProvider(chapter.bookId).future);
+  //
+  // `ref.read` (not `watch`): awaiting `.future` with `watch` registers a
+  // dependency, so the first time `translationEnabledProvider` resolves it
+  // invalidates `readerChapterContentProvider` and re-runs the whole load
+  // (re-publishing "preparing reader"). `read` awaits the value once
+  // without re-triggering. The timeout is a fail-safe so a cold/slow
+  // SharedPreferences can never stall the chapter on "Preparing reader".
+  final enabled = await ref
+      .read(translationEnabledProvider(chapter.bookId).future)
+      .timeout(const Duration(seconds: 15), onTimeout: () => false);
   if (!enabled) return content;
 
   final bookResult = await ref.read(readerRepositoryProvider).getBookById(chapter.bookId);
@@ -304,7 +314,7 @@ Future<String> _applyTranslation(Ref ref, ChapterEntity chapter, String content)
   if (isWtrLabSource(sourceUrl: book.sourceUrl, sourceName: book.sourceName)) {
     return content;
   }
-  final language = await ref.watch(targetLanguageProvider(chapter.bookId).future);
+  final language = await ref.read(targetLanguageProvider(chapter.bookId).future);
   if (language == null) return content;
 
   final service = ref.watch(googleTranslateServiceProvider);
@@ -329,11 +339,18 @@ String _sourceLanguageOf(BookEntity book) {
 
 /// Renders the user's per-novel glossary onto [content] as it is handed to the
 /// reader. The stored chapter text is never rewritten — every load applies the
-/// current term set, and watching the glossary rebuilds the chapter the moment
-/// a term changes.
+/// current term set. Uses `ref.read` (not `watch`) on the glossary `.future`
+/// so the first glossary resolution does not invalidate and re-run the chapter
+/// load (the "Preparing reader" stall); glossary mutations instead invalidate
+/// [readerChapterContentProvider] explicitly (see `glossary_tab.dart`).
 Future<String> _applyAtlasGlossary(Ref ref, String bookId, String content) async {
   try {
-    final glossary = await ref.watch(atlasGlossaryProvider(bookId).future);
+    final glossary = await ref
+        .read(atlasGlossaryProvider(bookId).future)
+        .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => const <AtlasGlossaryEntry>[],
+        );
     if (glossary.isEmpty) return content;
     return AtlasGlossaryApplier.apply(content, glossary);
   } catch (_) {
@@ -373,8 +390,12 @@ Future<Result<void>> _downloadChapterWithSessionRefresh(
 
 /// The book's chosen target language code (e.g. `es`) for a download, so WTR
 /// Web/WebPlus chapters fetch pre-translated into the user's pick.
+///
+/// `ref.read` (not `watch`) — awaiting the `.future` with `watch` would
+/// invalidate this provider the moment `targetLanguageProvider` first
+/// resolves, re-running the load before the download even started.
 Future<String?> _targetLanguageCode(Ref ref, String bookId) async {
-  return (await ref.watch(targetLanguageProvider(bookId).future))?.code;
+  return (await ref.read(targetLanguageProvider(bookId).future))?.code;
 }
 
 /// Explicit redownload controller — force-overwrites the cached file even

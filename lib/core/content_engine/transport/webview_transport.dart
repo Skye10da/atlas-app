@@ -6,9 +6,8 @@ import 'package:atlas_app/core/session/session_refresh_service.dart';
 
 /// Fetches through a live web view's same-origin `fetch`, so the request
 /// carries the browser's cookies and TLS fingerprint and can pass
-/// Cloudflare-style bot challenges that block plain HTTP clients. GETs and
-/// JSON POSTs ([jsonBody]) are both served; a POST body is sent with
-/// `Content-Type: application/json`.
+/// Cloudflare-style bot challenges that block plain HTTP clients. GETs, form
+/// POSTs ([formBody]), and JSON POSTs ([jsonBody]) are all served.
 ///
 /// When [binary] is true the fetcher uses `arrayBuffer()` + base64 encoding
 /// to transfer raw bytes without the UTF-8 corruption that `text()` causes.
@@ -22,6 +21,7 @@ typedef WebViewFetcher =
       Map<String, String>? headers,
       String? method,
       Object? jsonBody,
+      Map<String, String>? formBody,
       bool binary,
     });
 
@@ -79,7 +79,7 @@ class WebViewTransport implements Transport {
       url,
       headers: headers,
       method: 'POST',
-      jsonBody: form,
+      formBody: form,
       decode: (r) => r.body ?? '',
     );
   }
@@ -121,17 +121,35 @@ class WebViewTransport implements Transport {
     );
   }
 
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) {
+    return _exec(
+      () => inner.fetchHtmlConditional(
+        url,
+        headers: headers,
+        etag: etag,
+        lastModified: lastModified,
+      ),
+      url,
+      headers: headers,
+      decode: (r) => r.body,
+    );
+  }
+
   /// High-performance HTTP-First execution:
   /// Executes [run] against the inner transport (fast HTTP + cookie replay).
   ///
   /// Only on a bot challenge (Cloudflare 403/503 or 200-masquerading challenge
   /// body) or session wall does it:
   /// 1. Try a live open browser tab on that origin (if available).
-  /// 2. Then try the always-mounted silent background WebView
-  ///    (`SilentWebViewHost` at 1x1 — only navigates on a challenged fetch,
   /// 2. Then try the silent headless background WebView pool
-  ///    (HeadlessInAppWebView pool — only navigates on a challenged fetch,
-  ///    idle otherwise — so no cost on startup or non-CF sites).
+  ///    (`HeadlessWebViewPool` — only navigates on a challenged fetch, idle
+  ///    otherwise — so no cost on startup or non-CF sites).
   /// 3. If unresolved, escalate to [SessionRefreshService] so the app can
   ///    offer a visible re-verify pass.
   Future<T> _exec<T>(
@@ -140,6 +158,7 @@ class WebViewTransport implements Transport {
     Map<String, String>? headers,
     String? method,
     Object? jsonBody,
+    Map<String, String>? formBody,
     bool binary = false,
     required T Function(WebViewFetchResult) decode,
   }) async {
@@ -153,6 +172,7 @@ class WebViewTransport implements Transport {
           headers: headers,
           method: method,
           jsonBody: jsonBody,
+          formBody: formBody,
           binary: binary,
           decode: decode,
         );
@@ -192,6 +212,7 @@ class WebViewTransport implements Transport {
     Map<String, String>? headers,
     String? method,
     Object? jsonBody,
+    Map<String, String>? formBody,
     bool binary = false,
     required T Function(WebViewFetchResult) decode,
   }) async {
@@ -202,6 +223,7 @@ class WebViewTransport implements Transport {
       headers: headers,
       method: method,
       jsonBody: jsonBody,
+      formBody: formBody,
       binary: binary,
     );
     if (liveResult != null && (liveResult.body != null || liveResult.bytes != null)) {
@@ -218,6 +240,7 @@ class WebViewTransport implements Transport {
       headers: headers,
       method: method,
       jsonBody: jsonBody,
+      formBody: formBody,
       binary: binary,
     );
     if (silentResult != null && (silentResult.body != null || silentResult.bytes != null)) {
@@ -232,6 +255,7 @@ class WebViewTransport implements Transport {
     Map<String, String>? headers,
     String? method,
     Object? jsonBody,
+    Map<String, String>? formBody,
     bool binary = false,
   }) async {
     if (fetcher == null) return null;
@@ -241,6 +265,7 @@ class WebViewTransport implements Transport {
         headers: headers,
         method: method,
         jsonBody: jsonBody,
+        formBody: formBody,
         binary: binary,
       );
       if (result == null) return null;

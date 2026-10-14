@@ -1,9 +1,11 @@
 import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
+import 'package:atlas_app/core/content_engine/selectors/selector_miss_exception.dart';
 import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_models.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
+import 'package:flutter/foundation.dart';
 
 /// Talks to a site's `/wp-json/wp/v2/*` REST endpoints instead of scraping
 /// rendered HTML where available, and falls back to [HtmlTemplate] scraping
@@ -103,7 +105,53 @@ class WordPressApiTemplate implements Template {
         // Response wasn't JSON → scrape.
       }
     }
-    return _fallback.chapterContent(context, chapterUrl);
+    // Scrape fallback: try selectors first, then fall back to entire body.
+    // This mirrors the old HtmlTemplate behavior for REST-unavailable cases
+    // where the site may not have selectors configured.
+    try {
+      return await _fallback.chapterContent(context, chapterUrl);
+    } on SelectorMissException catch (e) {
+      if (kDebugMode) {
+        print('Caught SelectorMissException in WordPressApiTemplate: $e');
+      }
+      return _scrapeBodyFallback(context, chapterUrl);
+    } catch (e, st) {
+      if (kDebugMode) {
+        print('Caught generic exception in WordPressApiTemplate: $e\n$st');
+      }
+      // If it's a SelectorMissException wrapped in another error, rethrow to surface
+      if (e is SelectorMissException) rethrow;
+      throw TransportException('Scrape fallback failed: $e', cause: e, isTransient: false);
+    }
+  }
+
+  /// Fallback scraper that uses the entire document body when no selectors
+  /// are configured. Used when REST API is unavailable and the site hasn't
+  /// provided chapterContent selectors.
+  Future<AtlasDocument> _scrapeBodyFallback(
+    PluginContext context,
+    String chapterUrl,
+  ) async {
+    final html = await context.transport.fetchHtml(
+      Uri.parse(chapterUrl),
+      headers: context.plugin.requestHeaders,
+    );
+    final doc = HtmlTemplate.parser.parse(html);
+    final root = doc.body ??
+        (throw SelectorMissException(
+          pluginId: context.plugin.id,
+          role: 'chapterContent.container (body fallback)',
+          selector: 'doc.body',
+        ));
+    return HtmlTemplate.pipeline.run(
+      root,
+      title: null,
+      metadata: DocumentMetadata(
+        sourceUrl: chapterUrl,
+        sourceName: context.plugin.sourceName,
+      ),
+      filters: context.filters,
+    );
   }
 
   /// Best-effort metadata via the post's REST entry; falls back to scraping.

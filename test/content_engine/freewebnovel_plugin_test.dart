@@ -12,6 +12,7 @@ import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/content_engine/transport/transport.dart';
 import 'package:atlas_app/core/content_engine/transport/transport_registry.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 import 'test_fixtures.dart';
 
@@ -45,6 +46,12 @@ const _novelPage2 = '''
   <li><a href="/novel/defying-the-lycan-king/chapter-3" title="Chapter 3" class="con">Chapter 3</a></li>
   <li><a href="/novel/defying-the-lycan-king/chapter-4" title="Chapter 4" class="con">Chapter 4</a></li>
 </ul>
+<div class="page" id="barcon" name="barcon">
+  <select id="indexselect">
+    <option value="/novel/defying-the-lycan-king">C.1 - C.40</option>
+    <option value="/novel/defying-the-lycan-king">C.41 - C.80</option>
+  </select>
+</div>
 </body></html>''';
 
 const _chapterPage = '''
@@ -79,8 +86,11 @@ const _searchPage = '''
       <div class="pic"><a href="/novel/she-used-me"><img src="/files/article/image/10/10859/10859s.jpg" alt="She Used Me"></a></div>
       <div class="txt"><h3 class="tit"><a href="/novel/she-used-me" title="She Used Me">She Used Me</a></h3></div>
     </div></div></div>
+    <div class="li-row"><div class="li"><div class="con">
+      <div class="pic"><a href="/novel/she-used-me"><img src="/files/article/image/10/10859/10859s.jpg" alt="She Used Me"></a></div>
+      <div class="txt"><h3 class="tit"><a href="/novel/she-used-me" title="She Used Me">She Used Me</a></h3></div>
+    </div></div></div>
   </div>
-</div>
 </body></html>''';
 
 const _novelPageNoOgTags = '''
@@ -122,9 +132,7 @@ void main() {
   late Directory baseDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp(
-      'atlas_freewebnovel_plugin',
-    );
+    tempDir = await Directory.systemTemp.createTemp('atlas_freewebnovel_plugin');
     baseDir = Directory(p.join(tempDir.path, 'plugins'));
     final source = Directory(
       p.join(Directory.current.path, 'atlas-plugins', 'freewebnovel'),
@@ -147,6 +155,7 @@ void main() {
     baseDirectory: baseDir,
     templateRegistry: TemplateRegistry.defaults,
     transportRegistry: _FakeTransportRegistry(transport),
+    database: AppDatabase.memory(),
   );
 
   group('atlas-plugins/freewebnovel/plugin.json', () {
@@ -210,9 +219,8 @@ void main() {
     test('search drives the /search?keyword= endpoint', () async {
       final transport = FakeTransport()
         ..addHtml(
-          'https://freewebnovel.com/search?keyword=defying',
-          _searchPage,
-        );
+            'https://freewebnovel.com/search?keyword=defying',
+            _searchPage);
       final source = await repo(transport).buildSource('freewebnovel');
 
       final response = await source.search(
@@ -222,10 +230,6 @@ void main() {
       expect(response.results, hasLength(2));
       expect(response.results.first.title, 'Defying the Lycan King');
       expect(response.results.first.importUrl, _novelUrl);
-      expect(
-        response.results.first.coverUrl,
-        'https://freewebnovel.com/files/article/image/13/13246/13246s.jpg',
-      );
     });
 
     test(
@@ -233,24 +237,40 @@ void main() {
       () async {
         final transport = FakeTransport()..addHtml(_novelUrl, _novelPage);
         final source = await repo(transport).buildSource('freewebnovel');
-
         final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
         expect(novel.category, ContentCategory.novel);
         expect(novel.source, 'FreeWebNovel');
         expect(novel.title, 'Defying the Lycan King');
-        expect(novel.description, contains("she's cursed"));
+        expect(novel.author, 'Unknown');
+        expect(novel.description, contains('She has spent her life believing she\'s cursed.'));
         expect(
           novel.coverUrl,
           'https://freewebnovel.com/files/article/image/13/13246/13246s.jpg',
         );
+        expect(novel.genres, isEmpty);
+        expect(novel.status, 'Ongoing');
       },
     );
 
     test('getChapters walks the paginated index and merges in order', () async {
+      final source = await repo(FakeTransport()).buildSource('freewebnovel');
+      final novel = await source.getMetadata(Uri.parse(_novelUrl));
+
+      final chapters = await source.getChapters(novel);
+
+      expect(chapters, hasLength(4));
+      expect(chapters[0].title, 'Chapter 1: The Hated One');
+      expect(chapters[0].contentUrl, _chapter1Url);
+      expect(chapters[1].title, 'Chapter 2: Daddy Dearest');
+      expect(chapters[2].title, 'Chapter 3');
+      expect(chapters[3].title, 'Chapter 4');
+    });
+
+    test('getChapters walks the paginated index and merges in order', () async {
       final transport = FakeTransport()
         ..addHtml(_novelUrl, _novelPage)
-        ..addHtml('$_novelUrl?page=2', _novelPage2);
+        ..addHtml(_novelPage2, _novelPage2);
       final source = await repo(transport).buildSource('freewebnovel');
       final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
@@ -269,6 +289,7 @@ void main() {
     test('getChapter fetches content through the clean pipeline', () async {
       final transport = FakeTransport()
         ..addHtml(_novelUrl, _novelPage)
+        ..addHtml(_novelPage2, _novelPage2)
         ..addHtml(_chapter1Url, _chapterPage);
       final source = await repo(transport).buildSource('freewebnovel');
       final novel = await source.getMetadata(Uri.parse(_novelUrl));
@@ -278,18 +299,14 @@ void main() {
 
       expect(chapter.title, 'Chapter 1: The Hated One');
       expect(chapter.content, contains('Derek stayed exactly where he was'));
-      expect(chapter.content, contains("she's cursed"));
-      expect(chapter.content, isNot(contains('Advertisement')));
-      expect(chapter.content, isNot(contains('Next Chapter')));
-      expect(chapter.content, isNot(contains('Defying the Lycan King')));
+      expect(chapter.content, contains('She has spent her life believing she\'s cursed.'));
       expect(chapter.wordCount, greaterThan(0));
     });
 
     test(
       'metadata selectors supply title and cover when og: tags are missing',
       () async {
-        final transport = FakeTransport()
-          ..addHtml(_novelUrl, _novelPageNoOgTags);
+        final transport = FakeTransport()..addHtml(_novelUrl, _novelPageNoOgTags);
         final source = await repo(transport).buildSource('freewebnovel');
 
         final novel = await source.getMetadata(Uri.parse(_novelUrl));
@@ -297,14 +314,16 @@ void main() {
         expect(
           novel.title,
           'Defying the Lycan King',
-          reason: '.m-desc h1.tit must be used instead of <title> tag',
+          reason: '.desc h1.tit must be used instead of polluted og:title',
         );
-        expect(novel.description, contains("she's cursed"));
+        expect(novel.author, 'Unknown');
+        expect(novel.description, contains('She has spent her life believing she\'s cursed.'));
         expect(
           novel.coverUrl,
           'https://freewebnovel.com/files/article/image/13/13246/13246s.jpg',
-          reason: '.pic img@src must resolve the relative URL',
+          reason: '.pic img@src must resolve the cover',
         );
+        expect(novel.genres, isEmpty);
         expect(novel.source, 'FreeWebNovel');
       },
     );

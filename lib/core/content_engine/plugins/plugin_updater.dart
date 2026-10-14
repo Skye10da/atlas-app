@@ -7,6 +7,7 @@ import 'package:atlas_app/core/content_engine/plugins/plugin_catalog.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_repository.dart';
 import 'package:atlas_app/core/content_engine/plugins/verification.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 enum PluginUpdateStatus {
   /// A previously unknown plugin was installed.
@@ -52,11 +53,13 @@ class PluginUpdater {
     required this.source,
     required this.targetDirectory,
     required this.templateRegistry,
+    required this.database,
   });
 
   final GithubPluginSource source;
   final Directory targetDirectory;
   final TemplateRegistry templateRegistry;
+  final AppDatabase database;
 
   /// Pulls the catalog and updates every listed plugin, returning one outcome
   /// per plugin. A per-plugin failure (network, checksum, validation) becomes
@@ -67,6 +70,7 @@ class PluginUpdater {
     final repository = PluginRepository(
       baseDirectory: targetDirectory,
       templateRegistry: templateRegistry,
+      database: database,
     );
     final results = <PluginUpdate>[];
     for (final entry in catalog.plugins) {

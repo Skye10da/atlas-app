@@ -6,6 +6,8 @@ import 'package:html/dom.dart';
 import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
 import 'package:atlas_app/core/content_engine/parser/dom_parser.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
+import 'package:atlas_app/core/content_engine/selectors/healing_engine.dart';
+import 'package:atlas_app/core/content_engine/selectors/selector_miss_exception.dart';
 import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
 import 'package:atlas_app/core/content_engine/templates/content_pipeline.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
@@ -246,9 +248,10 @@ class HtmlTemplate implements Template {
     ).clamp(1, _maxPages).toInt();
 
     for (var page = 2; page <= maxPages; page++) {
-      final uri = Uri.parse(
-        novelUrl,
-      ).replace(queryParameters: {chapterList.pageParam: '$page'});
+      final uri = _mergeQueryParams(
+        Uri.parse(novelUrl),
+        {chapterList.pageParam: '$page'},
+      );
       final html = await context.transport.fetchHtml(uri, headers: headers);
       final before = refs.length;
       _collectChapterRefs(selectors, parser.parse(html), base, seen, refs);
@@ -358,22 +361,26 @@ class HtmlTemplate implements Template {
     final doc = parser.parse(html);
     final selectors = context.selectors;
     final contentSelectors = selectors?.chapterContent;
+    final pluginId = context.plugin.id;
+    final healingEngine = context.database != null
+        ? HealingEngine(context.database!)
+        : null;
     final root = selectors != null && contentSelectors != null
-        ? selectors.applyContentContainer(doc)
-        : doc.body;
+        ? await selectors.applyContentContainer(
+            doc,
+            pluginId: pluginId,
+            role: 'chapterContent.container',
+            healingEngine: healingEngine,
+          )
+        : (throw SelectorMissException(
+            pluginId: pluginId,
+            role: 'chapterContent.container',
+            selector: '(no selectors configured)',
+          ));
     String? title;
-    final titleSelector = contentSelectors?.title;
+    final titleSelector = contentSelectors.title;
     if (titleSelector != null && titleSelector.isNotEmpty) {
       title = doc.querySelector(titleSelector)?.text.trim();
-    }
-    if (root == null) {
-      return AtlasDocument(
-        title: title ?? '',
-        metadata: DocumentMetadata(
-          sourceUrl: chapterUrl,
-          sourceName: context.plugin.sourceName,
-        ),
-      );
     }
     return pipeline.run(
       root,
@@ -611,6 +618,12 @@ class HtmlTemplate implements Template {
     return t.trim();
   }
 
+  Uri _mergeQueryParams(Uri uri, Map<String, String> params) {
+    final existing = Map<String, String>.from(uri.queryParameters);
+    existing.addAll(params);
+    return uri.replace(queryParameters: existing);
+  }
+
   String? _firstNonEmpty(String? value, [String? second, String? third]) {
     for (final candidate in [value, second, third]) {
       if (candidate != null && candidate.trim().isNotEmpty) {
@@ -631,11 +644,11 @@ class HtmlTemplate implements Template {
     };
     final path = search.path;
     if (path == null || path.isEmpty) {
-      return Uri.parse(baseUrl).replace(queryParameters: params);
+      return _mergeQueryParams(Uri.parse(baseUrl), params);
     }
-    return Uri.parse(baseUrl).replace(
-      path: path.startsWith('/') ? path : '/$path',
-      queryParameters: params,
+    return _mergeQueryParams(
+      Uri.parse(baseUrl).replace(path: path.startsWith('/') ? path : '/$path'),
+      params,
     );
   }
 
@@ -670,6 +683,6 @@ class HtmlTemplate implements Template {
     final base = Uri.parse(baseUrl).replace(path: path);
     if (queryPart.isEmpty) return base;
     final params = Uri.splitQueryString(queryPart);
-    return base.replace(queryParameters: params);
+    return _mergeQueryParams(base, params);
   }
 }

@@ -4,6 +4,8 @@ import 'package:html/dom.dart';
 
 import 'package:atlas_app/core/content_engine/models/atlas_document.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
+import 'package:atlas_app/core/content_engine/selectors/healing_engine.dart';
+import 'package:atlas_app/core/content_engine/selectors/selector_miss_exception.dart';
 import 'package:atlas_app/core/content_engine/templates/html_template.dart';
 import 'package:atlas_app/core/content_engine/templates/template.dart';
 import 'package:atlas_app/core/content_engine/templates/template_models.dart';
@@ -118,24 +120,28 @@ class RoyalRoadTemplate extends HtmlTemplate {
     );
     final doc = HtmlTemplate.parser.parse(html);
     final selectors = context.selectors;
+    final pluginId = context.plugin.id;
+    final healingEngine = context.database != null
+        ? HealingEngine(context.database!)
+        : null;
     final root = selectors != null
-        ? selectors.applyContentContainer(doc)
-        : doc.body;
-    if (root != null) _stripCssHiddenElements(doc, root);
+        ? await selectors.applyContentContainer(
+            doc,
+            pluginId: pluginId,
+            role: 'chapterContent.container',
+            healingEngine: healingEngine,
+          )
+        : (throw SelectorMissException(
+            pluginId: pluginId,
+            role: 'chapterContent.container',
+            selector: '(no selectors configured)',
+          ));
+    _stripCssHiddenElements(doc, root);
 
     String? title;
-    final titleSelector = selectors?.chapterContent?.title;
+    final titleSelector = selectors.chapterContent?.title;
     if (titleSelector != null && titleSelector.isNotEmpty) {
       title = doc.querySelector(titleSelector)?.text.trim();
-    }
-    if (root == null) {
-      return AtlasDocument(
-        title: title ?? '',
-        metadata: DocumentMetadata(
-          sourceUrl: chapterUrl,
-          sourceName: context.plugin.sourceName,
-        ),
-      );
     }
     return HtmlTemplate.pipeline.run(
       root,

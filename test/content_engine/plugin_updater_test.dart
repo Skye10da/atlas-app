@@ -11,6 +11,7 @@ import 'package:atlas_app/core/content_engine/plugins/plugin_repository.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_updater.dart';
 import 'package:atlas_app/core/content_engine/plugins/verification.dart';
 import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
+import 'package:atlas_app/core/database/database.dart';
 
 import 'test_fixtures.dart';
 
@@ -83,6 +84,7 @@ void main() {
     source: GithubPluginSource(config: _config, transport: transport),
     targetDirectory: tempDir,
     templateRegistry: TemplateRegistry.defaults,
+    database: AppDatabase.memory(),
   );
 
   test(
@@ -100,6 +102,7 @@ void main() {
       final repository = PluginRepository(
         baseDirectory: tempDir,
         templateRegistry: TemplateRegistry.defaults,
+        database: AppDatabase.memory(),
       );
       final manifest = await repository.load('mvlempyr');
       expect(
@@ -128,6 +131,7 @@ void main() {
     final manifest = await PluginRepository(
       baseDirectory: tempDir,
       templateRegistry: TemplateRegistry.defaults,
+      database: AppDatabase.memory(),
     ).load('mvlempyr');
     expect(manifest.version, const PluginVersion(major: 1, minor: 1, patch: 0));
   });

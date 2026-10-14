@@ -123,6 +123,20 @@ class _RecordingTransport implements Transport {
       inner.fetchHtml(url, headers: headers);
 
   @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async =>
+      inner.fetchHtmlConditional(
+        url,
+        headers: headers,
+        etag: etag,
+        lastModified: lastModified,
+      );
+
+  @override
   Future<String> fetchHtmlPost(
     Uri url, {
     Map<String, String>? headers,
@@ -1278,6 +1292,15 @@ class _ChunkingTransport implements Transport {
 
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async =>
       throw UnimplementedError();
 
   @override

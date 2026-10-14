@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -64,16 +63,15 @@ class SilentWebViewService {
     Map<String, String>? headers,
     String? method,
     Object? jsonBody,
+    Map<String, String>? formBody,
     bool binary = false,
   }) async {
     if (!_servable(url)) return null;
-    // Root fix: Windows headless WebView2 (CoInitialize, WebView2Loader.dll)
-    // can throw native Error that bypasses Dart catch and kills isolate
-    // (Lost connection on uncached reader open). Fail fast to HTTP fallback.
-    if (Platform.isWindows) return null;
-    // On Windows the headless pool is disabled (effectiveMaxViews == 0)
-    // — fail fast to HTTP fallback instead of trying to acquire a
-    // HeadlessInAppWebView that will throw CoInitialize.
+    // Windows headless WebView2 needs COM initialized and the engine's platform
+    // view registry ready; `HeadlessWebEngine._ensureInitialized` defers
+    // creation past a frame and retries the CoInitialize race, so the pool is
+    // safe to use here. Acquire/navigate failures are caught below and degrade
+    // to a null result so the caller falls back to plain HTTP.
     if (pool.effectiveMaxViews == 0) return null;
     final originStr = _originKey(url.toString());
     if (originStr.isEmpty) return null;
@@ -98,29 +96,11 @@ class SilentWebViewService {
         // WebView to the target URL and capture DOM directly — more reliable
         // than `fetch()` from a different page (e.g. /home) which can be
         // blocked by CF or return null due to sameOrigin timing.
-        if (shouldNavigateForHtml &&
-            engine.currentUrl.value != url.toString()) {
+        if (shouldNavigateForHtml) {
           await _seedSession(originUri);
-          final loaded = await _navigateTo(engine, url);
-          if (loaded) {
-            // Give the page a moment to settle (CF challenge JS may still
-            // be running) before capturing.
-            await _sleep(const Duration(milliseconds: 800));
-            final dom = await engine.evaluate(
-              'document.documentElement.outerHTML',
-            );
-            if (dom is String &&
-                dom.isNotEmpty &&
-                !_looksLikeChallenge(dom)) {
-              await _refreshSavedSession(Uri.parse(_originKey(url.toString())));
-              return WebViewFetchResult(
-                body: dom,
-                status: 200,
-                finalUrl: url,
-              );
-            }
-            // If DOM is still a challenge, fall through to fetch.
-          }
+          final captured = await _navigateAndCaptureDom(engine, url);
+          if (captured != null) return captured;
+          // If DOM is still a challenge, fall through to fetch.
         } else if (currentOrigin != originStr) {
           await _seedSession(originUri);
           final loaded = await _navigateTo(engine, originUri);
@@ -132,6 +112,7 @@ class SilentWebViewService {
           headers: headers,
           method: method,
           jsonBody: jsonBody,
+          formBody: formBody,
           binary: binary,
         );
       } catch (e) {
@@ -151,6 +132,37 @@ class SilentWebViewService {
   /// Only pages on a real origin are worth navigating a web view to; an
   /// `about:`/scheme-less URL cannot pass a challenge.
   bool _servable(Uri url) => url.hasScheme && url.host.isNotEmpty;
+
+  /// Navigates [engine] to [url] as a real top-level document load and captures
+  /// the rendered DOM.
+  ///
+  /// This is the only flow that lets a Cloudflare interstitial actually pass:
+  /// the challenge's JS runs in the document, whereas an in-page `fetch()` is
+  /// an XHR the challenge is free to refuse.
+  ///
+  /// It also needs nothing but `evaluateJavascript`, so it keeps working when
+  /// the JS-handler round trip that [WebViewPageFetcher] relies on does not.
+  ///
+  /// Returns null when the view is already on [url] (nothing to gain — pass
+  /// `force` to reload it anyway, which re-runs a stuck challenge), when the
+  /// navigation does not settle, or when the captured DOM is still a challenge
+  /// — the caller then decides whether to retry.
+  Future<WebViewFetchResult?> _navigateAndCaptureDom(
+    BrowserWebEngine engine,
+    Uri url, {
+    bool force = false,
+  }) async {
+    if (!force && engine.currentUrl.value == url.toString()) return null;
+    final loaded = await _navigateTo(engine, url);
+    if (!loaded) return null;
+    // Give the page a moment to settle (CF challenge JS may still be running)
+    // before capturing.
+    await _sleep(const Duration(milliseconds: 800));
+    final dom = await engine.evaluate('document.documentElement.outerHTML');
+    if (dom is! String || dom.isEmpty || _looksLikeChallenge(dom)) return null;
+    await _refreshSavedSession(Uri.parse(_originKey(url.toString())));
+    return WebViewFetchResult(body: dom, status: 200, finalUrl: url);
+  }
 
   /// Navigates [engine] to [origin]'s root and waits for the load to settle.
   Future<bool> _navigateTo(BrowserWebEngine engine, Uri origin) async {
@@ -202,6 +214,7 @@ class SilentWebViewService {
     Map<String, String>? headers,
     String? method,
     Object? jsonBody,
+    Map<String, String>? formBody,
     bool binary = false,
   }) async {
     // Ensure the WebView's current page has finished loading before
@@ -217,6 +230,7 @@ class SilentWebViewService {
         headers: headers,
         method: method,
         jsonBody: jsonBody,
+        formBody: formBody,
         binary: binary,
       );
       if (result == null) {
@@ -225,6 +239,20 @@ class SilentWebViewService {
           await _sleep(challengeRetryDelay);
           continue;
         }
+        // The in-page fetch never delivered a usable result at all — a missing
+        // JS bridge, a payload that would not decode, or an expired timeout, all
+        // of which are indistinguishable from here. Do not give up on the
+        // request just because the round trip failed: navigating the target and
+        // reading the rendered DOM needs only `evaluateJavascript`, so it still
+        // serves the page, and it is the flow the challenge is built for.
+        // `force` re-navigates because the view may already be sitting on the
+        // target from an earlier attempt, where a reload re-runs the challenge.
+        final navigated = await _navigateAndCaptureDom(
+          engine,
+          url,
+          force: true,
+        );
+        if (navigated != null) return navigated;
         return null;
       }
       // Binary responses have no text body to inspect; accept status 200.
@@ -247,6 +275,11 @@ class SilentWebViewService {
       // the app can offer a re-verify pass.
       if (_looksLikeChallenge(body)) {
         AppLogger.warning('_fetchThroughPage: _looksLikeChallenge=true for $url attempt $attempt status=${result.status} finalUrl=${result.finalUrl} bodyLen=${body.length}');
+        // Re-issuing the same in-page `fetch()` would hit the same refusal, so
+        // escalate to a real navigation to the target and read the DOM the
+        // challenge hands back. Only then fall back to plain retrying.
+        final solved = await _navigateAndCaptureDom(engine, url);
+        if (solved != null) return solved;
         await _sleep(challengeRetryDelay);
         continue;
       }

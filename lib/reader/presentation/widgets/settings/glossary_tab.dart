@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/atlas_glossary_entry.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
 
 /// Manages the per-novel glossary from reader settings.
@@ -36,6 +37,10 @@ class GlossaryTab extends ConsumerWidget {
         .read(atlasGlossaryControllerProvider)
         .upsertTerm(bookId, term, replacement);
     ref.invalidate(atlasGlossaryProvider(bookId));
+    // `_applyAtlasGlossary` reads the glossary via `ref.read` (no auto
+    // re-resolve), so re-render the open chapter explicitly to apply the
+    // new term.
+    ref.invalidate(readerChapterContentProvider);
   }
 
   Future<String?> _promptForText({
@@ -84,6 +89,10 @@ class GlossaryTab extends ConsumerWidget {
         .removeEntry(bookId, entry.id);
     if (!context.mounted) return;
     ref.invalidate(atlasGlossaryProvider(bookId));
+    // `_applyAtlasGlossary` reads the glossary via `ref.read` (no auto
+    // re-resolve), so re-render the open chapter explicitly to drop
+    // the removed term.
+    ref.invalidate(readerChapterContentProvider);
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(

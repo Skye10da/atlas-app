@@ -1,5 +1,7 @@
 import 'package:html/dom.dart';
 
+import 'package:atlas_app/core/content_engine/selectors/healing_engine.dart';
+import 'package:atlas_app/core/content_engine/selectors/selector_miss_exception.dart';
 import 'package:atlas_app/core/content_engine/templates/template_models.dart';
 
 class SearchSelectors {
@@ -528,12 +530,43 @@ class SelectorSet {
     return results;
   }
 
-  /// The element holding the chapter body. Falls back to the document body
-  /// when the container selector doesn't match (site changed under us).
-  Element? applyContentContainer(Document doc) {
+  /// The element holding the chapter body. Throws [SelectorMissException] when
+  /// the container selector doesn't match — no silent fallback to body.
+  /// If [healingEngine] is provided, attempts adaptive healing on miss.
+  Future<Element> applyContentContainer(Document doc, {
+    required String pluginId,
+    required String role,
+    HealingEngine? healingEngine,
+  }) async {
     final selectors = chapterContent;
-    if (selectors == null || selectors.container.isEmpty) return doc.body;
-    return doc.querySelector(selectors.container) ?? doc.body;
+    if (selectors == null || selectors.container.isEmpty) {
+      throw SelectorMissException(
+        pluginId: pluginId,
+        role: role,
+        selector: selectors?.container ?? '(none)',
+      );
+    }
+    final element = doc.querySelector(selectors.container);
+    if (element != null) return element;
+
+    // Attempt adaptive healing if engine is available
+    if (healingEngine != null) {
+      final result = await healingEngine.tryHeal(
+        doc,
+        pluginId,
+        role,
+        selectors.container,
+      );
+      if (result.healed && result.element != null) {
+        return result.element!;
+      }
+    }
+
+    throw SelectorMissException(
+      pluginId: pluginId,
+      role: role,
+      selector: selectors.container,
+    );
   }
 
   /// Resolves a selector-driven extraction instruction relative to [scope].

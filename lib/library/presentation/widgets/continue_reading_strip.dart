@@ -31,11 +31,15 @@ class ContinueReadingStrip extends StatelessWidget {
             children: [
               Icon(Icons.auto_stories_rounded, size: 16, color: cs.primary),
               const SizedBox(width: 6),
-              Text(
-                'Continue Reading',
-                style: textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.2,
+              Expanded(
+                child: Text(
+                  'Continue Reading',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.2,
+                  ),
                 ),
               ),
             ],
@@ -149,19 +153,25 @@ class _ContinueReadingCard extends HookWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            percentLabel,
-                            style: textTheme.labelSmall?.copyWith(
-                              color: cs.primary,
-                              fontWeight: FontWeight.bold,
+                          Flexible(
+                            child: Text(
+                              percentLabel,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.labelSmall?.copyWith(
+                                color: cs.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           if (book.totalChapters > 0)
-                            Text(
-                              '${book.totalChapters} chs',
-                              style: textTheme.labelSmall?.copyWith(
-                                color: cs.outline,
-                                fontSize: 10,
+                            Flexible(
+                              child: Text(
+                                '${book.totalChapters} chs',
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.labelSmall?.copyWith(
+                                  color: cs.outline,
+                                  fontSize: 10,
+                                ),
                               ),
                             ),
                         ],

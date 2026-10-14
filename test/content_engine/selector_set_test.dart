@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:html/parser.dart' as html_parser;
 
+import 'package:atlas_app/core/content_engine/selectors/selector_miss_exception.dart';
 import 'package:atlas_app/core/content_engine/selectors/selector_set.dart';
 
 void main() {
@@ -327,7 +328,7 @@ void main() {
   });
 
   group('SelectorSet.applyContentContainer', () {
-    test('returns the matching container element', () {
+    test('returns the matching container element', () async {
       const selectors = SelectorSet(
         chapterContent: ChapterContentSelectors(container: '#chapter-content'),
       );
@@ -335,16 +336,31 @@ void main() {
         <html><body><div id="chapter-content"><p>Body</p></div></body></html>
       ''');
 
-      expect(selectors.applyContentContainer(doc)?.id, 'chapter-content');
+      final element = await selectors.applyContentContainer(
+        doc,
+        pluginId: 'test-plugin',
+        role: 'chapterContent.container',
+      );
+
+      expect(element.id, 'chapter-content');
     });
 
-    test('falls back to the document body when the container is missing', () {
+    test('throws SelectorMissException when the container is missing', () async {
       const selectors = SelectorSet(
         chapterContent: ChapterContentSelectors(container: '#nope'),
       );
       final doc = html_parser.parse('<html><body><p>Body</p></body></html>');
 
-      expect(selectors.applyContentContainer(doc), same(doc.body));
+      expect(
+        () async => await selectors.applyContentContainer(
+          doc,
+          pluginId: 'test-plugin',
+          role: 'chapterContent.container',
+        ),
+        throwsA(isA<SelectorMissException>()
+            .having((e) => e.role, 'role', 'chapterContent.container')
+            .having((e) => e.pluginId, 'pluginId', 'test-plugin')),
+      );
     });
   });
 }

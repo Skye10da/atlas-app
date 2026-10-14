@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/core/content_engine/transport/challenge_detector.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_fetch_result.dart';
+import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 
 /// Implements [WebViewFetcher] against a live [BrowserWebEngine].
@@ -37,6 +38,7 @@ class WebViewPageFetcher {
     Map<String, String>? headers,
     String? method,
     Object? jsonBody,
+    Map<String, String>? formBody,
     bool binary = false,
   }) async {
     final currentRaw = engine.currentUrl.value ?? '';
@@ -74,6 +76,10 @@ class WebViewPageFetcher {
       if (completer.isCompleted) return null;
       final raw = args.isEmpty ? null : args.first;
       if (raw is! String) {
+        AppLogger.warning(
+          'WebViewPageFetcher: handler for $url returned ${raw.runtimeType} '
+          'instead of an envelope string',
+        );
         completer.complete(null);
         return null;
       }
@@ -85,46 +91,48 @@ class WebViewPageFetcher {
       final httpMethod = (method == null || method.isEmpty)
           ? 'GET'
           : method.toUpperCase();
-      final body = jsonBody == null ? null : jsonEncode(jsonBody);
+      
+      String? body;
       final requestHeaders = <String, String>{...?headers};
-      if (body != null &&
-          !requestHeaders.keys.any((k) => k.toLowerCase() == 'content-type')) {
-        requestHeaders['Content-Type'] = 'application/json';
+      
+      if (formBody != null && formBody.isNotEmpty) {
+        // Form-encoded POST
+        body = formBody.entries
+            .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+            .join('&');
+        if (!requestHeaders.keys.any((k) => k.toLowerCase() == 'content-type')) {
+          requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+        }
+      } else if (jsonBody != null) {
+        // JSON POST
+        body = jsonEncode(jsonBody);
+        if (!requestHeaders.keys.any((k) => k.toLowerCase() == 'content-type')) {
+          requestHeaders['Content-Type'] = 'application/json';
+        }
       }
 
-      if (binary) {
-        await engine.evaluate('''
-void ((url, headers, method, body, handler) => {
-  const opts = { method: method, credentials: 'include', headers: headers };
-  if (body !== null) opts.body = body;
-  fetch(url, opts)
-    .then(async r => {
-      const buf = await r.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      let bin = '';
-      const chunk = 8192;
-      for (let i = 0; i < bytes.byteLength; i += chunk) {
-        bin += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.byteLength)));
-      }
-      const b64 = btoa(bin);
-      window.flutter_inappwebview.callHandler(handler, JSON.stringify({ b: b64, s: r.status, u: r.url, bin: true }));
-    })
-    .catch(() => window.flutter_inappwebview.callHandler(handler, JSON.stringify({ s: 0 })));
-})(${jsonEncode(url.toString())}, ${jsonEncode(requestHeaders)}, ${jsonEncode(httpMethod)}, ${jsonEncode(body)}, ${jsonEncode(handlerName)});
-''');
-      } else {
-        await engine.evaluate('''
-void ((url, headers, method, body, handler) => {
-  const opts = { method: method, credentials: 'include', headers: headers };
-  if (body !== null) opts.body = body;
-  fetch(url, opts)
-    .then(async r => {
-      const t = await r.text();
-      window.flutter_inappwebview.callHandler(handler, JSON.stringify({ b: t, s: r.status, u: r.url }));
-    })
-    .catch(() => window.flutter_inappwebview.callHandler(handler, JSON.stringify({ s: 0 })));
-})(${jsonEncode(url.toString())}, ${jsonEncode(requestHeaders)}, ${jsonEncode(httpMethod)}, ${jsonEncode(body)}, ${jsonEncode(handlerName)});
-''');
+      // The result comes back over the `callHandler` round trip, which needs
+      // `window.flutter_inappwebview` to exist inside the page. Probe for it in
+      // the same evaluate that kicks off the fetch (the IIFE's return value
+      // rides back on the evaluateJavascript result, so the probe itself needs
+      // no bridge) and fail fast with a clear reason instead of sitting on the
+      // full timeout while nothing calls back.
+      final probe = await engine.evaluate(
+        (binary ? _binaryScript : _textScript)(
+          url: url.toString(),
+          headers: requestHeaders,
+          method: httpMethod,
+          body: body,
+          handlerName: handlerName,
+        ),
+      );
+      final bridge = _probeResult(probe);
+      if (bridge != 'ok') {
+        AppLogger.warning(
+          'WebViewPageFetcher: JS bridge $bridge for $url — the fetch result '
+          'cannot come back, skipping the in-page fetch',
+        );
+        return null;
       }
 
       final fetched = await completer.future.timeout(timeout);
@@ -152,11 +160,82 @@ void ((url, headers, method, body, handler) => {
       }
 
       return fetched;
-    } on Object {
+    } on Object catch (error) {
+      // Previously a bare `on Object { return null; }`, which made a missing
+      // bridge, a throwing evaluate and an expired timeout indistinguishable
+      // from each other — all the caller could see was "fetcher returned null".
+      AppLogger.warning(
+        'WebViewPageFetcher: in-page fetch failed for $url: $error',
+      );
       return null;
     } finally {
       engine.removeJsHandler(handlerName);
     }
+  }
+
+  /// Starts the in-page fetch and reports whether the JS bridge it reports
+  /// through exists. The IIFE returns `'ok'` or `'no-bridge'`, so a view with no
+  /// `window.flutter_inappwebview` is detected instead of silently timing out.
+  static String _textScript({
+    required String url,
+    required Map<String, String> headers,
+    required String method,
+    required String? body,
+    required String handlerName,
+  }) => '''
+(() => {
+  const bridge = window.flutter_inappwebview;
+  if (!bridge || typeof bridge.callHandler !== 'function') return 'no-bridge';
+  ((url, headers, method, body, handler) => {
+    const opts = { method: method, credentials: 'include', headers: headers };
+    if (body !== null) opts.body = body;
+    fetch(url, opts)
+      .then(async r => {
+        const t = await r.text();
+        bridge.callHandler(handler, JSON.stringify({ b: t, s: r.status, u: r.url }));
+      })
+      .catch(e => bridge.callHandler(handler, JSON.stringify({ s: 0, e: String(e) })));
+  })(${jsonEncode(url)}, ${jsonEncode(headers)}, ${jsonEncode(method)}, ${jsonEncode(body)}, ${jsonEncode(handlerName)});
+  return 'ok';
+})()
+''';
+
+  static String _binaryScript({
+    required String url,
+    required Map<String, String> headers,
+    required String method,
+    required String? body,
+    required String handlerName,
+  }) => '''
+(() => {
+  const bridge = window.flutter_inappwebview;
+  if (!bridge || typeof bridge.callHandler !== 'function') return 'no-bridge';
+  ((url, headers, method, body, handler) => {
+    const opts = { method: method, credentials: 'include', headers: headers };
+    if (body !== null) opts.body = body;
+    fetch(url, opts)
+      .then(async r => {
+        const buf = await r.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let bin = '';
+        const chunk = 8192;
+        for (let i = 0; i < bytes.byteLength; i += chunk) {
+          bin += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.byteLength)));
+        }
+        const b64 = btoa(bin);
+        bridge.callHandler(handler, JSON.stringify({ b: b64, s: r.status, u: r.url, bin: true }));
+      })
+      .catch(e => bridge.callHandler(handler, JSON.stringify({ s: 0, e: String(e) })));
+  })(${jsonEncode(url)}, ${jsonEncode(headers)}, ${jsonEncode(method)}, ${jsonEncode(body)}, ${jsonEncode(handlerName)});
+  return 'ok';
+})()
+''';
+
+  /// Normalizes whatever `evaluateJavascript` handed back for the probe IIFE.
+  /// Platforms differ on quoting a returned string, so strip it either way.
+  static String _probeResult(Object? raw) {
+    final text = raw is String ? raw : raw?.toString() ?? '';
+    return text.replaceAll('"', '').replaceAll("'", '').trim();
   }
 
   static bool _isViewingTarget(Uri current, Uri target) {
@@ -188,10 +267,21 @@ void ((url, headers, method, body, handler) => {
         status: status.toInt(),
         finalUrl: url == null ? null : Uri.tryParse(url),
       );
-    } catch (_) {
+    } on Object catch (error) {
+      // A payload that will not parse reaches the caller as a bare `null`,
+      // which is indistinguishable from "the handler never fired". Log enough
+      // to tell a truncated/corrupted round trip (large page bodies are the
+      // suspect) apart from a genuinely absent result.
+      AppLogger.warning(
+        'WebViewPageFetcher: could not decode the fetch envelope '
+        '($error); len=${raw.length}, starts=${_preview(raw)}',
+      );
       return null;
     }
   }
+
+  static String _preview(String raw) =>
+      raw.length <= 80 ? raw : '${raw.substring(0, 80)}...';
 
   /// Scheme, host and port must match; the page must be viewing the same
   /// origin for a `fetch` to be same-origin (CORS-free). Port check is

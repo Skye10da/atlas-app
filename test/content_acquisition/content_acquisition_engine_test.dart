@@ -361,6 +361,15 @@ class _CoverTransport implements Transport {
       throw UnimplementedError();
 
   @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
   Future<String> fetchHtmlPost(
     Uri url, {
     Map<String, String>? headers,

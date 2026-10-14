@@ -46,12 +46,15 @@ class _ScriptEngine implements BrowserWebEngine {
   @override
   Future<dynamic> evaluate(String script) async {
     evaluated.add(script);
+    // The bridge probe rides out on the same evaluate that starts the fetch,
+    // so the handler call-back and the probe value both have to happen.
+    final isProbe = script.contains('no-bridge');
     for (final entry in handlers.entries) {
       if (script.contains('"${entry.key}"')) {
         entry.value(List<dynamic>.from(cannedArgs));
       }
     }
-    return null;
+    return isProbe ? 'ok' : null;
   }
 
   @override

@@ -111,4 +111,27 @@ class CachedTransport implements Transport {
     _put(_bytes, key, value);
     return value;
   }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
+    final key = _key(url, headers);
+    final cached = _get(_html, key);
+    // For conditional GET, we still check cache first but only if we have
+    // a validator to compare against. If not in cache or no validator,
+    // delegate to inner transport.
+    if (cached != null && (etag != null || lastModified != null)) {
+      // We can't validate without making a request, so delegate
+    }
+    return _inner.fetchHtmlConditional(
+      url,
+      headers: headers,
+      etag: etag,
+      lastModified: lastModified,
+    );
+  }
 }

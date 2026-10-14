@@ -39,6 +39,18 @@ class FakeBackgroundEngine implements BrowserWebEngine {
   /// When set, each `evaluate` call fires handlers with a *fresh* argument list
   /// (for challenge-retry scenarios where the page content changes per attempt).
   List<dynamic> Function()? cannedArgsBuilder;
+
+  /// Returned by `evaluate('document.documentElement.outerHTML')` — i.e. the
+  /// DOM of whatever the view is currently showing. Null means "no DOM
+  /// available", which is what a navigated view returns when the capture is not
+  /// what a test is about.
+  String? domHtml;
+
+  /// What the in-page fetch's bridge probe reports. `'ok'` means
+  /// `window.flutter_inappwebview.callHandler` exists, so the fetch result can
+  /// come back; `'no-bridge'` means it cannot.
+  String probeResult = 'ok';
+
   bool disposed = false;
 
   @override
@@ -72,13 +84,19 @@ class FakeBackgroundEngine implements BrowserWebEngine {
   @override
   Future<dynamic> evaluate(String script) async {
     evaluated.add(script);
+    if (script.contains('document.documentElement.outerHTML')) {
+      return domHtml;
+    }
+    // The probe rides out on the same evaluate that starts the fetch, so both
+    // the probe value and the handler call-back have to happen.
+    final isProbe = script.contains('no-bridge');
     final args = cannedArgsBuilder != null ? cannedArgsBuilder!() : cannedArgs;
     for (final entry in handlers.entries) {
       if (script.contains('"${entry.key}"')) {
         entry.value(List<dynamic>.from(args));
       }
     }
-    return null;
+    return isProbe ? probeResult : null;
   }
 
   @override
@@ -166,6 +184,29 @@ void main() {
   final other = Uri.parse('https://readnovelfull.com/novel.html');
 
   group('SilentWebViewService', () {
+    test(
+      'engages the background web view on every platform, including Windows',
+      () async {
+        // Regression: the service used to short-circuit with
+        // `if (Platform.isWindows) return null` before touching the pool, which
+        // left Windows with no automatic Cloudflare recovery at all — the
+        // transport stack latched the failure and nothing solved the challenge.
+        // `HeadlessWebEngine` handles the COM-init race internally, so the pool
+        // must always be reachable.
+        final engine = FakeBackgroundEngine();
+        final service = SilentWebViewService(engine: engine);
+
+        final result = await service.fetchHtml(chapter);
+
+        expect(result?.body, '<html>from-background</html>');
+        expect(
+          engine.loadedUrls,
+          [originRoot],
+          reason: 'the origin is navigated even on Windows',
+        );
+      },
+    );
+
     test('serves a same-origin fetch without navigating', () async {
       final engine = FakeBackgroundEngine().._currentUrl.value = originRoot;
       final service = SilentWebViewService(engine: engine);
@@ -273,6 +314,108 @@ void main() {
 
         expect(html?.body, '<html>real-chapter</html>');
         expect(sleeps, isNotEmpty, reason: 'waited between challenge retries');
+      },
+    );
+
+    test(
+      'escalates a challenged in-page fetch to a real navigation of the target',
+      () async {
+        // A chapter page is not a `/novel/` path, so it is first requested as an
+        // in-page `fetch()` from the origin root. When Cloudflare refuses that
+        // XHR, re-issuing it can only fail again — the challenge has to be run
+        // in a document. So the service navigates the view to the chapter URL
+        // itself and serves the rendered DOM. This is the path the reader's
+        // chapter download depends on.
+        final engine = FakeBackgroundEngine();
+        final service = SilentWebViewService(
+          engine: engine,
+          sleep: (_) async {},
+          challengeRetryDelay: const Duration(milliseconds: 1),
+          maxChallengeRetries: 1,
+        );
+        const challengeBody =
+            '<html><head><title>Just a moment...</title></head>'
+            '<body class="challenge-platform">cf_chl</body></html>';
+        engine.cannedArgs = [
+          '{"b":${jsonEncode(challengeBody)},"s":403,"u":"$chapter"}',
+        ];
+        engine.domHtml = '<html><body>Chapter one text</body></html>';
+
+        final html = await service.fetchHtml(chapter);
+
+        expect(html?.body, '<html><body>Chapter one text</body></html>');
+        expect(
+          engine.loadedUrls,
+          [originRoot, '$chapter'],
+          reason: 'the challenged target is navigated directly',
+        );
+      },
+    );
+
+    test(
+      'fails fast without waiting on the timeout when the page has no JS bridge',
+      () async {
+        // A headless view with no `window.flutter_inappwebview` can never deliver
+        // the fetch result. Before this probe the fetcher sat on its full 45s
+        // timeout on every attempt (and every chapter), logging the same opaque
+        // "returned null" as a genuine challenge.
+        final engine = FakeBackgroundEngine()..probeResult = 'no-bridge';
+        // One attempt only, so this measures the probe rather than the retry
+        // delay between attempts.
+        final service = SilentWebViewService(
+          engine: engine,
+          maxChallengeRetries: 0,
+        );
+
+        final sw = Stopwatch()..start();
+        final html = await service.fetchHtml(chapter);
+        sw.stop();
+
+        expect(html, isNull);
+        expect(
+          sw.elapsed,
+          lessThan(const Duration(seconds: 5)),
+          reason: 'a missing bridge is detected from the probe, not by waiting '
+              'out the fetch timeout',
+        );
+        expect(
+          engine.evaluated.where((s) => s.contains('no-bridge')),
+          isNotEmpty,
+          reason: 'the fetch is never issued when the bridge is absent',
+        );
+      },
+    );
+
+    test(
+      'falls back to navigating the target when the in-page fetch never '
+      'returns a result at all',
+      () async {
+        // `pageFetcher returned null` covers a missing JS bridge, an undecodable
+        // payload and an expired timeout alike. None of those should be allowed
+        // to fail the request outright: navigating the target and reading the
+        // DOM needs only `evaluateJavascript`, so it still serves the chapter.
+        // This is the path the reader's chapter download depends on.
+        final engine = FakeBackgroundEngine();
+        final service = SilentWebViewService(
+          engine: engine,
+          sleep: (_) async {},
+          challengeRetryDelay: const Duration(milliseconds: 1),
+          maxChallengeRetries: 0,
+        );
+        engine.domHtml = '<html><body>Chapter one text</body></html>';
+        // Empty arg list = the handler fires but hands back nothing usable,
+        // which is what a broken round trip looks like from here.
+        engine.cannedArgs = const [];
+
+        final html = await service.fetchHtml(chapter);
+
+        expect(html?.body, '<html><body>Chapter one text</body></html>');
+        expect(
+          engine.loadedUrls,
+          [originRoot, '$chapter'],
+          reason: 'the target is navigated directly when the fetch comes back '
+              'empty',
+        );
       },
     );
 

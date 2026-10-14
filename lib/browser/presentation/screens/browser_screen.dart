@@ -74,7 +74,7 @@ class BrowserScreen extends HookConsumerWidget {
       final service = WebViewFetchService.instance;
       if (tabs.hasTabs) {
         service.fetcher =
-            (url, {headers, method, jsonBody, bool binary = false}) async {
+            (url, {headers, method, jsonBody, formBody, bool binary = false}) async {
               for (final tab in tabs.tabs) {
                 final result = await WebViewPageFetcher(engine: tab.engine)
                     .fetchHtml(

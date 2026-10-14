@@ -43,6 +43,14 @@ class _FakeTransport implements Transport {
     if (value == null) throw TransportException('missing $url');
     return value;
   }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async => throw UnimplementedError();
 }
 
 void main() {

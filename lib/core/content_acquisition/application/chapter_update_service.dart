@@ -10,6 +10,7 @@ import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
+import 'package:atlas_app/core/content_engine/transport/domain_governor.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/logging/logger.dart';
 
@@ -53,10 +54,12 @@ class ChapterUpdateService {
     required this.db,
     required this.registry,
     this.fetchTimeout = const Duration(seconds: 60),
-  });
+    DomainGovernor? governor,
+  }) : _governor = governor ?? DomainGovernor.instance;
 
   final AppDatabase db;
   final SourceRegistry registry;
+  final DomainGovernor _governor;
 
   /// Hard deadline for one source fetch. Without it a stalled TLS handshake
   /// or unresponsive host would hang the check (and the UI awaiting it)
@@ -64,7 +67,7 @@ class ChapterUpdateService {
   final Duration fetchTimeout;
 
   /// Guards concurrent manual triggers for the same book (double-tap on
-  /// “Check for updates” or background `checkTrackedBooks` overlapping).
+  /// "Check for updates" or background `checkTrackedBooks` overlapping).
   final Set<String> _inFlight = <String>{};
 
   /// Refreshes one book. Books without a resolvable plugin/web source (local
@@ -108,155 +111,159 @@ class ChapterUpdateService {
         return _skipped(book.id, book.title, 'Source not available');
       }
 
-      final novel = NovelModel(
-        sourceId: book.sourceId ?? book.sourceUrl ?? book.id,
-        title: book.title,
-        source: book.sourceName ?? '',
-        sourceUrl: sourceUrl,
-        category: ContentCategory.novel,
-      );
-      final rawFresh = await adapter.getChapters(novel).timeout(fetchTimeout);
-      if (rawFresh.isEmpty) {
-        await _markChecked(book);
+      // Acquire permit from DomainGovernor (enforces concurrency, robots.txt, backoff)
+      await _governor.acquire(uri);
+      try {
+        final novel = NovelModel(
+          sourceId: book.sourceId ?? book.sourceUrl ?? book.id,
+          title: book.title,
+          source: book.sourceName ?? '',
+          sourceUrl: sourceUrl,
+          category: ContentCategory.novel,
+        );
+        final rawFresh = await adapter.getChapters(novel).timeout(fetchTimeout);
+        if (rawFresh.isEmpty) {
+          await _markChecked(book);
+          return BookRefreshOutcome(
+            bookId: book.id,
+            title: book.title,
+            newChapters: 0,
+          );
+        }
+
+        // Guard truly empty titles only — site already supplies "Chapter N"
+        // for untitled chapters, so this is just a parser-glitch fallback.
+        final fresh = rawFresh
+            .map((ch) => ch.title.trim().isEmpty
+                ? ChapterModel(
+                    id: ch.id,
+                    title: 'Chapter ${ch.index + 1}',
+                    index: ch.index,
+                    content: ch.content,
+                    contentUrl: ch.contentUrl,
+                    wordCount: ch.wordCount,
+                    publishedAt: ch.publishedAt,
+                    language: ch.language,
+                  )
+                : ch)
+            .toList();
+
+        final localRows = await (db.select(
+          db.chapters,
+        )..where((c) => c.bookId.equals(book.id))).get();
+        final knownTitles = localRows
+            .map((c) => _normalizeTitle(c.title))
+            .toSet();
+        // Stable URL set from on-disk index (mvlempyr URLs are stable across
+        // title fluctuations between _fetchChaptersFromPosts and fallback).
+        final knownUrls = await _loadIndexUrls(book);
+
+        // Deduplicate fresh list itself. Prefer contentUrl (stable for
+        // mvlempyr/WP) over title to avoid generic "Chapter N" collisions.
+        final freshUnique = <String, ChapterModel>{};
+        for (final ch in fresh) {
+          final key = ch.contentUrl?.trim().isNotEmpty == true
+              ? ch.contentUrl!.trim()
+              : _normalizeTitle(ch.title);
+          freshUnique.putIfAbsent(key, () => ch);
+        }
+        final dedupedFresh = freshUnique.values.toList();
+        // URL-primary diff: if URL is known, it's the same chapter even if
+        // title was renamed (fallback generic vs real ch_name). Only when
+        // URL is unknown do we fall back to title check. This prevents
+        // N→2N duplication on mvlempyr when WP feed transiently fails.
+        final freshChapters = dedupedFresh.where((ch) {
+          final url = ch.contentUrl?.trim();
+          if (url != null && url.isNotEmpty && knownUrls.contains(url)) {
+            return false;
+          }
+          return !knownTitles.contains(_normalizeTitle(ch.title));
+        }).toList();
+
+        // Assign stable, non-colliding indices/contentPaths for inserts.
+        final maxLocalIndex = localRows.isEmpty
+            ? -1
+            : localRows.map((c) => c.index).reduce((a, b) => a > b ? a : b);
+        final companions = <ChaptersCompanion>[];
+        var nextIndex = maxLocalIndex + 1;
+        for (final ch in freshChapters) {
+          final companion = await _buildChapterCompanion(
+            book,
+            ch,
+            assignedIndex: nextIndex++,
+          );
+          if (companion != null) companions.add(companion);
+        }
+        if (companions.isNotEmpty) {
+          // Wrap DB insert in transaction to serialize with file write.
+          await db.transaction(() async {
+            await db.batch((batch) {
+              for (final companion in companions) {
+                batch.insert(
+                  db.chapters,
+                  companion,
+                  mode: InsertMode.insertOrIgnore,
+                );
+              }
+            });
+          });
+        }
+        // Re-query to get actual inserted count (insertOrIgnore may skip races).
+        final actualRows = await (db.select(
+          db.chapters,
+        )..where((c) => c.bookId.equals(book.id))).get();
+        final inserted = actualRows.length - localRows.length;
+
+        // Never shrink totalChapters on a partial fetch.
+        final newTotal = localRows.length + inserted;
+        await (db.update(db.books)..where((b) => b.id.equals(book.id))).write(
+          BooksCompanion(
+            totalChapters: Value(newTotal),
+            updatedAt: Value(DateTime.now()),
+            lastCheckedAt: Value(DateTime.now()),
+            hasUpdate: Value(inserted > 0 || book.hasUpdate),
+            newChapterCount: Value(book.newChapterCount + inserted),
+          ),
+        );
+
+        if (inserted > 0) {
+          // Pass the actual assigned start index so file indices align with DB.
+          await _appendChapterIndex(
+            book,
+            freshChapters,
+            startIndex: localRows.isEmpty
+                ? 0
+                : localRows.map((c) => c.index).reduce((a, b) => a > b ? a : b) + 1,
+            expectedDbCount: newTotal,
+            localRowCount: localRows.length,
+          );
+          AppLogger.info(
+            'Update check: ${book.title} gained $inserted new chapter(s)',
+          );
+        } else {
+          // Even with 0 inserts, repair drift if file and DB diverged.
+          await _repairIndexIfNeeded(book, localRows.length);
+          await _markChecked(book);
+        }
         return BookRefreshOutcome(
           bookId: book.id,
           title: book.title,
+          newChapters: inserted,
+        );
+      } catch (e, st) {
+        final title = (await (db.select(db.books)
+                  ..where((b) => b.id.equals(bookId)))
+                .getSingleOrNull())
+              ?.title ??
+              '';
+        AppLogger.error('Update check failed for "$title"', e, st);
+        return BookRefreshOutcome(
+          bookId: bookId,
+          title: title,
           newChapters: 0,
+          error: describeFailure(e),
         );
       }
-
-      // Guard truly empty titles only — site already supplies “Chapter N”
-      // for untitled chapters, so this is just a parser-glitch fallback.
-      final fresh = rawFresh
-          .map((ch) => ch.title.trim().isEmpty
-              ? ChapterModel(
-                  id: ch.id,
-                  title: 'Chapter ${ch.index + 1}',
-                  index: ch.index,
-                  content: ch.content,
-                  contentUrl: ch.contentUrl,
-                  wordCount: ch.wordCount,
-                  publishedAt: ch.publishedAt,
-                  language: ch.language,
-                )
-              : ch)
-          .toList();
-
-      final localRows = await (db.select(
-        db.chapters,
-      )..where((c) => c.bookId.equals(book.id))).get();
-      final knownTitles = localRows
-          .map((c) => _normalizeTitle(c.title))
-          .toSet();
-      // Stable URL set from on-disk index (mvlempyr URLs are stable across
-      // title fluctuations between _fetchChaptersFromPosts and fallback).
-      final knownUrls = await _loadIndexUrls(book);
-
-      // Deduplicate fresh list itself. Prefer contentUrl (stable for
-      // mvlempyr/WP) over title to avoid generic "Chapter N" collisions.
-      final freshUnique = <String, ChapterModel>{};
-      for (final ch in fresh) {
-        final key = ch.contentUrl?.trim().isNotEmpty == true
-            ? ch.contentUrl!.trim()
-            : _normalizeTitle(ch.title);
-        freshUnique.putIfAbsent(key, () => ch);
-      }
-      final dedupedFresh = freshUnique.values.toList();
-      // URL-primary diff: if URL is known, it's the same chapter even if
-      // title was renamed (fallback generic vs real ch_name). Only when
-      // URL is unknown do we fall back to title check. This prevents
-      // N→2N duplication on mvlempyr when WP feed transiently fails.
-      final freshChapters = dedupedFresh.where((ch) {
-        final url = ch.contentUrl?.trim();
-        if (url != null && url.isNotEmpty && knownUrls.contains(url)) {
-          return false;
-        }
-        return !knownTitles.contains(_normalizeTitle(ch.title));
-      }).toList();
-
-      // Assign stable, non-colliding indices/contentPaths for inserts.
-      final maxLocalIndex = localRows.isEmpty
-          ? -1
-          : localRows.map((c) => c.index).reduce((a, b) => a > b ? a : b);
-      final companions = <ChaptersCompanion>[];
-      var nextIndex = maxLocalIndex + 1;
-      for (final ch in freshChapters) {
-        final companion = await _buildChapterCompanion(
-          book,
-          ch,
-          assignedIndex: nextIndex++,
-        );
-        if (companion != null) companions.add(companion);
-      }
-      if (companions.isNotEmpty) {
-        // Wrap DB insert in transaction to serialize with file write.
-        await db.transaction(() async {
-          await db.batch((batch) {
-            for (final companion in companions) {
-              batch.insert(
-                db.chapters,
-                companion,
-                mode: InsertMode.insertOrIgnore,
-              );
-            }
-          });
-        });
-      }
-      // Re-query to get actual inserted count (insertOrIgnore may skip races).
-      final actualRows = await (db.select(
-        db.chapters,
-      )..where((c) => c.bookId.equals(book.id))).get();
-      final inserted = actualRows.length - localRows.length;
-
-      // Never shrink totalChapters on a partial fetch.
-      final newTotal = localRows.length + inserted;
-      await (db.update(db.books)..where((b) => b.id.equals(book.id))).write(
-        BooksCompanion(
-          totalChapters: Value(newTotal),
-          updatedAt: Value(DateTime.now()),
-          lastCheckedAt: Value(DateTime.now()),
-          hasUpdate: Value(inserted > 0 || book.hasUpdate),
-          newChapterCount: Value(book.newChapterCount + inserted),
-        ),
-      );
-
-      if (inserted > 0) {
-        // Pass the actual assigned start index so file indices align with DB.
-        await _appendChapterIndex(
-          book,
-          freshChapters,
-          startIndex: localRows.isEmpty
-              ? 0
-              : localRows.map((c) => c.index).reduce((a, b) => a > b ? a : b) + 1,
-          expectedDbCount: newTotal,
-          localRowCount: localRows.length,
-        );
-        AppLogger.info(
-          'Update check: ${book.title} gained $inserted new chapter(s)',
-        );
-      } else {
-        // Even with 0 inserts, repair drift if file and DB diverged.
-        await _repairIndexIfNeeded(book, localRows.length);
-        await _markChecked(book);
-      }
-      return BookRefreshOutcome(
-        bookId: book.id,
-        title: book.title,
-        newChapters: inserted,
-      );
-    } catch (e, st) {
-      final title = (await (db.select(db.books)
-                ..where((b) => b.id.equals(bookId)))
-              .getSingleOrNull())
-          ?.title ??
-          '';
-      AppLogger.error('Update check failed for "$title"', e, st);
-      return BookRefreshOutcome(
-        bookId: bookId,
-        title: title,
-        newChapters: 0,
-        error: describeFailure(e),
-      );
     } finally {
       _inFlight.remove(bookId);
     }
@@ -284,7 +291,8 @@ class ChapterUpdateService {
 
   /// Refreshes every novel that has update tracking enabled and a usable
   /// source. Returns only the books that actually gained new chapters.
-  Future<LibraryUpdateCheckResult> checkTrackedBooks({int concurrency = 4}) async {
+  /// Concurrency is controlled by [DomainGovernor] per origin.
+  Future<LibraryUpdateCheckResult> checkTrackedBooks() async {
     final rows =
         await (db.select(db.books)..where(
               (b) =>
@@ -297,21 +305,10 @@ class ChapterUpdateService {
         .toList();
     final updates = <BookRefreshOutcome>[];
 
-    for (var i = 0; i < validBooks.length; i += concurrency) {
-      final chunk = validBooks.sublist(
-        i,
-        (i + concurrency).clamp(0, validBooks.length),
-      );
-      final outcomes = await Future.wait(
-        chunk.map((book) => refreshBook(book.id)),
-      );
-      for (final outcome in outcomes) {
-        if (outcome.success && outcome.newChapters > 0) {
-          updates.add(outcome);
-        }
-      }
-      if (i + concurrency < validBooks.length) {
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+    for (final book in validBooks) {
+      final outcome = await refreshBook(book.id);
+      if (outcome.success && outcome.newChapters > 0) {
+        updates.add(outcome);
       }
     }
     return LibraryUpdateCheckResult(updates: updates);

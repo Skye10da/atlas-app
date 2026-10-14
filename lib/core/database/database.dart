@@ -33,6 +33,8 @@ part 'database.g.dart';
     WebBookmarks,
     WebTabs,
     NotificationHistory,
+    // SelectorFingerprints and HealingRecords are managed via raw SQL migration
+    // (drift table definitions cause analyzer_plugin compatibility issues)
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -43,7 +45,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open(super.executor);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     beforeOpen: (details) async {
@@ -299,6 +301,43 @@ class AppDatabase extends _$AppDatabase {
             FROM story_entities;
           ''');
         } catch (_) {}
+      }
+      if (from <= 15) {
+        // Selector Healing tables (schema 16)
+        await customStatement('''
+          CREATE TABLE selector_fingerprints (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plugin_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            selector_spec TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            attributes_json TEXT NOT NULL,
+            text_hash TEXT,
+            parent_tag TEXT,
+            sibling_tags_json TEXT NOT NULL,
+            depth INTEGER NOT NULL,
+            path_tags_json TEXT NOT NULL,
+            captured_at INTEGER NOT NULL,
+            success_count INTEGER DEFAULT 1,
+            last_healed_at INTEGER,
+            last_healed_confidence REAL,
+            UNIQUE(plugin_id, role)
+          )
+        ''');
+        await customStatement('''
+          CREATE TABLE healing_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plugin_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            original_selector TEXT NOT NULL,
+            healed_selector TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            healed_at INTEGER NOT NULL,
+            user_confirmed INTEGER DEFAULT 0,
+            confirmed_by TEXT,
+            review_notes TEXT
+          )
+        ''');
       }
     },
   );

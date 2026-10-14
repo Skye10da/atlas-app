@@ -285,9 +285,13 @@ void main() {
         );
 
         // Adding a term and invalidating the glossary re-renders the chapter.
+        // `_applyAtlasGlossary` reads the glossary via `ref.read`, so the
+        // content provider must be invalidated explicitly (this is what the
+        // glossary mutation sites do) for the chapter to pick the new term up.
         final controller = AtlasGlossaryController(glossary);
         await controller.upsertTerm('b1', '正', 'just');
         container.invalidate(atlasGlossaryProvider('b1'));
+        container.invalidate(readerChapterContentProvider);
         final updated = await container.read(
           readerChapterContentProvider(chapter).future,
         );

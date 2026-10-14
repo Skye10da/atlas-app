@@ -5,12 +5,14 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/atlas_glossary_entry.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 
 /// Lets the reader define what a selected term should display as in this novel.
 ///
 /// A term can carry several replacement options; the one highlighted by the
 /// radio is applied at render time. Saving any change invalidates the glossary
-/// provider, so the open chapter immediately re-renders with the new choice.
+/// provider *and* [readerChapterContentProvider], so the open chapter
+/// immediately re-renders with the new choice.
 class GlossaryTermSheet extends HookConsumerWidget {
   const GlossaryTermSheet({
     super.key,
@@ -52,6 +54,10 @@ class GlossaryTermSheet extends HookConsumerWidget {
 
     void invalidate() {
       ref.invalidate(atlasGlossaryProvider(bookId));
+      // `_applyAtlasGlossary` reads the glossary via `ref.read` (no implicit
+      // re-resolve), so refresh the open chapter's content explicitly to apply
+      // the new replacement.
+      ref.invalidate(readerChapterContentProvider);
     }
 
     Future<void> apply() async {

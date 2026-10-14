@@ -327,9 +327,10 @@ class WtrLabTemplate implements Template {
       // default, so it uses no param.
       final seedUrl = translate == WtrTranslationService.ai.apiValue
           ? Uri.tryParse(chapterUrl)
-          : Uri.tryParse(
-              chapterUrl,
-            )?.replace(queryParameters: {'service': translate});
+          : _mergeQueryParams(
+              Uri.tryParse(chapterUrl)!,
+              {'service': translate},
+            );
       if (origin != null) {
         SessionRefreshService.instance.markInvalid(
           origin,
@@ -910,8 +911,15 @@ class WtrLabTemplate implements Template {
           ) ??
           const [];
       return selResults;
-    } catch (_) {
-      return const [];
+      } catch (_) {
+        return const [];
+      }
     }
+
+  /// Merges [params] into [uri]'s existing query parameters.
+  Uri _mergeQueryParams(Uri uri, Map<String, String> params) {
+    final existing = Map<String, String>.from(uri.queryParameters);
+    existing.addAll(params);
+    return uri.replace(queryParameters: existing);
   }
 }

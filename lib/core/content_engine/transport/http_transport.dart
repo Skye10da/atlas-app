@@ -95,6 +95,11 @@ class HttpTransport implements Transport {
     return Duration(seconds: seconds);
   }
 
+  /// Formats a DateTime as an HTTP-date (RFC 7231 / RFC 5322).
+  static String _httpDate(DateTime date) {
+    return date.toUtc().toString().substring(0, 19).replaceAll('-', ',');
+  }
+
   String _describeFailure(http.Response response, Uri url, {required bool isChallenge}) {
     if (isChallenge) {
       return '${url.host} blocked this request with a bot-check challenge '
@@ -357,6 +362,28 @@ class HttpTransport implements Transport {
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) async {
     final response = await _getWithRetry(url, headers: headers);
+    _ensureSuccess(response, url);
+    return _decodeBody(response);
+  }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
+    final conditionalHeaders = <String, String>{...?headers};
+    if (etag != null) {
+      conditionalHeaders['If-None-Match'] = etag;
+    }
+    if (lastModified != null) {
+      conditionalHeaders['If-Modified-Since'] = _httpDate(lastModified);
+    }
+    final response = await _getWithRetry(url, headers: conditionalHeaders);
+    if (response.statusCode == 304) {
+      return null; // Not modified
+    }
     _ensureSuccess(response, url);
     return _decodeBody(response);
   }

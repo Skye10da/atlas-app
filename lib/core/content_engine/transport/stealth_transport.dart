@@ -11,7 +11,7 @@ const defaultUserAgents = <String>[
   'Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0',
 ];
 
-/// Wraps another transport with UA rotation and jittered request delays
+/// Wraps another transport with stable UA per origin and jittered request delays
 /// (`permissions.json`'s `requestDelayMs`). The `sleep` seam lets tests
 /// substitute a fake clock instead of waiting real time.
 class StealthTransport implements Transport {
@@ -32,10 +32,15 @@ class StealthTransport implements Transport {
   final Random _random;
   final Future<void> Function(Duration) _sleep;
 
-  Map<String, String> _decorate(Map<String, String>? headers) => {
-    'User-Agent': userAgents[_random.nextInt(userAgents.length)],
-    ...?headers,
-  };
+  /// Stable UA per origin to keep `cf_clearance` cookie binding valid.
+  final Map<String, String> _stableUaByOrigin = {};
+
+  Map<String, String> _decorate(Map<String, String>? headers, Uri url) {
+    final origin = '${url.scheme}://${url.host}';
+    final ua = _stableUaByOrigin.putIfAbsent(origin,
+        () => userAgents[_random.nextInt(userAgents.length)]);
+    return {'User-Agent': ua, ...?headers};
+  }
 
   Future<void> _throttle() async {
     final span = maxDelay - minDelay;
@@ -46,7 +51,7 @@ class StealthTransport implements Transport {
   @override
   Future<String> fetchHtml(Uri url, {Map<String, String>? headers}) async {
     await _throttle();
-    return inner.fetchHtml(url, headers: _decorate(headers));
+    return inner.fetchHtml(url, headers: _decorate(headers, url));
   }
 
   @override
@@ -56,13 +61,13 @@ class StealthTransport implements Transport {
     Map<String, String>? form,
   }) async {
     await _throttle();
-    return inner.fetchHtmlPost(url, headers: _decorate(headers), form: form);
+    return inner.fetchHtmlPost(url, headers: _decorate(headers, url), form: form);
   }
 
   @override
   Future<Object?> fetchJson(Uri url, {Map<String, String>? headers}) async {
     await _throttle();
-    return inner.fetchJson(url, headers: _decorate(headers));
+    return inner.fetchJson(url, headers: _decorate(headers, url));
   }
 
   @override
@@ -74,7 +79,7 @@ class StealthTransport implements Transport {
     await _throttle();
     return inner.fetchJsonPost(
       url,
-      headers: _decorate(headers),
+      headers: _decorate(headers, url),
       jsonBody: jsonBody,
     );
   }
@@ -82,6 +87,22 @@ class StealthTransport implements Transport {
   @override
   Future<List<int>> fetchBytes(Uri url, {Map<String, String>? headers}) async {
     await _throttle();
-    return inner.fetchBytes(url, headers: _decorate(headers));
+    return inner.fetchBytes(url, headers: _decorate(headers, url));
+  }
+
+  @override
+  Future<String?> fetchHtmlConditional(
+    Uri url, {
+    Map<String, String>? headers,
+    String? etag,
+    DateTime? lastModified,
+  }) async {
+    await _throttle();
+    return inner.fetchHtmlConditional(
+      url,
+      headers: _decorate(headers, url),
+      etag: etag,
+      lastModified: lastModified,
+    );
   }
 }

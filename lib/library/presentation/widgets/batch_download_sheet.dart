@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/core/session/session_refresh_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/providers/book_providers.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
@@ -43,6 +47,10 @@ class BatchDownloadSheet extends HookConsumerWidget {
     final completed = useState(0);
     final targetTotal = useState(0);
     final statusText = useState('');
+    // Chapters whose fetch failed, so a bot-check wall can be reported and
+    // retried after re-verification instead of silently counted as downloaded.
+    final failed = useState<List<ChapterEntity>>([]);
+    final reverifying = useState(false);
 
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
@@ -58,7 +66,20 @@ class BatchDownloadSheet extends HookConsumerWidget {
         .where((c) => c.contentState != ContentState.availableOffline.index)
         .toList();
 
-    Future<void> startBatchDownload({
+    /// Downloads [toDownload] sequentially, tracking failures instead of counting
+    /// them as downloaded. Declared as a variable because the failure path
+    /// offers a re-verify + retry that calls back into it.
+    late Future<void> Function({
+      required List<ChapterEntity> toDownload,
+      required String label,
+    }) startBatchDownload;
+
+    /// Re-runs a failed set after the user clears the site's bot check in the
+    /// quick re-verify webview. Also a variable for the same mutual-reference
+    /// reason as [startBatchDownload].
+    late Future<void> Function(List<ChapterEntity>) reverifyAndDownload;
+
+    Future<void> runBatchDownload({
       required List<ChapterEntity> toDownload,
       required String label,
     }) async {
@@ -71,23 +92,28 @@ class BatchDownloadSheet extends HookConsumerWidget {
 
       final service = ref.read(chapterDownloadServiceProvider);
       final downloadingSet = ref.read(chapterDownloadingSetProvider.notifier);
+      final failures = <ChapterEntity>[];
 
       for (final ch in toDownload) {
         if (!context.mounted) break;
         downloadingSet.update((set) => set..add(ch.id));
 
-        await service.downloadChapter(book.id, ch.index);
+        final result = await service.downloadChapter(book.id, ch.index);
 
         downloadingSet.update((set) => set..remove(ch.id));
-        if (context.mounted) {
-          completed.value = completed.value + 1;
+        if (!context.mounted) break;
+        if (result is Failure) {
+          failures.add(ch);
+          continue;
         }
+        completed.value = completed.value + 1;
       }
 
       ref.invalidate(novelChaptersProvider(book.id));
       ref.invalidate(bookChaptersProvider(book.id));
 
-      if (context.mounted) {
+      if (!context.mounted) return;
+      if (failures.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -96,8 +122,69 @@ class BatchDownloadSheet extends HookConsumerWidget {
           ),
         );
         Navigator.of(context).pop();
+        return;
+      }
+
+      // Failures surfaced instead of a false "downloaded" claim. A bot check on
+      // the source origin keeps the sheet open and offers re-verify + retry;
+      // anything else (404s, dead links) just reports the count.
+      failed.value = failures;
+      final session = SessionRefreshService.instance;
+      final bookOrigin = SessionRefreshService.originOf(book.sourceUrl);
+      final latched = session.lastInvalidOrigin.value;
+      final challenge =
+          latched != null &&
+          bookOrigin != null &&
+          SessionRefreshService.sameOrigin(latched, bookOrigin);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            challenge
+                ? '${failures.length} chapters blocked by a bot check. Re-verify the session to download them.'
+                : 'Failed to download ${failures.length} chapters.',
+          ),
+          duration: challenge
+              ? const Duration(seconds: 8)
+              : const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: challenge ? 'Re-verify' : 'Dismiss',
+            onPressed: challenge
+                ? () => unawaited(reverifyAndDownload(failures))
+                : () {},
+          ),
+        ),
+      );
+      if (!challenge) Navigator.of(context).pop();
+    }
+
+    /// Re-runs [toDownload] after the user clears the site's bot check in the
+    /// quick re-verify webview; fresh cookies are captured for the origin, so
+    /// the retried fetches replay them (or are served by the silent webview).
+    Future<void> runReverifyAndDownload(List<ChapterEntity> toDownload) async {
+      if (reverifying.value) return;
+      final session = SessionRefreshService.instance;
+      final origin = SessionRefreshService.originOf(book.sourceUrl);
+      if (origin == null) return;
+      reverifying.value = true;
+      failed.value = <ChapterEntity>[];
+      try {
+        final ok = await session.ensureFresh(
+          origin,
+          seedUrl: Uri.tryParse(book.sourceUrl ?? ''),
+        );
+        if (!ok || !context.mounted) return;
+        await startBatchDownload(
+          toDownload: toDownload,
+          label: 'Retrying ${toDownload.length} chapters',
+        );
+      } finally {
+        if (context.mounted) reverifying.value = false;
       }
     }
+
+    startBatchDownload = runBatchDownload;
+    reverifyAndDownload = runReverifyAndDownload;
 
     return Container(
       padding: EdgeInsets.only(
@@ -214,6 +301,31 @@ class BatchDownloadSheet extends HookConsumerWidget {
                         valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
                       ),
                     ),
+                    if (failed.value.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        '${failed.value.length} chapters blocked by a bot check.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.error,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      OutlinedButton.icon(
+                        onPressed: reverifying.value
+                            ? null
+                            : () => unawaited(reverifyAndDownload(failed.value)),
+                        icon: reverifying.value
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.verified_user_outlined, size: 18),
+                        label: const Text('Re-verify session & retry'),
+                      ),
+                    ],
                   ],
                 ),
               ),
