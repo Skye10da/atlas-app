@@ -1,5 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/account/domain/entities/local_account_entity.dart';
@@ -8,44 +10,55 @@ import 'package:atlas_app/core/account/presentation/widgets/profile_edit_sheet.d
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/router/navigation.dart';
+import 'package:atlas_app/library/presentation/providers/library_actions.dart';
 import 'package:atlas_app/library/presentation/widgets/library_filter_panel.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
 
 import 'package:flutter_hooks/flutter_hooks.dart';
 
-class AppShell extends HookWidget {
+class AppShell extends HookConsumerWidget {
   const AppShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final sidebarCollapsed = useState(false);
-    // Responsive by available window constraints, not physical device.
-    // Fixes "always expanding even when content does not cover everything":
-    // short content now wraps naturally and stays centered via ConstrainedBox,
-    // long content still scrolls lazily via inner ListView.builder.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        // Use width only (skill: MediaQuery.sizeOf for window, LayoutBuilder for parent)
-        // to support resizable Windows, multi-window, foldables.
-        final isDesktop = width >= AppBreakpoints.desktop;
-        final isBigDesktop = width >= AppBreakpoints.largeDesktop;
-        final isTablet = width >= AppBreakpoints.mobile && width < AppBreakpoints.desktop;
+    // The centre "+" / rail button / sidebar button all open the same
+    // "Add to library" flow as the Library screen.
+    void onAdd() => unawaited(addToLibrary(context, ref));
+    // Responsive by available window width. MediaQuery (not LayoutBuilder):
+    // rebuilding the whole shell — including newly-pushed routes and their
+    // tooltips/overlays — inside a LayoutBuilder layout pass triggers the
+    // "RenderObject mutated while layout" framework assertion on every page
+    // transition. Window width == the shell's incoming constraints, so
+    // MediaQuery.sizeOf gives the identical value safely in build.
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= AppBreakpoints.desktop;
+    final isBigDesktop = width >= AppBreakpoints.largeDesktop;
+    final isTablet =
+        width >= AppBreakpoints.mobile && width < AppBreakpoints.desktop;
 
-        if (isDesktop) {
-          return _buildDesktopLayout(context, isBigDesktop, sidebarCollapsed, constraints);
-        }
-        if (isTablet) {
-          return _buildTabletLayout(context, constraints);
-        }
-        return _buildMobileLayout(context, constraints);
-      },
-    );
+    if (isDesktop) {
+      return _buildDesktopLayout(
+        context,
+        isBigDesktop,
+        sidebarCollapsed,
+        onAdd,
+      );
+    }
+    if (isTablet) {
+      return _buildTabletLayout(context, onAdd);
+    }
+    return _buildMobileLayout(context, onAdd);
   }
 
-  Widget _buildDesktopLayout(BuildContext context, bool isBigDesktop, ValueNotifier<bool> sidebarCollapsed, BoxConstraints constraints) {
+  Widget _buildDesktopLayout(
+    BuildContext context,
+    bool isBigDesktop,
+    ValueNotifier<bool> sidebarCollapsed,
+    VoidCallback onAdd,
+  ) {
     final cs = Theme.of(context).colorScheme;
     final sidebarWidth = isBigDesktop && !sidebarCollapsed.value ? 260.0 : 72.0;
 
@@ -55,6 +68,7 @@ class AppShell extends HookWidget {
         children: [
           _DesktopSidebar(
             width: sidebarWidth,
+            onAdd: onAdd,
             collapsed: !isBigDesktop || sidebarCollapsed.value,
             isBigDesktop: isBigDesktop,
             currentIndex: navigationShell.currentIndex,
@@ -72,24 +86,13 @@ class AppShell extends HookWidget {
             width: 1,
             color: cs.outlineVariant.withValues(alpha: 0.5),
           ),
-          // Content-driven: not always Expanded — short content wraps naturally,
-          // long content scrolls lazily. Align topCenter + ConstrainedBox caps width
-          // on large screens without stretching height.
-          Flexible(
-            fit: FlexFit.loose,
+          // Full remaining width: every main-nav screen decides its own
+          // inner max width, so the Library and wide screens use all the
+          // room the window gives them instead of centering.
+          Expanded(
             child: Stack(
               children: [
-                Positioned.fill(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: AppBreakpoints.readerContentMaxWidth,
-                      ),
-                      child: navigationShell,
-                    ),
-                  ),
-                ),
+                Positioned.fill(child: navigationShell),
                 const Positioned(
                   left: AppSpacing.md,
                   right: AppSpacing.md,
@@ -104,7 +107,7 @@ class AppShell extends HookWidget {
     );
   }
 
-  Widget _buildTabletLayout(BuildContext context, BoxConstraints constraints) {
+  Widget _buildTabletLayout(BuildContext context, VoidCallback onAdd) {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -120,6 +123,19 @@ class AppShell extends HookWidget {
             backgroundColor: cs.surfaceContainerLow,
             indicatorColor: cs.secondaryContainer,
             labelType: NavigationRailLabelType.all,
+            leading: Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 12),
+              child: FloatingActionButton(
+                heroTag: null,
+                onPressed: onAdd,
+                tooltip: 'Add book',
+                elevation: 0,
+                focusElevation: 0,
+                hoverElevation: 0,
+                highlightElevation: 0,
+                child: const Icon(Icons.add_rounded),
+              ),
+            ),
             destinations: const [
               NavigationRailDestination(
                 icon: Icon(Icons.auto_stories_outlined),
@@ -147,21 +163,10 @@ class AppShell extends HookWidget {
             width: 1,
             color: cs.outlineVariant.withValues(alpha: 0.5),
           ),
-          Flexible(
-            fit: FlexFit.loose,
+          Expanded(
             child: Stack(
               children: [
-                Positioned.fill(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: AppBreakpoints.readerContentMaxWidth,
-                      ),
-                      child: navigationShell,
-                    ),
-                  ),
-                ),
+                Positioned.fill(child: navigationShell),
                 const Positioned(
                   left: AppSpacing.md,
                   right: AppSpacing.md,
@@ -176,7 +181,7 @@ class AppShell extends HookWidget {
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context, BoxConstraints constraints) {
+  Widget _buildMobileLayout(BuildContext context, VoidCallback onAdd) {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -202,39 +207,178 @@ class AppShell extends HookWidget {
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: _AtlasBottomBar(
         selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) => navigationShell.goBranch(
+        onSelected: (index) => navigationShell.goBranch(
           index,
           initialLocation: index == navigationShell.currentIndex,
         ),
-        backgroundColor: cs.surfaceContainerLow,
-        indicatorColor: cs.secondaryContainer,
-        shadowColor: Colors.transparent,
-        elevation: 0,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.auto_stories_outlined),
-            selectedIcon: Icon(Icons.auto_stories_rounded),
-            label: 'Library',
+        onAdd: onAdd,
+      ),
+    );
+  }
+}
+
+/// Bottom navigation for compact windows: Library, Find new, a centred
+/// primary "+" (add book), Saved, Settings.
+///
+/// "+" is an action, not a destination, so the four shell branches map to
+/// bar slots 0, 1, 3 and 4 while [selectedIndex] stays the branch index.
+class _AtlasBottomBar extends StatelessWidget {
+  const _AtlasBottomBar({
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.onAdd,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainerLow,
+      surfaceTintColor: Colors.transparent,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 72,
+          child: Row(
+            children: [
+              _BarItem(
+                icon: Icons.auto_stories_outlined,
+                selectedIcon: Icons.auto_stories_rounded,
+                label: 'Library',
+                selected: selectedIndex == 0,
+                onTap: () => onSelected(0),
+              ),
+              _BarItem(
+                icon: Icons.explore_outlined,
+                selectedIcon: Icons.explore_rounded,
+                label: 'Find new',
+                selected: selectedIndex == 1,
+                onTap: () => onSelected(1),
+              ),
+              Expanded(
+                child: Center(child: _BarAddButton(onTap: onAdd)),
+              ),
+              _BarItem(
+                icon: Icons.bookmarks_outlined,
+                selectedIcon: Icons.bookmarks_rounded,
+                label: 'Saved',
+                selected: selectedIndex == 2,
+                onTap: () => onSelected(2),
+              ),
+              _BarItem(
+                icon: Icons.tune_outlined,
+                selectedIcon: Icons.tune_rounded,
+                label: 'Settings',
+                selected: selectedIndex == 3,
+                onTap: () => onSelected(3),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore_rounded),
-            label: 'Find new',
+        ),
+      ),
+    );
+  }
+}
+
+class _BarItem extends StatelessWidget {
+  const _BarItem({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final color = selected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: label,
+        excludeSemantics: true,
+        child: InkResponse(
+          onTap: onTap,
+          radius: 36,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 56,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: selected ? cs.secondaryContainer : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  selected ? selectedIcon : icon,
+                  size: 24,
+                  color: color,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: textTheme.labelMedium?.copyWith(
+                  color: color,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.bookmarks_outlined),
-            selectedIcon: Icon(Icons.bookmarks_rounded),
-            label: 'Saved',
+        ),
+      ),
+    );
+  }
+}
+
+class _BarAddButton extends StatelessWidget {
+  const _BarAddButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: 'Add book',
+      excludeSemantics: true,
+      child: Tooltip(
+        message: 'Add book',
+        child: Material(
+          color: cs.primary,
+          elevation: 2,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: 56,
+              height: 56,
+              child: Icon(Icons.add_rounded, size: 28, color: cs.onPrimary),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.tune_outlined),
-            selectedIcon: Icon(Icons.tune_rounded),
-            label: 'Settings',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -247,6 +391,7 @@ class _DesktopSidebar extends StatelessWidget {
     required this.isBigDesktop,
     required this.currentIndex,
     required this.onDestinationSelected,
+    required this.onAdd,
     this.onToggleCollapse,
   });
 
@@ -255,6 +400,7 @@ class _DesktopSidebar extends StatelessWidget {
   final bool isBigDesktop;
   final int currentIndex;
   final void Function(int) onDestinationSelected;
+  final VoidCallback onAdd;
   final VoidCallback? onToggleCollapse;
 
   @override
@@ -347,7 +493,7 @@ class _DesktopSidebar extends StatelessWidget {
       (Icons.tune_outlined, Icons.tune_rounded, 'Settings'),
     ];
 
-    return List.generate(items.length, (i) {
+    final navItems = List.generate(items.length, (i) {
       final isSelected = i == currentIndex;
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -360,6 +506,16 @@ class _DesktopSidebar extends StatelessWidget {
         ),
       );
     });
+    // Primary action sits between "Find new" and "Saved", mirroring the
+    // compact bottom bar's centre "+".
+    navItems.insert(
+      2,
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: _SidebarAddButton(collapsed: collapsed, onTap: onAdd),
+      ),
+    );
+    return navItems;
   }
 }
 
@@ -433,6 +589,35 @@ class _SidebarAccountTile extends ConsumerWidget {
     return Tooltip(
       message: collapsed ? account.displayName : 'Edit profile',
       child: content,
+    );
+  }
+}
+
+class _SidebarAddButton extends StatelessWidget {
+  const _SidebarAddButton({required this.collapsed, required this.onTap});
+
+  final bool collapsed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (collapsed) {
+      return Center(
+        child: IconButton.filled(
+          onPressed: onTap,
+          tooltip: 'Add book',
+          icon: const Icon(Icons.add_rounded),
+        ),
+      );
+    }
+    return FilledButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.add_rounded),
+      label: const Text('Add book'),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(44),
+        shape: const StadiumBorder(),
+      ),
     );
   }
 }
