@@ -102,10 +102,10 @@ class SplashScreen extends HookConsumerWidget {
           final launchPayload = UpdateNotificationService.instance
               .consumePendingLaunchPayload();
           if (launchPayload != null && launchPayload.isNotEmpty) {
-            context.go('/discover');
+            context.go('/library');
             unawaited(context.push(launchPayload));
           } else {
-            context.go('/discover');
+            context.go('/library');
           }
         }
       }
@@ -186,7 +186,7 @@ class SplashScreen extends HookConsumerWidget {
                             child: Text(
                               _letters[index],
                               style: const TextStyle(
-                                fontFamily: 'Playfair Display',
+                                fontFamily: 'Fraunces',
                                 fontSize: 44,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 2.0,

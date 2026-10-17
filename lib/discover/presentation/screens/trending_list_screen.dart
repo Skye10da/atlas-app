@@ -7,7 +7,7 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
 import 'package:atlas_app/discover/presentation/providers/discover_providers.dart';
-import 'package:atlas_app/discover/presentation/widgets/trending_book_action_sheet.dart';
+import 'package:atlas_app/find_new/presentation/widgets/trending_book_action_sheet.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 
 /// Dedicated screen displaying Top 20, 30, or 50 trending titles from OPDS catalogs or web novel plugins.
@@ -56,7 +56,7 @@ class _TrendingListScreenState extends ConsumerState<TrendingListScreen> {
         title: Text(
           _selectedType == 'opds' ? 'OPDS Trending Catalog' : 'Web Novel Trending',
           style: const TextStyle(
-            fontFamily: 'Playfair Display',
+            fontFamily: 'Fraunces',
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -427,7 +427,7 @@ class _TrendingListTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontFamily: 'Playfair Display',
+                        fontFamily: 'Fraunces',
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         height: 1.2,

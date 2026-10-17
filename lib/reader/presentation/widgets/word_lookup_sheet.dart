@@ -213,7 +213,7 @@ class WordLookupSheet extends HookConsumerWidget {
                     Text(
                       word,
                       style: const TextStyle(
-                        fontFamily: 'Playfair Display',
+                        fontFamily: 'Fraunces',
                         fontSize: 26,
                         fontWeight: FontWeight.w700,
                       ),

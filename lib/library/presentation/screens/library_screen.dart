@@ -28,9 +28,17 @@ import 'package:atlas_app/library/presentation/widgets/book_detail_panel.dart';
 import 'package:atlas_app/library/presentation/widgets/bookshelf_grid.dart';
 import 'package:atlas_app/library/presentation/widgets/bookshelf_list.dart';
 import 'package:atlas_app/library/presentation/widgets/bookshelf_scattered.dart';
-import 'package:atlas_app/library/presentation/widgets/continue_reading_strip.dart';
+import 'package:atlas_app/library/presentation/widgets/home/continue_hero_card.dart';
+import 'package:atlas_app/library/presentation/widgets/home/library_home_header.dart';
+import 'package:atlas_app/library/presentation/widgets/home/library_status_tabs.dart';
+import 'package:atlas_app/library/presentation/widgets/home/new_chapters_card.dart';
+import 'package:atlas_app/library/presentation/widgets/home/weekly_activity_dots.dart';
 import 'package:atlas_app/library/presentation/widgets/sort_dropdown.dart';
 import 'package:atlas_app/library/presentation/widgets/sort_toolbar.dart';
+
+import 'package:atlas_app/discover/presentation/providers/reading_analytics_providers.dart';
+import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
+import 'package:atlas_app/core/router/app_router.dart';
 
 class LibraryScreen extends HookConsumerWidget {
   const LibraryScreen({
@@ -271,69 +279,6 @@ class LibraryScreen extends HookConsumerWidget {
                   ref.read(libraryViewModelProvider.notifier).setSearchQuery(q),
             ),
           ),
-        if (!isDesktop && !isSelectionMode.value)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<LibraryCategory>(
-                segments: const [
-                  ButtonSegment(
-                    value: LibraryCategory.novels,
-                    label: Text('Novels'),
-                    icon: Icon(Icons.auto_stories_rounded, size: 16),
-                  ),
-                  ButtonSegment(
-                    value: LibraryCategory.books,
-                    label: Text('Books'),
-                    icon: Icon(Icons.menu_book_rounded, size: 16),
-                  ),
-                ],
-                selected: {state.category},
-                onSelectionChanged: (selected) {
-                  ref
-                      .read(libraryViewModelProvider.notifier)
-                      .setCategory(selected.first);
-                },
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ),
-          ),
-        if (state.category == LibraryCategory.novels &&
-            state.availableGenres.isNotEmpty &&
-            !isSelectionMode.value)
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              children: [
-                FilterChip(
-                  label: const Text('All'),
-                  selected: state.genreFilter == null,
-                  onSelected: (_) => ref
-                      .read(libraryViewModelProvider.notifier)
-                      .setGenreFilter(null),
-                ),
-                const SizedBox(width: 8),
-                ...state.availableGenres.map(
-                  (tag) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(tag),
-                      selected: state.genreFilter == tag,
-                      onSelected: (selected) => ref
-                          .read(libraryViewModelProvider.notifier)
-                          .setGenreFilter(selected ? tag : null),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         Expanded(
           child: libraryAsync.when(
             loading: () => const Center(child: AppLoading()),
@@ -556,38 +501,57 @@ class _BookshelfContent extends HookConsumerWidget {
         onDragDone: (details) => _handleFileDrop(context, ref, details, dragging),
         onDragEntered: (_) => dragging.value = true,
         onDragExited: (_) => dragging.value = false,
-        child: Stack(
+        child: Column(
           children: [
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.md,
+                AppSpacing.lg,
+                0,
+              ),
+              child: _LibraryGreetingHeader(),
+            ),
+            Expanded(
+              child: Stack(
                 children: [
-                  const AppEmptyState(
-                    title: 'Your bookshelf is empty',
-                    message: 'Import a book or add a novel to start reading.',
-                    icon: Icons.library_books,
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const AppEmptyState(
+                          title: 'Your bookshelf is empty',
+                          message: 'Import a book or add a novel to start reading.',
+                          icon: Icons.library_books,
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed: isImporting ? null : onImport,
+                          icon: isImporting
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.file_upload),
+                          label: Text(
+                            isImporting ? 'Importing...' : 'Import Book',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: onLoadSamples,
+                          child: const Text('Load Sample Books'),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: isImporting ? null : onImport,
-                    icon: isImporting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.file_upload),
-                    label: Text(isImporting ? 'Importing...' : 'Import Book'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: onLoadSamples,
-                    child: const Text('Load Sample Books'),
-                  ),
+                  if (dragging.value) _buildDropOverlay(context),
                 ],
               ),
             ),
-            if (dragging.value) _buildDropOverlay(context),
           ],
         ),
       );
@@ -604,11 +568,16 @@ class _BookshelfContent extends HookConsumerWidget {
               Expanded(
                 child: ListView(
                   children: [
-                    if (recentBooks.isNotEmpty && !isSelectionMode)
-                      ContinueReadingStrip(
-                        books: recentBooks,
+                    if (!isSelectionMode && searchQuery.isEmpty)
+                      _LibraryHomeSection(
+                        recentBooks: recentBooks,
                         onBookTap: onBookTap,
+                        isDesktop: isDesktop,
                       ),
+                    if (!isSelectionMode) const _LibraryStatusTabsRow(),
+                    if (!isDesktop && !isSelectionMode)
+                      const _LibraryCategoryToggle(),
+                    if (!isSelectionMode) const _LibraryGenreChips(),
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         AppSpacing.lg,
@@ -791,5 +760,235 @@ class _BookshelfContent extends HookConsumerWidget {
         SnackBar(content: Text('Successfully imported $count books.')),
       );
     }
+  }
+}
+
+/// Greeting header that resolves the live reading streak itself.
+class _LibraryGreetingHeader extends ConsumerWidget {
+  const _LibraryGreetingHeader();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final report = ref.watch(readingAnalyticsReportProvider).valueOrNull;
+    final goal = ref.watch(readingGoalProvider).valueOrNull;
+    final streak = report?.currentStreak ?? goal?.currentStreak ?? 0;
+
+    return LibraryHomeHeader(
+      streakDays: streak,
+      onOpenAnalytics: () => AppRouter.openAnalytics(context),
+    );
+  }
+}
+
+/// Personalised home block: greeting, continue-reading hero, weekly activity
+/// and the new-chapters rail. Rendered above the shelf.
+class _LibraryHomeSection extends ConsumerWidget {
+  const _LibraryHomeSection({
+    required this.recentBooks,
+    required this.onBookTap,
+    required this.isDesktop,
+  });
+
+  final List<BookEntity> recentBooks;
+  final void Function(String id) onBookTap;
+  final bool isDesktop;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(libraryViewModelProvider).valueOrNull;
+    final report = ref.watch(readingAnalyticsReportProvider).valueOrNull;
+    final weekly = report?.weeklyActivity ?? const <ReadingDayActivity>[];
+    final weekChapters = weekly.fold<int>(0, (sum, day) => sum + day.chaptersRead);
+    final updatedBooks = state?.updatedBooks ?? const <BookEntity>[];
+
+    // Prefer an in-progress book for the hero; fall back to most recent.
+    final BookEntity? heroBook = recentBooks.isEmpty
+        ? null
+        : recentBooks.firstWhere(
+            (b) => b.progress01 > 0 && b.progress01 < 0.999,
+            orElse: () => recentBooks.first,
+          );
+
+    final hero = ContinueHeroCard(
+      book: heroBook,
+      onTap: heroBook == null ? null : () => onBookTap(heroBook.id),
+      onContinue: heroBook == null
+          ? null
+          : () => context.push('/reader/${heroBook.id}'),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
+          ),
+          child: _LibraryGreetingHeader(),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: isDesktop && weekly.isNotEmpty
+              ? IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(flex: 3, child: hero),
+                      const SizedBox(width: AppSpacing.lg),
+                      Expanded(
+                        flex: 2,
+                        child: WeeklyActivityDots(
+                          weeklyActivity: weekly,
+                          totalChapters: weekChapters,
+                          onTap: () => AppRouter.openAnalytics(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: [
+                    hero,
+                    if (weekly.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      WeeklyActivityDots(
+                        weeklyActivity: weekly,
+                        totalChapters: weekChapters,
+                        onTap: () => AppRouter.openAnalytics(context),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+        if (updatedBooks.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xl),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: NewChaptersCard(
+              books: updatedBooks,
+              onBookTap: onBookTap,
+              isChecking: state?.isCheckingUpdates ?? false,
+              onCheckForUpdates: () =>
+                  LibraryScreen._checkAllUpdates(context, ref),
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.xl),
+      ],
+    );
+  }
+}
+
+/// The Reading / Updated / Unread / Finished tab strip.
+class _LibraryStatusTabsRow extends ConsumerWidget {
+  const _LibraryStatusTabsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(libraryViewModelProvider).valueOrNull;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
+      child: LibraryStatusTabs(
+        selected: state?.statusFilter ?? LibraryStatusFilter.all,
+        updatedCount: state?.updatedCount ?? 0,
+        onSelected: (filter) =>
+            ref.read(libraryViewModelProvider.notifier).setStatusFilter(filter),
+      ),
+    );
+  }
+}
+
+/// Novels / Books category switch (compact layouts).
+class _LibraryCategoryToggle extends ConsumerWidget {
+  const _LibraryCategoryToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final category = ref.watch(libraryCategoryProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: SegmentedButton<LibraryCategory>(
+          segments: const [
+            ButtonSegment(
+              value: LibraryCategory.novels,
+              label: Text('Novels'),
+              icon: Icon(Icons.auto_stories_rounded, size: 16),
+            ),
+            ButtonSegment(
+              value: LibraryCategory.books,
+              label: Text('Books'),
+              icon: Icon(Icons.menu_book_rounded, size: 16),
+            ),
+          ],
+          selected: {category},
+          onSelectionChanged: (selected) {
+            ref
+                .read(libraryViewModelProvider.notifier)
+                .setCategory(selected.first);
+          },
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Genre filter chips (novels only).
+class _LibraryGenreChips extends ConsumerWidget {
+  const _LibraryGenreChips();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final category = ref.watch(libraryCategoryProvider);
+    final genres = ref.watch(availableGenresProvider);
+    final genreFilter = ref.watch(libraryGenreFilterProvider);
+
+    if (category != LibraryCategory.novels || genres.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        children: [
+          FilterChip(
+            label: const Text('All'),
+            selected: genreFilter == null,
+            onSelected: (_) => ref
+                .read(libraryViewModelProvider.notifier)
+                .setGenreFilter(null),
+          ),
+          const SizedBox(width: 8),
+          ...genres.map(
+            (tag) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(tag),
+                selected: genreFilter == tag,
+                onSelected: (selected) => ref
+                    .read(libraryViewModelProvider.notifier)
+                    .setGenreFilter(selected ? tag : null),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

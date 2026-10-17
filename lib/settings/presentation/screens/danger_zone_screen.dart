@@ -25,7 +25,7 @@ class DangerZoneScreen extends ConsumerWidget {
         title: const Text(
           'Danger Zone ⚠',
           style: TextStyle(
-            fontFamily: 'Playfair Display',
+            fontFamily: 'Fraunces',
             fontWeight: FontWeight.w700,
           ),
         ),

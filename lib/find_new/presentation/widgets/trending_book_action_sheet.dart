@@ -145,7 +145,7 @@ class TrendingBookActionSheet extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontFamily: 'Playfair Display',
+                        fontFamily: 'Fraunces',
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                         height: 1.2,

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 enum AppBrand {
+  /// Default Atlas look: parchment canvas + deep-green brand (the library
+  /// mockup theme). Users can switch to any other brand in Appearance.
+  atlas,
   violet,
   emerald,
   ruby,
@@ -17,6 +20,7 @@ enum AppBrand {
   charcoal;
 
   Color get seed => switch (this) {
+    AppBrand.atlas => const Color(0xFF2F5D50),
     AppBrand.violet => const Color(0xFF8B5CF6),
     AppBrand.emerald => const Color(0xFF10B981),
     AppBrand.ruby => const Color(0xFFEF4444),
@@ -34,6 +38,7 @@ enum AppBrand {
   };
 
   String get label => switch (this) {
+    AppBrand.atlas => 'Atlas',
     AppBrand.violet => 'Violet',
     AppBrand.emerald => 'Emerald',
     AppBrand.ruby => 'Ruby',
@@ -51,6 +56,7 @@ enum AppBrand {
   };
 
   IconData get icon => switch (this) {
+    AppBrand.atlas => Icons.energy_savings_leaf,
     AppBrand.violet => Icons.local_florist,
     AppBrand.emerald => Icons.diamond_outlined,
     AppBrand.ruby => Icons.favorite_outline,
@@ -66,4 +72,9 @@ enum AppBrand {
     AppBrand.slate => Icons.menu_book,
     AppBrand.charcoal => Icons.brightness_2,
   };
+
+  /// Whether this brand carries the warm parchment canvas + card surfaces
+  /// from the library mockup instead of the neutral seed-derived surfaces.
+  /// Other brands keep Material's neutral surfaces.
+  bool get usesWarmSurfaces => this == AppBrand.atlas;
 }

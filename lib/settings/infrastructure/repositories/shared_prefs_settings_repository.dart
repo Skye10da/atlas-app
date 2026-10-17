@@ -47,6 +47,7 @@ final class SharedPrefsSettingsRepository
     return ReadingSettingsEntity(
       systemFontFamily: prefs.getString(_keySystemFont),
       brand: switch (prefs.getString(_keyBrand)) {
+        'atlas' => AppBrand.atlas,
         'emerald' => AppBrand.emerald,
         'ruby' => AppBrand.ruby,
         'sapphire' => AppBrand.sapphire,
@@ -60,7 +61,9 @@ final class SharedPrefsSettingsRepository
         'indigo' => AppBrand.indigo,
         'slate' => AppBrand.slate,
         'charcoal' => AppBrand.charcoal,
-        _ => AppBrand.violet,
+        // Unset (fresh install) lands on the Atlas default; users who pick a
+        // brand explicitly always round-trip by name.
+        _ => AppBrand.atlas,
       },
       themeMode: switch (prefs.getString(_keyThemeMode)) {
         'light' => ThemeMode.light,

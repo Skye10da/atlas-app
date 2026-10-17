@@ -23,7 +23,7 @@ class ReadingSettingsScreen extends ConsumerWidget {
         title: const Text(
           'Reading Preferences',
           style: TextStyle(
-            fontFamily: 'Playfair Display',
+            fontFamily: 'Fraunces',
             fontWeight: FontWeight.w700,
           ),
         ),

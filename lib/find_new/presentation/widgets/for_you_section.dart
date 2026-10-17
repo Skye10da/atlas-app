@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
-import 'package:atlas_app/discover/presentation/widgets/trending_book_action_sheet.dart';
+import 'package:atlas_app/find_new/presentation/widgets/trending_book_action_sheet.dart';
 
 class ForYouSection extends StatelessWidget {
   const ForYouSection({super.key, required this.recommendations});
@@ -36,7 +36,7 @@ class ForYouSection extends StatelessWidget {
             Text(
               'For You',
               style: TextStyle(
-                fontFamily: 'Playfair Display',
+                fontFamily: 'Fraunces',
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: cs.onSurface,

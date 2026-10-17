@@ -94,7 +94,7 @@ class GenreCarouselSection extends StatelessWidget {
             const Text(
               'Curated Collections',
               style: TextStyle(
-                fontFamily: 'Playfair Display',
+                fontFamily: 'Fraunces',
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
@@ -169,7 +169,7 @@ class GenreCarouselSection extends StatelessWidget {
                           Text(
                             item.title,
                             style: TextStyle(
-                              fontFamily: 'Playfair Display',
+                              fontFamily: 'Fraunces',
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
                               color: item.textColor,

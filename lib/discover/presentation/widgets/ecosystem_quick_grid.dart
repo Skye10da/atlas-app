@@ -26,7 +26,7 @@ class EcosystemQuickGrid extends StatelessWidget {
             const Text(
               'Ecosystem Grid',
               style: TextStyle(
-                fontFamily: 'Playfair Display',
+                fontFamily: 'Fraunces',
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),

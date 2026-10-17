@@ -6,7 +6,7 @@ import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart'
 import 'package:atlas_app/discover/infrastructure/services/recommendation_engine.dart';
 import 'package:atlas_app/discover/presentation/providers/discover_providers.dart';
 import 'package:atlas_app/discover/presentation/screens/trending_list_screen.dart';
-import 'package:atlas_app/discover/presentation/widgets/trending_book_action_sheet.dart';
+import 'package:atlas_app/find_new/presentation/widgets/trending_book_action_sheet.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 

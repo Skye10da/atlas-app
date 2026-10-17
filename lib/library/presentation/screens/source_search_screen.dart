@@ -115,7 +115,7 @@ class SourceSearchScreen extends HookConsumerWidget {
           title: Text(
             sourceName,
             style: const TextStyle(
-              fontFamily: 'Playfair Display',
+              fontFamily: 'Fraunces',
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -168,7 +168,7 @@ class SourceSearchScreen extends HookConsumerWidget {
             Text(
               source.sourceName,
               style: const TextStyle(
-                fontFamily: 'Playfair Display',
+                fontFamily: 'Fraunces',
                 fontWeight: FontWeight.w700,
               ),
             ),

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/core/account/domain/entities/local_account_entity.dart';
+import 'package:atlas_app/core/account/presentation/providers/local_account_providers.dart';
+import 'package:atlas_app/core/account/presentation/widgets/profile_edit_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/router/navigation.dart';
@@ -118,19 +122,14 @@ class AppShell extends HookWidget {
             labelType: NavigationRailLabelType.all,
             destinations: const [
               NavigationRailDestination(
-                icon: Icon(Icons.explore_outlined),
-                selectedIcon: Icon(Icons.explore_rounded),
-                label: Text('Discover'),
-              ),
-              NavigationRailDestination(
                 icon: Icon(Icons.auto_stories_outlined),
                 selectedIcon: Icon(Icons.auto_stories_rounded),
                 label: Text('Library'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.search_rounded),
-                selectedIcon: Icon(Icons.manage_search_rounded),
-                label: Text('Search'),
+                icon: Icon(Icons.explore_outlined),
+                selectedIcon: Icon(Icons.explore_rounded),
+                label: Text('Find new'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.bookmarks_outlined),
@@ -216,19 +215,14 @@ class AppShell extends HookWidget {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore_rounded),
-            label: 'Discover',
-          ),
-          NavigationDestination(
             icon: Icon(Icons.auto_stories_outlined),
             selectedIcon: Icon(Icons.auto_stories_rounded),
             label: 'Library',
           ),
           NavigationDestination(
-            icon: Icon(Icons.search_rounded),
-            selectedIcon: Icon(Icons.manage_search_rounded),
-            label: 'Search',
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore_rounded),
+            label: 'Find new',
           ),
           NavigationDestination(
             icon: Icon(Icons.bookmarks_outlined),
@@ -287,7 +281,7 @@ class _DesktopSidebar extends StatelessWidget {
                   const Text(
                     'Atlas',
                     style: TextStyle(
-                      fontFamily: 'Playfair Display',
+                      fontFamily: 'Fraunces',
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
@@ -313,7 +307,7 @@ class _DesktopSidebar extends StatelessWidget {
             ),
           const SizedBox(height: 8),
           ..._buildNavItems(context),
-          if (currentIndex == 1 && !collapsed) ...[
+          if (currentIndex == 0 && !collapsed) ...[
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -327,7 +321,7 @@ class _DesktopSidebar extends StatelessWidget {
             ),
           ] else ...[
             const Spacer(),
-            if (currentIndex == 1 && onToggleCollapse != null)
+            if (currentIndex == 0 && onToggleCollapse != null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: IconButton(
@@ -337,6 +331,9 @@ class _DesktopSidebar extends StatelessWidget {
                 ),
               ),
           ],
+          const SizedBox(height: AppSpacing.xs),
+          _SidebarAccountTile(collapsed: collapsed),
+          const SizedBox(height: AppSpacing.sm),
         ],
       ),
     );
@@ -344,9 +341,8 @@ class _DesktopSidebar extends StatelessWidget {
 
   List<Widget> _buildNavItems(BuildContext context) {
     final items = <(IconData, IconData, String)>[
-      (Icons.explore_outlined, Icons.explore_rounded, 'Discover'),
       (Icons.auto_stories_outlined, Icons.auto_stories_rounded, 'Library'),
-      (Icons.search_rounded, Icons.manage_search_rounded, 'Search'),
+      (Icons.explore_outlined, Icons.explore_rounded, 'Find new'),
       (Icons.bookmarks_outlined, Icons.bookmarks_rounded, 'Saved'),
       (Icons.tune_outlined, Icons.tune_rounded, 'Settings'),
     ];
@@ -364,6 +360,80 @@ class _DesktopSidebar extends StatelessWidget {
         ),
       );
     });
+  }
+}
+
+class _SidebarAccountTile extends ConsumerWidget {
+  const _SidebarAccountTile({required this.collapsed});
+
+  final bool collapsed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final account = ref.watch(localAccountSummaryProvider);
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final color = Color(kAvatarColors[account.avatarColorIndex]);
+
+    final avatar = CircleAvatar(
+      radius: 16,
+      backgroundColor: color,
+      child: Text(
+        account.avatarInitial,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+        ),
+      ),
+    );
+
+    final content = InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => showProfileEditSheet(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          mainAxisAlignment: collapsed
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
+          children: [
+            avatar,
+            if (!collapsed) ...[
+              const SizedBox(width: AppSpacing.smMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      account.greetingName,
+                      style: textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'Local account',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+
+    return Tooltip(
+      message: collapsed ? account.displayName : 'Edit profile',
+      child: content,
+    );
   }
 }
 

@@ -31,8 +31,22 @@ abstract final class AppColors {
   static const readerTextDark = Color(0xFFE3E3E3);
 
   // Semantic App Accent & Atmosphere Tokens
-  static const parchment = Color(0xFFF7F3E9);
+  static const parchment = Color(0xFFF5F0E6);
   static const aiViolet = Color(0xFF7C3AED);
   static const aiIndigo = Color(0xFF4F46E5);
   static const successSurface = Color(0xFFE8F5E9);
+
+  // Warm library palette (Atlas default theme / mockup frames E-F-G).
+  // Fixed neutrals of the parchment look; accents still flow from the
+  // active AppBrand via colorScheme.
+  static const surfaceCard = Color(0xFFFBF8F1);
+  static const ink = Color(0xFF1E1B16);
+  static const inkMuted = Color(0xFF6B6458);
+  static const brandGreen = Color(0xFF2F5D50);
+  static const greenTint = Color(0xFFDCE8E1);
+  static const mint = Color(0xFF8FD3B6);
+  static const sage = Color(0xFFB3CCC1);
+  static const terracotta = Color(0xFFB5532A);
+  static const hairline = Color(0xFFE4DCCB);
+  static const hairlineStrong = Color(0xFFCFC5AF);
 }

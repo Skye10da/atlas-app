@@ -83,7 +83,7 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
         title: const Text(
           'Novel Updates',
           style: TextStyle(
-            fontFamily: 'Playfair Display',
+            fontFamily: 'Fraunces',
             fontWeight: FontWeight.w700,
           ),
         ),

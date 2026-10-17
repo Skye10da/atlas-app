@@ -7,7 +7,6 @@ import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
 import 'package:atlas_app/core/presentation/screens/splash_screen.dart';
 import 'package:atlas_app/core/router/transitions.dart';
 import 'package:atlas_app/dictionary/presentation/screens/dictionary_screen.dart';
-import 'package:atlas_app/discover/presentation/screens/discover_screen.dart';
 import 'package:atlas_app/discover/presentation/screens/reading_analytics_screen.dart';
 import 'package:atlas_app/discover/presentation/screens/trending_list_screen.dart';
 import 'package:atlas_app/library/presentation/screens/book_details_screen.dart';
@@ -116,7 +115,9 @@ abstract final class AppRouter {
       // "/" has never been a valid location — send it to home instead of
       // landing on the default error screen where "Go home" previously went
       // to "/" and thus nowhere.
-      if (state.uri.path == '/') return '/discover';
+      if (state.uri.path == '/') return '/library';
+      // Discover was folded into the Library home and the "Find new" tab.
+      if (state.uri.path == '/discover') return '/library';
       // File-manager launches can surface the raw file path as a deep link
       // (e.g. /509/folder/file.atlas). Never treat a filesystem path as a
       // route — swallow it and land on the library; the file_open channel
@@ -271,21 +272,7 @@ abstract final class AppRouter {
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
         branches: [
-          // 0. Discover Home (Default)
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/discover',
-                name: 'discover',
-                pageBuilder: (context, state) => buildPageTransition(
-                  child: const DiscoverScreen(),
-                  key: state.pageKey,
-                ),
-              ),
-            ],
-          ),
-
-          // 1. Library Shelf
+          // 0. Library (default)
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -326,7 +313,7 @@ abstract final class AppRouter {
             ],
           ),
 
-          // 2. Search & Lookup (Middle Position)
+          // 1. Find new (discovery + search & lookup)
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -336,8 +323,9 @@ abstract final class AppRouter {
                   final query = state.uri.queryParameters['q'];
                   final tabStr = state.uri.queryParameters['tab'];
                   final tabIndex = switch (tabStr) {
-                    'lookup' => 1,
-                    'saved' || 'dictionary' => 2,
+                    'library' => 1,
+                    'lookup' => 2,
+                    'saved' || 'dictionary' => 3,
                     _ => 0,
                   };
                   return buildPageTransition(
@@ -352,7 +340,7 @@ abstract final class AppRouter {
             ],
           ),
 
-          // 3. Saved Bookmarks
+          // 2. Saved Bookmarks
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -366,7 +354,7 @@ abstract final class AppRouter {
             ],
           ),
 
-          // 4. Settings
+          // 3. Settings
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -432,14 +420,14 @@ class _NotFoundScreen extends StatelessWidget {
               ],
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: () => context.go('/discover'),
+                onPressed: () => context.go('/library'),
                 icon: const Icon(Icons.home_rounded),
                 label: const Text('Go to Home'),
               ),
               const SizedBox(height: 8),
               TextButton(
-                onPressed: () => context.go('/discover'),
-                child: const Text('Back to Discover'),
+                onPressed: () => context.go('/library'),
+                child: const Text('Back to Library'),
               ),
             ],
           ),

@@ -141,3 +141,13 @@ flutter:
     - family: Playfair Display
       fonts:
         - asset: assets/fonts/PlayfairDisplay-Regular.ttf
+    # Variable fonts: one TTF per family covers the whole weight axis. Flutter
+    # maps TextStyle.fontWeight onto the font's `wght` axis, so no per-weight
+    # `weight:` entries are needed (the manifest validator only accepts single
+    # integer weights, not ranges).
+    - family: DM Sans
+      fonts:
+        - asset: assets/fonts/DMSans.ttf
+    - family: Fraunces
+      fonts:
+        - asset: assets/fonts/Fraunces.ttf

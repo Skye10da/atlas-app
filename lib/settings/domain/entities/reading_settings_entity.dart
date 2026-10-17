@@ -7,7 +7,7 @@ import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart
 class ReadingSettingsEntity {
   const ReadingSettingsEntity({
     this.systemFontFamily,
-    this.brand = AppBrand.violet,
+    this.brand = AppBrand.atlas,
     this.fontSize = 18.0,
     this.fontFamily,
     this.fontWeight,

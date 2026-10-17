@@ -37,6 +37,7 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
         final (filtered, recent, genres) = _computeDerived(
           books: books,
           category: current.category,
+          statusFilter: current.statusFilter,
           genreFilter: current.genreFilter,
           searchQuery: current.searchQuery,
           sortOrder: current.sortOrder,
@@ -66,6 +67,7 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
     final (filtered, recent, genres) = _computeDerived(
       books: current.books,
       category: current.category,
+      statusFilter: current.statusFilter,
       genreFilter: current.genreFilter,
       searchQuery: current.searchQuery,
       sortOrder: sortOrder,
@@ -80,12 +82,34 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
     );
   }
 
+  void setStatusFilter(LibraryStatusFilter statusFilter) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final (filtered, recent, genres) = _computeDerived(
+      books: current.books,
+      category: current.category,
+      statusFilter: statusFilter,
+      genreFilter: current.genreFilter,
+      searchQuery: current.searchQuery,
+      sortOrder: current.sortOrder,
+    );
+    state = AsyncData(
+      current.copyWith(
+        statusFilter: statusFilter,
+        filteredBooks: filtered,
+        recentBooks: recent,
+        availableGenres: genres,
+      ),
+    );
+  }
+
   void setSearchQuery(String query) {
     final current = state.valueOrNull;
     if (current == null) return;
     final (filtered, recent, genres) = _computeDerived(
       books: current.books,
       category: current.category,
+      statusFilter: current.statusFilter,
       genreFilter: current.genreFilter,
       searchQuery: query,
       sortOrder: current.sortOrder,
@@ -106,6 +130,7 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
     final (filtered, recent, genres) = _computeDerived(
       books: current.books,
       category: category,
+      statusFilter: current.statusFilter,
       genreFilter: null,
       searchQuery: current.searchQuery,
       sortOrder: current.sortOrder,
@@ -127,6 +152,7 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
     final (filtered, recent, genres) = _computeDerived(
       books: current.books,
       category: current.category,
+      statusFilter: current.statusFilter,
       genreFilter: genre,
       searchQuery: current.searchQuery,
       sortOrder: current.sortOrder,
@@ -151,6 +177,7 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
     final (filtered, recent, genres) = _computeDerived(
       books: current.books,
       category: category,
+      statusFilter: current.statusFilter,
       genreFilter: tag,
       searchQuery: current.searchQuery,
       sortOrder: current.sortOrder,
@@ -212,6 +239,7 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
   static (List<BookEntity>, List<BookEntity>, List<String>) _computeDerived({
     required List<BookEntity> books,
     required LibraryCategory category,
+    required LibraryStatusFilter statusFilter,
     required String? genreFilter,
     required String searchQuery,
     required LibrarySortOrder sortOrder,
@@ -223,12 +251,14 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
       LibraryCategory.novels => books.where((b) => b.isNovel).toList(),
     };
 
+    final statusFiltered = statusFilter == LibraryStatusFilter.all
+        ? categoryFiltered
+        : categoryFiltered.where(statusFilter.matches).toList();
+
     final genreFiltered =
         genreFilter != null && genreFilter.isNotEmpty
-            ? categoryFiltered
-                .where((b) => b.tags.contains(genreFilter))
-                .toList()
-            : categoryFiltered;
+            ? statusFiltered.where((b) => b.tags.contains(genreFilter)).toList()
+            : statusFiltered;
 
     final query = searchQuery.trim().toLowerCase();
     final searchFiltered =
@@ -260,17 +290,20 @@ class LibraryViewModel extends StateNotifier<AsyncValue<LibraryState>> {
       };
     });
 
-    final recentlyRead =
-        [...searchFiltered]..sort((a, b) {
-          return switch ((a.lastOpenedAt, b.lastOpenedAt)) {
-            (null, null) => 0,
-            (null, _) => 1,
-            (_, null) => -1,
-            (final aDate?, final bDate?) => bDate.compareTo(aDate),
-          };
-        });
+    // "Continue reading" candidates ignore the active status tab, genre and
+    // search so the hero card stays stable while the user browses.
+    final recentlyRead = [...categoryFiltered]..sort(_byLastOpened);
     final recent = recentlyRead.take(3).toList();
 
     return (searchFiltered, recent, allTags);
+  }
+
+  static int _byLastOpened(BookEntity a, BookEntity b) {
+    return switch ((a.lastOpenedAt, b.lastOpenedAt)) {
+      (null, null) => 0,
+      (null, _) => 1,
+      (_, null) => -1,
+      (final aDate?, final bDate?) => bDate.compareTo(aDate),
+    };
   }
 }

@@ -1,25 +1,39 @@
 import 'package:flutter/material.dart';
 
+import 'package:atlas_app/core/design_system/tokens/colors.dart';
 import 'package:atlas_app/core/theme/app_brand.dart';
 import 'package:atlas_app/core/theme/app_theme_tokens.dart';
 import 'package:atlas_app/core/theme/local_fonts.dart';
 
 abstract final class AppTheme {
-  static const _displayFont = 'Playfair Display';
-  static const _uiFont = 'Inter';
-  static const _bodyFont = 'Open Sans';
+  static const _displayFont = 'Fraunces';
+  static const _uiFont = 'DM Sans';
+  static const _bodyFont = 'DM Sans';
 
   static ThemeData light(AppBrand brand, [String? systemFontFamily]) {
     final uiFont = systemFontFamily ?? _uiFont;
-    final colorScheme = ColorScheme.fromSeed(
+    var colorScheme = ColorScheme.fromSeed(
       seedColor: brand.seed,
       brightness: Brightness.light,
     );
+    if (brand.usesWarmSurfaces) {
+      colorScheme = colorScheme.copyWith(
+        surface: AppColors.parchment,
+        surfaceContainerLowest: AppColors.parchment,
+        surfaceContainerLow: AppColors.surfaceCard,
+        surfaceContainer: AppColors.surfaceCard,
+        surfaceContainerHigh: AppColors.surfaceCard,
+        surfaceContainerHighest: AppColors.surfaceCard,
+        outlineVariant: AppColors.hairline,
+      );
+    }
     return _build(brand, colorScheme, uiFont, Brightness.light);
   }
 
   static ThemeData dark(AppBrand brand, [String? systemFontFamily]) {
     final uiFont = systemFontFamily ?? _uiFont;
+    // Dark surfaces derive from the seed automatically; the warm parchment
+    // canvas is a light-mode treatment only.
     final colorScheme = ColorScheme.fromSeed(
       seedColor: brand.seed,
       brightness: Brightness.dark,
@@ -209,12 +223,18 @@ abstract final class AppTheme {
         _displayFont,
         textStyle: base.displaySmall,
       ),
-      headlineLarge: LocalFonts.getFont(uiFont, textStyle: base.headlineLarge),
+      headlineLarge: LocalFonts.getFont(
+        _displayFont,
+        textStyle: base.headlineLarge,
+      ),
       headlineMedium: LocalFonts.getFont(
-        uiFont,
+        _displayFont,
         textStyle: base.headlineMedium,
       ),
-      headlineSmall: LocalFonts.getFont(uiFont, textStyle: base.headlineSmall),
+      headlineSmall: LocalFonts.getFont(
+        _displayFont,
+        textStyle: base.headlineSmall,
+      ),
       titleLarge: LocalFonts.getFont(uiFont, textStyle: base.titleLarge),
       titleMedium: LocalFonts.getFont(uiFont, textStyle: base.titleMedium),
       titleSmall: LocalFonts.getFont(uiFont, textStyle: base.titleSmall),

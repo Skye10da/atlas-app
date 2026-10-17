@@ -29,7 +29,7 @@ class _ReadingAnalyticsScreenState
         title: const Text(
           'Reading Analytics',
           style: TextStyle(
-            fontFamily: 'Playfair Display',
+            fontFamily: 'Fraunces',
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -163,7 +163,7 @@ class _ReadingAnalyticsScreenState
                   Text(
                     'Set Reading Goals',
                     style: theme.textTheme.titleLarge?.copyWith(
-                      fontFamily: 'Playfair Display',
+                      fontFamily: 'Fraunces',
                       fontWeight: FontWeight.bold,
                     ),
                   ),

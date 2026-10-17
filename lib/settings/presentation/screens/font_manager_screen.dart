@@ -30,7 +30,7 @@ class FontManagerScreen extends HookConsumerWidget {
         title: const Text(
           'Font Catalog',
           style: TextStyle(
-            fontFamily: 'Playfair Display',
+            fontFamily: 'Fraunces',
             fontWeight: FontWeight.w700,
           ),
         ),

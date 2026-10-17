@@ -87,6 +87,12 @@ final libraryGenreFilterProvider = Provider<String?>((ref) {
   return state?.genreFilter;
 });
 
+/// Backward-compatible bridge provider: derives the active status tab.
+final libraryStatusFilterProvider = Provider<LibraryStatusFilter>((ref) {
+  final state = ref.watch(libraryViewModelProvider).valueOrNull;
+  return state?.statusFilter ?? LibraryStatusFilter.all;
+});
+
 /// Backward-compatible bridge provider: derives selected book id from the ViewModel.
 final selectedBookIdProvider = Provider<String?>((ref) {
   final state = ref.watch(libraryViewModelProvider).valueOrNull;

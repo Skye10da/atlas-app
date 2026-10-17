@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/account/presentation/providers/local_account_providers.dart';
+import 'package:atlas_app/core/account/presentation/widgets/profile_edit_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/notifications/presentation/screens/update_check_settings_screen.dart';
@@ -11,20 +14,21 @@ import 'package:atlas_app/settings/presentation/screens/danger_zone_screen.dart'
 import 'package:atlas_app/settings/presentation/screens/reading_settings_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/search_engine_settings_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final account = ref.watch(localAccountSummaryProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'Settings',
           style: TextStyle(
-            fontFamily: 'Playfair Display',
+            fontFamily: 'Fraunces',
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -55,6 +59,19 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
+                    _MenuTile(
+                      icon: Icons.person_outline_rounded,
+                      iconColor: colors.primary,
+                      title: 'Profile',
+                      subtitle:
+                          'Display name & avatar colour — ${account.greetingName}',
+                      onTap: () => showProfileEditSheet(context),
+                    ),
+                    Divider(
+                      height: 1,
+                      indent: 56,
+                      color: colors.outlineVariant.withValues(alpha: 0.3),
+                    ),
                     _MenuTile(
                       icon: Icons.palette_outlined,
                       title: 'Appearance',
@@ -255,7 +272,7 @@ class SettingsScreen extends StatelessWidget {
                         Text(
                           'Atlas',
                           style: TextStyle(
-                            fontFamily: 'Playfair Display',
+                            fontFamily: 'Fraunces',
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                             color: colors.onSurface,

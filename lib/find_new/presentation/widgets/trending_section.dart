@@ -3,7 +3,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
-import 'package:atlas_app/discover/presentation/widgets/trending_book_action_sheet.dart';
+import 'package:atlas_app/find_new/presentation/widgets/trending_book_action_sheet.dart';
 
 /// A section displaying trending/popular books from OPDS or web novel plugin sources
 /// with interactive source filter pills and rank tabs for MVLEMPYR / WTR-LAB.
@@ -74,7 +74,7 @@ class TrendingSection extends HookConsumerWidget {
             Text(
               title,
               style: theme.textTheme.titleLarge?.copyWith(
-                fontFamily: 'Playfair Display',
+                fontFamily: 'Fraunces',
                 fontWeight: FontWeight.w700,
                 fontSize: 20,
               ),

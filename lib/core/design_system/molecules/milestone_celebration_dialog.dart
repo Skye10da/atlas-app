@@ -208,7 +208,7 @@ class MilestoneCelebrationDialog extends HookWidget {
                       milestone.title,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontFamily: 'Playfair Display',
+                        fontFamily: 'Fraunces',
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         height: 1.2,

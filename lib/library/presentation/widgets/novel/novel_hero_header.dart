@@ -104,7 +104,7 @@ class NovelHeroHeader extends ConsumerWidget {
                       Text(
                         book.title,
                         style: textTheme.titleLarge?.copyWith(
-                          fontFamily: 'Playfair Display',
+                          fontFamily: 'Fraunces',
                           fontWeight: FontWeight.bold,
                         ),
                         maxLines: 3,

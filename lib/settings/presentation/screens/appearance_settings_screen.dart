@@ -25,7 +25,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
         title: const Text(
           'Appearance',
           style: TextStyle(
-            fontFamily: 'Playfair Display',
+            fontFamily: 'Fraunces',
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -55,7 +55,8 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   // 2. Brand Theme Palette
                   _SettingsCard(
                     title: 'Brand Theme',
-                    subtitle: 'Choose the accent palette for buttons, indicators, and highlights',
+                    subtitle:
+                        'Atlas (parchment + deep green) is the default. Pick any accent palette for buttons, indicators, and highlights',
                     child: Wrap(
                       spacing: 10,
                       runSpacing: 10,
@@ -378,7 +379,7 @@ class _LivePreviewCard extends StatelessWidget {
                       const Text(
                         '◈ Atlas Sanctuary',
                         style: TextStyle(
-                          fontFamily: 'Playfair Display',
+                          fontFamily: 'Fraunces',
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),

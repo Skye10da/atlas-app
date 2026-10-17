@@ -148,7 +148,7 @@ class AiTranslationSettingsScreen extends HookConsumerWidget {
         title: const Text(
           'AI Translation ✨',
           style: TextStyle(
-            fontFamily: 'Playfair Display',
+            fontFamily: 'Fraunces',
             fontWeight: FontWeight.w700,
           ),
         ),

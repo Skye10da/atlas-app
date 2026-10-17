@@ -9,7 +9,13 @@ import 'package:atlas_app/core/theme/font_downloader.dart';
 /// family name to the given [textStyle]. Downloaded families are registered
 /// with the font engine by [FontDownloader], so they resolve the same way.
 abstract final class LocalFonts {
-  static const bundledFamilies = {'Inter', 'Open Sans', 'Playfair Display'};
+  static const bundledFamilies = {
+    'Inter',
+    'Open Sans',
+    'Playfair Display',
+    'DM Sans',
+    'Fraunces',
+  };
 
   /// Attaches [family] to [textStyle] (or a default style when null).
   static TextStyle getFont(String family, {TextStyle? textStyle}) {

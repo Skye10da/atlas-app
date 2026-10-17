@@ -231,7 +231,7 @@ class BatchDownloadSheet extends HookConsumerWidget {
                   child: Text(
                     'Download Chapters',
                     style: TextStyle(
-                      fontFamily: 'Playfair Display',
+                      fontFamily: 'Fraunces',
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),

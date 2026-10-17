@@ -12,12 +12,39 @@ enum LibrarySortOrder {
 
 enum LibraryCategory { books, novels }
 
+/// Shelf tabs shown above the grid (mockup frames E/F/G).
+enum LibraryStatusFilter { all, reading, updated, unread, finished }
+
+extension LibraryStatusFilterX on LibraryStatusFilter {
+  String get label => switch (this) {
+    LibraryStatusFilter.all => 'All',
+    LibraryStatusFilter.reading => 'Reading',
+    LibraryStatusFilter.updated => 'Updated',
+    LibraryStatusFilter.unread => 'Unread',
+    LibraryStatusFilter.finished => 'Finished',
+  };
+
+  /// Whether [book] belongs in this bucket. Every book falls into exactly one
+  /// of unread/reading/finished by progress; `updated` overlaps them.
+  bool matches(BookEntity book) {
+    final progress = book.progress01;
+    return switch (this) {
+      LibraryStatusFilter.all => true,
+      LibraryStatusFilter.reading => progress > 0 && progress < 0.999,
+      LibraryStatusFilter.updated => book.hasUpdate,
+      LibraryStatusFilter.unread => progress <= 0,
+      LibraryStatusFilter.finished => progress >= 0.999,
+    };
+  }
+}
+
 class LibraryState {
   const LibraryState({
     this.layout = BookshelfLayout.grid,
     this.sortOrder = LibrarySortOrder.titleAsc,
     this.searchQuery = '',
     this.category = LibraryCategory.novels,
+    this.statusFilter = LibraryStatusFilter.all,
     this.genreFilter,
     this.selectedBookId,
     this.isCheckingUpdates = false,
@@ -31,6 +58,7 @@ class LibraryState {
   final LibrarySortOrder sortOrder;
   final String searchQuery;
   final LibraryCategory category;
+  final LibraryStatusFilter statusFilter;
   final String? genreFilter;
   final String? selectedBookId;
   final bool isCheckingUpdates;
@@ -39,11 +67,23 @@ class LibraryState {
   final List<BookEntity> recentBooks;
   final List<String> availableGenres;
 
+  /// Number of books with newly discovered chapters — drives the "Updated"
+  /// tab badge and the New Chapters card.
+  int get updatedCount => books.where((b) => b.hasUpdate).length;
+
+  /// Books with newly discovered chapters, most recently updated first.
+  List<BookEntity> get updatedBooks {
+    final list = books.where((b) => b.hasUpdate).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return list;
+  }
+
   LibraryState copyWith({
     BookshelfLayout? layout,
     LibrarySortOrder? sortOrder,
     String? searchQuery,
     LibraryCategory? category,
+    LibraryStatusFilter? statusFilter,
     String? genreFilter,
     bool clearGenreFilter = false,
     String? selectedBookId,
@@ -59,6 +99,7 @@ class LibraryState {
       sortOrder: sortOrder ?? this.sortOrder,
       searchQuery: searchQuery ?? this.searchQuery,
       category: category ?? this.category,
+      statusFilter: statusFilter ?? this.statusFilter,
       genreFilter: clearGenreFilter ? null : (genreFilter ?? this.genreFilter),
       selectedBookId:
           clearSelectedBookId ? null : (selectedBookId ?? this.selectedBookId),

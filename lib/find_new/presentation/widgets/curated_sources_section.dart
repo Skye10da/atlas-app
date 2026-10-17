@@ -42,7 +42,7 @@ class CuratedSourcesSection extends StatelessWidget {
             const Text(
               'Content Sources',
               style: TextStyle(
-                fontFamily: 'Playfair Display',
+                fontFamily: 'Fraunces',
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
