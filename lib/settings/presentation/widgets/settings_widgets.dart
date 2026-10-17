@@ -20,8 +20,9 @@ class SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: textTheme.titleMedium?.copyWith(
+          fontFamily: 'Fraunces',
           fontWeight: FontWeight.w600,
-          color: colors.primary,
+          color: colors.onSurface,
         ),
       ),
     );
@@ -64,9 +65,13 @@ class SettingsGroup extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.6),
+        ),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(children: children),
     );
   }

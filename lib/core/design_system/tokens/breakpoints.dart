@@ -38,6 +38,15 @@ abstract final class AppBreakpoints {
   /// Optimal maximum width for settings forms and dialog cards.
   static const double formContentMaxWidth = 760.0;
 
+  /// Widest any main-navigation screen (Library, Find new, Saved, Settings)
+  /// grows on large windows. Wider than [readerContentMaxWidth], which is only
+  /// for reading comfort.
+  static const double shellContentMaxWidth = 1360.0;
+
+  /// Library content width (the area right of the nav sidebar) at which the
+  /// weekly stats and new-chapters list move into a right-hand panel.
+  static const double libraryInsightsMinWidth = 1000.0;
+
   /// Optimal maximum width for modal sheets and flyout dialogs.
   static const double sheetMaxWidth = 640.0;
 

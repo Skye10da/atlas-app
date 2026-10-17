@@ -40,7 +40,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(
-                maxWidth: AppBreakpoints.formContentMaxWidth,
+                maxWidth: AppBreakpoints.shellContentMaxWidth,
               ),
               child: ListView(
                 padding: const EdgeInsets.symmetric(

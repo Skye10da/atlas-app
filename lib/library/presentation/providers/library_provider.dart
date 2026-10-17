@@ -99,6 +99,14 @@ final selectedBookIdProvider = Provider<String?>((ref) {
   return state?.selectedBookId;
 });
 
+/// Incremented whenever something outside the Library screen wants to focus
+/// the inline "Search library" field (e.g. the Ctrl K shortcut in the shell).
+final librarySearchFocusSignalProvider = StateProvider<int>((_) => 0);
+
+/// Incremented whenever something outside the Library screen requests the
+/// "Add book" flow (shell FAB, tablet rail, desktop sidebar button).
+final libraryAddBookSignalProvider = StateProvider<int>((_) => 0);
+
 final librarySeedProvider = FutureProvider<Result<void>>((ref) async {
   final db = ref.watch(databaseProvider);
   final seed = SeedData(db);

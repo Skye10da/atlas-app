@@ -2,18 +2,16 @@ import 'dart:async';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:atlas_app/core/content_acquisition/application/chapter_update_service.dart';
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
-import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/molecules/app_empty_state.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
-import 'package:atlas_app/core/design_system/molecules/app_search_bar.dart';
 import 'package:atlas_app/core/design_system/molecules/confirm_delete_dialog.dart';
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
@@ -21,31 +19,34 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/file_open_providers.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
-import 'package:atlas_app/core/design_system/molecules/app_snackbar.dart';
 import 'package:atlas_app/library/domain/entities/bookshelf_layout.dart';
+import 'package:atlas_app/library/presentation/providers/library_actions.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/book_detail_panel.dart';
 import 'package:atlas_app/library/presentation/widgets/bookshelf_grid.dart';
 import 'package:atlas_app/library/presentation/widgets/bookshelf_list.dart';
 import 'package:atlas_app/library/presentation/widgets/bookshelf_scattered.dart';
 import 'package:atlas_app/library/presentation/widgets/home/continue_hero_card.dart';
+import 'package:atlas_app/library/presentation/widgets/home/library_controls_row.dart';
 import 'package:atlas_app/library/presentation/widgets/home/library_home_header.dart';
+import 'package:atlas_app/library/presentation/widgets/home/library_insights_panel.dart';
 import 'package:atlas_app/library/presentation/widgets/home/library_status_tabs.dart';
-import 'package:atlas_app/library/presentation/widgets/home/new_chapters_card.dart';
 import 'package:atlas_app/library/presentation/widgets/home/weekly_activity_dots.dart';
-import 'package:atlas_app/library/presentation/widgets/sort_dropdown.dart';
-import 'package:atlas_app/library/presentation/widgets/sort_toolbar.dart';
+import 'package:atlas_app/library/presentation/widgets/library_sort_filter_sheet.dart';
 
 import 'package:atlas_app/discover/presentation/providers/reading_analytics_providers.dart';
 import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
 import 'package:atlas_app/core/router/app_router.dart';
 
+/// Library home.
+///
+/// One screen, three arrangements chosen from the available width (not the
+/// device): phone (stats strip, hero, controls, tabs, shelf), medium (hero
+/// beside the stats card) and wide (shelf in the middle, stats + new chapters
+/// in a right-hand panel). Navigation chrome (bottom bar / rail / sidebar)
+/// lives in [AppShell].
 class LibraryScreen extends HookConsumerWidget {
-  const LibraryScreen({
-    super.key,
-    this.initialGenre,
-    this.initialSort,
-  });
+  const LibraryScreen({super.key, this.initialGenre, this.initialSort});
 
   final String? initialGenre;
   final String? initialSort;
@@ -53,6 +54,7 @@ class LibraryScreen extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final searchController = useTextEditingController();
+    final searchFocus = useFocusNode();
     final showSearchBar = useState(false);
     final isSelectionMode = useState(false);
     final selectedBookIds = useState<Set<String>>({});
@@ -65,15 +67,21 @@ class LibraryScreen extends HookConsumerWidget {
       }
       if (initialGenre != null && initialGenre!.trim().isNotEmpty) {
         Future.microtask(() {
-          ref.read(libraryViewModelProvider.notifier).setGenreFilter(initialGenre!.trim());
+          ref
+              .read(libraryViewModelProvider.notifier)
+              .setGenreFilter(initialGenre!.trim());
         });
       }
       if (initialSort != null && initialSort!.trim().isNotEmpty) {
         Future.microtask(() {
           if (initialSort == 'recentlyAdded') {
-            ref.read(libraryViewModelProvider.notifier).setSortOrder(LibrarySortOrder.recentlyAdded);
+            ref
+                .read(libraryViewModelProvider.notifier)
+                .setSortOrder(LibrarySortOrder.recentlyAdded);
           } else if (initialSort == 'recentlyRead') {
-            ref.read(libraryViewModelProvider.notifier).setSortOrder(LibrarySortOrder.recentlyRead);
+            ref
+                .read(libraryViewModelProvider.notifier)
+                .setSortOrder(LibrarySortOrder.recentlyRead);
           }
         });
       }
@@ -87,23 +95,59 @@ class LibraryScreen extends HookConsumerWidget {
     final isDesktop = width >= AppBreakpoints.tablet;
     final isBigDesktop = width >= AppBreakpoints.largeDesktop;
     final isTablet = width >= AppBreakpoints.mobile && !isDesktop;
+    // False while this tab is hidden behind another shell branch.
+    final isActiveTab = TickerMode.valuesOf(context).enabled;
 
     final cs = Theme.of(context).colorScheme;
+    final selecting = isSelectionMode.value;
+    final searchOpen =
+        showSearchBar.value || libraryState.searchQuery.isNotEmpty;
+
+    void openSearch() {
+      showSearchBar.value = true;
+      searchFocus.requestFocus();
+    }
+
+    void closeSearch() {
+      showSearchBar.value = false;
+      searchController.clear();
+      ref.read(libraryViewModelProvider.notifier).setSearchQuery('');
+    }
+
+    // Ctrl/Cmd + K focuses library search on desktop-class windows.
+    useEffect(() {
+      if (!isDesktop || !isActiveTab) return null;
+      bool handler(KeyEvent event) {
+        if (event is! KeyDownEvent) return false;
+        if (event.logicalKey != LogicalKeyboardKey.keyK) return false;
+        final keyboard = HardwareKeyboard.instance;
+        if (!keyboard.isControlPressed && !keyboard.isMetaPressed) {
+          return false;
+        }
+        openSearch();
+        return true;
+      }
+
+      HardwareKeyboard.instance.addHandler(handler);
+      return () => HardwareKeyboard.instance.removeHandler(handler);
+    }, [isDesktop, isActiveTab]);
 
     return AppScaffold(
-      title: isSelectionMode.value
-          ? '${selectedBookIds.value.length} Selected'
-          : 'Library',
-      actions: isSelectionMode.value
+      // The greeting header replaces the app bar; it only returns while
+      // selecting books (select all / delete / cancel).
+      title: selecting ? '${selectedBookIds.value.length} Selected' : null,
+      actions: selecting
           ? [
               IconButton(
                 icon: Icon(
-                  selectedBookIds.value.length == libraryState.filteredBooks.length &&
+                  selectedBookIds.value.length ==
+                              libraryState.filteredBooks.length &&
                           libraryState.filteredBooks.isNotEmpty
                       ? Icons.deselect_rounded
                       : Icons.select_all_rounded,
                 ),
-                tooltip: selectedBookIds.value.length ==
+                tooltip:
+                    selectedBookIds.value.length ==
                             libraryState.filteredBooks.length &&
                         libraryState.filteredBooks.isNotEmpty
                     ? 'Deselect all'
@@ -113,8 +157,9 @@ class LibraryScreen extends HookConsumerWidget {
                       libraryState.filteredBooks.length) {
                     selectedBookIds.value = {};
                   } else {
-                    selectedBookIds.value =
-                        libraryState.filteredBooks.map((b) => b.id).toSet();
+                    selectedBookIds.value = libraryState.filteredBooks
+                        .map((b) => b.id)
+                        .toSet();
                   }
                 },
               ),
@@ -129,11 +174,11 @@ class LibraryScreen extends HookConsumerWidget {
                 onPressed: selectedBookIds.value.isEmpty
                     ? null
                     : () => _confirmDeleteSelected(
-                          context,
-                          ref,
-                          selectedBookIds,
-                          isSelectionMode,
-                        ),
+                        context,
+                        ref,
+                        selectedBookIds,
+                        isSelectionMode,
+                      ),
               ),
               IconButton(
                 icon: const Icon(Icons.close),
@@ -144,110 +189,30 @@ class LibraryScreen extends HookConsumerWidget {
                 },
               ),
             ]
-          : [
-              if (importActions.isImporting)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: cs.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        importActions.progress.message ?? 'Importing...',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                    ],
-                  ),
-                )
-              else ...[
-                IconButton(
-                  icon: Icon(
-                    showSearchBar.value || libraryState.searchQuery.isNotEmpty
-                        ? Icons.search_off_rounded
-                        : Icons.search_rounded,
-                  ),
-                  tooltip:
-                      showSearchBar.value || libraryState.searchQuery.isNotEmpty
-                          ? 'Close search'
-                          : 'Search library',
-                  onPressed: () {
-                    if (showSearchBar.value ||
-                        libraryState.searchQuery.isNotEmpty) {
-                      showSearchBar.value = false;
-                      searchController.clear();
-                      ref
-                          .read(libraryViewModelProvider.notifier)
-                          .setSearchQuery('');
-                    } else {
-                      showSearchBar.value = true;
-                    }
-                  },
-                ),
-                if (libraryState.filteredBooks.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () => _showAddSheet(context, ref),
-                    tooltip: 'Add to library',
-                  ),
-              ],
-              IconButton(
-                icon: libraryState.isCheckingUpdates
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.sync),
-                tooltip: 'Check ongoing novels for updates',
-                onPressed: libraryState.isCheckingUpdates
-                    ? null
-                    : () => _checkAllUpdates(context, ref),
-              ),
-            ],
-      child: _buildContent(
-        context,
-        ref,
-        libraryAsync,
-        libraryState,
-        searchController,
-        showSearchBar,
-        isSelectionMode,
-        selectedBookIds,
-        importActions.isImporting,
-        isDesktop,
-        isBigDesktop,
-        isTablet,
+          : null,
+      child: SafeArea(
+        top: !selecting,
+        bottom: false,
+        child: _buildContent(
+          context,
+          ref,
+          libraryAsync,
+          libraryState,
+          searchController,
+          searchFocus,
+          searchOpen,
+          openSearch,
+          closeSearch,
+          isSelectionMode,
+          selectedBookIds,
+          importActions.isImporting,
+          importActions.progress.message,
+          isDesktop,
+          isBigDesktop,
+          isTablet,
+        ),
       ),
     );
-  }
-
-  static Future<void> _checkAllUpdates(BuildContext context, WidgetRef ref) async {
-    try {
-      final service = ref.read(chapterUpdateServiceProvider);
-      final result = await ref
-          .read(libraryViewModelProvider.notifier)
-          .checkUpdates(service);
-      if (result == null) return;
-      if (!context.mounted) return;
-      final message = result.booksWithUpdates == 0
-          ? 'No new chapters found.'
-          : 'Found ${result.totalNewChapters} new chapter(s) in '
-                '${result.booksWithUpdates} novel(s).';
-      AppSnackBar.show(message);
-    } catch (e) {
-      if (!context.mounted) return;
-      AppSnackBar.showError(
-        'Update check failed: ${ChapterUpdateService.describeFailure(e)}',
-      );
-    }
   }
 
   static Widget _buildContent(
@@ -256,29 +221,21 @@ class LibraryScreen extends HookConsumerWidget {
     AsyncValue<LibraryState> libraryAsync,
     LibraryState state,
     TextEditingController searchController,
-    ValueNotifier<bool> showSearchBar,
+    FocusNode searchFocus,
+    bool searchOpen,
+    VoidCallback openSearch,
+    VoidCallback closeSearch,
     ValueNotifier<bool> isSelectionMode,
     ValueNotifier<Set<String>> selectedBookIds,
     bool isImporting,
+    String? importMessage,
     bool isDesktop,
     bool isBigDesktop,
     bool isTablet,
   ) {
-    final showSearch = showSearchBar.value || state.searchQuery.isNotEmpty;
-
     return Column(
       children: [
-        if (showSearch)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: AppSearchBar(
-              controller: searchController,
-              hint: 'Search library...',
-              autofocus: showSearchBar.value && state.searchQuery.isEmpty,
-              onChanged: (q) =>
-                  ref.read(libraryViewModelProvider.notifier).setSearchQuery(q),
-            ),
-          ),
+        if (isImporting) _ImportBanner(message: importMessage),
         Expanded(
           child: libraryAsync.when(
             loading: () => const Center(child: AppLoading()),
@@ -290,7 +247,14 @@ class LibraryScreen extends HookConsumerWidget {
             data: (state) => _BookshelfContent(
               books: state.filteredBooks,
               recentBooks: state.recentBooks,
+              libraryIsEmpty: state.books.isEmpty,
+              statusFilter: state.statusFilter,
+              category: state.category,
               searchQuery: state.searchQuery,
+              searchController: searchController,
+              searchFocus: searchFocus,
+              searchOpen: searchOpen,
+              onToggleSearch: () => searchOpen ? closeSearch() : openSearch(),
               isDesktop: isDesktop,
               isBigDesktop: isBigDesktop,
               isTablet: isTablet,
@@ -353,30 +317,19 @@ class LibraryScreen extends HookConsumerWidget {
   }
 
   static void _showAddSheet(BuildContext context, WidgetRef ref) {
-    final actions = ref.read(libraryImportProvider);
-    actions.importLocal(context).then((result) {
-      ref.invalidate(libraryBooksProvider);
-      if (result is Success<ImportOutcome> && context.mounted) {
-        if (result.value.bookId.startsWith('batch:')) {
-          final count = result.value.bookId.split(':').last;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Successfully imported $count books.')),
-          );
-        } else {
-          final route = result.value.category == ContentCategory.novel
-              ? '/novel/${result.value.bookId}'
-              : '/book/${result.value.bookId}';
-          context.push(route);
-        }
-      }
-    });
+    unawaited(addToLibrary(context, ref));
   }
 
-  static Future<void> _deleteBook(BuildContext context, WidgetRef ref, String bookId) async {
+  static Future<void> _deleteBook(
+    BuildContext context,
+    WidgetRef ref,
+    String bookId,
+  ) async {
     final confirmed = await ConfirmDeleteDialog.show(
       context,
       title: 'Delete book?',
-      message: 'This will permanently remove the book and all reading progress.',
+      message:
+          'This will permanently remove the book and all reading progress.',
       confirmLabel: 'Delete',
     );
 
@@ -431,10 +384,63 @@ class LibraryScreen extends HookConsumerWidget {
   }
 }
 
+/// Slim banner shown while a book import is running (replaces the spinner
+/// that used to live in the app bar).
+class _ImportBanner extends StatelessWidget {
+  const _ImportBanner({this.message});
+
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      color: cs.secondaryContainer,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: cs.onSecondaryContainer,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.smMd),
+          Expanded(
+            child: Text(
+              message ?? 'Importing...',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: cs.onSecondaryContainer,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BookshelfContent extends HookConsumerWidget {
   const _BookshelfContent({
     required this.books,
     required this.recentBooks,
+    required this.libraryIsEmpty,
+    required this.statusFilter,
+    required this.category,
+    required this.searchController,
+    required this.searchFocus,
+    required this.searchOpen,
+    required this.onToggleSearch,
     required this.isDesktop,
     required this.isBigDesktop,
     required this.isTablet,
@@ -450,9 +456,21 @@ class _BookshelfContent extends HookConsumerWidget {
     this.selectedIds = const {},
   });
 
+  /// Width of the right-hand insights column on wide windows.
+  static const double _insightsWidth = 320;
+
   final List<BookEntity> books;
   final List<BookEntity> recentBooks;
+
+  /// True when the whole library has no books at all (not just this filter).
+  final bool libraryIsEmpty;
+  final LibraryStatusFilter statusFilter;
+  final LibraryCategory category;
   final String searchQuery;
+  final TextEditingController searchController;
+  final FocusNode searchFocus;
+  final bool searchOpen;
+  final VoidCallback onToggleSearch;
   final bool isTablet;
   final bool isDesktop;
   final bool isBigDesktop;
@@ -471,34 +489,10 @@ class _BookshelfContent extends HookConsumerWidget {
     final dragging = useState(false);
     final layout = ref.watch(bookshelfLayoutProvider);
 
-    if (books.isEmpty) {
-      if (searchQuery.isNotEmpty) {
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppEmptyState(
-                title: 'No results found',
-                message: 'No books match "$searchQuery".',
-                icon: Icons.search_off_rounded,
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: () {
-                  ref
-                      .read(libraryViewModelProvider.notifier)
-                      .setSearchQuery('');
-                },
-                icon: const Icon(Icons.clear_rounded, size: 18),
-                label: const Text('Clear search'),
-              ),
-            ],
-          ),
-        );
-      }
-
+    if (libraryIsEmpty) {
       return DropTarget(
-        onDragDone: (details) => _handleFileDrop(context, ref, details, dragging),
+        onDragDone: (details) =>
+            _handleFileDrop(context, ref, details, dragging),
         onDragEntered: (_) => dragging.value = true,
         onDragExited: (_) => dragging.value = false,
         child: Column(
@@ -521,7 +515,8 @@ class _BookshelfContent extends HookConsumerWidget {
                       children: [
                         const AppEmptyState(
                           title: 'Your bookshelf is empty',
-                          message: 'Import a book or add a novel to start reading.',
+                          message:
+                              'Import a book or add a novel to start reading.',
                           icon: Icons.library_books,
                         ),
                         const SizedBox(height: 16),
@@ -561,130 +556,140 @@ class _BookshelfContent extends HookConsumerWidget {
       onDragDone: (details) => _handleFileDrop(context, ref, details, dragging),
       onDragEntered: (_) => dragging.value = true,
       onDragExited: (_) => dragging.value = false,
-      child: Stack(
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final contentWidth = constraints.maxWidth;
+          final detailOpen =
+              isDesktop && selectedBookId != null && !isSelectionMode;
+          final showInsights =
+              !detailOpen &&
+              !isSelectionMode &&
+              contentWidth >= AppBreakpoints.libraryInsightsMinWidth;
+          final sidePanelWidth = detailOpen
+              ? 400.0
+              : showInsights
+              ? _insightsWidth
+              : 0.0;
+          final mainWidth = contentWidth - sidePanelWidth;
+          final wide = mainWidth >= AppBreakpoints.mobile;
+          final notifier = ref.read(libraryViewModelProvider.notifier);
+
+          return Stack(
             children: [
-              Expanded(
-                child: ListView(
-                  children: [
-                    if (!isSelectionMode && searchQuery.isEmpty)
-                      _LibraryHomeSection(
-                        recentBooks: recentBooks,
-                        onBookTap: onBookTap,
-                        isDesktop: isDesktop,
-                      ),
-                    if (!isSelectionMode) const _LibraryStatusTabsRow(),
-                    if (!isDesktop && !isSelectionMode)
-                      const _LibraryCategoryToggle(),
-                    if (!isSelectionMode) const _LibraryGenreChips(),
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        AppSpacing.lg,
-                        isDesktop ? 0 : AppSpacing.sm,
-                        AppSpacing.lg,
-                        AppSpacing.sm,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              isSelectionMode
-                                  ? 'Select books'
-                                  : 'Bookshelf',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w600),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        // Stays visible while searching so the search field
+                        // does not jump when the first character is typed.
+                        if (!isSelectionMode)
+                          _LibraryHomeSection(
+                            recentBooks: recentBooks,
+                            onBookTap: onBookTap,
+                            wide: wide,
+                            showInlineStats: !showInsights,
+                          ),
+                        if (!isSelectionMode) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.lg,
+                              AppSpacing.md,
+                              AppSpacing.lg,
+                              AppSpacing.sm,
+                            ),
+                            child: LibraryControlsRow(
+                              wide: wide,
+                              inlineSearch: isDesktop,
+                              searchActive: searchOpen,
+                              onToggleSearch: onToggleSearch,
+                              onCheckUpdates: () =>
+                                  checkAllLibraryUpdates(context, ref),
+                              searchController: searchController,
+                              searchFocusNode: searchFocus,
                             ),
                           ),
-                          Row(
-                            children: [
-                              if (isDesktop)
-                                SortToolbar(
-                                  currentOrder: ref.watch(librarySortProvider),
-                                  onSort: (order) => ref
-                                      .read(libraryViewModelProvider.notifier)
-                                      .setSortOrder(order),
-                                )
-                              else
-                                SortDropdown(
-                                  currentOrder: ref.watch(librarySortProvider),
-                                  onSort: (order) => ref
-                                      .read(libraryViewModelProvider.notifier)
-                                      .setSortOrder(order),
-                                ),
-                              IconButton(
-                                icon: Icon(
-                                  layout.icon,
-                                  size: isDesktop ? 20 : 18,
-                                ),
-                                onPressed: () {
-                                  const values = BookshelfLayout.values;
-                                  final nextIndex = (layout.index + 1) % values.length;
-                                  ref.read(libraryViewModelProvider.notifier).setLayout(values[nextIndex]);
-                                },
-                                tooltip: 'Layout: ${layout.label}',
-                                visualDensity: VisualDensity.compact,
-                                constraints: const BoxConstraints(
-                                  minWidth: 32,
-                                  minHeight: 32,
-                                ),
+                          if (!isDesktop && searchOpen)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                AppSpacing.lg,
+                                0,
+                                AppSpacing.lg,
+                                AppSpacing.sm,
                               ),
-                            ],
-                          ),
+                              child: LibrarySearchField(
+                                controller: searchController,
+                                focusNode: searchFocus,
+                                autofocus: searchQuery.isEmpty,
+                                onChanged: notifier.setSearchQuery,
+                              ),
+                            ),
+                          const _LibraryStatusTabsRow(),
+                          const _ActiveGenreChip(),
                         ],
-                      ),
-                    ),
-                    switch (layout) {
-                      BookshelfLayout.grid => BookshelfGrid(
-                        books: books,
-                        isDesktop: isDesktop,
-                        isTablet: isTablet,
-                        isSelectionMode: isSelectionMode,
-                        selectedIds: selectedIds,
-                        onBookTap: onBookTap,
-                        onBookLongPress: onBookLongPress,
-                        onDeleteBook: onDeleteBook,
-                      ),
-                      BookshelfLayout.list => BookshelfList(
-                        books: books,
-                        isSelectionMode: isSelectionMode,
-                        selectedIds: selectedIds,
-                        onBookTap: onBookTap,
-                        onDeleteBook: onDeleteBook,
-                      ),
-                      BookshelfLayout.scattered => BookshelfScattered(
-                        books: books,
-                        isSelectionMode: isSelectionMode,
-                        selectedIds: selectedIds,
-                        onBookTap: onBookTap,
-                        onDeleteBook: onDeleteBook,
-                      ),
-                    },
-                  ],
-                ),
-              ),
-              if (isDesktop && selectedBookId != null && !isSelectionMode) ...[
-                const VerticalDivider(width: 1),
-                SizedBox(
-                  width: 400,
-                  child: Material(
-                    child: BookDetailPanel(
-                      bookId: selectedBookId!,
-                      onClose: () => ref
-                          .read(libraryViewModelProvider.notifier)
-                          .selectBook(null),
+                        const SizedBox(height: AppSpacing.md),
+                        if (books.isEmpty)
+                          _EmptyShelfMessage(
+                            searchQuery: searchQuery,
+                            statusFilter: statusFilter,
+                            category: category,
+                          )
+                        else
+                          switch (layout) {
+                            BookshelfLayout.grid => BookshelfGrid(
+                              books: books,
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isSelectionMode: isSelectionMode,
+                              selectedIds: selectedIds,
+                              onBookTap: onBookTap,
+                              onBookLongPress: onBookLongPress,
+                              onDeleteBook: onDeleteBook,
+                            ),
+                            BookshelfLayout.list => BookshelfList(
+                              books: books,
+                              isSelectionMode: isSelectionMode,
+                              selectedIds: selectedIds,
+                              onBookTap: onBookTap,
+                              onDeleteBook: onDeleteBook,
+                            ),
+                            BookshelfLayout.scattered => BookshelfScattered(
+                              books: books,
+                              isSelectionMode: isSelectionMode,
+                              selectedIds: selectedIds,
+                              onBookTap: onBookTap,
+                              onDeleteBook: onDeleteBook,
+                            ),
+                          },
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  if (detailOpen) ...[
+                    const VerticalDivider(width: 1),
+                    SizedBox(
+                      width: 400,
+                      child: Material(
+                        child: BookDetailPanel(
+                          bookId: selectedBookId!,
+                          onClose: () => ref
+                              .read(libraryViewModelProvider.notifier)
+                              .selectBook(null),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (showInsights)
+                    SizedBox(
+                      width: _insightsWidth,
+                      child: _LibraryInsightsHost(onBookTap: onBookTap),
+                    ),
+                ],
+              ),
+              if (dragging.value) _buildDropOverlay(context),
             ],
-          ),
-          if (dragging.value) _buildDropOverlay(context),
-        ],
+          );
+        },
       ),
     );
   }
@@ -780,26 +785,32 @@ class _LibraryGreetingHeader extends ConsumerWidget {
   }
 }
 
-/// Personalised home block: greeting, continue-reading hero, weekly activity
-/// and the new-chapters rail. Rendered above the shelf.
+/// Greeting, weekly stats and the Continue hero, rendered above the shelf.
+///
+/// * phone: stats strip under the greeting, hero below it
+/// * medium: hero with the stats card beside it
+/// * wide ([showInlineStats] false): hero only, stats live in the side panel
 class _LibraryHomeSection extends ConsumerWidget {
   const _LibraryHomeSection({
     required this.recentBooks,
     required this.onBookTap,
-    required this.isDesktop,
+    required this.wide,
+    required this.showInlineStats,
   });
 
   final List<BookEntity> recentBooks;
   final void Function(String id) onBookTap;
-  final bool isDesktop;
+  final bool wide;
+  final bool showInlineStats;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(libraryViewModelProvider).valueOrNull;
     final report = ref.watch(readingAnalyticsReportProvider).valueOrNull;
     final weekly = report?.weeklyActivity ?? const <ReadingDayActivity>[];
-    final weekChapters = weekly.fold<int>(0, (sum, day) => sum + day.chaptersRead);
-    final updatedBooks = state?.updatedBooks ?? const <BookEntity>[];
+    final weekChapters = weekly.fold<int>(
+      0,
+      (sum, day) => sum + day.chaptersRead,
+    );
 
     // Prefer an in-progress book for the hero; fall back to most recent.
     final BookEntity? heroBook = recentBooks.isEmpty
@@ -817,6 +828,9 @@ class _LibraryHomeSection extends ConsumerWidget {
           : () => context.push('/reader/${heroBook.id}'),
     );
 
+    final showStatsCard = showInlineStats && wide && weekly.isNotEmpty;
+    final showStrip = showInlineStats && !wide && weekly.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -829,165 +843,208 @@ class _LibraryHomeSection extends ConsumerWidget {
           ),
           child: _LibraryGreetingHeader(),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
+        if (showStrip)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.md,
+            ),
+            child: WeeklyActivityStrip(
+              weeklyActivity: weekly,
+              onTap: () => AppRouter.openAnalytics(context),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: isDesktop && weekly.isNotEmpty
-              ? IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(flex: 3, child: hero),
-                      const SizedBox(width: AppSpacing.lg),
-                      Expanded(
-                        flex: 2,
-                        child: WeeklyActivityDots(
-                          weeklyActivity: weekly,
-                          totalChapters: weekChapters,
-                          onTap: () => AppRouter.openAnalytics(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : Column(
+          child: showStatsCard
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    hero,
-                    if (weekly.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      WeeklyActivityDots(
+                    Expanded(child: hero),
+                    const SizedBox(width: AppSpacing.md),
+                    SizedBox(
+                      width: 280,
+                      child: WeeklyActivityDots(
                         weeklyActivity: weekly,
                         totalChapters: weekChapters,
                         onTap: () => AppRouter.openAnalytics(context),
                       ),
-                    ],
+                    ),
                   ],
-                ),
+                )
+              : hero,
         ),
-        if (updatedBooks.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.xl),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: NewChaptersCard(
-              books: updatedBooks,
-              onBookTap: onBookTap,
-              isChecking: state?.isCheckingUpdates ?? false,
-              onCheckForUpdates: () =>
-                  LibraryScreen._checkAllUpdates(context, ref),
-            ),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.xl),
       ],
     );
   }
 }
 
-/// The Reading / Updated / Unread / Finished tab strip.
+/// Right-hand column on wide windows: weekly stats + new chapters.
+class _LibraryInsightsHost extends ConsumerWidget {
+  const _LibraryInsightsHost({required this.onBookTap});
+
+  final void Function(String id) onBookTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(libraryViewModelProvider).valueOrNull;
+    final report = ref.watch(readingAnalyticsReportProvider).valueOrNull;
+    final weekly = report?.weeklyActivity ?? const <ReadingDayActivity>[];
+    final weekChapters = weekly.fold<int>(
+      0,
+      (sum, day) => sum + day.chaptersRead,
+    );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(
+        0,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.lg,
+      ),
+      child: LibraryInsightsPanel(
+        weeklyActivity: weekly,
+        weekChapters: weekChapters,
+        updatedBooks: state?.updatedBooks ?? const <BookEntity>[],
+        isChecking: state?.isCheckingUpdates ?? false,
+        onOpenAnalytics: () => AppRouter.openAnalytics(context),
+        onBookTap: onBookTap,
+        onCheckForUpdates: () => checkAllLibraryUpdates(context, ref),
+      ),
+    );
+  }
+}
+
+/// Status tabs with the sort & filter and layout actions docked at the end.
 class _LibraryStatusTabsRow extends ConsumerWidget {
   const _LibraryStatusTabsRow();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(libraryViewModelProvider).valueOrNull;
+    final layout = ref.watch(bookshelfLayoutProvider);
+    final genre = ref.watch(libraryGenreFilterProvider);
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        AppSpacing.sm,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       child: LibraryStatusTabs(
         selected: state?.statusFilter ?? LibraryStatusFilter.all,
         updatedCount: state?.updatedCount ?? 0,
         onSelected: (filter) =>
             ref.read(libraryViewModelProvider.notifier).setStatusFilter(filter),
+        trailing: [
+          IconButton(
+            tooltip: 'Sort & filter',
+            icon: Badge(
+              isLabelVisible: genre != null,
+              smallSize: 8,
+              child: const Icon(Icons.filter_list_rounded),
+            ),
+            onPressed: () => showLibrarySortFilterSheet(context),
+          ),
+          IconButton(
+            tooltip: 'Layout: ${layout.label} (tap to change)',
+            icon: Icon(layout.icon),
+            onPressed: () {
+              const values = BookshelfLayout.values;
+              final next = values[(layout.index + 1) % values.length];
+              ref.read(libraryViewModelProvider.notifier).setLayout(next);
+            },
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Novels / Books category switch (compact layouts).
-class _LibraryCategoryToggle extends ConsumerWidget {
-  const _LibraryCategoryToggle();
+/// Removable chip showing the active genre filter (so a filter chosen in the
+/// sheet is never invisible).
+class _ActiveGenreChip extends ConsumerWidget {
+  const _ActiveGenreChip();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final category = ref.watch(libraryCategoryProvider);
+    final genre = ref.watch(libraryGenreFilterProvider);
+    if (genre == null) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: SizedBox(
-        width: double.infinity,
-        child: SegmentedButton<LibraryCategory>(
-          segments: const [
-            ButtonSegment(
-              value: LibraryCategory.novels,
-              label: Text('Novels'),
-              icon: Icon(Icons.auto_stories_rounded, size: 16),
-            ),
-            ButtonSegment(
-              value: LibraryCategory.books,
-              label: Text('Books'),
-              icon: Icon(Icons.menu_book_rounded, size: 16),
-            ),
-          ],
-          selected: {category},
-          onSelectionChanged: (selected) {
-            ref
-                .read(libraryViewModelProvider.notifier)
-                .setCategory(selected.first);
-          },
-          style: const ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        0,
+      ),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: InputChip(
+          label: Text(genre),
+          avatar: const Icon(Icons.sell_outlined, size: 16),
+          onDeleted: () =>
+              ref.read(libraryViewModelProvider.notifier).setGenreFilter(null),
+          deleteButtonTooltipMessage: 'Clear genre filter',
         ),
       ),
     );
   }
 }
 
-/// Genre filter chips (novels only).
-class _LibraryGenreChips extends ConsumerWidget {
-  const _LibraryGenreChips();
+/// Shown when the library has books but the current search / tab / category
+/// matches none of them. Keeps the controls above it reachable.
+class _EmptyShelfMessage extends ConsumerWidget {
+  const _EmptyShelfMessage({
+    required this.searchQuery,
+    required this.statusFilter,
+    required this.category,
+  });
+
+  final String searchQuery;
+  final LibraryStatusFilter statusFilter;
+  final LibraryCategory category;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final category = ref.watch(libraryCategoryProvider);
-    final genres = ref.watch(availableGenresProvider);
-    final genreFilter = ref.watch(libraryGenreFilterProvider);
+    final noun = category == LibraryCategory.novels ? 'novels' : 'books';
 
-    if (category != LibraryCategory.novels || genres.isEmpty) {
-      return const SizedBox.shrink();
+    if (searchQuery.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppEmptyState(
+              title: 'No results found',
+              message: 'No $noun match "$searchQuery".',
+              icon: Icons.search_off_rounded,
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => ref
+                  .read(libraryViewModelProvider.notifier)
+                  .setSearchQuery(''),
+              icon: const Icon(Icons.clear_rounded, size: 18),
+              label: const Text('Clear search'),
+            ),
+          ],
+        ),
+      );
     }
 
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        children: [
-          FilterChip(
-            label: const Text('All'),
-            selected: genreFilter == null,
-            onSelected: (_) => ref
-                .read(libraryViewModelProvider.notifier)
-                .setGenreFilter(null),
-          ),
-          const SizedBox(width: 8),
-          ...genres.map(
-            (tag) => Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: Text(tag),
-                selected: genreFilter == tag,
-                onSelected: (selected) => ref
-                    .read(libraryViewModelProvider.notifier)
-                    .setGenreFilter(selected ? tag : null),
-              ),
-            ),
-          ),
-        ],
+    final message = switch (statusFilter) {
+      LibraryStatusFilter.updated => 'No $noun have new chapters right now.',
+      LibraryStatusFilter.reading => 'No $noun in progress.',
+      LibraryStatusFilter.unread => 'No unread $noun.',
+      LibraryStatusFilter.finished => 'No finished $noun yet.',
+      LibraryStatusFilter.all => 'No $noun here yet.',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      child: AppEmptyState(
+        title: 'Nothing here',
+        message: message,
+        icon: Icons.auto_stories_outlined,
       ),
     );
   }

@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 
-/// Compact library filters rendered inside the desktop menu sidebar.
+/// Compact genre filter rendered inside the desktop menu sidebar.
 ///
-/// Holds the true library filters — Category (Books/Novels) and Genre — sized
-/// to fit the nav sidebar column. Sort and View are handled by the shelf
-/// header toolbar. The genre list is collapsed into a dropdown so a long tag
-/// list never overflows the sidebar.
+/// The Novels / Books switch now lives in the Library controls row on every
+/// screen size, so this panel only carries the genre filter. The genre list is
+/// collapsed into a dropdown so a long tag list never overflows the sidebar.
+/// Sorting lives in the Library "Sort & filter" sheet.
 class LibraryFilterPanel extends ConsumerWidget {
   const LibraryFilterPanel({super.key});
 
@@ -17,46 +17,20 @@ class LibraryFilterPanel extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final genres = ref.watch(availableGenresProvider);
-    final category = ref.watch(libraryCategoryProvider);
     final genreFilter = ref.watch(libraryGenreFilterProvider);
+
+    if (genres.isEmpty) return const SizedBox.shrink();
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Filters',
-          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Category',
+          'Genre',
           style: textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 8),
-        SegmentedButton<LibraryCategory>(
-          segments: const [
-            ButtonSegment(value: LibraryCategory.books, label: Text('Books')),
-            ButtonSegment(value: LibraryCategory.novels, label: Text('Novels')),
-          ],
-          selected: {category},
-          onSelectionChanged: (selected) {
-            ref.read(libraryViewModelProvider.notifier).setCategory(selected.first);
-          },
-          style: const ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-        if (genres.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text(
-            'Genre',
-            style: textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 8),
-          _GenreMenu(genres: genres, selected: genreFilter),
-        ],
+        _GenreMenu(genres: genres, selected: genreFilter),
       ],
     );
   }

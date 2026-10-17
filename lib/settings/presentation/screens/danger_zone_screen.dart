@@ -33,7 +33,7 @@ class DangerZoneScreen extends ConsumerWidget {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: AppBreakpoints.formContentMaxWidth,
+            maxWidth: AppBreakpoints.shellContentMaxWidth,
           ),
           child: ListView(
             padding: const EdgeInsets.symmetric(

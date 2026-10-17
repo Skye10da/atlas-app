@@ -19,7 +19,7 @@ class SearchEngineSettingsScreen extends HookConsumerWidget {
       appBar: AppBar(title: const Text('Search Engine')),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppBreakpoints.formContentMaxWidth),
+          constraints: const BoxConstraints(maxWidth: AppBreakpoints.shellContentMaxWidth),
           child: ListView(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
