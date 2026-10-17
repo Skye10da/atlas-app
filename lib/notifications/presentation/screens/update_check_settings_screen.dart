@@ -91,7 +91,7 @@ class UpdateCheckSettingsScreen extends HookConsumerWidget {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: AppBreakpoints.formContentMaxWidth,
+            maxWidth: AppBreakpoints.shellContentMaxWidth,
           ),
           child: ListView(
             padding: const EdgeInsets.symmetric(
