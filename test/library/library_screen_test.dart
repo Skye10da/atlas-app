@@ -112,8 +112,13 @@ void main() {
       expect(find.text('No results found'), findsOneWidget);
       expect(find.text('Clear search'), findsOneWidget);
 
-      // Tap Clear search
-      await tester.tap(find.text('Clear search'));
+      // Tap Clear search. The suffix button sits inside the scroll content
+      // (the home section stays visible while searching), so bring it into
+      // view first or the tap silently misses below the fold.
+      final clearButton = find.byTooltip('Clear search');
+      await tester.ensureVisible(clearButton);
+      await tester.pumpAndSettle();
+      await tester.tap(clearButton);
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
 

@@ -139,7 +139,7 @@ void main() {
       // The Library home now leads with the personalised header + continue
       // hero; the shelf heading sits further down the scroll and may not be
       // built at this tiny window size. Assert the home content instead.
-      expect(find.text('CONTINUE READING'), findsOneWidget);
+      expect(find.text('CONTINUE'), findsOneWidget);
       expect(_drainExceptions(tester), isEmpty);
 
       // Unmount so the screen's periodic timers are cancelled.
