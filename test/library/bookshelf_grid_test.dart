@@ -8,6 +8,7 @@ import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/screens/library_screen.dart';
+import 'package:atlas_app/library/presentation/widgets/book_card.dart';
 import 'package:atlas_app/library/presentation/widgets/bookshelf_grid.dart';
 
 BookEntity _book(String id, String title) => BookEntity(
@@ -148,4 +149,148 @@ void main() {
     },
     timeout: const Timeout(Duration(seconds: 60)),
   );
+
+  testWidgets(
+    'grid tiles fit with Windows-style non-linear font scaling',
+    (tester) async {
+      // Windows delivers a non-linear text scaler: scale(1) is ~0.625 at
+      // common display scales, but body-size fonts (the 12px info text)
+      // render unscaled. Estimating the tile's info-height budget from
+      // scale(1) therefore underestimates and overflows the tile Column;
+      // this reproduces that environment exactly.
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(textScaler: _WindowsLikeScaler()),
+            child: Scaffold(
+              body: BookshelfGrid(
+                books: [
+                  _book(
+                    'n1',
+                    "Villain's Path: Transmigrated with an SSS+ Luck Stat",
+                  ),
+                  _book('n2', 'A Second Novel With A Rather Long Title'),
+                  _book('n3', 'A Man Like None Other'),
+                ],
+                isDesktop: false,
+                isTablet: false,
+                onBookTap: (_) {},
+                onBookLongPress: (_, _) {},
+                onDeleteBook: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(_drainExceptions(tester), isEmpty);
+    },
+  );
+
+  testWidgets('grid survives a window resize between frames', (tester) async {
+    tester.view.physicalSize = const Size(439, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BookshelfGrid(
+            books: [
+              _book('n1', "Villain's Path: Transmigrated with an SSS+ Luck Stat"),
+              _book('n2', 'A Second Novel With A Rather Long Title'),
+              _book('n3', 'Third Book'),
+            ],
+            isDesktop: true,
+            isTablet: false,
+            onBookTap: (_) {},
+            onBookLongPress: (_, _) {},
+            onDeleteBook: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(_drainExceptions(tester), isEmpty);
+
+    // Shrink the window the way the startup window-manager resize and split
+    // pane do, and lay the same tiles out at the narrower width.
+    tester.view.physicalSize = const Size(340, 800);
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(_drainExceptions(tester), isEmpty);
+  });
+
+  testWidgets('columns capped by book count still produce fitting tiles', (
+    tester,
+  ) async {
+    // 900px wide: plenty of room for 6+ columns, only 2 books offered.
+    tester.view.physicalSize = const Size(900, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BookshelfGrid(
+            books: [
+              _book('n1', 'A Man Like None Other'),
+              _book('n2', 'A Second Novel With A Rather Long Title'),
+            ],
+            isDesktop: true,
+            isTablet: false,
+            onBookTap: (_) {},
+            onBookLongPress: (_, _) {},
+            onDeleteBook: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // With the tile width derived from the capped column count, each tile
+    // spans about half the row and still fits its planned mainAxisExtent.
+    final tiles = tester.widgetList<BookGridCard>(find.byType(BookGridCard));
+    for (final tile in tiles) {
+      expect(tile.coverWidth, greaterThan(150.0 * 2.5));
+      expect(
+        tile.coverHeight,
+        closeTo(tile.coverWidth! * (225.0 / 150.0), 0.1),
+      );
+    }
+
+    expect(_drainExceptions(tester), isEmpty);
+  });
+}
+
+/// Non-linear text scaler mimicking Windows' font scaling curve: sub-2px
+/// fonts are scaled down while body-size fonts pass through unscaled, so
+/// `scale(1) != scale(12) / 12`.
+class _WindowsLikeScaler extends TextScaler {
+  const _WindowsLikeScaler();
+
+  @override
+  double scale(double fontSize) => fontSize <= 1.0 ? 0.625 : fontSize;
+
+  @override
+  double get maxScalingFactor => 1.0;
+
+  @override
+  double get minScalingFactor => 0.625;
+
+  @override
+  @Deprecated('Use scale instead.')
+  double get textScaleFactor => 0.625;
+
+  @override
+  bool operator ==(Object other) => other is _WindowsLikeScaler;
+
+  @override
+  int get hashCode => 0.625.hashCode;
 }

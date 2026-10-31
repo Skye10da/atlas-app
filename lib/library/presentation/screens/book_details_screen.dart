@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -8,8 +6,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
-import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/session/session_refresh_service.dart';
@@ -18,6 +16,7 @@ import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/chapter_grouped_list.dart';
+import 'package:atlas_app/library/presentation/widgets/detail_header.dart';
 import 'package:atlas_app/library/presentation/widgets/open_reader.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/infrastructure/repositories/drift_reader_repository.dart';
@@ -206,268 +205,183 @@ class _BookDetailsBody extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final progress = book.progressPercent;
     final isRedownloading = useState(false);
     final redownloadProgress = useState<(int, int)?>(null);
+    final hasProgress = progress > 0.005;
+    final inProgress = hasProgress && progress < 99.995;
 
-    final scrollView = CustomScrollView(
-      slivers: [
-        SliverAppBar(
-          expandedHeight: isEmbedded ? 240 : 320,
-          pinned: true,
-          stretch: true,
-          flexibleSpace: FlexibleSpaceBar(
-            stretchModes: const [StretchMode.zoomBackground],
-            background: Stack(
-              children: [
-                if (book.coverPath != null)
-                  Positioned.fill(
-                    child: ImageFiltered(
-                      imageFilter: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                      child: Image.file(
-                        File(book.coverPath!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const SizedBox(),
-                      ),
-                    ),
+    final topBar = DetailTopBar(
+      leading: IconButton(
+        icon: Icon(isEmbedded ? Icons.close : Icons.arrow_back_rounded),
+        tooltip: isEmbedded ? 'Close' : 'Back',
+        onPressed: isEmbedded ? onClose : () => popOrGoToLibrary(context),
+      ),
+      actions: isEmbedded
+          ? const <Widget>[]
+          : [
+              if (isRedownloading.value)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.3),
-                          Colors.black.withValues(alpha: 0.7),
-                        ],
-                      ),
-                    ),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.cloud_download_outlined),
+                  tooltip: 'Redownload all chapters',
+                  onPressed: () => _redownloadAll(
+                    context,
+                    ref,
+                    isRedownloading,
+                    redownloadProgress,
                   ),
                 ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 16,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      isEmbedded
-                          ? BookCover(
-                              coverPath: book.coverPath,
-                              width: 100,
-                              height: 150,
-                              format: book.format,
-                            )
-                          : Hero(
-                              tag: 'book-cover-${book.id}',
-                              child: BookCover(
-                                coverPath: book.coverPath,
-                                width: 100,
-                                height: 150,
-                                format: book.format,
-                              ),
-                            ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          book.title,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (book.author != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            book.author!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Colors.white.withValues(alpha: 0.85),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: 200,
-                        child: FilledButton.icon(
-                          onPressed: () => onOpenReader?.call(null),
-                          icon: Icon(
-                            progress > 0.005
-                                ? Icons.play_arrow
-                                : Icons.menu_book,
-                          ),
-                          label: Text(
-                            progress > 0.005
-                                ? 'Continue Reading'
-                                : 'Start Reading',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  child: SafeArea(
-                    bottom: false,
-                    child: Row(
-                      children: [
-                        if (isEmbedded)
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
-                            onPressed: onClose,
-                          )
-                        else
-                          const Spacer(),
-                        const Spacer(),
-                        if (!isEmbedded) ...[
-                          if (isRedownloading.value)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 12),
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            )
-                          else
-                            IconButton(
-                              icon: const Icon(
-                                Icons.cloud_download_outlined,
-                                color: Colors.white,
-                              ),
-                              tooltip: 'Redownload all chapters',
-                              onPressed: () => _redownloadAll(
-                                context,
-                                ref,
-                                isRedownloading,
-                                redownloadProgress,
-                              ),
-                            ),
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.white),
-                            onPressed: isRedownloading.value
-                                ? null
-                                : () => _editMetadata(context),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.white,
-                            ),
-                            onPressed: isRedownloading.value
-                                ? null
-                                : () => _deleteBook(context),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (progress > 0.005 && progress < 99.995)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Reading Progress',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: book.progress01,
-                          minHeight: 6,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${progress.toStringAsFixed(2)}% complete · ${chapters.length} chapters',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edit details',
+                onPressed: isRedownloading.value
+                    ? null
+                    : () => _editMetadata(context),
               ),
-            ),
-          ),
-        if (isRedownloading.value)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Card(
-                color: theme.colorScheme.surfaceContainerHigh,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          redownloadProgress.value == null
-                              ? 'Redownloading chapters…'
-                              : 'Redownloading ${redownloadProgress.value!.$1}/${redownloadProgress.value!.$2} chapters…',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Delete book',
+                onPressed: isRedownloading.value
+                    ? null
+                    : () => _deleteBook(context),
               ),
-            ),
-          ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              '${chapters.length} Chapter${chapters.length == 1 ? '' : 's'}',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: ChapterGroupedList(
-            chapters: chapters,
-            lastReadChapterIndex: lastReadChapterIndex,
-            onOpenReader: onOpenReader,
-          ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 8)),
-      ],
+            ],
     );
 
-    if (isEmbedded) return scrollView;
-    return Scaffold(body: scrollView);
+    final header = DetailHeader(
+      book: book,
+      isEmbedded: isEmbedded,
+      meta: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          if (book.format.isNotEmpty)
+            DetailPill(label: book.format.toUpperCase()),
+          DetailPill(
+            label:
+                '${chapters.length} chapter${chapters.length == 1 ? '' : 's'}',
+          ),
+          if (hasProgress) DetailPill(label: '${progress.toStringAsFixed(0)}% read'),
+        ],
+      ),
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (inProgress) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: book.progress01,
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          FilledButton.icon(
+            onPressed: () => onOpenReader?.call(null),
+            icon: Icon(
+              hasProgress ? Icons.play_arrow_rounded : Icons.menu_book_rounded,
+            ),
+            label: Text(hasProgress ? 'Continue Reading' : 'Start Reading'),
+          ),
+        ],
+      ),
+    );
+
+    final chapterWidgets = <Widget>[
+      if (isRedownloading.value)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Card(
+            color: cs.surfaceContainerHigh,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      redownloadProgress.value == null
+                          ? 'Redownloading chapters…'
+                          : 'Redownloading ${redownloadProgress.value!.$1}/${redownloadProgress.value!.$2} chapters…',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+        child: Text(
+          '${chapters.length} Chapter${chapters.length == 1 ? '' : 's'}',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontFamily: 'Fraunces',
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      ChapterGroupedList(
+        chapters: chapters,
+        lastReadChapterIndex: lastReadChapterIndex,
+        onOpenReader: onOpenReader,
+      ),
+      const SizedBox(height: 16),
+    ];
+
+    // Wide windows: header on the left, chapters filling the rest.
+    final content = LayoutBuilder(
+      builder: (context, constraints) {
+        final twoPane =
+            !isEmbedded && constraints.maxWidth >= AppBreakpoints.tablet;
+        if (!twoPane) {
+          return Column(
+            children: [
+              topBar,
+              Expanded(child: ListView(children: [header, ...chapterWidgets])),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 400,
+              child: Column(
+                children: [
+                  topBar,
+                  Expanded(child: ListView(children: [header])),
+                ],
+              ),
+            ),
+            VerticalDivider(
+              width: 1,
+              color: cs.outlineVariant.withValues(alpha: 0.6),
+            ),
+            Expanded(child: ListView(children: chapterWidgets)),
+          ],
+        );
+      },
+    );
+
+    if (isEmbedded) return content;
+    return Scaffold(body: SafeArea(bottom: false, child: content));
   }
 
   void _deleteBook(BuildContext context) {

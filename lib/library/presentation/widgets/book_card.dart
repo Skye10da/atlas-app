@@ -78,7 +78,7 @@ class BookGridCard extends HookWidget {
     required this.book,
     this.onTap,
     this.onLongPress,
-    this.coverWidth = 115,
+    this.coverWidth,
     this.coverHeight = 175,
     this.isDesktop = false,
     this.isSelectionMode = false,
@@ -88,7 +88,14 @@ class BookGridCard extends HookWidget {
   final BookEntity book;
   final VoidCallback? onTap;
   final void Function(Offset position)? onLongPress;
-  final double coverWidth;
+  /// Cover size. The cover spans the whole tile (`coverWidth` × `coverHeight`)
+  /// so the card has no empty space to the right of or below the artwork.
+  ///
+  /// The grid passes its computed tile width: laying the cover out from a
+  /// LayoutBuilder instead rebuilds the Hero-containing subtree during the
+  /// layout phase, which trips the "render object was mutated in
+  /// performLayout" assertion when the page is first laid out mid-transition.
+  final double? coverWidth;
   final double coverHeight;
   final bool isDesktop;
   final bool isSelectionMode;

@@ -55,7 +55,10 @@ class SourceAttribution extends StatelessWidget {
                       color: colors.primary,
                     ),
                     onPressed: () {
-                      Navigator.of(context).push(
+                      // Root navigator: full-screen immersive webview (see
+                      // curated_sources_section) — the shell navbar must not
+                      // float above it on mobile.
+                      Navigator.of(context, rootNavigator: true).push(
                         MaterialPageRoute(
                           builder: (_) => SourceImmersiveScreen(
                             initialUrl: book.sourceUrl!,

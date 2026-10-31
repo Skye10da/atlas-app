@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/domain/repository_interfaces/library_repository_interface.dart';
 
@@ -158,20 +159,40 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
       final query = _db.select(_db.books)..where((b) => b.id.equals(id));
       final book = await query.getSingleOrNull();
 
-      if (book?.filePath != null && book!.filePath.isNotEmpty) {
-        final dir = Directory(book.filePath);
-        if (await dir.exists()) {
-          await dir.delete(recursive: true);
-        }
-      }
-
+      // DB rows go first: a locked/unreadable book directory (e.g. a file
+      // still held open by the reader) must not leave a phantom book behind.
       await _db.transaction(() async {
         await (_db.delete(_db.readingProgress)..where((p) => p.bookId.equals(id))).go();
         await (_db.delete(_db.chapters)..where((c) => c.bookId.equals(id))).go();
         await (_db.delete(_db.bookmarks)..where((b) => b.bookId.equals(id))).go();
-        await (_db.delete(_db.characters)..where((c) => c.bookId.equals(id))).go();
+        // Legacy `characters` table: the schema-14 Story Memory migration
+        // dropped it from pre-14 databases (fresh installs still recreate
+        // it via createAll, and drift codegen cannot be regenerated in this
+        // environment). Guard the delete so its absence doesn't abort the
+        // whole book deletion (SqliteException "no such table").
+        try {
+          await _db.customStatement(
+            'DELETE FROM characters WHERE book_id = ?',
+            [id],
+          );
+        } catch (_) {}
         await (_db.delete(_db.books)..where((b) => b.id.equals(id))).go();
       });
+
+      // Best-effort content-file cleanup.
+      if (book?.filePath != null && book!.filePath.isNotEmpty) {
+        final dir = Directory(book.filePath);
+        if (await dir.exists()) {
+          try {
+            await dir.delete(recursive: true);
+          } catch (e) {
+            AppLogger.warning(
+              'Removed book "$book.title" from the library but could not '
+              'delete its content directory (${dir.path}): $e',
+            );
+          }
+        }
+      }
 
       return const Success(null);
     } catch (e, st) {
@@ -186,48 +207,69 @@ final class DriftLibraryRepository implements LibraryRepositoryInterface {
       final query = _db.select(_db.books)..where((b) => b.id.isIn(ids));
       final books = await query.get();
 
-      for (final book in books) {
-        if (book.filePath.isNotEmpty) {
-          final dir = Directory(book.filePath);
-          if (await dir.exists()) {
-            await dir.delete(recursive: true);
-          }
-        }
-      }
-
       await _db.transaction(() async {
         await (_db.delete(_db.readingProgress)..where((p) => p.bookId.isIn(ids))).go();
         await (_db.delete(_db.chapters)..where((c) => c.bookId.isIn(ids))).go();
         await (_db.delete(_db.bookmarks)..where((b) => b.bookId.isIn(ids))).go();
-        await (_db.delete(_db.characters)..where((c) => c.bookId.isIn(ids))).go();
+        try {
+          await _db.customStatement(
+            'DELETE FROM characters WHERE book_id IN (${List.filled(ids.length, '?').join(',')})',
+            ids,
+          );
+        } catch (_) {}
         await (_db.delete(_db.books)..where((b) => b.id.isIn(ids))).go();
       });
+
+      // Best-effort content-file cleanup after the rows are gone.
+      for (final book in books) {
+        if (book.filePath.isNotEmpty) {
+          final dir = Directory(book.filePath);
+          if (await dir.exists()) {
+            try {
+              await dir.delete(recursive: true);
+            } catch (e) {
+              AppLogger.warning(
+                'Removed "${book.title}" from the library but could not '
+                'delete its content directory (${dir.path}): $e',
+              );
+            }
+          }
+        }
+      }
 
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to delete selected books', e), st);
     }
   }
-
   @override
   Future<Result<void>> deleteAllBooks() async {
     try {
       final books = await _db.select(_db.books).get();
-      for (final book in books) {
-        if (book.filePath.isNotEmpty) {
-          final dir = Directory(book.filePath);
-          if (await dir.exists()) {
-            await dir.delete(recursive: true);
-          }
-        }
-      }
       await _db.transaction(() async {
         await _db.delete(_db.readingProgress).go();
         await _db.delete(_db.chapters).go();
         await _db.delete(_db.bookmarks).go();
-        await _db.delete(_db.characters).go();
+        try {
+          await _db.customStatement('DELETE FROM characters');
+        } catch (_) {}
         await _db.delete(_db.books).go();
       });
+      for (final book in books) {
+        if (book.filePath.isNotEmpty) {
+          final dir = Directory(book.filePath);
+          if (await dir.exists()) {
+            try {
+              await dir.delete(recursive: true);
+            } catch (e) {
+              AppLogger.warning(
+                'Removed "${book.title}" from the library but could not '
+                'delete its content directory (${dir.path}): $e',
+              );
+            }
+          }
+        }
+      }
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to delete all books', e), st);

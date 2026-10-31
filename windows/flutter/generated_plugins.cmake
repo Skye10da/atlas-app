@@ -7,6 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
   desktop_drop
   flutter_inappwebview_windows
+  flutter_secure_storage_windows
   flutter_tts
   permission_handler_windows
   screen_brightness_pro

@@ -80,7 +80,10 @@ class SourceBrowserScreen extends ConsumerWidget {
               final homeUrl = pluginSource?.manifest.baseUrl ??
                   _knownHomeUrls[source.sourceName];
               if (_isValidHttpUrl(homeUrl)) {
-                Navigator.of(context).push(
+                // Root navigator: full-screen immersive webview — pushing on
+                // the branch navigator would leave the shell's floating glass
+                // navbar above it on mobile.
+                Navigator.of(context, rootNavigator: true).push(
                   MaterialPageRoute(
                     builder: (_) => SourceImmersiveScreen(
                       initialUrl: homeUrl!,

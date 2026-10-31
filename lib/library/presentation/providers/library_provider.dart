@@ -12,6 +12,8 @@ import 'package:atlas_app/core/import/epub_import_service.dart';
 import 'package:atlas_app/core/import/file_open_providers.dart';
 import 'package:atlas_app/core/import/pdf_import_service.dart';
 import 'package:atlas_app/core/seed/seed_data.dart';
+import 'package:atlas_app/intelligence/presentation/providers/intelligence_providers.dart';
+import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/library/application/atlas_source_import_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/domain/entities/bookshelf_layout.dart';
@@ -212,11 +214,28 @@ class _LibraryDeleteActions {
 
   final Ref _ref;
 
+  /// Story memory is an additive projection of chapter text; when the novel
+  /// goes, its entity/relationship/scene rows must not orphan behind it.
+  /// Also stops any in-flight story-memory backfill for the deleted book.
+  Future<void> _deleteStoryMemory(List<String> bookIds) async {
+    try {
+      final backfill = _ref.read(storyBackfillServiceProvider);
+      final memoryRepository = _ref.read(storyMemoryRepositoryProvider);
+      for (final id in bookIds) {
+        backfill.cancel(id);
+        await memoryRepository.deleteBookStoryMemory(id);
+      }
+    } catch (_) {
+      // Story-memory cleanup is best-effort; the book itself is already gone.
+    }
+  }
+
   Future<Result<void>> delete(String bookId) async {
     final result = await _ref
         .read(libraryViewModelProvider.notifier)
         .deleteBook(bookId);
     if (result is Success) {
+      await _deleteStoryMemory([bookId]);
       unawaited(UpdateNotificationService.instance.deleteNovelChannel(bookId));
     }
     return result;
@@ -227,6 +246,7 @@ class _LibraryDeleteActions {
         .read(libraryViewModelProvider.notifier)
         .deleteBooks(bookIds);
     if (result is Success) {
+      await _deleteStoryMemory(bookIds);
       for (final id in bookIds) {
         unawaited(UpdateNotificationService.instance.deleteNovelChannel(id));
       }
@@ -234,7 +254,17 @@ class _LibraryDeleteActions {
     return result;
   }
 
-  Future<Result<void>> deleteAll() {
-    return _ref.read(libraryViewModelProvider.notifier).deleteAllBooks();
+  Future<Result<void>> deleteAll() async {
+    final booksRes = _ref.read(libraryBooksProvider).valueOrNull;
+    final ids = booksRes is Success<List<BookEntity>>
+        ? booksRes.value.map((b) => b.id).toList()
+        : <String>[];
+    final result = await _ref
+        .read(libraryViewModelProvider.notifier)
+        .deleteAllBooks();
+    if (result is Success) {
+      await _deleteStoryMemory(ids);
+    }
+    return result;
   }
 }

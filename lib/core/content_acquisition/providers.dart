@@ -12,8 +12,11 @@ import 'package:atlas_app/core/content_acquisition/sources/epub_url_source.dart'
 import 'package:atlas_app/core/content_acquisition/sources/gutenberg_source.dart';
 import 'package:atlas_app/core/content_acquisition/sources/open_library_source.dart';
 import 'package:atlas_app/core/content_acquisition/sources/public_domain_library_source.dart';
+import 'package:atlas_app/core/content_acquisition/sources/universal_html_source.dart';
+import 'package:atlas_app/core/content_acquisition/sources/universal_origin_search_source.dart';
 import 'package:atlas_app/core/content_engine/image/image_pipeline.dart';
 import 'package:atlas_app/core/content_engine/index/content_indexer.dart';
+import 'package:atlas_app/core/content_engine/universal/origin_rules.dart';
 import 'package:atlas_app/core/content_engine/pipeline/content_pipeline_orchestrator.dart';
 import 'package:atlas_app/core/content_engine/plugins/github_plugin_source.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_distribution_config.dart';
@@ -111,7 +114,80 @@ final pluginSourcesProvider = FutureProvider<List<PluginSource>>((ref) async {
       AppLogger.warning('Skipping plugin "${manifest.id}": $e');
     }
   }
+  // LAST-RESORT universal importer — registered only after every plugin so
+  // `SourceRegistry.resolve` can never match it before a real plugin. It
+  // attempts heuristic detection on URLs no plugin claims, instead of the
+  // bare "no source plugin available" failure. Per-origin learned rules
+  // (Phase 2) make repeat visits from the same site skip the heuristics.
+  final ruleStore = await ref.watch(universalOriginRuleStoreProvider.future);
+  final transport = WebViewTransport(
+    inner: CookieTransport(
+      inner: HttpTransport(client: ref.watch(httpClientProvider)),
+    ),
+  );
+  registry.register(
+    UniversalHtmlSource(
+      transport: transport.fetchHtml,
+      loadRule: ruleStore.rule,
+      saveRule: ruleStore.put,
+    ),
+  );
+
+  // LEARNED SEARCH ORIGINS (Phase 3): sites we imported from before get a
+  // searchable view at boot; origins learned later register live via
+  // [learnedOriginSearchRegistrar].
+  for (final origin in (await ruleStore.all()).keys) {
+    registry.register(
+      UniversalOriginSearchSource(
+        origin: origin,
+        transport: transport.fetchHtml,
+        loadRule: ruleStore.rule,
+        saveRule: ruleStore.put,
+      ),
+    );
+  }
   return sources;
+});
+
+/// The persistent store of learned per-origin rules (Phase 2), shared by
+/// the universal import adapter and the learned search sources (Phase 3).
+final universalOriginRuleStoreProvider =
+    FutureProvider<UniversalOriginRuleStore>((ref) async {
+  final supportDir = await getApplicationSupportDirectory();
+  return UniversalOriginRuleStore(
+    filePath: p.join(supportDir.path, 'universal_origin_rules.json'),
+  );
+});
+
+/// Bumped whenever a newly learned origin is registered as a searchable
+/// source, so the directory/search-surface providers re-read the registry.
+final learnedOriginsVersionProvider = StateProvider<int>((ref) => 0);
+
+/// Registers a searchable view for an origin learned *during this session*
+/// (e.g. right after a universal import). Safe to call repeatedly.
+final learnedOriginSearchRegistrar =
+    Provider<Future<void> Function(String origin)>((ref) {
+  final storeFuture = ref.read(universalOriginRuleStoreProvider.future);
+  final registry = ref.read(sourceRegistryProvider);
+  final transport = WebViewTransport(
+    inner: CookieTransport(
+      inner: HttpTransport(client: ref.watch(httpClientProvider)),
+    ),
+  );
+  return (origin) async {
+    if (UniversalOriginSearchSource.registeredOrigins.contains(origin)) {
+      return;
+    }
+    final store = await storeFuture;
+    final source = UniversalOriginSearchSource(
+      origin: origin,
+      transport: transport.fetchHtml,
+      loadRule: store.rule,
+      saveRule: store.put,
+    );
+    registry.register(source);
+    ref.read(learnedOriginsVersionProvider.notifier).state++;
+  };
 });
 
 final contentAcquisitionEngineProvider = Provider<ContentAcquisitionEngine>((

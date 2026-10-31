@@ -80,7 +80,7 @@ class ReaderChromeNotifier extends StateNotifier<ReaderChromeState> {
 
   void resetChromeTimer({required bool isDarkTheme}) {
     _chromeTimer?.cancel();
-    _chromeTimer = Timer(const Duration(seconds: 4), () {
+    _chromeTimer = Timer(const Duration(seconds: 10), () {
       if (mounted) {
         state = state.copyWith(chromeVisible: false);
         setFullscreen(true, isDarkTheme: isDarkTheme);

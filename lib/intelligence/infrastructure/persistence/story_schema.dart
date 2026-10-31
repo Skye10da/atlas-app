@@ -126,6 +126,17 @@ class StorySchema {
     'CREATE INDEX IF NOT EXISTS idx_story_corr_book_rt ON story_corrections(book_id, read_through_id);',
 
     '''
+    CREATE TABLE IF NOT EXISTS story_ingestion_log (
+      book_id TEXT NOT NULL,
+      read_through_id TEXT NOT NULL DEFAULT 'default',
+      chapter_index INTEGER NOT NULL,
+      text_hash TEXT NOT NULL,
+      ingested_at INTEGER NOT NULL,
+      PRIMARY KEY (book_id, read_through_id, chapter_index)
+    );
+    ''',
+
+    '''
     CREATE VIRTUAL TABLE IF NOT EXISTS story_scenes_fts USING fts5(
       book_id UNINDEXED,
       chapter_index UNINDEXED,
@@ -133,6 +144,27 @@ class StorySchema {
       tokenize='porter unicode61'
     );
     ''',
+
+    /// Persisted recap snapshots (schema v18, additive): the query-engine
+    /// recap for one (book, read-through, reader chapter) so the detail page
+    /// renders instantly instead of recomputing the timeline on every open.
+    /// Recompute is cheap and overwrites the snapshot for that key.
+    '''
+    CREATE TABLE IF NOT EXISTS story_recap_snapshots (
+      book_id TEXT NOT NULL,
+      read_through_id TEXT NOT NULL DEFAULT 'default',
+      chapter_index INTEGER NOT NULL,
+      recap_text TEXT NOT NULL,
+      generated_at INTEGER NOT NULL,
+      PRIMARY KEY (book_id, read_through_id, chapter_index)
+    );
+    ''',
+    'CREATE INDEX IF NOT EXISTS idx_story_recap_book_rt ON story_recap_snapshots(book_id, read_through_id);',
+
+    // Entity-indexed co-occurrence lookups (schema v19, additive index): the
+    // extraction pass seeds its graph via getCooccurrencesForEntities, which
+    // previously fell back to a (book, read-through) scan.
+    'CREATE INDEX IF NOT EXISTS idx_story_cooccur_entities ON story_cooccurrences(entity_a_id, entity_b_id);',
   ];
 }
 

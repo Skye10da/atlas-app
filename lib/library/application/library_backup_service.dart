@@ -547,7 +547,7 @@ class LibraryBackupService {
         return const Failure(DatabaseException('Backup file not found.'));
       }
       final bytes = await file.readAsBytes();
-      return inspectBackupBytes(bytes, fileName: file.path);
+      return await inspectBackupBytes(bytes, fileName: file.path);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to read backup file: $e', e), st);
     }
@@ -568,10 +568,10 @@ class LibraryBackupService {
           (bytes[2] == 0x03 || bytes[2] == 0x05 || bytes[2] == 0x07);
 
       if (isZip) {
-        return _restoreArchive(bytes, cleanRestore: cleanRestore);
+        return await _restoreArchive(bytes, cleanRestore: cleanRestore);
       } else {
         final jsonString = utf8.decode(bytes);
-        return restoreBackupJson(jsonString, cleanRestore: cleanRestore);
+        return await restoreBackupJson(jsonString, cleanRestore: cleanRestore);
       }
     } catch (e, st) {
       AppLogger.error('Restore backup bytes failed', e, st);
@@ -656,7 +656,7 @@ class LibraryBackupService {
         }
       }
 
-      return _restoreDatabase(
+      return await _restoreDatabase(
         decoded,
         cleanRestore: cleanRestore,
         reanchoredCovers: bookIdToCoverPath,
@@ -681,7 +681,7 @@ class LibraryBackupService {
         return const Failure(DatabaseException('Invalid Atlas backup file format.'));
       }
 
-      return _restoreDatabase(decoded, cleanRestore: cleanRestore);
+      return await _restoreDatabase(decoded, cleanRestore: cleanRestore);
     } catch (e, st) {
       AppLogger.error('Restore backup JSON failed', e, st);
       return Failure(DatabaseException('Failed to restore backup: $e', e), st);
@@ -1144,7 +1144,7 @@ class LibraryBackupService {
         return const Failure(DatabaseException('Unable to access selected file.'));
       }
 
-      return restoreBackupBytes(bytes, fileName: resolvedPath, cleanRestore: cleanRestore);
+      return await restoreBackupBytes(bytes, fileName: resolvedPath, cleanRestore: cleanRestore);
     } catch (e, st) {
       AppLogger.error('Restore from file failed', e, st);
       return Failure(DatabaseException('Failed to import backup file: $e', e), st);

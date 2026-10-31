@@ -14,6 +14,7 @@ import 'package:atlas_app/settings/presentation/screens/backup_restore_screen.da
 import 'package:atlas_app/settings/presentation/screens/danger_zone_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/reading_settings_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/search_engine_settings_screen.dart';
+import 'package:atlas_app/updater/presentation/screens/app_update_settings_screen.dart';
 
 /// Content width at which Settings becomes master-detail: the section list on
 /// the left and the chosen section filling the rest of the window.
@@ -80,6 +81,13 @@ final List<_Section> _sections = [
     title: 'Notifications',
     subtitle: 'Chapter updates, grouping, quiet hours & sound',
     builder: () => const UpdateCheckSettingsScreen(),
+  ),
+  _Section(
+    group: 'Notifications',
+    icon: Icons.system_update_outlined,
+    title: 'App updates',
+    subtitle: 'Self-update Atlas from GitHub Releases',
+    builder: () => const AppUpdateSettingsScreen(),
   ),
   _Section(
     group: 'Data management',

@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/browser/domain/entities/web_selection.dart';
+import 'package:atlas_app/browser/domain/services/webview_offline_guard.dart';
 import 'package:atlas_app/browser/domain/utils/browser_url.dart';
 
 /// flutter_inappwebview-backed [BrowserWebEngine].
@@ -15,6 +16,10 @@ import 'package:atlas_app/browser/domain/utils/browser_url.dart';
 class InappWebviewEngine implements BrowserWebEngine {
   InappWebviewEngine({this.initialUrl}) {
     _disableDebugLogging();
+    // Register for the offline guard: visible views only get in-flight loads
+    // aborted on connectivity loss (never blanked), keeping the plugin out of
+    // its network-failure native crash path.
+    WebViewOfflineGuard.instance.watch(this, OfflinePauseBehavior.userView);
   }
 
   /// The plugin's channel-event debug logging is a static, process-wide
@@ -107,6 +112,7 @@ class InappWebviewEngine implements BrowserWebEngine {
     // URL so late plugin callbacks and pre-attach loads cannot touch disposed
     // state; the _disposed flag stops in-flight platform callbacks from
     // writing to released notifiers.
+    WebViewOfflineGuard.instance.unwatch(this);
     _disposed = true;
     _controller = null;
     _pendingUrl = null;

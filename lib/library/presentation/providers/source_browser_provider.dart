@@ -5,6 +5,9 @@ import 'package:atlas_app/core/content_acquisition/providers.dart';
 
 final searchableSourcesProvider = Provider<List<SearchableSource>>((ref) {
   ref.watch(pluginSourcesProvider);
+  // Learned origins register live (Phase 3); this keeps the directory and
+  // source-search screens in sync with the registry as they appear.
+  ref.watch(learnedOriginsVersionProvider);
   final registry = ref.watch(sourceRegistryProvider);
   return registry.searchable;
 });

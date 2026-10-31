@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:atlas_app/browser/presentation/screens/browser_screen.dart';
 import 'package:atlas_app/browser/presentation/screens/source_immersive_screen.dart';
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
 import 'package:atlas_app/core/presentation/screens/splash_screen.dart';
@@ -172,18 +171,6 @@ abstract final class AppRouter {
         ),
       ),
       GoRoute(
-        path: '/browser',
-        name: 'browser',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) {
-          final url = state.uri.queryParameters['url'];
-          return buildPageTransition(
-            child: BrowserScreen(initialUrl: url),
-            key: state.pageKey,
-          );
-        },
-      ),
-      GoRoute(
         path: '/web',
         name: 'web',
         parentNavigatorKey: _rootNavigatorKey,
@@ -208,7 +195,8 @@ abstract final class AppRouter {
         path: '/dictionary',
         name: 'dictionary',
         parentNavigatorKey: _rootNavigatorKey,
-        redirect: (context, state) => '/search?tab=saved',
+        // The saved words surface now lives in the Saved bottom-nav branch.
+        redirect: (context, state) => '/bookmarks',
         pageBuilder: (context, state) => buildPageTransition(
           child: const DictionaryScreen(),
           key: state.pageKey,
@@ -319,13 +307,20 @@ abstract final class AppRouter {
               GoRoute(
                 path: '/search',
                 name: 'search',
+                // Former Saved tab deep links land on the bookmark screen.
+                redirect: (context, state) {
+                  final tab = state.uri.queryParameters['tab'];
+                  if (tab == 'saved' || tab == 'dictionary') {
+                    return '/bookmarks';
+                  }
+                  return null;
+                },
                 pageBuilder: (context, state) {
                   final query = state.uri.queryParameters['q'];
                   final tabStr = state.uri.queryParameters['tab'];
                   final tabIndex = switch (tabStr) {
                     'library' => 1,
                     'lookup' => 2,
-                    'saved' || 'dictionary' => 3,
                     _ => 0,
                   };
                   return buildPageTransition(

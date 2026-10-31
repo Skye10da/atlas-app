@@ -47,7 +47,7 @@ class EpubImportService {
         return const Failure(ValidationException('Could not read file'));
       }
 
-      return _importFromBytes(bytes, file.name);
+      return await _importFromBytes(bytes, file.name);
     } on Exception catch (e) {
       return Failure(ValidationException('Failed to pick file: $e'));
     }

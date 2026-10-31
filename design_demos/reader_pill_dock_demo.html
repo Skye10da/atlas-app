@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atlas Reader — Floating Pill Dock demo</title>
+<style>
+  /* ============================================================
+     Atlas design tokens (mirror of the app's token pattern)
+     ============================================================ */
+  :root{
+    --serif: "Georgia", "Source Serif 4", "Times New Roman", serif;
+    --radius-card: 22px;
+    --radius-sheet: 28px;
+    --radius-pill: 999px;
+    --dur-fast: 160ms;
+    --dur-med: 320ms;
+    --dur-slow: 480ms;
+    --ease: cubic-bezier(.32,.72,.24,1);
+    /* ——— Atlas glass-pill grammar (shared with the app's ReaderPillSurface) ——— */
+    --glass-blur: 20px;   /* frost strength */
+    --glass-sat: 1.5;     /* saturation boost */
+    --tap: 44px;          /* min touch target for every chrome button */
+  }
+  html[data-theme="paper"]{
+    --bg:#F7F3EC; --surface:#FFFFFF; --surface-2:#F1ECE2;
+    --text:#232019; --text-dim:#6E675A;
+    --accent:#9A6B2F; --accent-ink:#FFF;
+    --border:#E4DDD0; --scrim:rgba(35,32,25,.38);
+    --dock-bg:rgba(255,255,255,.62); --dock-border:rgba(35,32,25,.15);
+    --chrome-bg:rgba(247,243,236,.72);
+    --dot-read:#9A6B2F; --dot-unread:#C9C1B2; --dot-current:#9A6B2F;
+    --shadow:0 18px 40px -12px rgba(35,32,25,.28);
+  }
+  html[data-theme="sepia"]{
+    --bg:#E8DCC3; --surface:#F4EBD9; --surface-2:#DFD2B6;
+    --text:#3B2F1E; --text-dim:#7A6A4E;
+    --accent:#8A5A22; --accent-ink:#FFF;
+    --border:#D3C3A4; --scrim:rgba(59,47,30,.42);
+    --dock-bg:rgba(244,235,217,.64); --dock-border:rgba(59,47,30,.16);
+    --chrome-bg:rgba(232,220,195,.74);
+    --dot-read:#8A5A22; --dot-unread:#B7A683; --dot-current:#8A5A22;
+    --shadow:0 18px 40px -12px rgba(59,47,30,.30);
+  }
+  html[data-theme="gray"]{
+    --bg:#D8D8D6; --surface:#EDEDEB; --surface-2:#CFCFCC;
+    --text:#202020; --text-dim:#5E5E5C;
+    --accent:#4C4C4A; --accent-ink:#FFF;
+    --border:#C3C3C0; --scrim:rgba(32,32,32,.38);
+    --dock-bg:rgba(237,237,235,.62); --dock-border:rgba(32,32,32,.15);
+    --chrome-bg:rgba(216,216,214,.72);
+    --dot-read:#4C4C4A; --dot-unread:#9C9C98; --dot-current:#4C4C4A;
+    --shadow:0 18px 40px -12px rgba(32,32,32,.28);
+  }
+  html[data-theme="dark"]{
+    --bg:#1D1C1A; --surface:#262522; --surface-2:#2C2B27;
+    --text:#E8E4DC; --text-dim:#9B968B;
+    --accent:#D2A45C; --accent-ink:#221A0E;
+    --border:#35332E; --scrim:rgba(0,0,0,.55);
+    --dock-bg:rgba(38,37,34,.55); --dock-border:rgba(232,228,220,.15);
+    --chrome-bg:rgba(29,28,26,.66);
+    --dot-read:#D2A45C; --dot-unread:#56534B; --dot-current:#D2A45C;
+    --shadow:0 18px 44px -10px rgba(0,0,0,.6);
+  }
+  html[data-theme="black"]{
+    --bg:#0B0B0A; --surface:#161614; --surface-2:#1C1C19;
+    --text:#CFCBC3; --text-dim:#8A867E;
+    --accent:#C39A52; --accent-ink:#1B1408;
+    --border:#262623; --scrim:rgba(0,0,0,.6);
+    --dock-bg:rgba(22,22,20,.55); --dock-border:rgba(207,203,195,.15);
+    --chrome-bg:rgba(11,11,10,.66);
+    --dot-read:#C39A52; --dot-unread:#3E3E39; --dot-current:#C39A52;
+    --shadow:0 18px 44px -10px rgba(0,0,0,.7);
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:auto;}
+  body{
+    font-family:var(--serif); background:var(--bg); color:var(--text);
+    transition: background var(--dur-med) var(--ease), color var(--dur-med) var(--ease);
+    -webkit-font-smoothing:antialiased;
+  }
+  button{
+    font-family:inherit; color:inherit; background:none; border:none;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  ::selection{background:var(--accent); color:var(--accent-ink);}
+
+  /* ============================================================
+     Top slim chrome bar
+     ============================================================ */
+  #chromeTop{
+    position:fixed; top:0; left:0; right:0; z-index:40;
+    height:52px; display:flex; align-items:center; gap:6px;
+    padding:0 12px;
+    background:var(--chrome-bg);
+    -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    border-bottom:1px solid var(--dock-border);
+    transition:transform var(--dur-med) var(--ease), opacity var(--dur-med) var(--ease);
+  }
+  #chromeTop.hidden{transform:translateY(-110%); opacity:0; pointer-events:none;}
+  .chrome-btn{
+    width:var(--tap); height:var(--tap); border-radius:var(--radius-pill);
+    display:grid; place-items:center; color:var(--text);
+    transition:background var(--dur-fast);
+  }
+  .chrome-btn:hover{background:var(--surface-2);}
+  .chrome-btn svg{width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  .chrome-btn.active svg{stroke:var(--accent); fill:var(--accent);}
+  #chromeTitle{
+    flex:1; text-align:center; font-weight:700; font-size:15px;
+    letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #chromeTitle .of{font-weight:400; color:var(--text-dim); font-size:13px;}
+
+  /* ============================================================
+     Reading page
+     ============================================================ */
+  #page{
+    max-width:640px; margin:0 auto; padding:96px 24px 140px;
+  }
+  #page .eyebrow{
+    font-size:12.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--text-dim); text-align:center; margin-bottom:14px;
+  }
+  #chapterTitle{
+    font-weight:700; font-size:34px; line-height:1.14; letter-spacing:-.015em;
+    text-align:center; margin-bottom:8px;
+  }
+  #page .rule{
+    width:52px; height:2px; background:var(--accent); border-radius:2px;
+    margin:22px auto 30px; opacity:.85;
+  }
+  #article p{
+    font-size:var(--reading-size,19px); line-height:var(--reading-lh,1.7);
+    font-family:var(--reading-font, Georgia, serif);
+    text-align:var(--reading-align, left);
+    margin-bottom:calc(var(--reading-size,19px) * var(--reading-gap,.62));
+    hyphens:auto;
+  }
+  #article{ padding:0 var(--reading-pad,24px); margin:0 calc(-1 * var(--reading-pad,24px)); }
+  #article p:first-of-type::first-letter{
+    font-size:3.05em; font-weight:700; float:left;
+    line-height:.86; padding-right:10px; padding-top:4px; color:var(--accent);
+  }
+  .note-mark{
+    display:inline-block; width:0.62em; height:0.62em; border-radius:50%;
+    background:var(--accent); vertical-align:super; margin:0 2px;
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+  .hl{border-bottom:2px solid color-mix(in srgb, var(--accent) 55%, transparent); background:color-mix(in srgb, var(--accent) 12%, transparent); border-radius:2px;}
+
+  /* Continue card (bottom of chapter) */
+  .continue-card{
+    margin-top:44px; padding:22px; border-radius:var(--radius-card);
+    background:var(--surface); border:1px solid var(--border);
+    box-shadow:var(--shadow);
+    display:flex; flex-direction:column; gap:10px; align-items:flex-start;
+  }
+  .continue-card .lbl{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-dim);}
+  .continue-card h4{font-size:18px; font-weight:700; letter-spacing:-.01em;}
+  .continue-card .pill-btn{
+    margin-top:6px; padding:10px 22px; border-radius:var(--radius-pill);
+    background:var(--accent); color:var(--accent-ink); font-weight:700; font-size:14.5px;
+    transition:transform var(--dur-fast) var(--ease), filter var(--dur-fast);
+  }
+  .continue-card .pill-btn:hover{transform:translateY(-1px); filter:brightness(1.05);}
+
+  /* ============================================================
+     ⋯ menu / find bar / selection toolbar / toast
+     ============================================================ */
+  #moreMenu{
+    position:fixed; bottom:112px; left:50%; z-index:65;
+    transform:translateX(-50%) translateY(8px); opacity:0; pointer-events:none;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-card); box-shadow:var(--shadow);
+    padding:6px; display:flex; flex-direction:column; min-width:242px;
+    transition:opacity var(--dur-fast), transform var(--dur-fast) var(--ease);
+  }
+  #moreMenu.open{opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0);}
+  .menu-item{
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+    padding:11px 14px; border-radius:14px; font-size:14.5px; font-weight:600;
+    color:var(--text); transition:background var(--dur-fast);
+  }
+  .menu-item:hover{background:var(--surface-2);}
+  .menu-item svg{width:18px; height:18px; fill:none; stroke:var(--accent); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none;}
+  .menu-item .sub{display:block; font-size:12px; font-weight:500; color:var(--text-dim); margin-top:1px;}
+
+  #searchBar{
+    position:fixed; top:64px; left:50%; z-index:66;
+    transform:translate(-50%,-12px); opacity:0; pointer-events:none;
+    display:flex; align-items:center; gap:4px; padding:6px 8px 6px 14px;
+    background:var(--dock-bg); border:1px solid var(--dock-border);
+    -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    border-radius:var(--radius-pill); box-shadow:var(--shadow);
+    transition:opacity var(--dur-med), transform var(--dur-med) var(--ease);
+  }
+  #searchBar.open{opacity:1; transform:translate(-50%,0); pointer-events:auto;}
+  #searchBar>svg{width:16px; height:16px; fill:none; stroke:var(--text-dim); stroke-width:1.8; stroke-linecap:round; margin-right:2px;}
+  #findInput{
+    width:190px; background:none; border:none; outline:none;
+    font-family:var(--serif); font-size:15px; color:var(--text); padding:4px 2px;
+  }
+  #findInput::placeholder{color:var(--text-dim);}
+  #searchBar .count{font-size:12.5px; color:var(--text-dim); font-weight:600; padding:0 6px; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .chrome-btn.small{width:36px; height:36px;}
+  .chrome-btn.small svg{width:18px; height:18px;}
+
+  #selToolbar{
+    position:fixed; z-index:85;
+    display:flex; align-items:center; gap:2px; padding:6px;
+    background:var(--dock-bg); border:1px solid var(--dock-border);
+    -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    border-radius:var(--radius-pill); box-shadow:var(--shadow);
+    opacity:0; pointer-events:none; transform:translate(-50%,6px) scale(.94);
+    transition:opacity var(--dur-fast), transform var(--dur-fast) var(--ease);
+  }
+  #selToolbar.open{opacity:1; pointer-events:auto; transform:translate(-50%,0) scale(1);}
+  .sel-color{
+    width:24px; height:24px; border-radius:50%; margin:0 3px; cursor:pointer;
+    border:2px solid var(--border); transition:transform var(--dur-fast) var(--ease);
+  }
+  .sel-color:hover{transform:scale(1.15);}
+  .sel-color.c-brass{background:#C79A4B;} .sel-color.c-teal{background:#3E8E82;} .sel-color.c-rose{background:#C26A5F;}
+  .sel-sep{width:1px; height:22px; background:var(--border); margin:0 5px;}
+  .sel-btn{
+    width:36px; height:36px; border-radius:50%; display:grid; place-items:center; color:var(--text);
+    transition:background var(--dur-fast);
+  }
+  .sel-btn:hover{background:var(--surface-2);}
+  .sel-btn svg{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+
+  #toast{
+    position:fixed; bottom:112px; left:50%; z-index:88;
+    transform:translateX(-50%) translateY(10px); opacity:0; pointer-events:none;
+    max-width:78vw; text-align:center;
+    padding:10px 20px; border-radius:var(--radius-pill);
+    background:var(--dock-bg); border:1px solid var(--dock-border);
+    -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    box-shadow:var(--shadow); font-size:13.5px; font-weight:600;
+    transition:opacity var(--dur-med), transform var(--dur-med) var(--ease);
+  }
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* text decorations */
+  .hl.c-brass{border-bottom-color:#C79A4B; background:rgba(199,154,75,.16);}
+  .hl.c-teal {border-bottom-color:#3E8E82; background:rgba(62,142,130,.15);}
+  .hl.c-rose {border-bottom-color:#C26A5F; background:rgba(194,106,95,.15);}
+  .find-hl{background:color-mix(in srgb, var(--accent) 26%, transparent); border-radius:3px; padding:0 1px;}
+  .find-current{background:var(--accent); color:var(--accent-ink); border-radius:3px; padding:0 1px;}
+
+  /* note composer + atlas sheets */
+  #noteSheet textarea{
+    width:100%; min-height:110px; resize:vertical;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:16px;
+    padding:14px; font-family:var(--serif); font-size:15px; line-height:1.55; color:var(--text);
+    outline:none;
+  }
+  #noteSheet textarea:focus{border-color:var(--accent);}
+  #noteSheet #noteSnippet{
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .pill-btn.ghost{background:none; color:var(--text-dim); border:1px solid var(--border);}
+  .pill-btn.ghost:hover{transform:none; filter:none; background:var(--surface-2);}
+  .chip-grid{display:flex; flex-wrap:wrap; gap:8px; padding:8px 0 4px;}
+  .chip{
+    padding:8px 16px; border-radius:var(--radius-pill); font-size:13.5px; font-weight:600;
+    color:var(--text-dim); background:var(--surface-2); border:1px solid transparent;
+    transition:all var(--dur-fast); cursor:pointer;
+  }
+  .chip:hover{border-color:var(--border);}
+  .chip.active{background:var(--accent); color:var(--accent-ink);}
+  .atlas-recap{
+    margin:12px 8px 6px; padding:20px; border-radius:var(--radius-card);
+    background:var(--surface-2); border:1px solid var(--border);
+  }
+  .atlas-recap h4{font-size:14.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin-bottom:10px;}
+  .atlas-recap p{font-size:16px; line-height:1.65; font-style:italic; color:var(--text); margin-bottom:10px;}
+  .atlas-recap .row-btns{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;}
+  .atlas-recap .pill-btn{padding:8px 18px; font-size:13.5px; margin-top:0;}
+  .char-row{
+    display:flex; align-items:center; gap:14px; padding:12px 10px; width:100%; text-align:left;
+    border-radius:14px; transition:background var(--dur-fast);
+  }
+  .char-row:hover{background:var(--surface-2);}
+  .char-row + .char-row{border-top:1px solid var(--border);}
+  .char-av{
+    width:44px; height:44px; border-radius:50%; flex:none;
+    display:grid; place-items:center; font-weight:700; font-size:16px;
+    background:color-mix(in srgb, var(--accent) 16%, var(--surface-2)); color:var(--accent);
+    border:1px solid var(--border);
+  }
+  .char-row .meta{flex:1; min-width:0;}
+  .char-row .t{font-size:15.5px; font-weight:700;}
+  .char-row .s{font-size:12.5px; color:var(--text-dim); margin-top:1px;}
+  .atlas-foot{display:flex; justify-content:center; padding:14px 0 6px;}
+  .atlas-foot button{font-size:13.5px; font-weight:700; color:var(--accent); letter-spacing:.02em;}
+
+  /* Brightness tint overlay */
+  #tint{
+    position:fixed; inset:0; z-index:90; pointer-events:none;
+    background:#000; opacity:0; transition:opacity var(--dur-med);
+  }
+
+  /* ============================================================
+     Floating pill dock
+     ============================================================ */
+  #dock{
+    position:relative; z-index:60;
+    background:var(--dock-bg);
+    -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    border:1px solid var(--dock-border);
+    border-radius:var(--radius-pill);
+    box-shadow:var(--shadow);
+    transition:
+      transform var(--dur-slow) var(--ease),
+      opacity var(--dur-slow) var(--ease),
+      border-radius var(--dur-med) var(--ease);
+  }
+  #dock.hidden{opacity:0; pointer-events:none;}
+  #dock.grabbed{transition:border-radius var(--dur-fast);}
+  /* Layers: only one is in-flow at a time, so the pill always wraps its
+     active content; the in/out animation restarts on each display flip. */
+  @keyframes dockIn{from{opacity:0; transform:scale(.88) translateY(5px);} to{opacity:1; transform:none;}}
+  .dock-layer{display:none; animation:dockIn .3s var(--ease) both;}
+  #dock.collapsed .layer-spine{display:flex;}
+  #dock:not(.collapsed):not(.narrating):not(.autoScroll) .layer-full{display:flex;}
+  #dock.narrating:not(.collapsed) .layer-narr{display:flex;}
+  #dock.autoScroll:not(.collapsed):not(.narrating) .layer-auto{display:flex;}
+  #dock.narrating .spin-dot, #dock.autoScroll .spin-dot{animation:pulse 1.6s infinite;}
+
+  /* spine (collapsed) */
+  .layer-spine{
+    padding:9px 14px 9px 10px; gap:10px; cursor:pointer; user-select:none;
+  }
+  .spine-sep{width:1px; height:14px; background:var(--border);}
+  #spineTime, #spineBatt{
+    display:flex; align-items:center; gap:4px;
+    font-size:12px; font-weight:600; color:var(--text-dim);
+    font-variant-numeric:tabular-nums; white-space:nowrap;
+  }
+  #spineBatt svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.6;}
+  .spin-dot{
+    width:9px; height:9px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 42%,transparent);} 70%{box-shadow:0 0 0 7px transparent;} 100%{box-shadow:0 0 0 0 transparent;} }
+  #dock.narrating .spin-dot, #dock.autoScroll .spin-dot{animation:pulse 1.6s infinite;}
+  #spineLabel{
+    font-size:13px; font-weight:600; letter-spacing:.01em; white-space:nowrap;
+    color:var(--text); font-variant-numeric:tabular-nums;
+  }
+  #spineLabel .pct{color:var(--text-dim); font-weight:500;}
+  .layer-spine .chev{width:14px; height:14px; stroke:var(--text-dim); fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transform:rotate(180deg);}
+
+  /* full (expanded) */
+  .layer-full{flex-direction:column; padding:8px 10px 7px;}
+  .dock-row{display:flex; align-items:center; gap:2px;}
+  .dock-btn{
+    width:var(--tap); height:var(--tap); border-radius:var(--radius-pill);
+    display:grid; place-items:center; color:var(--text);
+    transition:background var(--dur-fast), color var(--dur-fast), transform var(--dur-fast) var(--ease);
+  }
+  .dock-btn:hover{background:var(--surface-2);}
+  .dock-btn:active{transform:scale(.92);}
+  .dock-btn svg{width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  .dock-btn.active svg{stroke:var(--accent); fill:var(--accent);}
+  .dock-btn.edge{width:40px;}
+  .dock-btn.edge svg{stroke:var(--text-dim);}
+  .dock-btn.edge:hover svg{stroke:var(--text);}
+  #dockScrub{
+    width:100%; height:16px; display:flex; align-items:center; cursor:pointer;
+    touch-action:none; margin-top:2px;
+  }
+  #dockScrub .rail{position:relative; flex:1; height:3px; border-radius:3px; background:var(--border);}
+  #dockScrub .fill{
+    position:absolute; inset:0 auto 0 0; border-radius:3px; background:var(--accent);
+  }
+  #dockScrub .thumb{
+    position:absolute; top:50%; width:13px; height:13px; border-radius:50%;
+    background:var(--surface); border:2.5px solid var(--accent);
+    transform:translate(-50%,-50%); transition:transform var(--dur-fast) var(--ease);
+  }
+  #dockScrub:hover .thumb{transform:translate(-50%,-50%) scale(1.25);}
+
+  /* narration + auto-scroll layers */
+  .layer-narr, .layer-auto{padding:7px 12px; gap:4px;}
+  .layer-narr .dock-btn svg, .layer-auto .dock-btn svg{stroke-width:1.6;}
+  .narr-lbl{
+    font-size:12.5px; font-weight:600; color:var(--text-dim);
+    padding:0 8px 0 4px; white-space:nowrap; font-variant-numeric:tabular-nums;
+  }
+  .layer-narr .dock-btn.small, .layer-auto .dock-btn.small{width:36px; height:36px;}
+  .layer-narr .dock-btn.small svg, .layer-auto .dock-btn.small svg{width:18px; height:18px;}
+  .layer-narr .dock-btn.stop svg, .layer-auto .dock-btn.stop svg{stroke:#D26A4A;}
+
+  /* drag-to-slide (dock position) */
+  #dockShell{position:fixed; bottom:20px; left:0; right:0; z-index:60; display:flex; justify-content:center; pointer-events:none; transition:transform var(--dur-slow) var(--ease); touch-action:none;}
+  #dockShell.hidden{transform:translateY(150%);}
+  #dockShell.hidden #dock{opacity:0; pointer-events:none;}
+  #dockShell #dock{pointer-events:auto; position:static; transform:none;}
+
+  /* ============================================================
+     Sheets (28dp-style bottom sheets)
+     ============================================================ */
+  #scrim{
+    position:fixed; inset:0; z-index:70; background:var(--scrim);
+    opacity:0; pointer-events:none; transition:opacity var(--dur-med);
+    -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+  }
+  #scrim.open{opacity:1; pointer-events:auto;}
+  .sheet{
+    position:fixed; left:50%; bottom:0; z-index:80;
+    width:min(560px,100%); max-height:78vh;
+    transform:translate(-50%,110%);
+    background:var(--surface);
+    border-radius:var(--radius-sheet) var(--radius-sheet) 0 0;
+    border:1px solid var(--border); border-bottom:none;
+    box-shadow:0 -18px 50px -12px rgba(0,0,0,.35);
+    transition:transform var(--dur-slow) var(--ease);
+    display:flex; flex-direction:column;
+  }
+  .sheet.open{transform:translate(-50%,0);}
+  .sheet .grabber{width:44px; height:5px; border-radius:3px; background:var(--border); margin:10px auto 2px; flex:none;}
+  .sheet-title{
+    padding:14px 22px 4px; font-size:20px; font-weight:700; letter-spacing:-.01em;
+  }
+  .sheet-title small{display:block; font-size:12.5px; font-weight:500; color:var(--text-dim); margin-top:3px; letter-spacing:.02em;}
+
+  /* Contents sheet */
+  #contentsSheet .tabs{
+    display:flex; gap:6px; padding:14px 22px 12px; flex:none;
+  }
+  .tab-chip{
+    padding:8px 16px; border-radius:var(--radius-pill); font-size:13.5px; font-weight:600;
+    color:var(--text-dim); background:var(--surface-2);
+    border:1px solid transparent; transition:all var(--dur-fast);
+  }
+  .tab-chip.active{background:var(--accent); color:var(--accent-ink);}
+  .sheet-list{overflow-y:auto; padding:2px 14px 26px; flex:1;}
+  .sheet-tall{max-height:88vh;}
+  .row{
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+    padding:13px 10px; border-radius:14px; transition:background var(--dur-fast);
+  }
+  .row:hover{background:var(--surface-2);}
+  .row .num{
+    width:30px; height:30px; border-radius:50%; flex:none;
+    display:grid; place-items:center; font-size:12.5px; font-weight:700;
+    color:var(--text-dim); background:var(--surface-2); font-variant-numeric:tabular-nums;
+  }
+  .row.current .num{background:var(--accent); color:var(--accent-ink);}
+  .row.read .num{color:var(--accent-ink);}
+  .row .meta{flex:1; min-width:0;}
+  .row .meta .t{font-size:15.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .row .meta .s{font-size:12.5px; color:var(--text-dim); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .row.current .t{color:var(--accent);}
+  .row .dl{
+    flex:none; width:22px; height:22px; color:var(--text-dim);
+    display:grid; place-items:center;
+  }
+  .row .dl svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round;}
+  .status-dot{flex:none; width:8px; height:8px; border-radius:50%;}
+  .status-dot.read{background:var(--dot-read);}
+  .status-dot.current{background:var(--dot-current); box-shadow:0 0 0 3px color-mix(in srgb, var(--dot-current) 22%, transparent);}
+  .status-dot.unread{background:var(--dot-unread);}
+
+  /* divider inside list rows */
+  .row + .row{border-top:1px solid var(--border);}
+
+  /* Aa settings sheet */
+  #settingsSheet .group{
+    padding:14px 22px 18px; border-top:1px solid var(--border);
+  }
+  #settingsSheet .group:first-of-type{border-top:none;}
+  .set-row{display:flex; align-items:center; justify-content:space-between; padding:9px 0; gap:16px;}
+  .set-row .name{font-size:15px; font-weight:600;}
+  .set-row .name small{display:block; font-size:12px; color:var(--text-dim); font-weight:500; margin-top:2px;}
+  .stepper{
+    display:flex; align-items:center; gap:2px; padding:3px;
+    background:var(--surface-2); border-radius:var(--radius-pill);
+  }
+  .stepper button{
+    width:34px; height:34px; border-radius:50%; display:grid; place-items:center;
+    background:var(--surface); border:1px solid var(--border); font-size:16px; font-weight:700;
+    transition:transform var(--dur-fast);
+  }
+  .stepper button:active{transform:scale(.9);}
+  .stepper .val{min-width:52px; text-align:center; font-size:14px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .swatches{display:flex; gap:10px;}
+  .swatch{
+    width:40px; height:40px; border-radius:50%; cursor:pointer;
+    border:2px solid var(--border); position:relative;
+    transition:transform var(--dur-fast) var(--ease);
+  }
+  .swatch::after{
+    content:""; position:absolute; inset:5px; border-radius:50%;
+    background:var(--sw-ink); box-shadow:inset 0 0 0 4px var(--sw-bg);
+  }
+  .swatch.active{border-color:var(--accent); transform:scale(1.08);}
+  .swatch:active{transform:scale(.94);}
+  input[type="range"]{
+    -webkit-appearance:none; appearance:none; width:170px; height:3px; border-radius:3px;
+    background:linear-gradient(to right, var(--accent) var(--fill,50%), var(--border) var(--fill,50%));
+    outline:none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+    background:var(--surface); border:2.5px solid var(--accent); cursor:pointer;
+  }
+  input[type="range"]::-moz-range-thumb{width:14px; height:14px; border-radius:50%; background:var(--surface); border:2.5px solid var(--accent); cursor:pointer;}
+
+  /* ============================================================
+     Hint toast
+     ============================================================ */
+  #hint{
+    position:fixed; top:64px; left:50%; transform:translateX(-50%);
+    z-index:50; padding:9px 18px; border-radius:var(--radius-pill);
+    background:var(--dock-bg); border:1px solid var(--dock-border);
+    -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+    font-size:13px; color:var(--text-dim); font-weight:500;
+    box-shadow:var(--shadow);
+    transition:opacity var(--dur-slow), transform var(--dur-slow) var(--ease);
+  }
+  #hint.gone{opacity:0; transform:translateX(-50%) translateY(-10px); pointer-events:none;}
+  kbd{
+    font-family:inherit; font-size:11.5px; font-weight:700; color:var(--text);
+    background:var(--surface-2); border:1px solid var(--border);
+    border-radius:5px; padding:1px 5px; margin:0 1px;
+  }
+
+  /* chapter jump micro-animation */
+  @keyframes pageIn{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:none;}}
+  #article.animate{animation:pageIn.4s var(--ease) both;}
+</style>
+</head>
+<body>
+
+<!-- top slim chrome -->
+<header id="chromeTop">
+  <button class="chrome-btn" id="btnBack" title="Back to atlas">
+    <svg viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+  </button>
+  <div id="chromeTitle">The Silent Cartographer</div>
+  <button class="chrome-btn" id="btnBookmarkTop" title="Bookmark this spot">
+    <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>
+  </button>
+</header>
+
+<!-- reading area -->
+<main id="page">
+  <div class="eyebrow">Atlas · The Salt Roads</div>
+  <h1 id="chapterTitle"></h1>
+  <div class="rule"></div>
+  <article id="article"></article>
+</main>
+
+<!-- brightness tint -->
+<div id="tint"></div>
+
+<!-- floating pill dock -->
+<div id="dockShell">
+  <div id="dock" class="collapsed">
+    <!-- spine -->
+    <div class="dock-layer layer-spine" id="spine">
+      <span class="spin-dot"></span>
+      <span id="spineLabel">Ch. 3 of 28 · <span class="pct" id="spinePct">42%</span></span>
+      <span class="spine-sep" id="spineSep1"></span>
+      <span id="spineTime"></span>
+      <span class="spine-sep" id="spineSep2"></span>
+      <span id="spineBatt" title="Battery"><svg viewBox="0 0 24 24"><rect x="2" y="8" width="17" height="9" rx="2"/><path d="M21.5 10.5v4"/><rect id="battLevel" x="4" y="10" width="10" height="5" rx="1" fill="currentColor" stroke="none"/></svg><span id="battPct">87%</span></span>
+      <svg class="chev" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>
+    </div>
+    <!-- full -->
+    <div class="dock-layer layer-full">
+      <div class="dock-row">
+        <button class="dock-btn edge" id="btnPrev" title="Previous chapter"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <span id="dockActions" style="display:flex; align-items:center; gap:2px;"></span>
+        <button class="dock-btn edge" id="btnNext" title="Next chapter"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+      <div id="dockScrub" title="Drag to scrub through the book">
+        <div class="rail"><div class="fill" id="scrubFill"></div><div class="thumb" id="scrubThumb"></div></div>
+      </div>
+    </div>
+    <!-- narration -->
+    <div class="dock-layer layer-narr">
+      <button class="dock-btn small" id="btnNarrPlay" title="Pause narration"><svg viewBox="0 0 24 24" id="narrPlayIcon"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" stroke="none"/></svg></button>
+      <button class="dock-btn small" id="btnNarrNext" title="Next chapter"><svg viewBox="0 0 24 24"><path d="M6 5l8 7-8 7zM16 5h3v14h-3z" fill="currentColor" stroke="none"/></svg></button>
+      <span class="narr-lbl" id="narrLbl">Narrating · 1.2×</span>
+      <button class="dock-btn small stop" id="btnNarrStop" title="Stop"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></svg></button>
+    </div>
+    <!-- auto-scroll -->
+    <div class="dock-layer layer-auto">
+      <button class="dock-btn small" id="btnAutoPlay" title="Pause auto-scroll"><svg viewBox="0 0 24 24" id="autoPlayIcon"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" stroke="none"/></svg></button>
+      <button class="dock-btn small" id="btnAutoSlower" title="Slower"><svg viewBox="0 0 24 24"><path d="M5 12h14" fill="currentColor" stroke="none"/></svg></button>
+      <span class="narr-lbl" id="autoLbl">Auto · 30 px/s</span>
+      <button class="dock-btn small" id="btnAutoFaster" title="Faster"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="currentColor" stroke="none"/></svg></button>
+      <button class="dock-btn small stop" id="btnAutoStop" title="Stop auto-scroll"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- scrim + sheets -->
+<div id="scrim"></div>
+
+<section class="sheet" id="contentsSheet" aria-hidden="true">
+  <div class="grabber"></div>
+  <div class="sheet-title">The Salt Roads <small>by E. Marchetti · 28 chapters</small></div>
+  <div class="tabs">
+    <button class="tab-chip active" data-tab="chapters">Chapters</button>
+    <button class="tab-chip" data-tab="bookmarks">Bookmarks</button>
+    <button class="tab-chip" data-tab="notes">Notes</button>
+  </div>
+  <div class="sheet-list" id="contentsList"></div>
+</section>
+
+<section class="sheet" id="settingsSheet" aria-hidden="true">
+  <div class="grabber"></div>
+  <div class="sheet-title">Reading</div>
+  <div class="group">
+    <div class="set-row">
+      <div class="name">Text size<small id="sizeHint">19 pt</small></div>
+      <div class="stepper">
+        <button id="sizeDown" title="Smaller">A</button>
+        <button id="sizeUp" title="Larger" style="font-size:19px">A</button>
+      </div>
+    </div>
+    <div class="set-row">
+      <div class="name">Line spacing<small id="lhHint">1.7</small></div>
+      <div class="stepper">
+        <button id="lhDown">▾</button>
+        <button id="lhUp">▴</button>
+      </div>
+    </div>
+  </div>
+  <div class="group">
+    <div class="set-row">
+      <div class="name">Theme</div>
+      <div class="swatches">
+        <button class="swatch" data-theme-val="paper" title="Paper"  style="--sw-bg:#F7F3EC;--sw-ink:#232019"></button>
+        <button class="swatch" data-theme-val="sepia" title="Sepia"  style="--sw-bg:#E8DCC3;--sw-ink:#3B2F1E"></button>
+        <button class="swatch" data-theme-val="gray"  title="Gray"   style="--sw-bg:#D8D8D6;--sw-ink:#202020"></button>
+        <button class="swatch" data-theme-val="dark"  title="Dark"   style="--sw-bg:#1D1C1A;--sw-ink:#E8E4DC"></button>
+        <button class="swatch" data-theme-val="black" title="Black"  style="--sw-bg:#0B0B0A;--sw-ink:#CFCBC3"></button>
+      </div>
+    </div>
+    <div class="set-row">
+      <div class="name">Brightness</div>
+      <input type="range" id="brightness" min="40" max="100" value="100">
+    </div>
+    <button id="openFullSettings" style="display:flex; align-items:center; gap:6px; margin:8px auto 0; font-size:13.5px; font-weight:700; color:var(--accent); font-family:inherit;">
+      All reading settings
+      <svg viewBox="0 0 24 24" style="width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+  </div>
+</section>
+
+<!-- All reading settings (full) -->
+<section class="sheet sheet-tall" id="readingSheet" aria-hidden="true">
+  <div class="grabber"></div>
+  <div class="sheet-title">All reading settings <small>Applies to this book · saved for next time</small></div>
+  <div class="sheet-list">
+
+    <div class="group">
+      <div class="set-row"><div class="name">Typeface<small>the voice on the page</small></div></div>
+      <div class="chip-grid" id="fontChips">
+        <button class="chip" data-fontkey="georgia"    style="font-family:Georgia, serif">Georgia</button>
+        <button class="chip" data-fontkey="palatino"   style="font-family:'Palatino Linotype','Book Antiqua',Palatino,serif">Palatino</button>
+        <button class="chip" data-fontkey="cambria"    style="font-family:Cambria, serif">Cambria</button>
+        <button class="chip" data-fontkey="constantia" style="font-family:Constantia,'Lucida Bright',serif">Constantia</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="set-row">
+        <div class="name">Text size<small id="rSizeHint">19 pt</small></div>
+        <div class="stepper">
+          <button id="rSizeDown" title="Smaller">A</button>
+          <button id="rSizeUp" title="Larger" style="font-size:19px">A</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="name">Line spacing</div>
+        <div class="chip-grid" id="lhChips" style="padding:0; justify-content:flex-end;">
+          <button class="chip" data-lh="1.5">1.5</button>
+          <button class="chip" data-lh="1.7">1.7</button>
+          <button class="chip" data-lh="1.9">1.9</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="name">Paragraph spacing</div>
+        <div class="chip-grid" id="gapChips" style="padding:0; justify-content:flex-end;">
+          <button class="chip" data-gap="0.45">Compact</button>
+          <button class="chip" data-gap="0.62">Easy</button>
+          <button class="chip" data-gap="0.85">Relaxed</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="set-row"><div class="name">Theme</div>
+        <div class="swatches">
+          <button class="swatch" data-theme-val="paper" title="Paper"  style="--sw-bg:#F7F3EC;--sw-ink:#232019"></button>
+          <button class="swatch" data-theme-val="sepia" title="Sepia"  style="--sw-bg:#E8DCC3;--sw-ink:#3B2F1E"></button>
+          <button class="swatch" data-theme-val="gray"  title="Gray"   style="--sw-bg:#D8D8D6;--sw-ink:#202020"></button>
+          <button class="swatch" data-theme-val="dark"  title="Dark"   style="--sw-bg:#1D1C1A;--sw-ink:#E8E4DC"></button>
+          <button class="swatch" data-theme-val="black" title="Black"  style="--sw-bg:#0B0B0A;--sw-ink:#CFCBC3"></button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="name">Brightness<small>for late-night pages</small></div>
+        <input type="range" id="rBrightness" min="40" max="100" value="100">
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="set-row"><div class="name">Side margins</div>
+        <div class="chip-grid" id="marChips" style="padding:0; justify-content:flex-end;">
+          <button class="chip" data-mar="8">Narrow</button>
+          <button class="chip" data-mar="24">Normal</button>
+          <button class="chip" data-mar="56">Wide</button>
+        </div>
+      </div>
+      <div class="set-row"><div class="name">Alignment</div>
+        <div class="chip-grid" id="alignChips" style="padding:0; justify-content:flex-end;">
+          <button class="chip" data-align="left">Ragged</button>
+          <button class="chip" data-align="justify">Justified</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="set-row"><div class="name">Auto-scroll speed<small>where the pill starts</small></div>
+        <div class="chip-grid" id="speedChips" style="padding:0; justify-content:flex-end;">
+          <button class="chip" data-speed="0">18</button>
+          <button class="chip" data-speed="1">30</button>
+          <button class="chip" data-speed="2">45</button>
+          <button class="chip" data-speed="3">70</button>
+          <button class="chip" data-speed="4">100</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <button class="pill-btn ghost" id="rReset" style="padding:9px 20px; font-size:13.5px; margin:0;">Reset</button>
+      <button class="pill-btn" id="rDone" style="padding:9px 30px; margin:0;">Done</button>
+    </div>
+
+  </div>
+</section>
+
+<!-- first-run hint -->
+<div id="hint">Tap the page to hide chrome · <kbd>←</kbd><kbd>→</kbd> chapters · <kbd>t</kbd> theme · <kbd>Space</kbd> narration · <kbd>Ctrl+F</kbd> find</div>
+
+<!-- ⋯ menu (popover above the dock) -->
+<div id="moreMenu">
+  <button class="menu-item" id="miFind"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Find in chapter</button>
+  <button class="menu-item" id="miPill"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 8-8h2a8 8 0 0 1 0 16h-2a8 8 0 0 1-8-8z"/><path d="M9 11h.01M15 13h.01" stroke-width="2.4"/></svg>Customize pill<span class="sub">choose its actions, clock &amp; battery</span></button>
+  <button class="menu-item" id="miAtlas"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.9zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>Story Intelligence</button>
+  <button class="menu-item" id="miRedownload"><svg viewBox="0 0 24 24"><path d="M20 17.6A5 5 0 0 0 18 8a7 7 0 0 0-13.9 1A4.5 4.5 0 0 0 5 17.5"/><path d="M12 12v8m0 0l-3-3m3 3l3-3"/></svg>Redownload this book</button>
+  <button class="menu-item" id="miSettings"><svg viewBox="0 0 24 24"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2"/><circle cx="9" cy="16" r="2"/></svg>All reading settings</button>
+</div>
+
+<!-- find-in-chapter pill -->
+<div id="searchBar">
+  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+  <input id="findInput" placeholder="Find in chapter…" autocomplete="off">
+  <span class="count" id="findCount"></span>
+  <button class="chrome-btn small" id="findPrev" title="Previous match"><svg viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg></button>
+  <button class="chrome-btn small" id="findNext" title="Next match"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+  <button class="chrome-btn small" id="findClose" title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+
+<!-- selection toolbar -->
+<div id="selToolbar">
+  <button class="sel-color c-brass" data-color="brass" title="Brass highlight"></button>
+  <button class="sel-color c-teal"  data-color="teal"  title="Teal highlight"></button>
+  <button class="sel-color c-rose"  data-color="rose"  title="Rose highlight"></button>
+  <span class="sel-sep"></span>
+  <button class="sel-btn" id="selNote" title="Add note"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+  <button class="sel-btn" id="selCopy" title="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+  <button class="sel-btn" id="selWeb" title="Search the web"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18"/></svg></button>
+</div>
+
+<!-- feedback toast -->
+<div id="toast"></div>
+
+<!-- note composer sheet -->
+<section class="sheet" id="noteSheet" aria-hidden="true">
+  <div class="grabber"></div>
+  <div class="sheet-title">New note <small id="noteSnippet"></small></div>
+  <div class="group">
+    <textarea id="noteText" placeholder="Write your note…"></textarea>
+  </div>
+  <div class="group" style="display:flex; justify-content:flex-end; gap:10px; padding-top:0;">
+    <button class="pill-btn ghost" id="noteCancel">Cancel</button>
+    <button class="pill-btn" id="noteSave">Save note</button>
+  </div>
+</section>
+
+<!-- Story Intelligence (Atlas) sheet -->
+<section class="sheet" id="atlasSheet" aria-hidden="true">
+  <div class="grabber"></div>
+  <div class="sheet-title">Story Intelligence <small>Spoiler-free · limited to what you've read</small></div>
+  <div class="sheet-list" id="atlasList"></div>
+</section>
+
+<!-- Customize pill sheet -->
+<section class="sheet" id="pillSheet" aria-hidden="true">
+  <div class="grabber"></div>
+  <div class="sheet-title">Customize pill <small>Saved for your next visit</small></div>
+  <div class="group">
+    <div class="set-row"><div class="name">Spine shows<small>the slim strip when the dock is tucked away</small></div></div>
+    <div class="chip-grid" id="spineChips">
+      <button class="chip" data-spine="chapter">Chapter · %</button>
+      <button class="chip" data-spine="time">Clock</button>
+      <button class="chip" data-spine="battery">Battery</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="set-row"><div class="name">Actions in the capsule<small>prev / next chapter stay at the ends</small></div></div>
+    <div class="chip-grid" id="actionChips"></div>
+    <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+      <button class="pill-btn ghost" id="pillReset" style="padding:8px 18px; font-size:13px;">Reset to default</button>
+    </div>
+  </div>
+</section>
+
+<script>
+"use strict";
+/* ============================================================
+   Data
+   ============================================================ */
+const BOOK = { title:"The Silent Cartographer", series:"The Salt Roads", author:"E. Marchetti", total:28 };
+
+const CHAPTER_TITLES = [
+  "The Harbor of Missing Maps","Ink and Salt","The Map That Bit Back","A Compass for Liars",
+  "The Ferryman's Ledger","Fog Over the Lantern Row","What the Tide Keeps","The Stolen Meridian",
+  "Salt on Every Page","The Inn at World's End","A Room Painted with Islands","The Cartographer's Daughter",
+  "Dead Reckoning","The Bells of Port Vesper","Charting the Unchartable","The Lighthouse Keeper's Riddle",
+  "An Atlas of Small Crimes","Where Roads Go to Drown","The Tidewright","Paper Against the Storm",
+  "The Latitude of Forgiveness","Ink Runs Northward","The Archipelago of Almosts","A Vegetable Empire",
+  "The Last Honest Chart","Windward, Always Windward","The Map That Let Go","Home Is a Coordinate"
+];
+
+function genParagraphs(chapterIndex, count){
+  const openers = [
+    "The tide came in the way bad news does — quietly, then all at once.",
+    "By the third bell the harbor had become a rumor of itself.",
+    "There is an art to leaving, and neither of us had learned it.",
+    "The map on the table refused, for the ninth time that morning, to be finished.",
+    "Rain arrived like an unpaid creditor — patient, inevitable, rude.",
+    "We measured the coastline twice and it changed both times."
+  ];
+  const middles = [
+    "Somewhere north of the lantern row a bell rang, though no ship was in.",
+    "The ink pooled in the low country of the page, then bled toward the sea.",
+    "Every chart in the room was a small argument about the shape of the truth.",
+    "If a road could drown, this one had managed it centuries ago.",
+    "The ledger smelled of salt and old apologies, in roughly equal measure.",
+    "A compass points north; a good one points home, which is rarely the same thing."
+  ];
+  const closers = [
+    "I wrote it down anyway. That is the whole profession, really.",
+    "We let the silence do its round of the room and move on.",
+    "And so the map stayed unfinished, which is to say honest.",
+    "By then the fog had opinions, and we listened to them, as one does.",
+    "The sea took the rest, as the sea is contractually obliged to.",
+    "It was the kind of morning the atlases never bother recording."
+  ];
+  const out = [];
+  for(let i=0;i<count;i++){
+    const s = 3 + ((chapterIndex*7 + i*3) % 2) + (((chapterIndex+i)%5)===0?1:0);
+    const parts=[];
+    for(let j=0;j<s;j++){
+      const pool = j===0?openers : (j===s-1?closers:middles);
+      parts.push(pool[(chapterIndex*3 + i*5 + j) % pool.length]);
+    }
+    out.push(parts.join(" "));
+  }
+  return out;
+}
+
+function curatedParagraphs(){
+  // Chapter 3 — "The Map That Bit Back"
+  return [
+    "The tide came in the way bad news does — quietly, then all at once. I had the shutters half lashed when the first map lifted off the table, and went for the door handle, which is the wrong reflex for a man who owns eleven atlases and no umbrella.",
+    "Maps, my mother used to say, are livestock. Feed them, water the ink, and they stay put. Starve them and they wander. I had been three days without drawing a coastline, and the whole portfolio had grown restless about it.",
+    "The third map — the drowned one, the exception — clipped me on the ear as it cleared the windowsill. It should not have been able to do that. Of the twelve hundred charts in my keeping, it was the only one that had ever been wet, and it had never quite forgiven the fact.",
+    "By the third bell the harbor had become a rumor of itself. Fog does that here: not a curtain but an editor, cutting the world down to what it considers load-bearing. The lamplighter was out anyway, walking his rounds with the serene entitlement of a man who has never once been lost.",
+    "\"You drew the channel wrong,\" he said, without stopping. \"Third buoy south.\" He did not slow down. He did not need to; being right, in this town, is its own mode of transport.",
+    "I went back inside and pinned the drowned map to the table with a jam jar. It dripped. It had been dripping, at a guess, for a hundred years, in whatever dark rib of the sea had held it, and it was not going to stop just because it had been found.",
+    "There is an art to leaving, and neither of us had learned it. So instead we negotiated — I would chart it properly if it stayed flat. It rippled. I offered more. The jam jar stood its ground.",
+    "What the tide keeps it keeps without argument, but what a map keeps it keeps vindictively: every error you have ever made, every coast you got wrong in a bad light, the name of the channel you misspelled at nineteen. The drowned map had all of mine.",
+    "I wrote it down anyway. That is the whole profession, really — the drawing and the drowning, cartography by damp."
+  ];
+}
+
+const chapters = CHAPTER_TITLES.map((title,i)=>({
+  n:i+1, title,
+  read: i < 2,            // ch 1-2 read
+  downloaded: i < 3 || i % 4 === 2,
+}));
+
+const state = {
+  current: 2,             // index; Ch. 3
+  bookmarks: [
+    { ch: 1, label:"\"Every chart in the room was a small argument…\"", createdAt:"yesterday" },
+    { ch: 0, label:"The ferryman's ledger, first mention", createdAt:"Mar 12" },
+  ],
+  notes: [
+    { ch: 2, snippet:"\"…being right, in this town, is its own mode of transport.\" — foreshadows the lamplighter's arrival in ch. 14?", note:"Foreshadows the lamplighter's arrival in ch. 14?", color:"brass", createdAt:"today" },
+    { ch: 0, snippet:"Check: is the third buoy the same one from the prologue?", note:"Check against the prologue — same buoy?", color:"teal", createdAt:"Mar 10" },
+  ],
+  highlights: [],         // {ch, text, color} — reapplied on each chapter render
+  narrating:false, narrPaused:false,
+  autoScroll:false, autoPaused:false,
+  themeOrder:["paper","sepia","gray","dark","black"],
+};
+
+// Story-companion mock data (mirrors the reader's Atlas tab: spoiler-free,
+// only characters first seen at or before the current chapter).
+const CHARACTERS = [
+  { name:"Imma Saltwright", role:"Apprentice cartographer — the narrator's charge", first:1 },
+  { name:"The Ferryman of Vesper", role:"Keeper of refunds nobody claims", first:2 },
+  { name:"Sablio", role:"A map, drowned; opinionated", first:3 },
+  { name:"The Lamplighter", role:"Never lost on purpose", first:5 },
+  { name:"Mother Vael", role:"Runs the inn at world's end", first:11 },
+  { name:"The Tidewright", role:"Appointment book full until the tide ends", first:20 },
+];
+const RECAP_FLAVOR = [
+  "The drowned map is still negotiating.",
+  "Mother Vael has opinions and one empty stool.",
+  "The lamplighter walks his rounds; nobody asks him for the time.",
+  "Somewhere north of the lantern row, a bell is still ringing with no ship to blame.",
+  "Every chart in the room remains a small argument about the truth.",
+];
+
+const READER_DEFAULTS = { size:19, lh:1.7, theme:"paper", bright:100, font:"georgia", gap:0.62, mar:24, align:"left", autoSpeed:1 };
+const FONT_STACKS = {
+  georgia:   "Georgia, 'Times New Roman', serif",
+  palatino:  "'Palatino Linotype', 'Book Antiqua', Palatino, serif",
+  cambria:   "Cambria, Georgia, serif",
+  constantia:"Constantia, 'Lucida Bright', Georgia, serif",
+};
+function loadReaderCfg(){
+  try{
+    const raw = JSON.parse(localStorage.getItem("atlas_reader_settings") || "null");
+    if(raw) return { ...READER_DEFAULTS, ...raw };
+  }catch(_){}
+  return { ...READER_DEFAULTS };
+}
+let settings = loadReaderCfg();
+function saveReaderCfg(){ try{ localStorage.setItem("atlas_reader_settings", JSON.stringify(settings)); }catch(_){} }
+
+/* ============================================================
+   DOM refs
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const root = document.documentElement;
+const chromeTop=$("chromeTop"), dockShell=$("dockShell"), dock=$("dock"),
+  article=$("article"), chapterTitle=$("chapterTitle"),
+  scrim=$("scrim"), contentsSheet=$("contentsSheet"), settingsSheet=$("settingsSheet"),
+  tint=$("tint"), hint=$("hint");
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+function getScrollMax(){ return document.documentElement.scrollHeight - window.innerHeight; }
+function bookPct(){ return Math.round(((state.current + pagePct()) / BOOK.total) * 100); }
+function pagePct(){
+  const m = getScrollMax();
+  return m <= 0 ? 1 : Math.min(1, Math.max(0, window.scrollY / m));
+}
+function chapterPct(){ return Math.round(pagePct() * 100); }
+
+function renderChapter(idx, {animate=true}={}){
+  state.current = Math.max(0, Math.min(BOOK.total-1, idx));
+  const ch = chapters[state.current];
+  chapterTitle.textContent = `${ch.n}. ${ch.title}`;
+  document.title = `${ch.n}. ${ch.title} — Atlas Reader demo`;
+  closeSelToolbar(); closeMore(); closeFind();
+  article.classList.remove("animate");
+  const paras = idx === 2 ? curatedParagraphs() : genParagraphs(idx, 7 + (idx % 3));
+  let html = "";
+  paras.forEach((p,i)=>{
+    let t = p;
+    if(idx===2 && i===4) t = t.replace("channel wrong","channel wrong<span class=\"note-mark\" title=\"Note attached\"></span>");
+    if(idx===2 && i===7) t = t.replace("vindictively","<span class=\"hl\">vindictively</span>");
+    html += `<p>${t}</p>`;
+  });
+  const next = chapters[state.current+1];
+  html += `
+    <div class="continue-card">
+      <span class="lbl">${next ? "Next · Read-on" : "End of the salt roads"}</span>
+      <h4>${next ? `${next.n}. ${next.title}` : "The map that let go — finis"}</h4>
+      <button class="pill-btn" id="btnContinue">${next ? "Continue to ch. " + next.n : "Back to atlas"}</button>
+    </div>`;
+  article.innerHTML = html;
+  reapplyHighlights();
+  article.classList.add("animate");
+  $("btnContinue")?.addEventListener("click", ()=> next ? jumpChapter(state.current+1) : $("btnBack").click());
+  window.scrollTo({top:0, behavior:"instant"});
+  updateProgressUI();
+  renderContents(activeTab); // keep list status fresh
+}
+
+/* Text decorations: stored highlights are re-applied to the freshly
+   rendered paragraphs by wrapping matching snippets in the DOM. */
+function wrapOnce(node, snippet, cls){
+  const text = node.textContent;
+  const i = text.indexOf(snippet);
+  if(i < 0) return false;
+  const frag = document.createDocumentFragment();
+  frag.append(text.slice(0, i));
+  const span = document.createElement("span");
+  span.className = cls;
+  span.textContent = snippet;
+  frag.append(span, text.slice(i + snippet.length));
+  node.parentNode.replaceChild(frag, node);
+  return true;
+}
+function reapplyHighlights(){
+  state.highlights.filter(h => h.ch === state.current).forEach(h => {
+    const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+    let n;
+    while((n = walker.nextNode())){
+      if(wrapOnce(n, h.text, `hl c-${h.color}`)) break;
+    }
+  });
+}
+
+function updateProgressUI(){
+  const bp = bookPct();
+  $("spineLabel").innerHTML = `Ch. ${state.current+1} of ${BOOK.total} · <span class="pct" id="spinePct">${bp}%</span>`;
+  const p = Math.round(((state.current + 0.5) / BOOK.total) * 1000)/10; // scrub position: chapter-anchored
+  $("scrubFill").style.width = p + "%";
+  $("scrubThumb").style.left = p + "%";
+  updateBookmarkUI();
+}
+
+function statusOf(i){
+  if(i===state.current) return "current";
+  return chapters[i].read ? "read":"unread";
+}
+
+/* ============================================================
+   Contents sheet
+   ============================================================ */
+let activeTab = "chapters";
+
+function renderContents(tab){
+  activeTab = tab;
+  const list = $("contentsList");
+  list.innerHTML = "";
+  if(tab==="chapters"){
+    chapters.forEach((ch,i)=>{
+      const st = statusOf(i);
+      const row = document.createElement("button");
+      row.className = "row " + st;
+      row.innerHTML = `
+        <span class="num">${ch.n}</span>
+        <span class="meta"><span class="t">${ch.title}</span>
+        <span class="s">${st==="current" ? "You are here · " + bookPct() + "% of the book" : ch.read ? "Finished" : "Unread"}</span></span>
+        ${ch.downloaded ? `<span class="dl" title="Downloaded"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg></span>` : ""}
+        <span class="status-dot ${st}"></span>`;
+      row.addEventListener("click", ()=> jumpChapter(i));
+      list.appendChild(row);
+    });
+  } else if(tab==="bookmarks"){
+    state.bookmarks.forEach(b=>{
+      const row = document.createElement("button");
+      row.className = "row read";
+      row.innerHTML = `
+        <span class="num">Ch. ${b.ch+1}</span>
+        <span class="meta"><span class="t">${clamped(b.label)}</span><span class="s">${chapters[b.ch].title} · added ${b.createdAt}</span></span>
+        <span class="status-dot read"></span>`;
+      row.addEventListener("click", ()=> jumpChapter(b.ch));
+      list.appendChild(row);
+    });
+    if(!state.bookmarks.length) list.innerHTML = `<div class="row" style="justify-content:center;color:var(--text-dim)">No bookmarks yet</div>`;
+  } else {
+    state.notes.forEach(nt=>{
+      const row = document.createElement("button");
+      row.className = "row read";
+      row.innerHTML = `
+        <span class="num" style="background:color-mix(in srgb, var(--accent) 16%, var(--surface-2)); color:var(--accent)">✎</span>
+        <span class="meta">
+          <span class="t" style="font-weight:600; white-space:normal; line-height:1.45">${nt.note || nt.snippet}</span>
+          <span class="s" style="white-space:normal; line-height:1.4; margin-top:3px"><span class="status-dot ${nt.color==='brass'?'read':nt.color==='teal'?'current':'unread'}" style="display:inline-block; vertical-align:middle; margin-right:6px"></span>“${(nt.snippet||"").slice(0,80)}” · ${chapters[nt.ch].title}</span>
+        </span>`;
+      row.addEventListener("click", ()=> jumpChapter(nt.ch));
+      list.appendChild(row);
+    });
+    if(!state.notes.length) list.innerHTML = `<div class="row" style="justify-content:center;color:var(--text-dim)">No notes in this book</div>`;
+  }
+}
+
+function clamped(s){ return s.length>74 ? s.slice(0,74)+"…" : s; }
+
+document.querySelectorAll(".tab-chip").forEach(chip=>{
+  chip.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab-chip").forEach(c=>c.classList.toggle("active", c===chip));
+    renderContents(chip.dataset.tab);
+  });
+});
+
+function openSheet(el){ closeSheets(); scrim.classList.add("open"); el.classList.add("open"); el.setAttribute("aria-hidden","false"); }
+function closeSheets(){
+  scrim.classList.remove("open");
+  document.querySelectorAll(".sheet.open").forEach(s=>{ s.classList.remove("open"); s.setAttribute("aria-hidden","true"); });
+}
+scrim.addEventListener("click", closeSheets);
+
+/* ============================================================
+   Jump / nav
+   ============================================================ */
+function jumpChapter(i){
+  closeSheets();
+  if(state.autoScroll) autoStop();
+  renderChapter(i);
+}
+
+$("btnPrev").addEventListener("click", ()=> jumpChapter(state.current-1));
+$("btnNext").addEventListener("click", ()=> jumpChapter(state.current+1));
+$("btnBack").addEventListener("click", ()=>{
+  $("hint").innerHTML = "This is where the demo taps out — the real app goes back to the atlas shell.";
+  hint.classList.remove("gone");
+  setTimeout(()=>hint.classList.add("gone"), 3200);
+});
+
+/* ============================================================
+   Bookmark
+   ============================================================ */
+function bookmarkIndex(){ return state.bookmarks.findIndex(b=>b.ch===state.current); }
+function updateBookmarkUI(){
+  $("btnBookmarkTop").classList.toggle("active", bookmarkIndex()>=0);
+  document.getElementById("btnBookmark")?.classList.toggle("active", bookmarkIndex()>=0);
+}
+function toggleBookmark(){
+  const i = bookmarkIndex();
+  if(i>=0) state.bookmarks.splice(i,1);
+  else state.bookmarks.push({ ch: state.current, label: `"${article.querySelector("p").textContent.slice(0,60)}…"`, createdAt:"just now" });
+  updateBookmarkUI();
+  renderContents(activeTab);
+}
+$("btnBookmarkTop").addEventListener("click", toggleBookmark);
+
+/* ============================================================
+   Dock expand / collapse
+   ============================================================ */
+$("spine").addEventListener("click", ()=>{ if(longPressed){ longPressed=false; return; } dock.classList.remove("collapsed"); });
+/* long-press the spine to customize the pill */
+let lpTimer=null, longPressed=false;
+$("spine").addEventListener("pointerdown", ()=>{ longPressed=false; lpTimer=setTimeout(()=>{ longPressed=true; openPillSheet(); }, 550); });
+["pointerup","pointerleave","pointercancel"].forEach(ev=> $("spine").addEventListener(ev, ()=> clearTimeout(lpTimer)));
+document.addEventListener("click", e=>{
+  if(dock.classList.contains("collapsed") || dock.classList.contains("narrating") || dock.classList.contains("autoScroll")) return;
+  if(e.target.closest("#dock")) return;
+  dock.classList.add("collapsed");
+});
+
+/* ============================================================
+   Scrub (drag-to-position through the book)
+   ============================================================ */
+const scrub = $("dockScrub");
+let scrubbing=false;
+function scrubTo(clientX){
+  const r = scrub.querySelector(".rail").getBoundingClientRect();
+  const f = Math.min(1, Math.max(0,(clientX - r.left)/r.width));
+  const targetChapter = Math.min(BOOK.total-1, Math.floor(f*BOOK.total));
+  jumpChapter(targetChapter);
+}
+scrub.addEventListener("pointerdown", e=>{ scrubbing=true; scrub.setPointerCapture(e.pointerId); scrub.classList.add("grabbed"); scrubTo(e.clientX); });
+scrub.addEventListener("pointermove", e=>{ if(scrubbing) scrubTo(e.clientX); });
+scrub.addEventListener("pointerup", ()=>{ scrubbing=false; });
+
+/* ============================================================
+   Narration mock
+   ============================================================ */
+function narrStart(){
+  if(state.autoScroll) autoStop();
+  state.narrating=true; state.narrPaused=false;
+  dock.classList.add("narrating"); dock.classList.remove("collapsed");
+  narrLbl();
+  clearTimeout(narrStart._t);
+  narrStart._t = setTimeout(()=>{ if(state.narrating && !state.narrPaused){ dock.classList.add("collapsed"); } }, 3800);
+}
+function narrLbl(){ $("narrLbl").textContent = `Narrating · ${(state.narrPaused?0:1.2).toFixed(1)}×`; }
+function narrToggle(){
+  if(!state.narrating){ narrStart(); return; }
+  state.narrPaused=!state.narrPaused;
+  $("narrPlayIcon").innerHTML = state.narrPaused
+    ? `<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>`
+    : `<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" stroke="none"/>`;
+  narrLbl();
+  if(state.narrPaused) dock.classList.remove("collapsed");
+  else { clearTimeout(narrStart._t); narrStart._t = setTimeout(()=>{ if(state.narrating && !state.narrPaused){ dock.classList.add("collapsed"); } }, 3800); }
+}
+function narrStop(){ state.narrating=false; state.narrPaused=false; clearTimeout(narrStart._t); dock.classList.remove("narrating"); dock.classList.add("collapsed"); }
+$("btnNarrPlay").addEventListener("click", narrToggle);
+$("btnNarrNext").addEventListener("click", ()=> jumpChapter(state.current+1));
+$("btnNarrStop").addEventListener("click", narrStop);
+
+/* ============================================================
+   Auto-scroll mock
+   ============================================================ */
+const AUTO_SPEEDS = [18, 30, 45, 70, 100];
+let autoIdx = 1, autoRaf = null, autoLast = 0;
+
+function autoLbl(){ $("autoLbl").textContent = `${state.autoPaused ? "Paused" : "Auto"} · ${AUTO_SPEEDS[autoIdx]} px/s`; }
+function autoStep(t){
+  if(!state.autoScroll){ autoRaf = null; return; }
+  if(state.autoPaused){ autoLast = t; autoRaf = requestAnimationFrame(autoStep); return; }
+  const dt = autoLast ? (t - autoLast) / 1000 : 0;
+  autoLast = t;
+  if(getScrollMax() <= 1 || window.scrollY >= getScrollMax() - 1){ autoStop(); return; }
+  window.scrollBy(0, AUTO_SPEEDS[autoIdx] * dt);
+  autoRaf = requestAnimationFrame(autoStep);
+}
+function autoStart(){
+  if(state.narrating) narrStop();
+  state.autoScroll = true; state.autoPaused = false; autoLast = 0;
+  autoIdx = Math.min(Math.max(0, settings.autoSpeed ?? 1), AUTO_SPEEDS.length-1);  // start at preferred speed
+  dock.classList.remove("narrating");
+  dock.classList.add("autoScroll"); dock.classList.remove("collapsed");
+  chromeTop.classList.add("hidden");            // chrome recedes, dock stays
+  $("autoPlayIcon").innerHTML = `<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" stroke="none"/>`;
+  autoLbl();
+  if(!autoRaf) autoRaf = requestAnimationFrame(autoStep);
+}
+function autoPauseToggle(){
+  if(!state.autoScroll){ autoStart(); return; }
+  state.autoPaused = !state.autoPaused;
+  $("autoPlayIcon").innerHTML = state.autoPaused
+    ? `<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>`
+    : `<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" stroke="none"/>`;
+  autoLbl();
+}
+function autoStop(){
+  state.autoScroll = false; state.autoPaused = false;
+  if(autoRaf){ cancelAnimationFrame(autoRaf); autoRaf = null; }
+  dock.classList.remove("autoScroll");
+  dock.classList.add("collapsed");
+}
+$("btnAutoPlay").addEventListener("click", autoPauseToggle);
+$("btnAutoSlower").addEventListener("click", ()=>{ autoIdx = Math.max(0, autoIdx - 1); autoLbl(); });
+$("btnAutoFaster").addEventListener("click", ()=>{ autoIdx = Math.min(AUTO_SPEEDS.length - 1, autoIdx + 1); autoLbl(); });
+$("btnAutoStop").addEventListener("click", autoStop);
+
+/* ============================================================
+   Pill customization: spine content + capsule actions
+   ============================================================ */
+const PILL_DEFAULTS = {
+  spine:{ chapter:true, time:true, battery:true },
+  actions:["contents","aa","auto","listen","more"],
+};
+const ACTION_DEFS = {
+  contents:{ el:"btnContents", label:"Contents", icon:`<path d="M4 6h16M4 12h16M4 18h10"/>`, title:"Contents · Chapters, bookmarks, notes",
+             handle:()=>{ dock.classList.add("collapsed"); openSheet(contentsSheet); } },
+  aa:{ el:"btnAa", label:"Aa · text & theme", icon:`<text x="12" y="16" text-anchor="middle" font-size="13" font-weight="700" stroke="none" fill="currentColor" font-family="Georgia,serif">Aa</text>`, title:"Text & theme",
+       handle:()=>{ dock.classList.add("collapsed"); openSheet(settingsSheet); } },
+  auto:{ el:"btnAutoScroll", label:"Auto-scroll", icon:`<path d="M6 5l6 6 6-6M6 13l6 6 6-6"/>`, title:"Auto-scroll", handle:autoStart },
+  listen:{ el:"btnListen", label:"Listen (narration)", icon:`<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>`, title:"Listen (narration)", handle:narrStart },
+  bookmark:{ el:"btnBookmark", label:"Bookmark", icon:`<path d="M6 3h12v18l-6-4.5L6 21z"/>`, title:"Bookmark", handle:toggleBookmark },
+  find:{ el:"btnFind", label:"Find in chapter", icon:`<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>`, title:"Find in chapter", handle:srchOpen },
+  atlas:{ el:"btnAtlas", label:"Story Intelligence", icon:`<path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.9zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/>`, title:"Story Intelligence", handle:openAtlas },
+  more:{ el:"btnMore", label:"More menu", icon:`<path d="M5 12h.01M12 12h.01M19 12h.01"/>`, title:"More", extra:"stroke-width:2.6;", handle:()=> moreMenu.classList.toggle("open") },
+};
+const pillSheet = $("pillSheet");
+let pillCfg = loadPillCfg();
+
+function loadPillCfg(){
+  try{
+    const raw = JSON.parse(localStorage.getItem("atlas_pill_cfg") || "null");
+    if(raw && Array.isArray(raw.actions) && raw.spine) return {
+      spine:{ ...PILL_DEFAULTS.spine, ...(raw.spine||{}) },
+      actions:[...new Set(raw.actions.filter(id => ACTION_DEFS[id]))],
+    };
+  }catch(_){}
+  return JSON.parse(JSON.stringify(PILL_DEFAULTS));
+}
+function savePillCfg(){ try{ localStorage.setItem("atlas_pill_cfg", JSON.stringify(pillCfg)); }catch(_){} }
+
+function renderDock(){
+  const host = $("dockActions");
+  host.innerHTML = "";
+  pillCfg.actions.forEach(id=>{
+    const def = ACTION_DEFS[id];
+    const b = document.createElement("button");
+    b.className = "dock-btn";
+    b.id = def.el;
+    b.title = def.title;
+    b.innerHTML = `<svg viewBox="0 0 24 24"${def.extra ? ` style="${def.extra}"` : ""}>${def.icon}</svg>`;
+    b.addEventListener("click", ()=> def.handle());
+    host.appendChild(b);
+  });
+  updateBookmarkUI();
+}
+function renderSpine(){
+  $("spineLabel").style.display = pillCfg.spine.chapter ? "" : "none";
+  $("spineTime").style.display  = pillCfg.spine.time ? "" : "none";
+  $("spineBatt").style.display  = pillCfg.spine.battery ? "" : "none";
+  $("spineSep1").style.display  = pillCfg.spine.time ? "" : "none";
+  $("spineSep2").style.display  = pillCfg.spine.time && pillCfg.spine.battery ? "" : "none";
+}
+
+/* clock — live, updates every 15 s */
+function tickClock(){
+  $("spineTime").textContent = new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+}
+setInterval(tickClock, 15000); tickClock();
+
+/* battery — real when the browser exposes it, simulated otherwise */
+(async ()=>{
+  try{
+    const b = await navigator.getBattery?.();
+    if(!b) return;
+    const upd = ()=>{
+      const pct = Math.round(b.level * 100);
+      $("battPct").textContent = pct + (b.charging ? "⚡" : "") + "%";
+      $("battLevel").setAttribute("width", Math.max(0.6, (pct/100) * 15).toFixed(1));
+    };
+    b.addEventListener("levelchange", upd);
+    b.addEventListener("chargingchange", upd);
+    upd();
+  }catch(_){ /* keep the simulated 87% */ }
+})();
+
+/* customize sheet */
+function renderPillSheet(){
+  document.querySelectorAll("#spineChips .chip").forEach(ch=>{
+    ch.classList.toggle("active", !!pillCfg.spine[ch.dataset.spine]);
+  });
+  const grid = $("actionChips");
+  grid.innerHTML = "";
+  Object.entries(ACTION_DEFS).forEach(([id, def])=>{
+    const on = pillCfg.actions.includes(id);
+    const b = document.createElement("button");
+    b.className = "chip" + (on ? " active" : "");
+    b.textContent = def.label;
+    b.addEventListener("click", ()=>{
+      if(on){
+        if(pillCfg.actions.length <= 1){ toast("Keep at least one action on the pill"); return; }
+        pillCfg.actions = pillCfg.actions.filter(a => a !== id);
+      } else pillCfg.actions.push(id);
+      savePillCfg(); renderDock(); renderPillSheet();
+      toast(`${def.label} ${on ? "removed from" : "added to"} the pill`);
+    });
+    grid.appendChild(b);
+  });
+}
+function openPillSheet(){
+  closeMore();
+  dock.classList.add("collapsed");
+  renderPillSheet();
+  openSheet(pillSheet);
+}
+pillSheet.addEventListener("click", e=> e.stopPropagation());
+document.querySelectorAll("#spineChips .chip").forEach(ch => ch.addEventListener("click", ()=>{
+  pillCfg.spine[ch.dataset.spine] = !pillCfg.spine[ch.dataset.spine];
+  savePillCfg(); renderSpine(); renderPillSheet();
+}));
+$("pillReset").addEventListener("click", ()=>{
+  pillCfg = JSON.parse(JSON.stringify(PILL_DEFAULTS));
+  savePillCfg(); renderDock(); renderSpine(); renderPillSheet();
+  toast("Pill back to default");
+});
+$("miPill").addEventListener("click", ()=>{ closeMore(); openPillSheet(); });
+
+/* ============================================================
+   Chrome auto-hide + tap-to-toggle
+   ============================================================ */
+let chromeHidden=false, lastY=window.scrollY;
+function setChrome(h){ chromeHidden=h; chromeTop.classList.toggle("hidden",h); dockShell.classList.toggle("hidden",h); }
+window.addEventListener("scroll", ()=>{
+  const dy = window.scrollY - lastY;
+  if(state.autoScroll){
+    // chrome recedes, dock stays; scrolling backwards cancels auto-scroll
+    chromeTop.classList.add("hidden");
+    dockShell.classList.remove("hidden");
+    if(dy < -6) autoStop();
+  } else {
+    if(dy > 8 && window.scrollY > 90) setChrome(true);
+    else if(dy < -8) setChrome(false);
+  }
+  lastY = window.scrollY;
+  updateProgressUI();
+}, {passive:true});
+
+// tap the page to hide/show chrome
+$("page").addEventListener("click", e=>{
+  if(e.target.closest("button, a, .note-mark, .hl")) return;
+  setChrome(!chromeHidden);
+  if(!chromeHidden) dock.classList.add("collapsed");
+});
+
+/* ============================================================
+   Settings
+   ============================================================ */
+const LH_STEPS=[1.5,1.7,1.9];
+function applySettings(){
+  document.documentElement.style.setProperty("--reading-size", settings.size+"px");
+  document.documentElement.style.setProperty("--reading-lh", settings.lh);
+  document.documentElement.style.setProperty("--reading-font", FONT_STACKS[settings.font] || FONT_STACKS.georgia);
+  document.documentElement.style.setProperty("--reading-gap", settings.gap);
+  document.documentElement.style.setProperty("--reading-pad", settings.mar+"px");
+  document.documentElement.style.setProperty("--reading-align", settings.align);
+  root.dataset.theme = settings.theme;
+  tint.style.opacity = ((100-settings.bright)/100*0.86).toFixed(2);
+  $("sizeHint").textContent = settings.size+" pt";
+  $("lhHint").textContent = settings.lh;
+  const b=$("brightness"); b.value=settings.bright;
+  b.style.setProperty("--fill", ((settings.bright-40)/60*100)+"%");
+  const rb=$("rBrightness"); rb.value=settings.bright;
+  rb.style.setProperty("--fill", ((settings.bright-40)/60*100)+"%");
+  $("rSizeHint").textContent = settings.size+" pt";
+  document.querySelectorAll(".swatch").forEach(s=> s.classList.toggle("active", s.dataset.themeVal===settings.theme));
+  renderReadingChips();
+  saveReaderCfg();
+}
+function renderReadingChips(){
+  const pairs = [
+    ["#fontChips .chip",  c=>c.dataset.fontkey===settings.font],
+    ["#lhChips .chip",    c=>+c.dataset.lh===settings.lh],
+    ["#gapChips .chip",   c=>+c.dataset.gap===settings.gap],
+    ["#marChips .chip",   c=>+c.dataset.mar===settings.mar],
+    ["#alignChips .chip", c=>c.dataset.align===settings.align],
+    ["#speedChips .chip", c=>+c.dataset.speed===settings.autoSpeed],
+  ];
+  pairs.forEach(([sel, pred])=> document.querySelectorAll(sel).forEach(c=> c.classList.toggle("active", pred(c))));
+}
+function chipWire(sel, set){
+  document.querySelectorAll(sel).forEach(c => c.addEventListener("click", ()=>{
+    settings = typeof set === "function" ? set(c, settings) : { ...settings, ...set(c) };
+    applySettings();
+  }));
+}
+chipWire("#fontChips .chip",   (c)=> ({ ...settings, font: c.dataset.fontkey }));
+chipWire("#lhChips .chip",     (c)=> ({ ...settings, lh: +c.dataset.lh }));
+chipWire("#gapChips .chip",    (c)=> ({ ...settings, gap: +c.dataset.gap }));
+chipWire("#marChips .chip",    (c)=> ({ ...settings, mar: +c.dataset.mar }));
+chipWire("#alignChips .chip",  (c)=> ({ ...settings, align: c.dataset.align }));
+chipWire("#speedChips .chip",  (c)=> ({ ...settings, autoSpeed: +c.dataset.speed }));
+$("rSizeUp").addEventListener("click", ()=>{ settings = { ...settings, size:Math.min(30,settings.size+1) }; applySettings(); });
+$("rSizeDown").addEventListener("click", ()=>{ settings = { ...settings, size:Math.max(15,settings.size-1) }; applySettings(); });
+$("rBrightness").addEventListener("input", e=>{ settings = { ...settings, bright:+e.target.value }; applySettings(); });
+$("rReset").addEventListener("click", ()=>{
+  settings = { ...READER_DEFAULTS };
+  applySettings(); toast("Reading settings back to default");
+});
+$("rDone").addEventListener("click", closeSheets);
+$("openFullSettings").addEventListener("click", ()=>{
+  dock.classList.add("collapsed");
+  openSheet($("readingSheet"));
+});
+const readingSheet = $("readingSheet");
+document.querySelectorAll("#readingSheet .swatch").forEach(s=> s.addEventListener("click", ()=>{ settings = { ...settings, theme:s.dataset.themeVal }; applySettings(); }));
+$("sizeUp").addEventListener("click", ()=>{ settings.size=Math.min(30,settings.size+1); applySettings(); });
+$("sizeDown").addEventListener("click", ()=>{ settings.size=Math.max(15,settings.size-1); applySettings(); });
+$("lhUp").addEventListener("click", ()=>{ settings.lh = LH_STEPS[Math.min(LH_STEPS.length-1, LH_STEPS.indexOf(settings.lh)+1)]; applySettings(); });
+$("lhDown").addEventListener("click", ()=>{ settings.lh = LH_STEPS[Math.max(0, LH_STEPS.indexOf(settings.lh)-1)]; applySettings(); });
+document.querySelectorAll(".swatch").forEach(s=> s.addEventListener("click", ()=>{ settings.theme=s.dataset.themeVal; applySettings(); }));
+$("brightness").addEventListener("input", e=>{ settings.bright=+e.target.value; applySettings(); });
+
+/* ============================================================
+   Selection toolbar: highlight colors, note, copy, web
+   ============================================================ */
+let pendingSel = null;      // {text, rect} snapshot when toolbar opens
+const selToolbar = $("selToolbar");
+
+function closeSelToolbar(){ selToolbar.classList.remove("open"); pendingSel = null; }
+function selectionSnapshot(){
+  const sel = window.getSelection();
+  if(!sel || sel.isCollapsed) return null;
+  const text = sel.toString().replace(/\s+/g," ").trim();
+  if(text.length < 3) return null;
+  const range = sel.getRangeAt(0);
+  const inArticle = article.contains(range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentNode);
+  if(!inArticle) return null;
+  return { text, rect: range.getBoundingClientRect() };
+}
+function placeSelToolbar(){
+  const snap = selectionSnapshot();
+  if(!snap){ closeSelToolbar(); return; }
+  pendingSel = snap;
+  const loopback = snap.rect.top < 84;   // near the top: drop the pill below instead
+  const x = Math.min(Math.max(snap.rect.left + snap.rect.width/2, 150), window.innerWidth - 150);
+  const y = loopback ? snap.rect.bottom + 10 : snap.rect.top - 52;
+  selToolbar.style.left = x + "px";
+  selToolbar.style.top = Math.min(Math.max(y, 60), window.innerHeight - 60) + "px";
+  if(!selToolbar.classList.contains("open")){ selToolbar.classList.remove("drop"); void selToolbar.offsetWidth; selToolbar.classList.add("open"); }
+}
+document.addEventListener("selectionchange", placeSelToolbar);
+document.addEventListener("mouseup", e=>{
+  if(e.target.closest("#selToolbar")) return;
+  setTimeout(placeSelToolbar, 10);      // let selection settle
+});
+function applyHighlight(color){
+  if(!pendingSel) return;
+  state.highlights.push({ ch: state.current, text: pendingSel.text, color });
+  const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+  let n, done = false;
+  while((n = walker.nextNode()) && !done){ if(wrapOnce(n, pendingSel.text, `hl c-${color}`)) done = true; }
+  window.getSelection().removeAllRanges();
+  closeSelToolbar();
+  toast(done ? "Highlighted" : "Highlight saved");
+}
+selToolbar.querySelectorAll(".sel-color").forEach(b =>
+  b.addEventListener("click", ()=> applyHighlight(b.dataset.color)));
+$("selCopy").addEventListener("click", ()=>{
+  const t = pendingSel?.text || "";
+  closeSelToolbar();
+  try{ navigator.clipboard.writeText(t); }catch(_){}
+  toast(`Copied ${t.split(" ").length} words`);
+});
+$("selWeb").addEventListener("click", ()=>{
+  const q = pendingSel?.text || "";
+  closeSelToolbar();
+  toast(`Would open a web search: “${q.slice(0,40)}${q.length>40?"…":""}”`);
+});
+$("selNote").addEventListener("click", ()=>{
+  const snap = pendingSel;
+  if(!snap) return;
+  noteDraft = { snippet: snap.text, color: "brass" };
+  $("noteSnippet").textContent = `“${snap.text.slice(0,90)}${snap.text.length>90?"…":""}”`;
+  $("noteText").value = "";
+  window.getSelection().removeAllRanges();
+  closeSelToolbar();
+  dock.classList.add("collapsed");
+  openSheet(noteSheet);
+  setTimeout(()=> $("noteText").focus(), 380);
+});
+
+/* note composer */
+const noteSheet = $("noteSheet");
+let noteDraft = null;
+$("noteCancel").addEventListener("click", closeSheets);
+$("noteSave").addEventListener("click", ()=>{
+  const text = $("noteText").value.trim();
+  if(!text){ toast("Write something first — or cancel"); return; }
+  state.notes.unshift({ ch: state.current, snippet: noteDraft?.snippet || "", note: text, color: noteDraft?.color || "brass", createdAt: "just now" });
+  closeSheets();
+  renderContents("notes");
+  toast("Note saved to this chapter");
+});
+noteSheet.addEventListener("click", e=> e.stopPropagation());
+
+/* ============================================================
+   Find in chapter
+   ============================================================ */
+const searchBar = $("searchBar"), findInput = $("findInput"), findCount = $("findCount");
+let findState = null;     // { query, idx }
+function openFind(){ searchBar.classList.add("open"); if(findInput.value) runFind(findInput.value); else findInput.focus(); }
+function closeFind(){ clearFindDoc(); findState = null; searchBar.classList.remove("open"); if(document.activeElement === findInput) findInput.blur(); }
+function clearFindDoc(){
+  article.querySelectorAll(".find-hl, .find-current").forEach(sp=>{
+    const parent = sp.parentNode;
+    if(!parent) return;
+    sp.replaceWith(document.createTextNode(sp.textContent));
+    parent.normalize();
+  });
+}
+function runFind(query){
+  clearFindDoc();
+  findCount.textContent = "";
+  if(!query){ findState = null; return; }
+  const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+  let n, total = 0;
+  while((n = walker.nextNode())){
+    if(n.parentElement.closest(".continue-card")) continue;
+    total += wrapAll(n, query, "find-hl");
+  }
+  findState = { query, idx: total ? -1 : -2, total };
+  updateFindCount();
+  if(total) findGoto(0);
+}
+function wrapAll(textNode, query, cls){
+  const text = textNode.textContent, lower = text.toLowerCase(), q = query.toLowerCase();
+  if(!lower.includes(q)) return 0;
+  const frag = document.createDocumentFragment();
+  let last = 0, i = lower.indexOf(q), count = 0;
+  while(i >= 0){
+    frag.append(text.slice(last, i));
+    const span = document.createElement("span");
+    span.className = cls;
+    span.textContent = text.substr(i, q.length);
+    frag.append(span);
+    count++; last = i + q.length;
+    i = lower.indexOf(q, last);
+  }
+  frag.append(text.slice(last));
+  textNode.parentNode.replaceChild(frag, textNode);
+  return count;
+}
+function findGoto(dir){
+  if(!findState || findState.total < 1) return;
+  const spans = article.querySelectorAll(".find-hl");
+  findState.idx = (findState.idx + dir + spans.length) % spans.length;
+  spans.forEach((s,i)=> s.classList.toggle("find-current", i === findState.idx));
+  updateFindCount();
+  spans[findState.idx].scrollIntoView({ block:"center", behavior:"smooth" });
+}
+function updateFindCount(){
+  findCount.textContent = findState?.total ? `${findState.idx + 1} of ${findState.total}` : "no matches";
+}
+findInput.addEventListener("input", ()=> runFind(findInput.value.trim()));
+findInput.addEventListener("keydown", e=>{ if(e.key === "Enter") findGoto(1); });
+$("findNext").addEventListener("click", ()=> findGoto(1));
+$("findPrev").addEventListener("click", ()=> findGoto(-1));
+$("findClose").addEventListener("click", closeFind);
+
+/* ============================================================
+   Story Intelligence (Atlas) sheet
+   ============================================================ */
+function openAtlas(){
+  const list = $("atlasList");
+  const ch = chapters[state.current];
+  let recapHtml;
+  if(state.current === 0){
+    recapHtml = `<p>This road starts here — no recap to gather. Read a chapter first and the harbour will introduce itself.</p>`;
+  } else {
+    const read = chapters.slice(0, state.current).map(c=>`${c.n}. ${c.title}`).join(" · ");
+    const beat = RECAP_FLAVOR[(state.current * 3) % RECAP_FLAVOR.length];
+    recapHtml = `<p>So far, the salt roads took you through ${read}. ${beat}</p>
+      <p style="opacity:.75">End of the last chapter left you: ${beat.charAt(0).toLowerCase() + beat.slice(1)}</p>`;
+  }
+  const cast = CHARACTERS.filter(c => c.first <= state.current + 1);
+  list.innerHTML = `
+    <div class="atlas-recap">
+      <h4>Previously on this story</h4>
+      ${recapHtml}
+      <div class="row-btns">
+        <button class="pill-btn" style="background:none; color:var(--accent); border:1px solid var(--border)" id="atlasFull">Full recap</button>
+        <button class="pill-btn" id="atlasAsk">Ask about the story</button>
+      </div>
+    </div>
+    <div style="padding:16px 10px 2px; display:flex; align-items:baseline; justify-content:space-between;">
+      <h4 style="font-size:16px">Characters so far</h4>
+      <span style="font-size:12px; color:var(--text-dim)">${cast.length} of ${CHARACTERS.length} met</span>
+    </div>`;
+  const seen = {};
+  cast.forEach(c=>{
+    if(seen[c.name]) return; seen[c.name] = 1;
+    const row = document.createElement("div");
+    row.className = "char-row";
+    const initials = c.name.split(" ").filter(w=>/^[A-Z]/.test(w)).map(w=>w[0]).slice(0,2).join("");
+    row.innerHTML = `
+      <span class="char-av">${initials}</span>
+      <span class="meta"><span class="t">${c.name}</span><span class="s">${c.role} · first seen ch. ${c.first}</span></span>`;
+    row.addEventListener("click", ()=> toast(`${c.name} — full dossier lives in the Codex`));
+    list.appendChild(row);
+  });
+  const foot = document.createElement("div");
+  foot.className = "atlas-foot";
+  foot.innerHTML = `<button id="atlasCodex">See all in the Codex →</button>`;
+  list.appendChild(foot);
+  list.querySelector("#atlasFull").addEventListener("click", ()=> toast("Full recap would open as a story page"));
+  list.querySelector("#atlasAsk").addEventListener("click", ()=> toast("Ask about the story — this opens ChatScreen in the app"));
+  list.querySelector("#atlasCodex").addEventListener("click", ()=> toast("The Codex is another screen in the app"));
+  dock.classList.add("collapsed");
+  openSheet(atlasSheet);
+}
+const atlasSheet = $("atlasSheet");
+
+/* ============================================================
+   More menu + redownload
+   ============================================================ */
+const moreMenu = $("moreMenu");
+function closeMore(){ moreMenu.classList.remove("open"); }
+moreMenu.addEventListener("click", e=> e.stopPropagation());
+document.addEventListener("click", e=>{
+  if(!e.target.closest("#moreMenu") && !e.target.closest("#btnMore")) closeMore();
+});
+$("miFind").addEventListener("click", ()=>{ closeMore(); srchOpen(); });
+$("miAtlas").addEventListener("click", ()=>{ closeMore(); openAtlas(); });
+$("miSettings").addEventListener("click", ()=>{ closeMore(); openSheet(readingSheet); });
+function srchOpen(){ closeSheets(); openFind(); }
+$("miRedownload").addEventListener("click", ()=>{
+  closeMore(); dock.classList.add("collapsed");
+  let p = 0;
+  const iv = setInterval(()=>{
+    p = Math.min(100, p + 12 + Math.round(Math.random()*14));
+    toast(p >= 100 ? "All 28 chapters re-synced ✓" : `Redownloading The Salt Roads · ${p}%`, p >= 100 ? 2400 : 500);
+    if(p >= 100) clearInterval(iv);
+  }, 480);
+});
+
+/* toast helper */
+let toastT = null;
+function toast(msg, ms=2400){
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastT);
+  toastT = setTimeout(()=> el.classList.remove("show"), ms);
+}
+
+/* ============================================================
+   Keyboard
+   ============================================================ */
+document.addEventListener("keydown", e=>{
+  if(e.target.matches("input, textarea")) return;
+  if((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")){ e.preventDefault(); srchOpen(); return; }
+  switch(e.key){
+    case "ArrowLeft": jumpChapter(state.current-1); break;
+    case "ArrowRight": jumpChapter(state.current+1); break;
+    case "t": case "T": {
+      const i = state.themeOrder.indexOf(settings.theme);
+      settings.theme = state.themeOrder[(i+1)%state.themeOrder.length];
+      applySettings(); break;
+    }
+    case "Escape":
+      if(searchBar.classList.contains("open")){ closeFind(); break; }
+      closeSheets(); closeMore(); closeSelToolbar();
+      if(state.autoScroll) autoStop(); else dock.classList.add("collapsed");
+      break;
+    case " ": e.preventDefault(); narrToggle(); break;
+  }
+});
+
+/* ============================================================
+   Boot
+   ============================================================ */
+applySettings();
+renderDock();
+renderSpine();
+renderChapter(state.current,{animate:false});
+setTimeout(()=>hint.classList.add("gone"), 6000);
+// settle at the demo's opening position (~42% of ch. 3)
+setTimeout(()=>{
+  const m=getScrollMax(); window.scrollTo({top:m*0.42});
+  lastY=window.scrollY;
+}, 60);
+</script>
+</body>
+</html>

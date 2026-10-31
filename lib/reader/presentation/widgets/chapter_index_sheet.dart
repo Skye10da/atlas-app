@@ -95,7 +95,8 @@ class ChapterIndexSheet extends HookWidget {
       ];
     }, [q, chapters]);
 
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Column(
       children: [
@@ -108,10 +109,16 @@ class ChapterIndexSheet extends HookWidget {
           ),
         ),
         Expanded(
-          child: ListView.separated(
+          // itemExtent is what keeps this list lazy *and* lets an initial
+          // mid-book scroll offset land instantly: without it the sliver has
+          // to lay out every row from index 0 up to the current chapter just
+          // to find its position (measured: ~2.3 ms/row ⇒ ~5 s at 2000
+          // chapters). The old 1px Divider is folded into each tile so the
+          // global row math stays 57 px.
+          child: ListView.builder(
             controller: scrollController,
             itemCount: matches.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemExtent: _itemExtent,
             itemBuilder: (context, i) {
               final (originalIndex, chapter) = matches[i];
               final isCurrent = originalIndex == currentChapterIndex;
@@ -124,70 +131,81 @@ class ChapterIndexSheet extends HookWidget {
                 _ => (null, BookBadgeVariant.neutral),
               };
 
-              return ListTile(
-                selected: isCurrent,
-                selectedTileColor: colorScheme.primary.withValues(alpha: 0.08),
-                selectedColor: colorScheme.primary,
-                leading: CircleAvatar(
-                  radius: 14,
-                  backgroundColor: isCurrent
-                      ? colorScheme.primary
-                      : isRead
-                      ? colorScheme.primary.withValues(alpha: 0.12)
-                      : colorScheme.surfaceContainerHighest,
-                  child: isRead
-                      ? Icon(
-                          Icons.check,
-                          size: 14,
-                          color: colorScheme.primary,
-                        )
-                      : Text(
-                          '$chapterNum',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: isCurrent
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: isCurrent
-                                ? colorScheme.onPrimary
-                                : colorScheme.onSurfaceVariant,
+              return Column(
+                children: [
+                  Expanded(
+                    child: ListTile(
+                      selected: isCurrent,
+                      selectedTileColor: colorScheme.primary.withValues(
+                        alpha: 0.08,
+                      ),
+                      selectedColor: colorScheme.primary,
+                      leading: CircleAvatar(
+                        radius: 14,
+                        backgroundColor: isCurrent
+                            ? colorScheme.primary
+                            : isRead
+                            ? colorScheme.primary.withValues(alpha: 0.12)
+                            : colorScheme.surfaceContainerHighest,
+                        child: isRead
+                            ? Icon(
+                                Icons.check,
+                                size: 14,
+                                color: colorScheme.primary,
+                              )
+                            : Text(
+                                '$chapterNum',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: isCurrent
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isCurrent
+                                      ? colorScheme.onPrimary
+                                      : colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              chapter.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: isCurrent
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                                color: isCurrent
+                                    ? colorScheme.primary
+                                    : isRead
+                                    ? colorScheme.onSurface.withValues(
+                                        alpha: 0.7,
+                                      )
+                                    : colorScheme.onSurface,
+                              ),
+                            ),
                           ),
-                        ),
-                ),
-                title: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        chapter.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: isCurrent
-                              ? FontWeight.w700
-                              : FontWeight.w400,
-                          color: isCurrent
-                              ? colorScheme.primary
-                              : isRead
-                              ? colorScheme.onSurface.withValues(alpha: 0.7)
-                              : colorScheme.onSurface,
-                        ),
+                          if (statusBadge != null) ...[
+                            const SizedBox(width: 8),
+                            BookBadge(
+                              label: statusBadge,
+                              variant: badgeVariant,
+                              isCompact: true,
+                            ),
+                          ],
+                        ],
                       ),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        onChapterTap(originalIndex);
+                      },
                     ),
-                    if (statusBadge != null) ...[
-                      const SizedBox(width: 8),
-                      BookBadge(
-                        label: statusBadge,
-                        variant: badgeVariant,
-                        isCompact: true,
-                      ),
-                    ],
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onChapterTap(originalIndex);
-                },
+                  ),
+                  Container(height: 1, color: theme.dividerColor),
+                ],
               );
             },
           ),

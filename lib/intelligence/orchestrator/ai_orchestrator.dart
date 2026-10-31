@@ -52,6 +52,7 @@ class AiOrchestrator {
           userPrompt: prompt.userPrompt,
           model: task.preferredModel,
           temperature: task.temperature,
+          cacheSystemPrompt: prompt.cacheSystemPrompt,
         ),
       );
     } catch (e) {
@@ -65,6 +66,7 @@ class AiOrchestrator {
                 userPrompt: prompt.userPrompt,
                 model: task.preferredModel,
                 temperature: task.temperature,
+                cacheSystemPrompt: prompt.cacheSystemPrompt,
               ),
             );
           } catch (_) {
@@ -77,6 +79,13 @@ class AiOrchestrator {
   }
 
   /// Streams token deltas from the active available provider.
+  ///
+  /// Streaming fallback ladder:
+  /// 1. The selected provider's stream runs; if it fails *before* emitting a
+  ///    first delta, the same provider's non-streaming completion is tried,
+  ///    then other available providers (stream, then completion).
+  /// 2. Once any delta has been emitted, a mid-stream failure is rethrown —
+  ///    silently restarting would duplicate output the user already saw.
   Stream<String> executeStream(AiTask task) async* {
     final prompt = await _assembler.assemblePrompt(
       position: task.position,
@@ -89,14 +98,37 @@ class AiOrchestrator {
       throw StateError('No AI providers configured or available.');
     }
 
-    yield* provider.completeStream(
-      AiPrompt(
-        systemPrompt: prompt.systemPrompt,
-        userPrompt: prompt.userPrompt,
-        model: task.preferredModel,
-        temperature: task.temperature,
-      ),
-    );
+    final candidates = <AiProvider>[
+      provider,
+      for (final p in _registry.allProviders)
+        if (p.id != provider.id && await p.isAvailable()) p,
+    ];
+
+    Object? lastError;
+    for (final candidate in candidates) {
+      var emitted = false;
+      // 1. Try the streaming path.
+      try {
+        await for (final chunk in candidate.completeStream(prompt)) {
+          emitted = true;
+          yield chunk;
+        }
+        return;
+      } catch (e) {
+        if (emitted) rethrow;
+        lastError = e;
+      }
+
+      // 2. Same provider without streaming (some gateways stream badly but
+      //    complete fine).
+      try {
+        yield await candidate.complete(prompt);
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError ?? StateError('All AI providers failed.');
   }
 }
 

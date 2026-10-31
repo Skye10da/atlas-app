@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:atlas_app/browser/domain/services/headless_webview_pool.dart';
@@ -55,6 +57,9 @@ void main() {
     test('evicts least-recently-used idle engine when maxViews is exceeded', () async {
       final pool = HeadlessWebViewPool(
         maxViews: 2,
+        // Opt in explicitly: eviction is disabled by default on Windows
+        // hosts (native-crash mitigation in the inappwebview plugin).
+        allowEvictionDispose: true,
         engineFactory: ({initialUrl}) => FakeBackgroundEngine(),
       );
 
@@ -78,8 +83,32 @@ void main() {
       pool.dispose();
     });
 
-    test('dispose disposes all pooled engines', () async {
-      final engines = <FakeBackgroundEngine>[];
+    test('default pool keeps idle engines warm on Windows (no dispose)',
+        () async {
+      if (!Platform.isWindows) return; // policy only applies to Windows hosts
+
+      final pool = HeadlessWebViewPool(
+        maxViews: 2,
+        engineFactory: ({initialUrl}) => FakeBackgroundEngine(),
+      );
+
+      final e1 = await pool.acquire(origin1) as FakeBackgroundEngine;
+      await pool.acquire(origin2);
+      pool.release(origin1);
+
+      // Acquiring a third origin must NOT dispose the idle engine — the
+      // inappwebview Windows plugin crashes natively on teardown clashes.
+      await pool.acquire(origin3);
+      expect(e1.disposed, isFalse);
+      expect(pool.hasOrigin(origin1), isTrue);
+      expect(pool.size, 3);
+
+      pool.release(origin2);
+      pool.release(origin3);
+      pool.dispose();
+    });
+
+    test('dispose disposes all pooled engines', () async {      final engines = <FakeBackgroundEngine>[];
       final pool = HeadlessWebViewPool(
         maxViews: 3,
         engineFactory: ({initialUrl}) {

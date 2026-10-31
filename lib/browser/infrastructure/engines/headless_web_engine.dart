@@ -8,13 +8,19 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/browser/domain/entities/web_selection.dart';
+import 'package:atlas_app/browser/domain/services/webview_offline_guard.dart';
 
 /// A [BrowserWebEngine] implementation backed by [HeadlessInAppWebView].
 ///
 /// Operates completely headlessly without requiring any widget in the Flutter
 /// widget tree, eliminating off-screen 1x1 pixel layout hacks.
 class HeadlessWebEngine implements BrowserWebEngine {
-  HeadlessWebEngine({this.initialUrl});
+  HeadlessWebEngine({this.initialUrl}) {
+    // Register for the offline guard: headless views are blanked entirely
+    // on connectivity loss — their page JS polls continuously and that
+    // failing-request stream is the plugin's native crash carrier.
+    WebViewOfflineGuard.instance.watch(this, OfflinePauseBehavior.headless);
+  }
 
   final String? initialUrl;
   HeadlessInAppWebView? _headless;
@@ -31,6 +37,28 @@ class HeadlessWebEngine implements BrowserWebEngine {
   final _isLoading = ValueNotifier<bool>(false);
 
   final Map<String, JsHandlerCallback> _jsHandlers = {};
+
+  /// Serializes headless WebView2 creation across every engine instance.
+  ///
+  /// flutter_inappwebview's Windows plugin crashes natively (access
+  /// violation, 0xc0000005 in `flutter_inappwebview_windows_plugin.dll`)
+  /// when several headless WebView2 environments are created/started
+  /// concurrently — exactly what the origin-pool does during a chapter
+  /// download. Gating create+`run()` to one engine at a time avoids that
+  /// race while still allowing parallel *navigation* on running engines.
+  static Future<void> _creationGate = Future<void>.value();
+
+  static Future<T> _gatedCreation<T>(Future<T> Function() action) {
+    final prior = _creationGate;
+    final done = Completer<void>();
+    _creationGate = done.future;
+    return prior
+        .then(
+          (_) => action(),
+          onError: (_) => action(),
+        )
+        .whenComplete(done.complete);
+  }
 
   Future<void> _ensureInitialized() async {
     if (_disposed) return;
@@ -60,6 +88,10 @@ class HeadlessWebEngine implements BrowserWebEngine {
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
 
+    // A concurrent dispose() (pool eviction / service teardown) during the
+    // deferral above must not leave a half-initialized engine behind.
+    if (_disposed) return;
+
     final completer = Completer<void>();
     _initCompleter = completer;
     // Retry once on Windows CoInitialize race — first `run()` often throws
@@ -67,7 +99,8 @@ class HeadlessWebEngine implements BrowserWebEngine {
     var attempts = (!kIsWeb && Platform.isWindows) ? 2 : 1;
     Object? lastError;
     while (attempts-- > 0) {
-      try {
+      bool haltedByDispose = false;
+      Future<void> createAndRun() async {
         _headless = HeadlessInAppWebView(
           initialUrlRequest: initialUrl != null
               ? URLRequest(url: WebUri(initialUrl!))
@@ -132,8 +165,29 @@ class HeadlessWebEngine implements BrowserWebEngine {
             callback: entry.value,
           );
         }
+      }
+
+      try {
+        if (!kIsWeb && Platform.isWindows) {
+          await _gatedCreation(() async {
+            // Disposed while waiting for the global creation gate.
+            if (_disposed) {
+              haltedByDispose = true;
+              return;
+            }
+            await createAndRun();
+          });
+        } else {
+          await createAndRun();
+        }
+        if (haltedByDispose || _disposed) {
+          // Disposed mid-creation: complete so waiters fall through to
+          // no-op controller calls instead of hanging forever.
+          if (!completer.isCompleted) completer.complete();
+          return await completer.future;
+        }
         completer.complete();
-        return completer.future;
+        return await completer.future;
       } catch (e) {
         lastError = e;
         try {
@@ -268,7 +322,21 @@ class HeadlessWebEngine implements BrowserWebEngine {
 
   @override
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
+    WebViewOfflineGuard.instance.unwatch(this);
+    // An in-flight `_ensureInitialized` awaiter must not hang: complete the
+    // pending init quietly so callers fall through to no-op controller calls.
+    final pendingInit = _initCompleter;
+    if (pendingInit != null && !pendingInit.isCompleted) {
+      pendingInit.complete();
+    }
+    // Quiesce an active navigation before freeing the native view — calling
+    // WebView2 teardown while a load/composition is in flight is one of the
+    // flutter_inappwebview_windows native-crash triggers.
+    try {
+      _controller?.stopLoading();
+    } catch (_) {}
     _headless?.dispose();
     _headless = null;
     _controller = null;

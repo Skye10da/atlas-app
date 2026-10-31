@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
@@ -10,6 +11,7 @@ import 'package:atlas_app/core/content_engine/block_card/block_card_detector.dar
 import 'package:atlas_app/core/content_engine/block_card/block_card_intelligence.dart';
 import 'package:atlas_app/core/content_engine/block_card/block_card_model.dart';
 import 'package:atlas_app/core/database/providers.dart';
+import 'package:atlas_app/intelligence/application/ingestion/story_backfill_service.dart';
 import 'package:atlas_app/intelligence/domain/entities/correction_record.dart';
 import 'package:atlas_app/intelligence/presentation/providers/intelligence_providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -53,6 +55,59 @@ extension ChapterLoadPhaseX on ChapterLoadPhase {
   };
 }
 
+/// Bounded fail-safe timeouts for the chapter finalization chain.
+///
+/// Root-cause history for the "stuck on Preparing reader" reader bug: the
+/// finalization chain inside [readerChapterContentProvider]
+/// (`_applyTranslation` → `getBookById` → `targetLanguageProvider` →
+/// translation, then `_applyAtlasGlossary`) used to await SharedPreferences-
+/// and drift-backed lookups **without any bound**. When one of those
+/// under­lying futures wedged (cold-start platform plugins, busy background
+/// database isolate), the provider body never returned and the reader stayed
+/// on "Preparing reader" forever — the only workaround was closing and
+/// reopening the reader, because reopening disposes the element and by then
+/// the blocked dependency had resolved.
+///
+/// Every await in that chain is therefore capped and capped below the whole
+/// chain's own deadline, so the provider always resolves (fail-soft to the
+/// raw chapter text). Mutable rather than `const` so tests can shrink the
+/// durations; tests must call [reset] when done.
+@visibleForTesting
+class ReaderLoadFailSafes {
+  static const _translationEnabledDefault = Duration(seconds: 15);
+  static const _glossaryDefault = Duration(seconds: 15);
+  static const _bookLookupDefault = Duration(seconds: 5);
+  static const _targetLanguageDefault = Duration(seconds: 3);
+  static const _finalizationDefault = Duration(seconds: 30);
+
+  /// `translationEnabledProvider(chapter.bookId).future` inside
+  /// [_applyTranslation].
+  static Duration translationEnabled = _translationEnabledDefault;
+
+  /// `atlasGlossaryProvider(bookId).future` inside [_applyAtlasGlossary].
+  static Duration glossary = _glossaryDefault;
+
+  /// `getBookById` (drift) inside [_applyTranslation].
+  static Duration bookLookup = _bookLookupDefault;
+
+  /// `targetLanguageProvider(bookId).future` inside [_applyTranslation] and
+  /// [_targetLanguageCode].
+  static Duration targetLanguage = _targetLanguageDefault;
+
+  /// The whole translation + glossary transform chain inside
+  /// [readerChapterContentProvider]'s `finalizeContent`.
+  static Duration finalization = _finalizationDefault;
+
+  /// Restores every duration to its production default.
+  static void reset() {
+    translationEnabled = _translationEnabledDefault;
+    glossary = _glossaryDefault;
+    bookLookup = _bookLookupDefault;
+    targetLanguage = _targetLanguageDefault;
+    finalization = _finalizationDefault;
+  }
+}
+
 /// Publishes the current load stage for a chapter so its shimmer + status
 /// overlay can reflect real backend progress.
 final chapterLoadPhaseProvider = StateProvider.family<ChapterLoadPhase, ChapterEntity>(
@@ -69,6 +124,43 @@ final readerChapterContentProvider = FutureProvider.family<String, ChapterEntity
       ref.read(chapterLoadPhaseProvider(chapter).notifier).state = phase;
     } catch (_) {}
   });
+
+  // Runs translation + glossary and then feeds the final display text into
+  // the Layer 1 story-memory pipeline (fire-and-forget, idempotent per
+  // book/read-through/chapter/content-hash), so Atlas Intelligence keeps
+  // pace with what the reader actually displays no matter which fetch path
+  // (cache, redownload, network) produced the text.
+  //
+  // Deadline discipline (root cause of the historic "stuck on Preparing
+  // reader" bug): every await inside is individually capped (see
+  // [ReaderLoadFailSafes]) and the whole chain runs under
+  // [ReaderLoadFailSafes.finalization]. If anything wedges anyway, we fail
+  // soft to the raw chapter text, so `finalizeContent` can never hang the
+  // provider and the reader can never sit on "Preparing reader" until it is
+  // closed and reopened.
+  Future<String> finalizeContent(String rawText) async {
+    String display;
+    try {
+      display = await _applyAtlasGlossary(
+        ref,
+        chapter.bookId,
+        await _applyTranslation(ref, chapter, rawText),
+      ).timeout(ReaderLoadFailSafes.finalization, onTimeout: () => rawText);
+    } catch (_) {
+      display = rawText;
+    }
+    // "Preparing reader" is only true once the display text is final: the
+    // transforms above run while the pill still shows "Processing text".
+    // Publishing it here (instead of before the transforms) also keeps the
+    // pill honest about which stage the work is actually in.
+    publish(ChapterLoadPhase.preparing);
+    unawaited(_scheduleStoryMemoryIngestion(
+      ref,
+      chapter: chapter,
+      displayText: display,
+    ));
+    return display;
+  }
 
   // Fast path: check local cache directly first.
   // When neighbor or current chapter is triggered, the first call is to fetch
@@ -144,14 +236,11 @@ final readerChapterContentProvider = FutureProvider.family<String, ChapterEntity
           content.contains('The content file was not found') ||
           content.trim() == '# Chapter Content\n\nThe content file was not found.';
       if (!isPlaceholder) {
-        // Cached content found: jump straight to processing and return without network.
+        // Cached content found: jump straight to processing and return without
+        // network. `finalizeContent` publishes "preparing" itself once the
+        // display text is final.
         publish(ChapterLoadPhase.processing);
-        publish(ChapterLoadPhase.preparing);
-        return await _applyAtlasGlossary(
-          ref,
-          chapter.bookId,
-          await _applyTranslation(ref, chapter, content),
-        );
+        return await finalizeContent(content);
       }
     }
   }
@@ -188,12 +277,7 @@ final readerChapterContentProvider = FutureProvider.family<String, ChapterEntity
       if (retry is Success) {
         final retried = await repo.getChapterContent(chapter.contentPath);
         if (retried is Success<String>) {
-          publish(ChapterLoadPhase.preparing);
-          return await _applyAtlasGlossary(
-            ref,
-            chapter.bookId,
-            await _applyTranslation(ref, chapter, retried.value),
-          );
+          return await finalizeContent(retried.value);
         }
         // Fall through to throw the retried failure below.
         if (retried is Failure<String>) throw retried.error;
@@ -203,13 +287,8 @@ final readerChapterContentProvider = FutureProvider.family<String, ChapterEntity
       if (retry is Failure<void>) throw retry.error;
     }
   }
-  publish(ChapterLoadPhase.preparing);
   return switch (result) {
-    Success(value: final content) => await _applyAtlasGlossary(
-      ref,
-      chapter.bookId,
-      await _applyTranslation(ref, chapter, content),
-    ),
+    Success(value: final content) => await finalizeContent(content),
     Failure(error: final error) => throw error,
   };
 });
@@ -267,6 +346,9 @@ final chapterBlockCardSpansProvider = Provider.family<List<ContentSpan>, Chapter
       if (_blockCardSpanCache.length > 30) {
         _blockCardSpanCache.remove(_blockCardSpanCache.keys.first);
       }
+      // Sync CPU work inside a build — a timeout can't preempt it, so a slow
+      // scan here freezes the whole isolate on the very frame that should
+      // paint the chapter text.
       final parsed = BlockCardDetector().processSync(content);
       if (corrections.isEmpty) {
         _blockCardSpanCache[key] = parsed;
@@ -297,24 +379,63 @@ Future<String> _applyTranslation(Ref ref, ChapterEntity chapter, String content)
   // Fast path: translation off => no drift, no network. Saves 1 drift query
   // on every cached-chapter open (the common offline, already-downloaded case).
   //
-  // `ref.read` (not `watch`): awaiting `.future` with `watch` registers a
-  // dependency, so the first time `translationEnabledProvider` resolves it
-  // invalidates `readerChapterContentProvider` and re-runs the whole load
-  // (re-publishing "preparing reader"). `read` awaits the value once
-  // without re-triggering. The timeout is a fail-safe so a cold/slow
-  // SharedPreferences can never stall the chapter on "Preparing reader".
-  final enabled = await ref
-      .read(translationEnabledProvider(chapter.bookId).future)
-      .timeout(const Duration(seconds: 15), onTimeout: () => false);
+  // Every lookup below is both `read`-based (never `watch` — a watch would
+  // invalidate and re-run the whole chapter load the moment the dependency
+  // first resolves, re-publishing a phase mid-load) AND capped by a
+  // [ReaderLoadFailSafes] duration. That last part is the actual fix for the
+  // historic "stuck on Preparing reader" bug: `getBookById` (drift) and
+  // `targetLanguageProvider` (SharedPreferences) used to be awaited without
+  // any bound; when either wedged the provider never returned and the only
+  // workaround was closing and reopening the reader.
+  //
+  // Each provider's already-resolved value is used when present (warm
+  // sessions skip the awaits entirely); otherwise its `.future` is awaited
+  // under a fail-safe timeout with a fail-soft fallback, so a cold/slow or
+  // wedged dependency can never stall the chapter — it only skips the
+  // transform for this read.
+  final enabledSyncValue = ref
+      .read(translationEnabledProvider(chapter.bookId))
+      .valueOrNull;
+  final enabled = enabledSyncValue ??
+      await ref
+          .read(translationEnabledProvider(chapter.bookId).future)
+          .timeout(
+            ReaderLoadFailSafes.translationEnabled,
+            onTimeout: () => false,
+          );
   if (!enabled) return content;
 
-  final bookResult = await ref.read(readerRepositoryProvider).getBookById(chapter.bookId);
-  if (bookResult is! Success<BookEntity>) return content;
-  final book = bookResult.value;
+  BookEntity? book;
+  try {
+    final bookResult = await ref
+        .read(readerRepositoryProvider)
+        .getBookById(chapter.bookId)
+        .timeout(
+          ReaderLoadFailSafes.bookLookup,
+          onTimeout: () => throw TimeoutException(
+            'ReaderLoadFailSafes.bookLookup exceeded',
+          ),
+        );
+    if (bookResult is Success<BookEntity>) book = bookResult.value;
+  } catch (_) {
+    // Wedged or failed book lookup: skip translation rather than stall.
+    return content;
+  }
+  if (book == null) return content;
   if (isWtrLabSource(sourceUrl: book.sourceUrl, sourceName: book.sourceName)) {
     return content;
   }
-  final language = await ref.read(targetLanguageProvider(chapter.bookId).future);
+
+  final languageAsyncValue = ref
+      .read(targetLanguageProvider(chapter.bookId))
+      .valueOrNull;
+  final language = languageAsyncValue ??
+      await ref
+          .read(targetLanguageProvider(chapter.bookId).future)
+          .timeout(
+            ReaderLoadFailSafes.targetLanguage,
+            onTimeout: () => null,
+          );
   if (language == null) return content;
 
   final service = ref.watch(googleTranslateServiceProvider);
@@ -343,16 +464,25 @@ String _sourceLanguageOf(BookEntity book) {
 /// so the first glossary resolution does not invalidate and re-run the chapter
 /// load (the "Preparing reader" stall); glossary mutations instead invalidate
 /// [readerChapterContentProvider] explicitly (see `glossary_tab.dart`).
+///
+/// Bounded: the glossary load is capped by
+/// [ReaderLoadFailSafes.glossary] (fail-soft: empty glossary → unchanged
+/// content), so a wedged SharedPreferences-backed load can never hang the
+/// chapter between "preparing" and display. An already-resolved value (warm
+/// session) skips the await entirely.
 Future<String> _applyAtlasGlossary(Ref ref, String bookId, String content) async {
   try {
-    final glossary = await ref
-        .read(atlasGlossaryProvider(bookId).future)
-        .timeout(
-          const Duration(seconds: 15),
-          onTimeout: () => const <AtlasGlossaryEntry>[],
-        );
+    final glossary =
+        ref.read(atlasGlossaryProvider(bookId)).valueOrNull ??
+        await ref
+            .read(atlasGlossaryProvider(bookId).future)
+            .timeout(
+              ReaderLoadFailSafes.glossary,
+              onTimeout: () => const <AtlasGlossaryEntry>[],
+            );
     if (glossary.isEmpty) return content;
-    return AtlasGlossaryApplier.apply(content, glossary);
+    final applied = AtlasGlossaryApplier.apply(content, glossary);
+    return applied;
   } catch (_) {
     return content;
   }
@@ -393,9 +523,17 @@ Future<Result<void>> _downloadChapterWithSessionRefresh(
 ///
 /// `ref.read` (not `watch`) — awaiting the `.future` with `watch` would
 /// invalidate this provider the moment `targetLanguageProvider` first
-/// resolves, re-running the load before the download even started.
+/// resolves, re-running the load before the download even started. Capped
+/// by [ReaderLoadFailSafes.targetLanguage]: a wedged lookup must never stall
+/// the download start; fail-soft fallback downloads in the original language.
 Future<String?> _targetLanguageCode(Ref ref, String bookId) async {
-  return (await ref.read(targetLanguageProvider(bookId).future))?.code;
+  return (await ref
+          .read(targetLanguageProvider(bookId).future)
+          .timeout(
+            ReaderLoadFailSafes.targetLanguage,
+            onTimeout: () => null,
+          ))
+      ?.code;
 }
 
 /// Explicit redownload controller — force-overwrites the cached file even
@@ -518,8 +656,122 @@ void prefetchNeighboringChapters(WidgetRef ref, ChapterEntity current) {
   for (var i = start; i <= end; i++) {
     if (i == current.index) continue;
     final neighbor = chapters[i];
+    // Disk-only prefetch: never start network downloads in the background
+    // the moment the reader opens. Chapters whose file is missing are
+    // fetched on demand when actually visited (the paged layout's
+    // allowRemoteFetch path handles reconciliation there). This also removed
+    // a crash trigger: auto-fetching missing-file chapters of "downloaded" books at open
+    // could hard-crash the app on Windows.
+    if (!File(neighbor.contentPath).existsSync()) continue;
     // Fire-and-forget: the provider handles caching and dedup internally.
     ref.read(readerChapterContentProvider(neighbor).future);
+  }
+}
+
+/// Feed-and-forget Layer 1 story-memory ingestion for one chapter of final
+/// display text. Best-effort by design: extraction, scene indexing and log
+/// bookkeeping run on a background isolate through
+/// [StoryMemoryIngestionService] and must never surface to the reader UI,
+/// including when this provider's [ref] has already been disposed.
+Future<void> _scheduleStoryMemoryIngestion(
+  Ref ref, {
+  required ChapterEntity chapter,
+  required String displayText,
+}) async {
+  try {
+    final service = ref.read(storyMemoryIngestionServiceProvider);
+    final bookId = chapter.bookId;
+    final rt = await ref.read(activeReadThroughProvider(bookId).future);
+    await service.ingestChapter(
+      bookId: bookId,
+      readThroughId: rt.id,
+      chapterIndex: chapter.index,
+      chapterText: displayText,
+    );
+  } catch (_) {
+    // Intentionally silent: non-critical background work.
+  }
+}
+
+/// The display-driven ingestion only sees chapters the reader actually opens.
+/// The backfill pass covers the rest — chapters cached by bulk downloads and
+/// prefetches — reading cached files only, rate-limited and cancellable.
+final storyBackfillServiceProvider = Provider<StoryBackfillService>((ref) {
+  return StoryBackfillService(
+    memoryRepository: ref.watch(storyMemoryRepositoryProvider),
+    ingestionService: ref.watch(storyMemoryIngestionServiceProvider),
+  );
+});
+
+/// Foreground helper: safe to call from widgets — the service deduplicates
+/// concurrent runs and the ingestion log makes repeated passes no-ops.
+Future<void> maybeStartStoryBackfill(WidgetRef ref, String bookId) async {
+  try {
+    final chapters = await ref.read(novelChaptersProvider(bookId).future);
+    if (chapters.isEmpty) return;
+    final rt = await ref.read(activeReadThroughProvider(bookId).future);
+    // Consolidation sweep first: it fixes readers-visible duplicate
+    // entities immediately (the common case on books ingested before the
+    // merge pipeline existed) while the backfill runs afterwards.
+    unawaited(_consolidateStoryEntities(ref, bookId, rt.id));
+    final service = ref.read(storyBackfillServiceProvider);
+    unawaited(service.backfillBook(
+      bookId: bookId,
+      readThroughId: rt.id,
+      totalChapters: chapters.length,
+      chapterTextResolver: (index) =>
+          _cachedChapterText(chapters, index),
+      onProgress: (progress) {
+        try {
+          ref.read(storyBackfillProgressProvider(bookId).notifier).state =
+              progress;
+        } catch (_) {
+          // Provider may be gone (page navigated away): the run continues.
+        }
+      },
+    ).whenComplete(() {
+      // Chapters ingested by this run may have spawned new duplicates —
+      // consolidate once more when the dust settles.
+      unawaited(_consolidateStoryEntities(ref, bookId, rt.id));
+    }));
+  } catch (_) {
+    // Intentionally silent.
+  }
+}
+
+/// Fire-and-forget whole-book entity deduplication sweep (see
+/// [EntityConsolidationService]). Best-effort: failures are swallowed —
+/// the next details-page open re-tries.
+Future<void> _consolidateStoryEntities(
+  WidgetRef ref,
+  String bookId,
+  String readThroughId,
+) async {
+  try {
+    await ref
+        .read(entityConsolidationServiceProvider)
+        .consolidateBook(bookId: bookId, readThroughId: readThroughId);
+  } catch (_) {
+    // Intentionally silent: non-critical background work.
+  }
+}
+
+/// Reads a chapter's cached file for backfill ingestion. Never hits the
+/// network or the display pipeline (translation/glossary) — backfill runs on
+/// the same raw text the cache already holds. Fully async: a synchronous
+/// chapter-file read here used to jank the UI isolate on every backfill step.
+Future<String?> _cachedChapterText(List<ChapterEntity> chapters, int index) async {
+  if (index < 0 || index >= chapters.length) return null;
+  try {
+    final file = File(chapters[index].contentPath);
+    if (!await file.exists() || await file.length() <= 0) return null;
+    final text = await file.readAsString();
+    if (text.trim().isEmpty || text.contains('The content file was not found')) {
+      return null;
+    }
+    return text;
+  } catch (_) {
+    return null;
   }
 }
 

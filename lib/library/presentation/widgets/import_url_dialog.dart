@@ -1206,7 +1206,7 @@ class _ImportUrlSheet extends HookConsumerWidget {
           TextButton.icon(
             onPressed: () {
               Navigator.of(context).pop();
-              context.push('/sources');
+              context.push('/search');
             },
             icon: Icon(Icons.explore_rounded, size: 18, color: cs.primary),
             label: Text(

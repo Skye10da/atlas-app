@@ -30,7 +30,8 @@ class ContinueReadingCard extends ConsumerWidget {
 
         final colors = Theme.of(context).colorScheme;
         final textTheme = Theme.of(context).textTheme;
-        void openReader() => _openReader(context, ref, chapter, isContinue);
+        void openReader() =>
+            openNovelReader(context, ref, book, chapter, isContinue, onReturn);
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -85,34 +86,67 @@ class ContinueReadingCard extends ConsumerWidget {
       },
     );
   }
+}
 
-  /// Pushes the reader and, once it's popped, refreshes anything that
-  /// depends on this book's reading progress. `context.push` returns a
-  /// Future that resolves only when the pushed route is actually removed
-  /// from the navigator, which — now that the reader flushes its progress
-  /// save before completing its own pop — happens after the write has
-  /// landed, so the invalidation below is guaranteed to see fresh data
-  /// instead of racing the save.
-  Future<void> _openReader(
-    BuildContext context,
-    WidgetRef ref,
-    ChapterEntity? chapter,
-    bool isContinue,
-  ) async {
-    final base = '/reader/${book.id}';
-    String route = base;
-    if (isContinue) {
-      final progress = book.progress01 * 100;
-      final params = <String, String>{'chapterId': chapter!.id};
-      if (progress > 0) {
-        params['progress'] = book.progress01.toStringAsFixed(4);
-      }
-      final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
-      route = query.isNotEmpty ? '$base?$query' : base;
+/// Pushes the reader and, once it's popped, refreshes anything that depends on
+/// this book's reading progress. `context.push` resolves only when the pushed
+/// route is actually removed from the navigator, which (now that the reader
+/// flushes its progress save before completing its own pop) happens after the
+/// write has landed, so the invalidation below sees fresh data instead of
+/// racing the save.
+Future<void> openNovelReader(
+  BuildContext context,
+  WidgetRef ref,
+  BookEntity book,
+  ChapterEntity? chapter,
+  bool isContinue,
+  VoidCallback? onReturn,
+) async {
+  final base = '/reader/${book.id}';
+  String route = base;
+  if (isContinue) {
+    final progress = book.progress01 * 100;
+    final params = <String, String>{'chapterId': chapter!.id};
+    if (progress > 0) {
+      params['progress'] = book.progress01.toStringAsFixed(4);
     }
-    await context.push(route);
-    if (!context.mounted) return;
-    ref.invalidate(lastReadChapterProvider(book.id));
-    onReturn?.call();
+    final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
+    route = query.isNotEmpty ? '$base?$query' : base;
+  }
+  await context.push(route);
+  if (!context.mounted) return;
+  ref.invalidate(lastReadChapterProvider(book.id));
+  onReturn?.call();
+}
+
+/// Single "Continue · Ch. N" / "Start reading" button used in the novel
+/// detail header. Shares its navigation with [ContinueReadingCard].
+class NovelContinueButton extends ConsumerWidget {
+  const NovelContinueButton({super.key, required this.book, this.onReturn});
+
+  final BookEntity book;
+  final VoidCallback? onReturn;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lastRead = ref.watch(lastReadChapterProvider(book.id));
+    return lastRead.when(
+      loading: () => const SizedBox(height: 48),
+      error: (_, _) => const SizedBox(height: 48),
+      data: (chapter) {
+        final isContinue = chapter != null && book.progress01 > 0;
+        return FilledButton.icon(
+          onPressed: () =>
+              openNovelReader(context, ref, book, chapter, isContinue, onReturn),
+          icon: Icon(
+            isContinue ? Icons.play_arrow_rounded : Icons.menu_book_rounded,
+          ),
+          label: Text(
+            isContinue ? 'Continue · Ch. ${chapter.index + 1}' : 'Start reading',
+          ),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+        );
+      },
+    );
   }
 }

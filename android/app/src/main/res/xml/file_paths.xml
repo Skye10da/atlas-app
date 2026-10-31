@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider paths. The self-updater writes downloaded APKs into the app's
+  internal cache under updates/ (getTemporaryDirectory on Android); the install
+  intent hands that file to the system installer as a content:// URI.
+-->
+<paths>
+    <cache-path
+        name="updates"
+        path="updates/" />
+</paths>

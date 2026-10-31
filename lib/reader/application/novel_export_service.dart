@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:atlas_app/core/content_acquisition/adapters/source_registry.dart';
 import 'package:atlas_app/core/content_engine/image/image_pipeline.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/reader/application/chapter_download_service.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
@@ -51,11 +52,13 @@ class NovelExportService {
       );
       final failed = downloadResults.whereType<Failure<void>>();
       if (failed.isNotEmpty) {
-        return Failure(
-          DatabaseException(
-            'Failed to download all chapters',
-            failed.first.error,
-          ),
+        // Best-effort export: one unreachable chapter (source glitch,
+        // robots backoff, rate limit) used to abort the whole export with a
+        // generic database error. Continue with whatever content exists
+        // locally; only an export with literally no content is a failure.
+        AppLogger.warning(
+          'Export: ${failed.length} chapter(s) could not be downloaded and '
+          'will be skipped (${failed.first.errorOrNull})',
         );
       }
 
@@ -79,7 +82,11 @@ class NovelExportService {
           chapter.contentPath,
         );
         if (contentResult is! Success<String>) {
-          return _toFailure(contentResult);
+          AppLogger.warning(
+            'Export: skipping chapter "${chapter.title}" (content could not '
+            'be read) — ${contentResult.errorOrNull?.message}',
+          );
+          continue;
         }
         final text = contentResult.value.trim();
         if (text.isEmpty) continue;

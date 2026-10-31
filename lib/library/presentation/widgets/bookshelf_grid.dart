@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/widgets/book_card.dart';
 
@@ -16,7 +17,6 @@ class BookshelfGrid extends StatelessWidget {
     required this.onDeleteBook,
     this.isSelectionMode = false,
     this.selectedIds = const {},
-    this.columns,
   });
 
   final List<BookEntity> books;
@@ -28,22 +28,16 @@ class BookshelfGrid extends StatelessWidget {
   final bool isSelectionMode;
   final Set<String> selectedIds;
 
-  /// Explicit column count from the refined frames (3 mobile / 5 tablet &
-  /// desktop). When set, the tile width is derived from the available width
-  /// and the covers scale with the tile instead of driving the layout. When
-  /// null the column count is auto-calculated from the ideal cover width.
-  final int? columns;
-
   @override
   Widget build(BuildContext context) {
     final crossSpacing = isDesktop ? 20.0 : 12.0;
     final mainSpacing = isDesktop ? 20.0 : 12.0;
-    var coverWidth = isDesktop
+    final coverWidth = isDesktop
         ? 150.0
         : isTablet
         ? 130.0
         : 115.0;
-    var coverHeight = isDesktop
+    final coverHeight = isDesktop
         ? 225.0
         : isTablet
         ? 195.0
@@ -57,29 +51,38 @@ class BookshelfGrid extends StatelessWidget {
         // than `tileWidth`, which shrinks the aspect-ratio-derived tile height
         // below what the card's cover + info section need.
         final availableWidth = max(0.0, constraints.maxWidth - 48);
-        final int columnCount;
-        if (columns != null) {
-          columnCount = columns!;
-          // Covers follow the tile so a fixed column count at any window
-          // width keeps the card's cover + info proportions (5/7 ratio).
-          final tileWidth =
-              (availableWidth - (columnCount - 1) * crossSpacing) / columnCount;
-          if (tileWidth > 0) {
-            coverWidth = min(coverWidth, tileWidth);
-            coverHeight = coverWidth * 7 / 5;
-          }
-        } else {
-          columnCount =
-              ((availableWidth + crossSpacing) / (coverWidth + crossSpacing))
-                  .floor()
-                  .clamp(1, 100)
-                  .toInt();
-        }
+        final idealColumns =
+            ((availableWidth + crossSpacing) / (coverWidth + crossSpacing))
+                .round()
+                .clamp(1, 100)
+                .toInt();
+        // Cap to the book count first, then derive the tile width from the
+        // capped count. The planned tile width must equal the width the tiles
+        // actually receive, otherwise the fixed mainAxisExtent (computed from
+        // the planned width) and the real tile disagree.
+        final columns = min(idealColumns, max(1, books.length));
         final tileWidth =
-            (availableWidth - (columnCount - 1) * crossSpacing) / columnCount;
-        final usedColumns = min(columnCount, max(1, books.length));
-        final gridWidth =
-            usedColumns * tileWidth + (usedColumns - 1) * crossSpacing;
+            (availableWidth - (columns - 1) * crossSpacing) / columns;
+        final gridWidth = columns * tileWidth + (columns - 1) * crossSpacing;
+        // Covers fill the whole tile width at the preset cover aspect ratio, and
+        // the tile is exactly cover + info tall, so no card has dead space.
+        final tileCoverHeight = tileWidth * (coverHeight / coverWidth);
+        // The compact info section under every tile is 2 title lines + 1
+        // author line of bodySmall, plus the section's top/bottom padding.
+        // Measure the line height with TextPainter at the real text scaler:
+        // Windows font scaling is non-linear (`scale(1) != scale(12)/12`),
+        // and the padding is not scaled at all, so estimating from
+        // `textScaler.scale(1)` underestimates the tile height and overflows
+        // the card's Column. The Card's vertical margin is spent before the
+        // Column starts, so count it against the tile as well. The +4 buffer
+        // absorbs fractional paragraph rounding at unusual text scales.
+        final cardMargin = Theme.of(context).cardTheme.margin;
+        final cardMarginVertical =
+            cardMargin is EdgeInsets ? cardMargin.vertical : 8.0;
+        final infoHeight = _infoLineHeight(context) * 3 +
+            AppSpacing.sm * 2 +
+            cardMarginVertical +
+            4;
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
@@ -92,12 +95,11 @@ class BookshelfGrid extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.only(bottom: 48),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: usedColumns,
+                  crossAxisCount: columns,
                   mainAxisSpacing: mainSpacing,
                   crossAxisSpacing: crossSpacing,
-                  // Pin the tile height so it always leaves room for the
-                  // fixed-size cover plus the title/author section below it.
-                  mainAxisExtent: coverHeight + 100,
+                  // Cover (full tile width) plus the title/author section.
+                  mainAxisExtent: tileCoverHeight + infoHeight,
                 ),
                 itemCount: books.length,
                 itemBuilder: (context, index) {
@@ -105,8 +107,8 @@ class BookshelfGrid extends StatelessWidget {
                   final isSelected = selectedIds.contains(book.id);
                   return BookGridCard(
                     book: book,
-                    coverWidth: coverWidth,
-                    coverHeight: coverHeight,
+                    coverWidth: tileWidth,
+                    coverHeight: tileCoverHeight,
                     isDesktop: isDesktop,
                     isSelectionMode: isSelectionMode,
                     isSelected: isSelected,
@@ -121,4 +123,17 @@ class BookshelfGrid extends StatelessWidget {
       },
     );
   }
+}
+
+/// Height of a single line of [TextTheme.bodySmall] at the context's text
+/// scaler, measured with [TextPainter] instead of assumed from `scale(1)`.
+double _infoLineHeight(BuildContext context) {
+  final textPainter = TextPainter(
+    text: TextSpan(text: 'Ag', style: Theme.of(context).textTheme.bodySmall),
+    textScaler: MediaQuery.textScalerOf(context),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  final height = textPainter.height;
+  textPainter.dispose();
+  return height;
 }

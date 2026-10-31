@@ -5,11 +5,14 @@ import 'dart:ui';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/browser/presentation/providers/browser_providers.dart';
 import 'package:atlas_app/browser/presentation/widgets/app_session_refresh_bridge.dart';
+import 'package:atlas_app/browser/domain/services/webview_offline_guard.dart';
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_transport.dart';
 import 'package:atlas_app/core/database/providers.dart';
@@ -32,6 +35,7 @@ import 'package:atlas_app/reader/presentation/providers/lockscreen_providers.dar
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
+import 'package:atlas_app/updater/presentation/providers/updater_providers.dart';
 import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
 
 final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -39,13 +43,40 @@ final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 final _windowThemeChannel = WindowThemeChannel();
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  unawaited(LocalFonts.initialize());
-  runApp(
-    ProviderScope(
-      child: AtlasApp(key: ValueKey(DateTime.now().millisecondsSinceEpoch)),
-    ),
-  );
+  _installErrorHandlers();
+  // The root zone must not be allowed to die: before these guards, a single
+  // uncaught error in any background future (a network call with no catch —
+  // plugin catalog sync, WebView transport, session refresh, …) terminated
+  // the whole process. This is what made the Windows app crash whenever the
+  // internet dropped mid-flight.
+  //
+  // IMPORTANT: `WidgetsFlutterBinding.ensureInitialized` must run in the SAME
+  // zone as `runApp` — otherwise Flutter warns about a zone mismatch.
+  runZonedGuarded(() {
+    WidgetsFlutterBinding.ensureInitialized();
+    unawaited(LocalFonts.initialize());
+    runApp(
+      ProviderScope(
+        child: AtlasApp(key: ValueKey(DateTime.now().millisecondsSinceEpoch)),
+      ),
+    );
+  }, (error, stack) =>
+      AppLogger.error('Unhandled error in root zone', error, stack));
+}
+
+/// Installs the last-resort error handlers. Every handler only logs —
+/// nothing here is allowed to rethrow or terminate the isolate.
+void _installErrorHandlers() {
+  // Framework errors (build/layout/paint): keep the Flutter console dump,
+  // but don't let a broken widget take down the process.
+  FlutterError.onError = (details) => FlutterError.presentError(details);
+
+  // Uncaught async errors from anywhere in the app (network tasks included).
+  // Returning true means "handled" — the isolate keeps running.
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLogger.error('Unhandled async error', error, stack);
+    return true;
+  };
 }
 
 class AtlasApp extends ConsumerWidget {
@@ -111,11 +142,40 @@ class AtlasApp extends ConsumerWidget {
     unawaited(SharedPreferences.getInstance());
 
     // Registers the headless WebView pool fallback fetcher for silent Cloudflare challenge solving
-    final silentService = ref.read(silentWebViewServiceProvider);
-    WebViewFetchService.instance.fallbackFetcher = silentService.fetchHtml;
+    try {
+      final silentService = ref.read(silentWebViewServiceProvider);
+      WebViewFetchService.instance.fallbackFetcher = silentService.fetchHtml;
+    } catch (e, st) {
+      AppLogger.error('Silent WebView fallback setup failed', e, st);
+    }
 
-    ref.read(pluginSourcesProvider);
-    ref.read(taskSchedulerProvider).start();
+    // WebView offline shield: the flutter_inappwebview_windows plugin has
+    // native crash paths (0xc0000005 in its plugin DLL) that fire when its
+    // requests fail on a lost connection. The guard pauses/blank-parks every
+    // engine the moment connectivity drops, preempting those callbacks.
+    try {
+      WebViewOfflineGuard.instance.start();
+    } catch (e, st) {
+      AppLogger.error('WebView offline guard failed to start', e, st);
+    }
+
+    try {
+      ref.read(pluginSourcesProvider);
+    } catch (e, st) {
+      AppLogger.error('Plugin discovery failed to start', e, st);
+    }
+    // Self-updater: silent daily GitHub Releases check (docs/release.md).
+    // Result only surfaces in Settings → App updates; never interrupts boot.
+    unawaited(_bootSelfUpdater(ref));
+    // Each bootstrap subsystem is guarded: with the internet down, several
+    // of these (plugin catalog sync, scheduler's first network pass, WTR
+    // session restore) can throw — a failure in one must never prevent the
+    // rest from starting (or the app from booting at all).
+    try {
+      ref.read(taskSchedulerProvider).start();
+    } catch (e, st) {
+      AppLogger.error('Maintenance scheduler failed to start', e, st);
+    }
     try {
       ref.read(speechStartupProvider);
     } catch (_) {}
@@ -131,14 +191,37 @@ class AtlasApp extends ConsumerWidget {
     // Wires the platform-backed WTR-Lab runtime (SharedPreferences preference
     // store + WebView-cookie session) and restores the persisted auth state so
     // reading starts authenticated-aware.
-    await ref.read(wtrRuntimeProvider.future);
+    try {
+      await ref.read(wtrRuntimeProvider.future);
+    } catch (e, st) {
+      AppLogger.error('WTR-Lab runtime restore failed', e, st);
+    }
 
-    await _initUpdateChecks(ref);
+    try {
+      await _initUpdateChecks(ref);
+    } catch (e, st) {
+      AppLogger.error('Update checks failed to initialize', e, st);
+    }
 
-    await _initFileOpen(ref);
+    try {
+      await _initFileOpen(ref);
+    } catch (e, st) {
+      AppLogger.error('File-open import failed to initialize', e, st);
+    }
   }
 
   static bool _updateChecksInitialized = false;
+
+  /// Waits for the updater's async build (prefs + PackageInfo) to resolve so
+  /// the notifier has its stores wired, then runs the throttled check.
+  Future<void> _bootSelfUpdater(WidgetRef ref) async {
+    try {
+      await ref.read(updaterControllerProvider.future);
+      await ref.read(updaterControllerProvider.notifier).maybeAutoCheck();
+    } catch (e, st) {
+      AppLogger.error('App self-update check failed', e, st);
+    }
+  }
 
   Future<void> _initUpdateChecks(WidgetRef ref) async {
     if (_updateChecksInitialized) return;

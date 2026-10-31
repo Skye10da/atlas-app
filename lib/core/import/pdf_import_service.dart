@@ -55,7 +55,7 @@ class PdfImportService {
         return const Failure(ValidationException('Could not read file'));
       }
 
-      return importBytes(bytes, file.name);
+      return await importBytes(bytes, file.name);
     } on Exception catch (e) {
       return Failure(ValidationException('Failed to pick file: $e'));
     }

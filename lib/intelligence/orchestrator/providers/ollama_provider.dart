@@ -3,6 +3,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:atlas_app/intelligence/orchestrator/providers/ai_provider.dart';
 
+/// Wall-clock cap for a single local-model completion request. Generations
+/// on slower hardware can legitimately take a while, so this is more
+/// generous than the cloud timeout — but it must exist, or a wedged server
+/// freezes the chat's `isThinking` state forever.
+const Duration kLocalCompletionTimeout = Duration(seconds: 120);
+
 /// Local or LAN Ollama provider supporting dynamic model listing and streaming.
 class OllamaProvider implements AiProvider {
   OllamaProvider({
@@ -79,7 +85,7 @@ class OllamaProvider implements AiProvider {
           {'role': 'user', 'content': prompt.userPrompt},
         ],
       }),
-    );
+    ).timeout(kLocalCompletionTimeout);
 
     if (res.statusCode != 200) {
       throw http.ClientException('Ollama returned HTTP ${res.statusCode}: ${res.body}');

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atlas — pill-glass navbar system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* glass tokens — the numbers for the Flutter port */
+    --blur: 20px;
+    --tint: 0.55;                 /* pill surface alpha on dark themes */
+    --pill-radius: 999px;
+    --tap: 44px;                  /* min touch target */
+    --hairline: rgba(255,255,255,.16);
+    --shadow: 0 10px 30px rgba(0,0,0,.38);
+
+    --bg: #0f1319;
+    --bg-accent-1: #24514f;
+    --bg-accent-2: #6e432a;
+    --bg-accent-3: #36394f;
+    --text: #e8e4dc;
+    --muted: #9aa19c;
+    --pill-icon: #d8d3c9;
+    --accent: #e0a75e;
+    --accent-ink: #16110b;
+    --content-bg: #141920;
+    --content-canvas: #191f27;
+  }
+  html[data-theme="grove"] {
+    --bg: #0e1710;
+    --bg-accent-1: #1f4a2c;
+    --bg-accent-2: #22414d;
+    --bg-accent-3: #4f3a1d;
+  }
+  html[data-theme="paper"] {
+    --bg: #e9e2d4;
+    --bg-accent-1: #c9b48d;
+    --bg-accent-2: #b8c4b1;
+    --bg-accent-3: #c7b6a4;
+    --text: #22201c;
+    --muted: #6d675c;
+    --pill-icon: #3c372e;
+    --accent: #8a5a2e;
+    --accent-ink: #f6f1e6;
+    --content-bg: #f3eee3;
+    --content-canvas: #ece5d6;
+    --hairline: rgba(0,0,0,.14);
+    --tint: 0.62;
+    --shadow: 0 10px 26px rgba(60,50,30,.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Sora", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 48px clamp(16px, 5vw, 64px) 72px;
+    transition: background .5s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  }
+
+  header { max-width: 1180px; margin: 0 auto 34px; }
+  h1 { font-weight: 600; font-size: clamp(22px, 3vw, 30px); letter-spacing: -0.015em; }
+  h1 em { font-family: "Literata", serif; font-style: italic; font-weight: 400; }
+  header p { margin-top: 10px; color: var(--muted); font-size: 14.5px; max-width: 62ch; line-height: 1.6; }
+
+  /* control rail */
+  .rail {
+    max-width: 1180px; margin: 0 auto 40px;
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+    padding: 14px 18px;
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--content-canvas) 55%, transparent);
+    position: relative; z-index: 5;
+  }
+  .rail label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .rail input[type="range"] { width: 130px; accent-color: var(--accent); }
+  .chip {
+    font: 500 12px "Sora", sans-serif; letter-spacing: .02em;
+    padding: 8px 14px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--hairline); background: transparent; color: var(--muted);
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .rail .spacer { flex: 1; }
+
+  /* stage of mockups */
+  .stage {
+    max-width: 1180px; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 26px;
+  }
+  @media (max-width: 940px) { .stage { grid-template-columns: 1fr; } }
+
+  .fig { display: grid; gap: 12px; }
+  .fig > figcaption { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+  .fig > figcaption b { color: var(--text); font-weight: 600; }
+
+  .frame {
+    position: relative;
+    height: 560px;
+    border-radius: 26px;
+    background: var(--content-bg);
+    border: 1px solid var(--hairline);
+    overflow: hidden;
+  }
+  /* gradient blooms underneath prove the real blur */
+  .bloom { position: absolute; border-radius: 50%; filter: blur(48px); opacity: .8; pointer-events: none; }
+  .b1 { width: 240px; height: 240px; background: var(--bg-accent-1); top: -60px; right: -50px; }
+  .b2 { width: 220px; height: 220px; background: var(--bg-accent-2); bottom: 120px; left: -70px; }
+  .b3 { width: 180px; height: 180px; background: var(--bg-accent-3); bottom: -60px; right: 30px; opacity: .55; }
+
+  .page {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: 18px 18px 0;
+  }
+  .page-content { flex: 1; overflow: hidden; position: relative; }
+
+  /* ——— THE GLASS PILL SYSTEM ——— */
+  .pill {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: var(--tap);
+    padding: 0 10px;
+    border-radius: var(--pill-radius);
+    background: rgba(255,255,255, calc(var(--tint) * 0.16));           /* fallback, replaced below */
+    background: color-mix(in srgb, var(--content-canvas) calc(var(--tint) * 100%), transparent);
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(1.5);
+    backdrop-filter: blur(var(--blur)) saturate(1.5);
+    border: 1px solid var(--hairline);
+    box-shadow: var(--shadow);
+    color: var(--pill-icon);
+    transition: transform .18s ease, background .25s ease;
+  }
+  .pill:active { transform: scale(.96); }
+  .pill svg { width: 20px; height: 20px; flex: none; }
+  .pill.icononly { width: var(--tap); padding: 0; }
+  .pill .lbl { font-size: 12.5px; font-weight: 500; padding-right: 6px; }
+
+  .pill.accent {
+    background: var(--accent);
+    border-color: transparent;
+    color: var(--accent-ink);
+  }
+  .pill.active:not(.accent) { background: color-mix(in srgb, var(--accent) 26%, var(--hairline)); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+
+  /* legacy navbar to compare against — structure toggle reveals it faintly */
+  .legacy {
+    display: flex; align-items: center; height: 48px;
+    background: color-mix(in srgb, var(--content-canvas) 90%, transparent);
+    border-radius: 8px;
+    outline: 1px dashed color-mix(in srgb, var(--muted) 55%, transparent);
+  }
+
+  /* top chrome rows */
+  .topbar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; position: relative; z-index: 4; }
+  .topbar .grow { flex: 1; }
+
+  /* bottom navigation rows */
+  .bottomnav { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 0 -6px 16px; position: relative; z-index: 4; }
+
+  /* sample content */
+  .content-title { font-family: "Literata", serif; font-size: 19px; font-weight: 600; letter-spacing: .01em; margin-bottom: 6px; }
+  .content-body { font-family: "Literata", serif; font-size: 14px; line-height: 1.85; color: color-mix(in srgb, var(--text) 88%, transparent); }
+  .shelf { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .spine { aspect-ratio: 2/3; border-radius: 6px 9px 9px 6px; position: relative; overflow: hidden; }
+  .spine:nth-child(1) { background: linear-gradient(150deg, #5b3a63, #2c2140); }
+  .spine:nth-child(2) { background: linear-gradient(150deg, #a35b34, #57301c); }
+  .spine:nth-child(3) { background: linear-gradient(150deg, #2e6b65, #1c3f3d); }
+  .spine:nth-child(4) { background: linear-gradient(150deg, #8d2f36, #45222a); }
+  .spine:nth-child(5) { background: linear-gradient(150deg, #3d4d86, #23294d); }
+  .spine:nth-child(6) { background: linear-gradient(150deg, #746b34, #383419); }
+  .spine span { position: absolute; left: 8px; right: 8px; bottom: 8px; font-size: 9.5px; letter-spacing: .04em; color: rgba(255,255,255,.85); font-weight: 500; line-height: 1.25; }
+  .detail-meta { font-family: "Literata", serif; font-size: 12.5px; color: var(--muted); font-style: italic; }
+  .reading-shadow {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(180deg, transparent 0 34px, color-mix(in srgb, var(--muted) 12%, transparent) 34px 35px);
+    opacity: 0; 
+  }
+  html[data-structure="on"] .reading-shadow { opacity: 1; }
+
+  /* structure/debug overlay */
+  html[data-structure="on"] .pill {
+    outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: 3px;
+    background: color-mix(in srgb, var(--accent) 10%, var(--content-canvas) 45%);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  html[data-structure="on"] .frame::after {
+    content: "structure view — blur bypassed";
+    position: absolute; top: 10px; left: 14px; z-index: 9;
+    font-size: 10px; letter-spacing: .06em; color: var(--accent);
+  }
+  html[data-structure="on"] .spec { display: block; }
+  .spec { display: none; position: absolute; z-index: 8; font-size: 9.5px; letter-spacing: .05em; color: var(--accent); font-weight: 500; }
+
+  /* spec strip */
+  .specs {
+    max-width: 1180px; margin: 44px auto 0;
+    border-top: 1px solid var(--hairline); padding-top: 22px;
+    display: flex; flex-wrap: wrap; gap: 26px 40px;
+  }
+  .specs div { min-width: 150px; font-size: 12px; color: var(--muted); line-height: 2; }
+  .specs b { display: block; color: var(--text); font-weight: 600; font-size: 15px; font-family: "Literata", serif; }
+  
+  /* focus */
+  .chip:focus-visible, .pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Chrome, as <em>holdable</em> glass — every navbar is one pill grammar</h1>
+  <p>Atlas’s floating chrome redrawn as a single system: frosted capsules floating over content, dark theme first. The controls below tune the two glass numbers (frost blur, tint alpha) live, so flutter values can be picked before porting — the reader pill surface is already α&nbsp;0.55 / 20px blur, everything else converges onto it.</p>
+</header>
+
+<div class="rail">
+  <span style="font-size:12px; color:var(--muted); font-weight:600;">Theme</span>
+  <button class="chip" id="t-ink"   aria-pressed="true">Ink</button>
+  <button class="chip" id="t-grove" aria-pressed="false">Grove</button>
+  <button class="chip" id="t-paper" aria-pressed="false">Paper</button>
+  <span class="spacer"></span>
+  <label>Frost <input type="range" id="blur" min="0" max="40" value="20"></label>
+  <label>Tint <input type="range" id="tint" min="20" max="90" value="55"></label>
+  <span class="spacer"></span>
+  <button class="chip" id="struct" aria-pressed="false">Structure</button>
+</div>
+
+<div class="stage">
+
+  <!-- ——————— LIBRARY ——————— -->
+  <figure class="fig">
+    <div class="frame">
+      <div class="bloom b1"></div><div class="bloom b2"></div><div class="bloom b3"></div>
+      <div class="page">
+        <div class="topbar">
+          <div class="pill grow" style="gap:10px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span class="lbl" style="color:var(--muted)">Search library</span>
+          </div>
+          <button class="pill icononly" aria-label="Add book">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button class="pill icononly" aria-label="Profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg>
+          </button>
+        </div>
+        <div class="page-content">
+          <div class="content-title">Shelf · Night reading</div>
+          <div class="shelf" style="margin-top:12px;">
+            <div class="spine"><span>The Ledger of Small Hours</span></div>
+            <div class="spine"><span>A Grammar of Knots</span></div>
+            <div class="spine"><span>Pale Tsar, Dark Court</span></div>
+            <div class="spine"><span>Nightfall on Vorra</span></div>
+            <div class="spine"><span>The Cartographer’s Wife</span></div>
+            <div class="spine"><span>Wolves That Remember</span></div>
+          </div>
+        </div>
+        <span class="spec" style="left:18px; bottom:88px;">1 tab = 44px pill · 220px capsule</span>
+        <span class="spec" style="right:226px; bottom:248px;">search capsule · grows to full row</span>
+        <div class="bottomnav" role="tablist" aria-label="App sections">
+          <button class="pill active" role="tab" aria-selected="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg>
+            <span class="lbl">Home</span>
+          </button>
+          <button class="pill" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg>
+            <span class="lbl">Discover</span>
+          </button>
+          <button class="pill" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
+            <span class="lbl">Marks</span>
+          </button>
+          <button class="pill icononly" role="tab" aria-selected="false" aria-label="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>Library home.</b> Two chrome rows: search-as-capsule up top (expands into a field on tap), four-tab dock below. The active tab stays the quiet amber ghost, not a color flood.</figcaption>
+  </figure>
+
+  <!-- ——————— NOVEL DETAILS ——————— -->
+  <figure class="fig">
+    <div class="frame">
+      <div class="bloom b2"></div><div class="bloom b3"></div><div class="bloom b1" style="top:auto;bottom:-80px;"></div>
+      <div class="page">
+        <div class="topbar">
+          <button class="pill icononly" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+          </button>
+          <span class="grow"></span>
+          <button class="pill icononly" aria-label="Bookmark this novel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
+          </button>
+          <button class="pill icononly" aria-label="More options">
+            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </button>
+        </div>
+        <div class="page-content">
+          <div class="content-title">The Ledger of Small Hours</div>
+          <div class="detail-meta">Vess Marin · 1,412 chapters · ongoing</div>
+          <p class="content-body" style="margin-top:14px;">Mirren keeps the ledgers of a government that only functions after midnight. Page 91: the hours were not for concealing crime but for giving the day a place to rest.</p>
+        </div>
+        <span class="spec" style="left:18px; bottom:96px;">CTA capsule · 288px wide max</span>
+        <div class="bottomnav" style="justify-content:stretch;">
+          <button class="pill accent" style="flex:1; justify-content:center;">
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M9 6.5h4.5M9 9.5h6" stroke-color="none"/></svg>
+            <span class="lbl">Continue ch. 512</span>
+          </button>
+          <button class="pill icononly" aria-label="Download chapters">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v11M7 11l5 5 5-5M4 20h16"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>Novel details.</b> Back rest alone at the left; progress and actions gather into one capsule; the primary “continue” pill carries the accent. Sparse — the title type does the talking.</figcaption>
+  </figure>
+
+  <!-- ——————— READER ——————— -->
+  <figure class="fig">
+    <div class="frame">
+      <div class="bloom b1" style="left:20px; top:40px; right:auto;"></div><div class="bloom b2" style="bottom:60px; left:auto; right:-60px;"></div>
+      <div class="page">
+        <div class="topbar">
+          <button class="pill icononly" aria-label="Back to details">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+          </button>
+          <button class="pill icononly" aria-label="Chapters">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+          </button>
+          <span class="grow"></span>
+          <button class="pill icononly" aria-label="Listen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l12 7-12 7z"/></svg>
+          </button>
+        </div>
+        <div class="page-content">
+          <div class="reading-shadow"></div>
+          <p class="content-body" style="font-size:15px;">Mirren pressed her thumb to the ledger’s spine and felt the day exhale through it. Somewhere below the seventh floor, the small hours were being counted out like coins — one, two — and the arithmetic of it, she thought, was the truest weather Vessa had ever known.</p>
+          <p class="content-body" style="font-size:15px;">She did not record the weather. She recorded what it did to the clerks.</p>
+        </div>
+        <span class="spec" style="left:18px; bottom:92px;">dock 52px pitch · rail = capsule − 20</span>
+        <div class="bottomnav">
+          <div role="tablist" aria-label="Navigation" style="display:flex; gap:4px;">
+            <button class="pill icononly" aria-label="Previous chapter">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg>
+            </button>
+            <button class="pill icononly" aria-label="Next chapter">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 6 6 6-6 6"/></svg>
+            </button>
+          </div>
+          <button class="pill" style="min-width:148px; gap:10px; padding:0 16px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
+            <span class="lbl">Ch. 512 / 1,412</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>Reader.</b> Same two-capsule dock the app already has — prev/next pair, then the chapter capsule that fattens into the scrub rail. The top slim bar matches the same glass.</figcaption>
+  </figure>
+</div>
+
+<div class="specs">
+  <div><b>44 px</b>min tap target — every pill, every icon</div>
+  <div><b>α 0.55</b>surface tint (light theme 0.62)</div>
+  <div><b>20 px</b>frost blur + saturate 1.5</div>
+  <div><b>1 px</b>hairline @ 16% light / 14% ink</div>
+  <div><b>999 px</b>radius — one grammar, no 8px corners left</div>
+</div>
+
+<script>
+  const blurEl = document.getElementById('blur');
+  const tintEl = document.getElementById('tint');
+  const setVar = (k, v) => document.documentElement.style.setProperty(k, v);
+  blurEl.addEventListener('input', () => setVar('--blur', blurEl.value + 'px'));
+  tintEl.addEventListener('input', () => setVar('--tint', tintEl.value / 100));
+
+  document.querySelectorAll('#t-ink,#t-grove,#t-paper').forEach(b => {
+    b.addEventListener('click', () => {
+      ['t-ink','t-grove','t-paper'].forEach(id =>
+        document.getElementById(id).setAttribute('aria-pressed', String(document.getElementById(id) === b)));
+      document.documentElement.dataset.theme = b.id.replace('t-', '');
+    });
+  });
+
+  const st = document.getElementById('struct');
+  st.addEventListener('click', () => {
+    const on = document.documentElement.dataset.structure === 'on';
+    document.documentElement.dataset.structure = on ? 'off' : 'on';
+    st.setAttribute('aria-pressed', String(!on));
+  });
+
+  // pill tabs: single active per tablist
+  document.querySelectorAll('[role="tablist"]').forEach(list => {
+    list.addEventListener('click', e => {
+      const tab = e.target.closest('[role="tab"]');
+      if (!tab) return;
+      list.querySelectorAll('[role="tab"]').forEach(t => t.setAttribute('aria-selected', 'false'));
+      tab.setAttribute('aria-selected', 'true');
+    });
+  });
+</script>
+</body>
+</html>

@@ -3,6 +3,8 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/intelligence/presentation/widgets/story_characters_section.dart';
+import 'package:atlas_app/intelligence/presentation/widgets/story_recap_card.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
@@ -32,7 +34,7 @@ class ReaderRightPanel extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tabController = useTabController(initialLength: 3);
+    final tabController = useTabController(initialLength: 4);
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -70,6 +72,7 @@ class ReaderRightPanel extends HookConsumerWidget {
             tabs: const [
               Tab(icon: Icon(Icons.list, size: 18), text: 'Chapters'),
               Tab(icon: Icon(Icons.bookmark, size: 18), text: 'Bookmarks'),
+              Tab(icon: Icon(Icons.auto_awesome, size: 18), text: 'Atlas'),
               Tab(icon: Icon(Icons.settings, size: 18), text: 'Settings'),
             ],
           ),
@@ -88,6 +91,9 @@ class ReaderRightPanel extends HookConsumerWidget {
                   onChapterSelected: onChapterSelected,
                   onBookmarkToggle: onBookmarkToggle,
                   isBookmarked: isBookmarked,
+                ),
+                _AtlasTab(
+                  bookId: chapters.isEmpty ? '' : chapters.first.bookId,
                 ),
                 _SettingsTab(settings: settings),
               ],
@@ -288,6 +294,27 @@ class _BookmarksTab extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Story companion for the desktop panel: spoiler-free recap and the main
+/// characters met so far, both limited to the reader's current chapter.
+class _AtlasTab extends StatelessWidget {
+  const _AtlasTab({required this.bookId});
+
+  final String bookId;
+
+  @override
+  Widget build(BuildContext context) {
+    if (bookId.isEmpty) return const SizedBox.shrink();
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      children: [
+        StoryRecapCard(bookId: bookId),
+        StoryCharactersSection(bookId: bookId, maxVisible: 6),
+        const SizedBox(height: AppSpacing.lg),
+      ],
     );
   }
 }

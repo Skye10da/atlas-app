@@ -142,6 +142,7 @@ final class SharedPrefsSettingsRepository
       },
       chromeStyle: switch (prefs.getString(_keyChromeStyle)) {
         'frosted' => ReaderChromeStyle.frosted,
+        'glass' => ReaderChromeStyle.glass,
         _ => ReaderChromeStyle.translucent,
       },
       desktopSheetPresentation: switch (prefs.getString(

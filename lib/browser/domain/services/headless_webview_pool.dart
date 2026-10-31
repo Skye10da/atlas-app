@@ -25,7 +25,10 @@ class HeadlessWebViewPool {
     this.maxViews = 3,
     this.memoryAware = true,
     BrowserEngineFactory? engineFactory,
+    bool? allowEvictionDispose,
   }) : _engineFactory = engineFactory ?? _defaultEngineFactory,
+       allowEvictionDispose =
+           allowEvictionDispose ?? _defaultAllowsEvictionDispose(),
        _effectiveMaxViews = _resolveEffectiveMaxViews(
          maxViews,
          memoryAware: memoryAware,
@@ -35,11 +38,20 @@ class HeadlessWebViewPool {
   factory HeadlessWebViewPool.single(BrowserWebEngine engine) =>
       _SingleEnginePool(engine);
 
+  /// Whether idle pooled engines may be disposed when the pool is at
+  /// capacity. Disabled by default on Windows: the inappwebview Windows
+  /// plugin crashes natively (0xc0000005 in
+  /// `flutter_inappwebview_windows_plugin.dll`, observed during chapter
+  /// downloads) when a WebView2 view is destroyed around active use, so
+  /// Windows keeps created engines warm and treats the cap as soft.
+  final bool allowEvictionDispose;
+
+  static bool _defaultAllowsEvictionDispose() => kIsWeb || !Platform.isWindows;
+
   final int maxViews;
   final bool memoryAware;
   final int _effectiveMaxViews;
   final BrowserEngineFactory _engineFactory;
-
   /// Effective cap after memory-aware adjustment. Use this for all
   /// capacity checks; [maxViews] remains the requested value for diagnostics.
   int get effectiveMaxViews => _effectiveMaxViews;
@@ -148,6 +160,7 @@ class HeadlessWebViewPool {
   }
 
   void _evictLruIdle() {
+    if (!allowEvictionDispose) return; // Windows: keep engines warm, soft cap
     String? oldestKey;
     DateTime? oldestTime;
 

@@ -28,6 +28,10 @@ Thumbs.db
 android/.gradle/
 android/app/build/
 android/local.properties
+# Release signing (https://github.com/Skye10da/atlas-app/blob/main/docs/release.md)
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
 
 # iOS
 ios/Pods/

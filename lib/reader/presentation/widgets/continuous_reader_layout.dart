@@ -9,24 +9,25 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
+import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_system_provider.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_chrome_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/reader/presentation/providers/dock_prefs_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/utils/chapter_position_resolver.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_chrome_pieces.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_content_loader.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_background.dart';
-import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_contents_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
 import 'package:atlas_app/reader/presentation/widgets/now_playing_panel.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_annotations_sheet.dart';
-import 'package:atlas_app/reader/presentation/widgets/reader_bar_surface.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_bottom_nav.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_chrome_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_command_palette.dart';
@@ -112,6 +113,14 @@ class ContinuousReaderLayout extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final chromeState = ref.watch(readerChromeProvider);
     final chromeNotifier = ref.read(readerChromeProvider.notifier);
+    // Drives whether the dock's auto-scroll strip must sit above the
+    // mini narration player when the chrome is hidden.
+    final narrationStatus =
+        ref.watch(narrationStatusProvider).valueOrNull ??
+        NarrationStatus.idle;
+    final miniNarrationVisible =
+        narrationStatus != NarrationStatus.idle &&
+        !chromeState.narrationPanelVisible;
 
     final itemScrollController = useMemoized(() => ItemScrollController());
     final scrollOffsetController = useMemoized(() => ScrollOffsetController());
@@ -127,6 +136,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
     final autoScrollTimer = useRef<Timer?>(null);
     final autoScrollSpeed = useState(2.0);
     final autoScrollActive = useState(false);
+    final autoScrollPaused = useState(false);
     final jumpInFlight = useRef(false);
     final snapInFlight = useRef(false);
     final applyingGate = useRef(false);
@@ -140,7 +150,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
     final restoreApplied = useState(false);
     final lastReportedPosition = useRef<({int index, int total})?>(null);
 
-    final isDesktop = MediaQuery.sizeOf(context).width >= 840;
+    final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
     final isDarkTheme =
         Theme.of(context).colorScheme.brightness == Brightness.dark;
 
@@ -234,30 +244,59 @@ class ContinuousReaderLayout extends HookConsumerWidget {
       autoScrollTimer.value?.cancel();
       autoScrollTimer.value = null;
       autoScrollActive.value = false;
+      autoScrollPaused.value = false;
       if (settings.enablePageFlipHaptics) HapticFeedback.mediumImpact();
     }
 
-    void startAutoScroll() {
+    void appendAutoScrollTick() {
+      if (!context.mounted || !itemScrollController.isAttached) return;
+      if (progressNotifier.value >= 0.99) {
+        stopAutoScroll();
+        return;
+      }
+      unawaited(
+        scrollOffsetController.animateScroll(
+          offset: autoScrollSpeed.value,
+          duration: const Duration(milliseconds: 50),
+          curve: Curves.linear,
+        ),
+      );
+    }
+
+    void runAutoScrollTimer() {
       autoScrollTimer.value?.cancel();
+      autoScrollTimer.value = Timer.periodic(
+        const Duration(milliseconds: 50),
+        (_) => appendAutoScrollTick(),
+      );
+    }
+
+    void startAutoScroll() {
       autoScrollActive.value = true;
+      autoScrollPaused.value = false;
+      // Start at the user's preferred speed (Customize dock > Auto-scroll).
+      autoScrollSpeed.value = ref.read(readerDockPrefsProvider).autoScrollSpeed;
       if (settings.enablePageFlipHaptics) HapticFeedback.mediumImpact();
       chromeNotifier.setFullscreen(true, isDarkTheme: isDarkTheme);
-      autoScrollTimer.value = Timer.periodic(const Duration(milliseconds: 50), (
-        _,
-      ) {
-        if (!context.mounted || !itemScrollController.isAttached) return;
-        if (progressNotifier.value >= 0.99) {
-          stopAutoScroll();
-          return;
-        }
-        unawaited(
-          scrollOffsetController.animateScroll(
-            offset: autoScrollSpeed.value,
-            duration: const Duration(milliseconds: 50),
-            curve: Curves.linear,
-          ),
-        );
-      });
+      runAutoScrollTimer();
+    }
+
+    void pauseAutoScroll() {
+      if (!autoScrollActive.value) return;
+      final willPause = !autoScrollPaused.value;
+      if (willPause) {
+        autoScrollTimer.value?.cancel();
+        autoScrollTimer.value = null;
+      } else {
+        runAutoScrollTimer();
+      }
+      autoScrollPaused.value = willPause;
+    }
+
+    void changeAutoScrollSpeed(double s) {
+      final next = s.clamp(1.0, 6.0);
+      autoScrollSpeed.value = next;
+      ref.read(readerDockPrefsProvider.notifier).setAutoScrollSpeed(next);
     }
 
     void toggleAutoScroll() {
@@ -667,9 +706,16 @@ class ContinuousReaderLayout extends HookConsumerWidget {
       );
     }
 
-    void showChapterIndex(BuildContext ctx) {
-      ChapterIndexSheet.show(
+    void showChapterIndex(BuildContext ctx, {int initialTab = 0}) {
+      ReaderContentsSheet.show(
         ctx,
+        bookId: chapters.first.bookId,
+        bookTitle: bookTitle,
+        coverPath: coverPath,
+        bookmarkedChapterIds: bookmarkedChapterIds,
+        onBookmarkToggle: onBookmarkToggle,
+        isBookmarked: isBookmarked,
+        initialTab: initialTab,
         sheetId: 'continuous_chapter_index',
         chapters: chapters,
         currentChapterIndex: currentChapterIndex,
@@ -839,18 +885,43 @@ class ContinuousReaderLayout extends HookConsumerWidget {
                     ),
                 onVerticalDragEnd: chromeNotifier.onEdgeBrightnessEnd,
               ),
-            if (autoScrollActive.value)
+            // The auto-scroll transport lives in the dock while chrome is
+            // visible; when the chrome recedes the strip pins itself so the
+            // controls stay reachable without waking the chrome.
+            if (autoScrollActive.value && !chromeState.chromeVisible)
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: 24,
-                child: Center(
-                  child: _AutoScrollControl(
-                    speed: autoScrollSpeed.value,
-                    onSpeedChanged: (s) =>
-                        autoScrollSpeed.value = s.clamp(1.0, 6.0),
-                    onStop: stopAutoScroll,
-                    accent: settings.theme.resolve(colorScheme).accent,
+                bottom: miniNarrationVisible ? 92 : 0,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.sm,
+                    0,
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x33000000), blurRadius: 12),
+                          ],
+                        ),
+                        child: AutoScrollStrip(
+                          textColor: colorScheme.onSurface,
+                          accent: settings.theme.resolve(colorScheme).accent,
+                          paused: autoScrollPaused.value,
+                          speed: autoScrollSpeed.value,
+                          onTogglePause: pauseAutoScroll,
+                          onStop: stopAutoScroll,
+                          onSpeedChanged: changeAutoScrollSpeed,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -930,7 +1001,7 @@ class ContinuousReaderLayout extends HookConsumerWidget {
                 },
                 onClose: () => chromeNotifier.setCommandPaletteVisible(false),
               ),
-            if (!chromeState.narrationPanelVisible)
+            if (!chromeState.narrationPanelVisible && !chromeState.chromeVisible)
               Positioned(
                 left: 0,
                 right: 0,
@@ -950,18 +1021,20 @@ class ContinuousReaderLayout extends HookConsumerWidget {
                 top: 0,
                 left: 0,
                 right: 0,
-                child: ReaderBarSurface(
-                  style: settings.chromeStyle,
-                  color: colorScheme.surfaceContainerHigh,
-                  child: ReaderChromeBar(
-                    title: chapters[currentChapterIndex].title,
-                    textColor: colorScheme.onSurface,
-                    onSettingsTap: onSettingsTap,
-                    onIntelligenceTap: onIntelligenceTap,
-                    onSearchTap: onSearchTap,
-                    onRedownload: onRedownload,
-                    isRedownloading: isRedownloading,
-                  ),
+                child: ReaderChromeBar(
+                  title: chapters[currentChapterIndex].title,
+                  textColor: colorScheme.onSurface,
+                  onSettingsTap: onSettingsTap,
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onIntelligenceTap: onIntelligenceTap,
+                  onSearchTap: onSearchTap,
+                  onRedownload: onRedownload,
+                  isRedownloading: isRedownloading,
+                  slim: true,
+                  onTitleTap: () => showChapterIndex(context),
+                  onBookmarkTap: onBookmarkToggle,
+                  isBookmarked: isBookmarked,
+                  chromeStyle: settings.chromeStyle,
                 ),
               ),
             if (chromeState.chromeVisible)
@@ -969,48 +1042,59 @@ class ContinuousReaderLayout extends HookConsumerWidget {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: ReaderBarSurface(
-                  style: settings.chromeStyle,
-                  color: colorScheme.surfaceContainerHigh,
-                  child: ReaderBottomNav(
+                child: ReaderBottomNav(
                     textColor: colorScheme.onSurface,
                     onSettingsTap: onSettingsTap,
                     onChapterIndexTap: () => showChapterIndex(context),
                     onBookmarkTap: onBookmarkToggle,
                     isBookmarked: isBookmarked,
-                    onAnnotationsTap: () {
-                      ReaderAnnotationsSheet.show(
-                        context,
-                        bookId: chapters.first.bookId,
-                        chapters: chapters,
-                        currentChapterId: chapters[currentChapterIndex].id,
-                        bookTitle: bookTitle,
-                        coverPath: coverPath,
-                        onJumpToChapter: (chId, _) {
-                          final idx = chapters.indexWhere((c) => c.id == chId);
-                          if (idx >= 0) {
-                            onChapterSelected(idx);
-                            WidgetsBinding.instance.addPostFrameCallback(
-                              (_) => scrollToChapter(idx),
-                            );
-                          }
-                        },
-                      );
-                    },
+                    chromeStyle: settings.chromeStyle,
+                    onAnnotationsTap: () => showChapterIndex(context, initialTab: 2),
                     currentChapterTitle: chapters[currentChapterIndex].title,
                     currentChapterNumber: currentChapterIndex,
                     totalChapters: chapters.length,
                     autoScrollActive: autoScrollActive.value,
                     onAutoScrollToggle: toggleAutoScroll,
+                    autoScrollPaused: autoScrollPaused.value,
+                    onAutoScrollPauseToggle: pauseAutoScroll,
+                    autoScrollSpeed: autoScrollSpeed.value,
+                    onAutoScrollSpeedChanged: changeAutoScrollSpeed,
                     bookTitle: bookTitle,
                     coverPath: coverPath,
                     progress: progressNotifier,
                     progressColor: settings.theme.resolve(colorScheme).accent,
+                    onSearchTap: onSearchTap,
+                    onIntelligenceTap: onIntelligenceTap,
+                    onRedownload: onRedownload,
+                    isRedownloading: isRedownloading,
+                    onScrubToChapter: (idx) {
+                        onChapterSelected(idx);
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => scrollToChapter(idx),
+                        );
+                      },
+                    onPrevChapter: currentChapterIndex > 0
+                        ? () {
+                            onChapterSelected(currentChapterIndex - 1);
+                            WidgetsBinding.instance.addPostFrameCallback(
+                              (_) =>
+                                  scrollToChapter(currentChapterIndex - 1),
+                            );
+                          }
+                        : null,
+                    onNextChapter: currentChapterIndex < chapters.length - 1
+                        ? () {
+                            onChapterSelected(currentChapterIndex + 1);
+                            WidgetsBinding.instance.addPostFrameCallback(
+                              (_) =>
+                                  scrollToChapter(currentChapterIndex + 1),
+                            );
+                          }
+                        : null,
                     onListenTap: useSidePanels
                         ? chromeNotifier.toggleNarrationPanel
                         : null,
                   ),
-                ),
               ),
           ],
         ),
@@ -1048,73 +1132,6 @@ class _GlowScrollbarPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _GlowScrollbarPainter oldDelegate) =>
       oldDelegate.progress != progress || oldDelegate.color != color;
-}
-
-class _AutoScrollControl extends StatelessWidget {
-  const _AutoScrollControl({
-    required this.speed,
-    required this.onSpeedChanged,
-    required this.onStop,
-    required this.accent,
-  });
-
-  final double speed;
-  final ValueChanged<double> onSpeedChanged;
-  final VoidCallback onStop;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final iconColor =
-        ThemeData.estimateBrightnessForColor(scheme.surface) == Brightness.dark
-        ? Colors.white
-        : Colors.black87;
-    return Material(
-      color: scheme.surface,
-      elevation: 4,
-      borderRadius: BorderRadius.circular(24),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.remove),
-              iconSize: 20,
-              color: iconColor,
-              tooltip: 'Slower',
-              onPressed: () => onSpeedChanged(speed - 0.5),
-            ),
-            Text(
-              '${(speed * 20).round()} px/s',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: iconColor,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.add),
-              iconSize: 20,
-              color: iconColor,
-              tooltip: 'Faster',
-              onPressed: () => onSpeedChanged(speed + 0.5),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              icon: const Icon(Icons.close),
-              iconSize: 20,
-              color: accent,
-              tooltip: 'Stop auto-scroll',
-              onPressed: onStop,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _NarrationSyncButton extends StatelessWidget {

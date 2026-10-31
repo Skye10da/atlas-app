@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -9,6 +10,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:real_page_flip/real_page_flip.dart';
 
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
+import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_system_provider.dart';
@@ -28,7 +30,7 @@ import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
-import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_contents_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_styles.dart';
 import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
@@ -36,8 +38,6 @@ import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart
 import 'package:atlas_app/reader/presentation/widgets/now_playing_panel.dart';
 import 'package:atlas_app/reader/presentation/widgets/paged_page_view.dart';
 import 'package:atlas_app/reader/presentation/widgets/pager.dart';
-import 'package:atlas_app/reader/presentation/widgets/reader_annotations_sheet.dart';
-import 'package:atlas_app/reader/presentation/widgets/reader_bar_surface.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_bottom_nav.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_chrome_bar.dart';
 import 'package:atlas_app/reader/presentation/widgets/reader_edge_regions.dart';
@@ -122,6 +122,19 @@ class RealFlipReaderLayout extends HookConsumerWidget {
     final chromeState = ref.watch(readerChromeProvider);
     final chromeNotifier = ref.read(readerChromeProvider.notifier);
 
+    // Debounce for on-demand download attempts of chapters whose file is
+    // missing on disk; prevents an every-build retry loop while offline.
+    final remoteAttemptAtRef = useRef<Map<int, DateTime>>({});
+    bool mayRetryRemoteChapter(int index) {
+      final last = remoteAttemptAtRef.value[index];
+      return last == null ||
+          DateTime.now().difference(last) > const Duration(seconds: 30);
+    }
+
+    void markRemoteAttempt(int index) =>
+        remoteAttemptAtRef.value[index] = DateTime.now();
+
+
     final flipController = useMemoized(() => PageFlipController());
     final pageCache = useRef<Map<int, List<String>>>({});
     final contentCache = useRef<Map<int, String>>({});
@@ -148,7 +161,7 @@ class RealFlipReaderLayout extends HookConsumerWidget {
       updateTrigger.value++;
     }
 
-    final isDesktop = MediaQuery.sizeOf(context).width >= 840;
+    final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
     final useSpread = isDesktop && settings.useBookSpread;
     final isDarkTheme =
         Theme.of(context).colorScheme.brightness == Brightness.dark;
@@ -408,31 +421,74 @@ class RealFlipReaderLayout extends HookConsumerWidget {
       });
     }
 
-    void ensureChapterLoaded(int index) {
+    void ensureChapterLoaded(int index, {bool allowRemoteFetch = false}) {
       if (index < 0 || index >= chapters.length) return;
       if (loadedChapters.value.contains(index)) return;
       final ch = chapters[index];
-      // Offline-safe: never trigger network for a chapter not cached on disk.
-      if (!File(ch.contentPath).existsSync()) {
-        loadedChapters.value.remove(index);
-        failedChapters.value = {...failedChapters.value, index};
+      // Heal a stale failure: an earlier attempt could not find the chapter
+      // file on disk, but a background fetch may have written it since —
+      // the flag must not block later loads forever.
+      if (failedChapters.value.contains(index)) {
+        if (File(ch.contentPath).existsSync()) {
+          failedChapters.value = Set<int>.from(failedChapters.value)
+            ..remove(index);
+        } else if (!allowRemoteFetch) {
+          return;
+        } else if (!mayRetryRemoteChapter(index)) {
+          return;
+        } else {
+          markRemoteAttempt(index);
+        }
+      } else if (!File(ch.contentPath).existsSync()) {
+        if (!allowRemoteFetch) {
+          // Offline-safe: neighbors never trigger network for a chapter not
+          // cached on disk.
+          failedChapters.value = {...failedChapters.value, index};
+          return;
+        }
+        markRemoteAttempt(index);
+      }
+      if (File(ch.contentPath).existsSync()) {
+        loadedChapters.value.add(index);
+        final contentAsync = ref.read(readerChapterContentProvider(ch));
+        contentAsync.when(
+          data: (content) {
+            if (content.isNotEmpty) {
+              contentCache.value[index] = content;
+              schedulePagination(index, content);
+            }
+          },
+          loading: () {},
+          error: (err, stack) {
+            loadedChapters.value.remove(index);
+            failedChapters.value = {...failedChapters.value, index};
+          },
+        );
         return;
       }
-      loadedChapters.value.add(index);
-      final contentAsync = ref.read(readerChapterContentProvider(ch));
-      contentAsync.when(
-        data: (content) {
-          if (content.isNotEmpty) {
+      // Missing file, on-demand fetch for the chapter being displayed: route
+      // through the provider (it owns network + fallbacks) and feed the
+      // result into the normal pagination flow when it lands.
+      unawaited(
+        ref.read(readerChapterContentProvider(ch).future).then((content) {
+          if (content.isNotEmpty && contentCache.value[index] != content) {
             contentCache.value[index] = content;
             schedulePagination(index, content);
           }
-        },
-        loading: () {},
-        error: (err, stack) {
-          loadedChapters.value.remove(index);
+        }, onError: (Object _) {
           failedChapters.value = {...failedChapters.value, index};
-        },
+        }),
       );
+    }
+
+    void retryChapter(int index) {
+      if (index < 0 || index >= chapters.length) {
+        return;
+      }
+      final ch = chapters[index];
+      failedChapters.value = Set<int>.from(failedChapters.value)..remove(index);
+      ref.invalidate(readerChapterContentProvider(ch));
+      ensureChapterLoaded(index, allowRemoteFetch: true);
     }
 
     void updateProgress(int currentLocalPage, int totalPages) {
@@ -453,7 +509,7 @@ class RealFlipReaderLayout extends HookConsumerWidget {
       currentLocalPageIndex.value = startAtTop
           ? 0
           : (pageCache.value[clamped]?.length ?? 1) - 1;
-      ensureChapterLoaded(clamped);
+      ensureChapterLoaded(clamped, allowRemoteFetch: true);
       onPageChanged(clamped);
       if (pageCache.value[clamped] != null) {
         final panel = useSpread
@@ -474,7 +530,7 @@ class RealFlipReaderLayout extends HookConsumerWidget {
     }, const []);
 
     final currentIndex = chapterIndex.value;
-    ensureChapterLoaded(currentIndex);
+    ensureChapterLoaded(currentIndex, allowRemoteFetch: true);
     if (currentIndex + 1 < chapters.length) {
       ensureChapterLoaded(currentIndex + 1);
     }
@@ -709,9 +765,16 @@ class RealFlipReaderLayout extends HookConsumerWidget {
       );
     }
 
-    void showChapterIndex(BuildContext ctx) {
-      ChapterIndexSheet.show(
+    void showChapterIndex(BuildContext ctx, {int initialTab = 0}) {
+      ReaderContentsSheet.show(
         ctx,
+        bookId: chapters.first.bookId,
+        bookTitle: bookTitle,
+        coverPath: coverPath,
+        bookmarkedChapterIds: bookmarkedChapterIds,
+        onBookmarkToggle: onBookmarkToggle,
+        isBookmarked: isBookmarked,
+        initialTab: initialTab,
         sheetId: 'real_flip_chapter_index',
         chapters: chapters,
         currentChapterIndex: currentIndex,
@@ -821,12 +884,28 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                   left: false,
                   right: false,
                   child: totalPanels <= 0
-                      ? ChapterShimmer(
-                          vt: vt,
-                          showHeaders: true,
-                          fontSize: settings.fontSize,
-                          lineHeight: settings.lineHeight,
-                        )
+                      ? (failedChapters.value.contains(currentIndex)
+                          ? AppErrorState(
+                              message:
+                                  'Could not load this chapter. Check your connection and try again.',
+                              onRetry: () => retryChapter(currentIndex),
+                            )
+                          : Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: ChapterShimmer(
+                                    vt: vt,
+                                    showHeaders: true,
+                                    fontSize: settings.fontSize,
+                                    lineHeight: settings.lineHeight,
+                                  ),
+                                ),
+                                ReaderLoadingOverlay(
+                                  chapter: chapters[currentIndex],
+                                  vt: vt,
+                                ),
+                              ],
+                            ))
                       : Builder(
                           builder: (context) {
                             final rawIndex = useSpread
@@ -974,7 +1053,7 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                           settings: settings,
                         ),
                 ),
-              if (!chromeState.narrationPanelVisible)
+              if (!chromeState.narrationPanelVisible && !chromeState.chromeVisible)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -994,18 +1073,20 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: ReaderBarSurface(
-                    style: settings.chromeStyle,
-                    color: colorScheme.surfaceContainerHigh,
-                    child: ReaderChromeBar(
-                      title: chapters[currentIndex].title,
-                      textColor: colorScheme.onSurface,
-                      onSettingsTap: onSettingsTap,
-                      onIntelligenceTap: onIntelligenceTap,
-                      onSearchTap: onSearchTap,
-                      onRedownload: onRedownload,
-                      isRedownloading: isRedownloading,
-                    ),
+                  child: ReaderChromeBar(
+                    title: chapters[currentIndex].title,
+                    textColor: colorScheme.onSurface,
+                    onSettingsTap: onSettingsTap,
+                    onBack: () => Navigator.of(context).maybePop(),
+                    onIntelligenceTap: onIntelligenceTap,
+                    onSearchTap: onSearchTap,
+                    onRedownload: onRedownload,
+                    isRedownloading: isRedownloading,
+                    slim: true,
+                    onTitleTap: () => showChapterIndex(context),
+                    onBookmarkTap: onBookmarkToggle,
+                    isBookmarked: isBookmarked,
+                    chromeStyle: settings.chromeStyle,
                   ),
                 ),
               if (chromeState.chromeVisible)
@@ -1013,44 +1094,37 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: ReaderBarSurface(
-                    style: settings.chromeStyle,
-                    color: colorScheme.surfaceContainerHigh,
-                    child: ReaderBottomNav(
-                      textColor: colorScheme.onSurface,
-                      onSettingsTap: onSettingsTap,
-                      onChapterIndexTap: () => showChapterIndex(context),
-                      onBookmarkTap: onBookmarkToggle,
-                      isBookmarked: isBookmarked,
-                      onAnnotationsTap: () {
-                        ReaderAnnotationsSheet.show(
-                          context,
-                          bookId: chapters.first.bookId,
-                          chapters: chapters,
-                          currentChapterId: chapters[currentIndex].id,
-                          bookTitle: bookTitle,
-                          coverPath: coverPath,
-                          onJumpToChapter: (chId, _) {
-                            final idx = chapters.indexWhere(
-                              (c) => c.id == chId,
-                            );
-                            if (idx >= 0) {
-                              navigateToChapter(idx, startAtTop: true);
-                            }
-                          },
-                        );
-                      },
-                      currentChapterTitle: chapters[currentIndex].title,
-                      currentChapterNumber: currentIndex,
-                      totalChapters: chapters.length,
-                      bookTitle: bookTitle,
-                      coverPath: coverPath,
-                      progress: progressNotifier,
-                      progressColor: settings.theme.resolve(colorScheme).accent,
-                      onListenTap: useSidePanels
-                          ? chromeNotifier.toggleNarrationPanel
-                          : null,
-                    ),
+                  child: ReaderBottomNav(
+                    textColor: colorScheme.onSurface,
+                    onSettingsTap: onSettingsTap,
+                    onChapterIndexTap: () => showChapterIndex(context),
+                    onBookmarkTap: onBookmarkToggle,
+                    isBookmarked: isBookmarked,
+                    chromeStyle: settings.chromeStyle,
+                    onAnnotationsTap: () => showChapterIndex(context, initialTab: 2),
+                    currentChapterTitle: chapters[currentIndex].title,
+                    currentChapterNumber: currentIndex,
+                    totalChapters: chapters.length,
+                    bookTitle: bookTitle,
+                    coverPath: coverPath,
+                    progress: progressNotifier,
+                    progressColor: settings.theme.resolve(colorScheme).accent,
+                    onSearchTap: onSearchTap,
+                    onIntelligenceTap: onIntelligenceTap,
+                    onRedownload: onRedownload,
+                    isRedownloading: isRedownloading,
+                    onScrubToChapter: (idx) => navigateToChapter(idx, startAtTop: true),
+                    onPrevChapter: currentIndex > 0
+                        ? () =>
+                              navigateToChapter(currentIndex - 1, startAtTop: true)
+                        : null,
+                    onNextChapter: currentIndex < chapters.length - 1
+                        ? () =>
+                              navigateToChapter(currentIndex + 1, startAtTop: true)
+                        : null,
+                    onListenTap: useSidePanels
+                        ? chromeNotifier.toggleNarrationPanel
+                        : null,
                   ),
                 ),
             ],

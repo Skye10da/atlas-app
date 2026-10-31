@@ -1,4 +1,5 @@
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/intelligence/application/corrections/correction_rule_engine.dart';
 import 'package:atlas_app/intelligence/application/extraction/character_extractor.dart';
@@ -10,9 +11,13 @@ import 'package:atlas_app/intelligence/application/extraction/relationship_deriv
 import 'package:atlas_app/intelligence/application/graph/cooccurrence_graph.dart';
 import 'package:atlas_app/intelligence/application/graph/graph_clusterer.dart';
 import 'package:atlas_app/intelligence/domain/entities/confidence.dart';
+import 'package:atlas_app/intelligence/domain/entities/correction_record.dart';
 import 'package:atlas_app/intelligence/domain/entities/review_item.dart';
 import 'package:atlas_app/intelligence/domain/entities/story_entity.dart';
 import 'package:atlas_app/intelligence/domain/entities/story_entity_type.dart';
+import 'package:atlas_app/intelligence/domain/entities/story_event.dart';
+import 'package:atlas_app/intelligence/domain/entities/story_relationship.dart';
+import 'package:atlas_app/intelligence/domain/entities/story_cooccurrence.dart';
 import 'package:atlas_app/intelligence/domain/repositories/story_memory_repository.dart';
 import 'package:atlas_app/intelligence/infrastructure/parsing/transliteration_matcher.dart';
 
@@ -74,7 +79,6 @@ class EntityExtractor {
     LocationExtractor? locationExtractor,
     FactionExtractor? factionExtractor,
     ItemExtractor? itemExtractor,
-    RelationshipDeriver? relationshipDeriver,
     GraphClusterer? clusterer,
     TransliterationMatcher? matcher,
   })  : _repository = repository,
@@ -84,8 +88,7 @@ class EntityExtractor {
         _locationExtractor = locationExtractor ?? LocationExtractor(),
         _factionExtractor = factionExtractor ?? FactionExtractor(),
         _itemExtractor = itemExtractor ?? ItemExtractor(),
-        _relationshipDeriver = relationshipDeriver ?? const RelationshipDeriver(),
-        _clusterer = clusterer ?? GraphClusterer(),
+        _clusterer = clusterer ?? const GraphClusterer(),
         _matcher = matcher ?? const TransliterationMatcher();
 
   static int _idSeq = 0;
@@ -105,7 +108,6 @@ class EntityExtractor {
   final LocationExtractor _locationExtractor;
   final FactionExtractor _factionExtractor;
   final ItemExtractor _itemExtractor;
-  final RelationshipDeriver _relationshipDeriver;
   final GraphClusterer _clusterer;
   final TransliterationMatcher _matcher;
 
@@ -132,10 +134,22 @@ class EntityExtractor {
         );
       }
 
-      // 1. Run regex tokenization and pattern matching in background isolate
-      final _RawExtractionPayload payload;
+      // 1. Run regex tokenization and pattern matching in background isolate.
+      // Some restricted runtimes (e.g. the flutter_test VM or sandboxed
+      // embedders) cannot spawn isolates — degrade to inline scanning in
+      // that case instead of failing the whole chapter extraction.
+      _RawExtractionPayload payload;
       if (runInIsolate) {
-        payload = await Isolate.run(() => _scanChapterText(chapterText));
+        try {
+          payload = await Isolate.run(() => _scanChapterText(chapterText));
+        } catch (_) {
+          payload = _buildPayload(
+            _characterExtractor.extract(chapterText),
+            _locationExtractor.extract(chapterText),
+            _factionExtractor.extract(chapterText),
+            _itemExtractor.extract(chapterText),
+          );
+        }
       } else {
         payload = _buildPayload(
           _characterExtractor.extract(chapterText),
@@ -153,6 +167,61 @@ class EntityExtractor {
           ? existingEntitiesRes.value
           : <StoryEntity>[];
 
+      // One round trip each instead of one per candidate: pending review
+      // dedup keys (in-memory duplicate guard) and the correction-rule set
+      // the confidence engine scores candidates against.
+      final correctionsFuture = _correctionEngine != null
+          ? _correctionEngine.loadCorrectionsForBook(bookId)
+          : Future.value(const <CorrectionRecord>[]);
+      final pendingKeysRes = await _repository.pendingReviewItemKeys(
+        bookId: bookId,
+        readThroughId: readThroughId,
+      );
+      final pendingReviewKeys = pendingKeysRes is Success<Set<String>>
+          ? pendingKeysRes.value
+          : <String>{};
+      final corrections = await correctionsFuture;
+
+      // Cheap-metric index over the existing entities: normalized name
+      // length + Soundex code, bucketed per type. A candidate only runs the
+      // (expensive) full transliteration similarity against entities that
+      // pass this superset prefilter — phonetic match, plausible edit-distance
+      // length band, or subset/prefix similarity — so the fuzzy scan stays
+      // proportional to the plausible bucket instead of the whole library.
+      final fuzzyIndex = <String, List<_FuzzyIndexEntry>>{};
+      for (final e in existingEntities) {
+        final norm = _matcher.normalizeName(e.canonicalName);
+        (fuzzyIndex[e.type.id] ??= []).add(_FuzzyIndexEntry(
+          entity: e,
+          norm: norm,
+          length: norm.length,
+          soundex: _matcher.soundexCode(e.canonicalName),
+        ));
+      }
+
+      StoryEntity? findFuzzyAliasMatch(StoryEntityType type, String name) {
+        final candidates = fuzzyIndex[type.id];
+        if (candidates == null) return null;
+        final norm = _matcher.normalizeName(name);
+        final soundex = _matcher.soundexCode(name);
+        final len = norm.length;
+        for (final entry in candidates) {
+          final sameSoundex = soundex.isNotEmpty && soundex == entry.soundex;
+          final lenDelta = (len - entry.length).abs().toDouble();
+          // Levenshtein similarity >= 0.75 implies edit distance <= 0.25 *
+          // maxLen, which bounds |lenA - lenB|. +1 slack for rounding.
+          final plausibleBand = lenDelta <= 0.25 * math.max(len, entry.length) + 1;
+          final subsetPlausible = len > 2 &&
+              entry.length > 2 &&
+              (norm.contains(entry.norm) || entry.norm.contains(norm));
+          if (!sameSoundex && !plausibleBand && !subsetPlausible) continue;
+          if (_matcher.isPotentialAlias(entry.entity.canonicalName, name)) {
+            return entry.entity;
+          }
+        }
+        return null;
+      }
+
       final knownEntityMap = <String, StoryEntity>{};
       for (final e in existingEntities) {
         knownEntityMap[e.canonicalName.toLowerCase()] = e;
@@ -163,9 +232,23 @@ class EntityExtractor {
 
       final thresholdConfigs = ConfidenceThresholdConfig.defaults;
       final presentEntitiesThisChapter = <StoryEntity>[];
+      // Entities are collected here and flushed in ONE batch write after all
+      // candidate types are processed — saves per-entity transactions.
+      final entitiesToPersist = <StoryEntity>[];
+      final reviewItemsToPersist = <ReviewItem>[];
       int newCount = 0;
       int updatedCount = 0;
       int reviewCount = 0;
+
+      /// Queues a review item, skipping duplicates already pending in the
+      /// queue or produced earlier in this same pass.
+      void queueReviewItem(ReviewItem item) {
+        final key = '${item.type.id}|${item.entityId}|${item.candidateName}';
+        if (pendingReviewKeys.contains(key)) return;
+        pendingReviewKeys.add(key);
+        reviewItemsToPersist.add(item);
+        reviewCount++;
+      }
 
       // Helper to process candidates of a given type
       Future<void> processCandidates({
@@ -196,19 +279,13 @@ class EntityExtractor {
               updatedAt: DateTime.now(),
             );
 
-            await _repository.saveEntity(updated);
+            entitiesToPersist.add(updated);
             presentEntitiesThisChapter.add(updated);
             knownEntityMap[name.toLowerCase()] = updated;
             updatedCount++;
           } else {
             // Check for transliteration fuzzy match against known entities
-            StoryEntity? fuzzyMatch;
-            for (final e in existingEntities) {
-              if (e.type == type && _matcher.isPotentialAlias(e.canonicalName, name)) {
-                fuzzyMatch = e;
-                break;
-              }
-            }
+            final fuzzyMatch = findFuzzyAliasMatch(type, name);
 
             if (fuzzyMatch != null) {
               // Found fuzzy alias match -> queue for review as alias merge candidate
@@ -226,8 +303,7 @@ class EntityExtractor {
                 chapterIndex: chapterIndex,
                 createdAt: DateTime.now(),
               );
-              await _repository.saveReviewItem(reviewItem);
-              reviewCount++;
+              queueReviewItem(reviewItem);
             } else {
               // Newly discovered candidate
               var initialConfidence = _scorer.initialScore(
@@ -235,15 +311,10 @@ class EntityExtractor {
                 hasSecondarySignal: (evidenceMap[name]?.length ?? 0) > 1,
               );
 
-              // Apply active learning correction rule adjustment if available
-              if (_correctionEngine != null) {
-                final delta = await _correctionEngine.evaluateConfidenceAdjustment(
-                  bookId: bookId,
-                  candidateName: name,
-                  type: type,
-                );
-                initialConfidence = (initialConfidence + delta).clamp(0.0, 1.0);
-              }
+              // Apply active learning correction rule adjustment if available.
+              // Rules were prefetched once for the whole chapter pass.
+              final delta = _correctionEngine?.adjustmentFor(corrections, name, type) ?? 0.0;
+              initialConfidence = (initialConfidence + delta).clamp(0.0, 1.0);
 
               final tier = config.resolveTier(initialConfidence);
 
@@ -261,8 +332,7 @@ class EntityExtractor {
                   chapterIndex: chapterIndex,
                   createdAt: DateTime.now(),
                 );
-                await _repository.saveReviewItem(reviewItem);
-                reviewCount++;
+                queueReviewItem(reviewItem);
               } else {
                 // High/Medium auto-accepted -> create entity
                 final newEntity = StoryEntity(
@@ -282,7 +352,7 @@ class EntityExtractor {
                   updatedAt: DateTime.now(),
                 );
 
-                await _repository.saveEntity(newEntity);
+                entitiesToPersist.add(newEntity);
                 presentEntitiesThisChapter.add(newEntity);
                 knownEntityMap[name.toLowerCase()] = newEntity;
                 newCount++;
@@ -321,64 +391,108 @@ class EntityExtractor {
         primarySignal: ExtractionSignalType.structuredPattern,
       );
 
-      // 2. Update co-occurrence graph
-      final presentIds = presentEntitiesThisChapter.map((e) => e.id).toSet().toList();
-      final graph = CooccurrenceGraph();
-      final edges = graph.recordCooccurrences(
-        bookId: bookId,
-        readThroughId: readThroughId,
-        entityIds: presentIds,
-        chapterIndex: chapterIndex,
-      );
-      if (edges.isNotEmpty) {
-        await _repository.updateCooccurrences(bookId, edges, readThroughId: readThroughId);
+      // Flush collected writes in a single batched pass before the
+      // co-occurrence/relationship derivation steps.
+      if (entitiesToPersist.isNotEmpty) {
+        await _repository.saveEntities(entitiesToPersist);
+      }
+      await _repository.saveReviewItems(reviewItemsToPersist);
 
-        final proposals = _clusterer.findMergeCandidates(
-          entities: presentEntitiesThisChapter,
-          graph: graph,
-          bookId: bookId,
+      // 2. Update co-occurrence graph. The graph is SEEDED from the persisted
+      // story_cooccurrences for the entities present in this chapter — it
+      // used to start empty every pass, which (a) made each recovered pair
+      // weigh 1 so the "co-occur ≥ 2 → distinct" gate never blocked and the
+      // main-isolate clusterer ran full similarity on every same-type pair,
+      // and (b) re-proposed merges for long-co-occurring distinct characters.
+      final presentIds = presentEntitiesThisChapter.map((e) => e.id).toSet();
+      if (presentIds.length >= 2) {
+        final persistedRes = await _repository.getCooccurrencesForEntities(
+          bookId,
+          presentIds,
+          readThroughId: readThroughId,
         );
-        for (final p in proposals) {
-          if (!p.shouldAutoMerge) {
-            final reviewItem = ReviewItem(
-              id: generateReviewId(bookId, 'cluster'),
+        final persistedEdges = persistedRes is Success<List<StoryCooccurrence>>
+            ? persistedRes.value
+            : const <StoryCooccurrence>[];
+
+        final graph = CooccurrenceGraph(persistedEdges);
+        final edges = graph.recordCooccurrences(
+          bookId: bookId,
+          readThroughId: readThroughId,
+          entityIds: presentIds.toList(),
+          chapterIndex: chapterIndex,
+        );
+        if (edges.isNotEmpty) {
+          await _repository.updateCooccurrences(bookId, edges, readThroughId: readThroughId);
+
+          // Clustering runs the O(pairs) transliteration similarity scan, so
+          // it goes through the same isolate route as the text scan — kept
+          // off the UI thread like [_deriveInsights].
+          List<MergeProposal> proposals;
+          if (runInIsolate) {
+            try {
+              proposals = await Isolate.run(
+                () => GraphClusterer.findMergeCandidatesFromEdges(
+                  entities: presentEntitiesThisChapter,
+                  bookId: bookId,
+                  persistedEdges: persistedEdges,
+                ),
+              );
+            } catch (_) {
+              // Restricted runtimes: fall through to the inline pass.
+              proposals = _clusterer.findMergeCandidates(
+                entities: presentEntitiesThisChapter,
+                graph: graph,
+                bookId: bookId,
+              );
+            }
+          } else {
+            proposals = _clusterer.findMergeCandidates(
+              entities: presentEntitiesThisChapter,
+              graph: graph,
               bookId: bookId,
-              readThroughId: readThroughId,
-              type: ReviewType.mergeCandidates,
-              entityId: p.absorbedEntity.id,
-              targetEntityId: p.keepEntity.id,
-              candidateName: p.absorbedEntity.canonicalName,
-              targetName: p.keepEntity.canonicalName,
-              confidenceScore: 0.70,
-              similarityScore: p.similarityScore,
-              evidence: p.evidence,
-              chapterIndex: chapterIndex,
-              createdAt: DateTime.now(),
             );
-            await _repository.saveReviewItem(reviewItem);
-            reviewCount++;
+          }
+          for (final p in proposals) {
+            if (!p.shouldAutoMerge) {
+              final reviewItem = ReviewItem(
+                id: generateReviewId(bookId, 'cluster'),
+                bookId: bookId,
+                readThroughId: readThroughId,
+                type: ReviewType.mergeCandidates,
+                entityId: p.absorbedEntity.id,
+                targetEntityId: p.keepEntity.id,
+                candidateName: p.absorbedEntity.canonicalName,
+                targetName: p.keepEntity.canonicalName,
+                confidenceScore: 0.70,
+                similarityScore: p.similarityScore,
+                evidence: p.evidence,
+                chapterIndex: chapterIndex,
+                createdAt: DateTime.now(),
+              );
+              queueReviewItem(reviewItem);
+            }
           }
         }
       }
 
-      // 3. Derive relationships and events
-      final derivedRelationships = _relationshipDeriver.deriveRelationships(
-        chapterText: chapterText,
-        chapterIndex: chapterIndex,
-        presentEntities: presentEntitiesThisChapter,
-        readThroughId: readThroughId,
-      );
-      if (derivedRelationships.isNotEmpty) {
-        await _repository.saveRelationships(derivedRelationships);
-      }
-
-      final derivedEvents = _relationshipDeriver.deriveEvents(
+      // 3. Derive relationships and events — the same O(sentences × pair)
+      // sentence scans as the extraction pass, so they run in a background
+      // isolate when the runtime allows, keeping the UI isolate light.
+      final insights = await _deriveInsights(
         chapterText: chapterText,
         chapterIndex: chapterIndex,
         bookId: bookId,
         readThroughId: readThroughId,
         presentEntities: presentEntitiesThisChapter,
+        runInIsolate: runInIsolate,
       );
+      final derivedRelationships = insights.$1;
+      final derivedEvents = insights.$2;
+      if (derivedRelationships.isNotEmpty) {
+        await _repository.saveRelationships(derivedRelationships);
+      }
+
       if (derivedEvents.isNotEmpty) {
         await _repository.saveEvents(derivedEvents);
       }
@@ -419,6 +533,33 @@ class EntityExtractor {
     );
   }
 
+  /// Pure relationship/event derivation shared by the isolate and inline
+  /// path. Executed inside [Isolate.run] when the runtime allows, so the
+  /// O(sentences × entity-pair) scans stay off the UI thread.
+  static (List<StoryRelationship>, List<StoryEvent>) deriveInsightsSync({
+    required String chapterText,
+    required int chapterIndex,
+    required String bookId,
+    required String readThroughId,
+    required List<StoryEntity> presentEntities,
+  }) {
+    const deriver = RelationshipDeriver();
+    final relationships = deriver.deriveRelationships(
+      chapterText: chapterText,
+      chapterIndex: chapterIndex,
+      presentEntities: presentEntities,
+      readThroughId: readThroughId,
+    );
+    final events = deriver.deriveEvents(
+      chapterText: chapterText,
+      chapterIndex: chapterIndex,
+      bookId: bookId,
+      readThroughId: readThroughId,
+      presentEntities: presentEntities,
+    );
+    return (relationships, events);
+  }
+
   /// Top-level pure function executed inside Isolate.run.
   static _RawExtractionPayload _scanChapterText(String text) {
     final charExtractor = CharacterExtractor();
@@ -433,4 +574,61 @@ class EntityExtractor {
       itemExtractor.extract(text),
     );
   }
+
+  /// Derives relationships and events for the chapter — inline shortcut.
+  ///
+  /// The sentence scans these two functions perform (sentence split once,
+  /// entity-pair containment checks) are meaningful work on long chapters,
+  /// so [processChapter] routes this through [Isolate.run] like the raw text
+  /// scan, keeping the UI isolate free.
+  Future<(List<StoryRelationship>, List<StoryEvent>)> _deriveInsights({
+    required String chapterText,
+    required int chapterIndex,
+    required String bookId,
+    required String readThroughId,
+    required List<StoryEntity> presentEntities,
+    required bool runInIsolate,
+  }) async {
+    if (presentEntities.isEmpty) {
+      return (const <StoryRelationship>[], const <StoryEvent>[]);
+    }
+    if (runInIsolate) {
+      try {
+        return await Isolate.run(
+          () => EntityExtractor.deriveInsightsSync(
+            chapterText: chapterText,
+            chapterIndex: chapterIndex,
+            bookId: bookId,
+            readThroughId: readThroughId,
+            presentEntities: presentEntities,
+          ),
+        );
+      } catch (_) {
+        // Restricted runtimes: fall through to the inline pass.
+      }
+    }
+    return EntityExtractor.deriveInsightsSync(
+      chapterText: chapterText,
+      chapterIndex: chapterIndex,
+      bookId: bookId,
+      readThroughId: readThroughId,
+      presentEntities: presentEntities,
+    );
+  }
+}
+
+/// Entry of the per-chapter fuzzy prefilter: cheap metrics over one existing
+/// entity so full transliteration similarity only runs on plausible matches.
+class _FuzzyIndexEntry {
+  const _FuzzyIndexEntry({
+    required this.entity,
+    required this.norm,
+    required this.length,
+    required this.soundex,
+  });
+
+  final StoryEntity entity;
+  final String norm;
+  final int length;
+  final String soundex;
 }

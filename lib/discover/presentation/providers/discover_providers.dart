@@ -46,9 +46,13 @@ final discoverRepositoryProvider = Provider<DiscoverRepositoryInterface>((ref) {
   );
 });
 
-final discoverDashboardProvider = FutureProvider<Result<DiscoverDashboardData>>((ref) async {
-  // Keep splash prewarm alive across navigation — go + per-section shell.
-  ref.keepAlive();
+final discoverDashboardProvider = FutureProvider.autoDispose<Result<DiscoverDashboardData>>((ref) async {
+  // Lazy by design: nothing on the "Find new" surface runs at app start —
+  // this provider is only instantiated the moment a screen (FindNewScreen,
+  // TrendingListScreen) begins watching it, and is torn down once the
+  // screen closes.
+  var disposed = false;
+  ref.onDispose(() => disposed = true);
   final repo = ref.watch(discoverRepositoryProvider);
   // Wire SWR push: background trending revalidation invalidates dashboard.
   // Debounce and diff-guard to avoid the stale-expired → background →
@@ -57,6 +61,7 @@ final discoverDashboardProvider = FutureProvider<Result<DiscoverDashboardData>>(
     DateTime? lastInvalidateAt;
     Map<String, int>? lastFreshKeys;
     repo.onTrendingBackgroundUpdate = (fresh) {
+      if (disposed) return;
       final now = DateTime.now();
       if (lastInvalidateAt != null &&
           now.difference(lastInvalidateAt!) < const Duration(seconds: 5)) {
@@ -71,7 +76,10 @@ final discoverDashboardProvider = FutureProvider<Result<DiscoverDashboardData>>(
       lastFreshKeys = keys;
       lastInvalidateAt = now;
       // ignore: unawaited_futures
-      Future.microtask(() => ref.invalidateSelf());
+      Future.microtask(() {
+        if (disposed) return;
+        ref.invalidateSelf();
+      });
     };
   }
   return repo.getDashboardData();

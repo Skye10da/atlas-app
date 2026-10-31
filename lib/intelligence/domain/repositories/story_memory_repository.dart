@@ -54,10 +54,15 @@ abstract interface class StoryMemoryRepository {
   });
 
   /// Fetches relationships for a book, optionally filtered by an involved entity.
+  ///
+  /// When [maxChapter] is set, only relationships established up to and
+  /// including that chapter are returned — the anti-spoiler guarantee that
+  /// backs "who is X?" style queries at the reader's current chapter.
   Future<Result<List<StoryRelationship>>> getRelationships(
     String bookId, {
     String readThroughId = 'default',
     String? entityId,
+    int? maxChapter,
   });
 
   /// Saves a recognized relationship.
@@ -66,11 +71,16 @@ abstract interface class StoryMemoryRepository {
   /// Batch saves recognized relationships.
   Future<Result<void>> saveRelationships(List<StoryRelationship> relationships);
 
-  /// Fetches events up to [maxChapter], optionally filtered by involved entities.
+  /// Fetches events up to [maxChapter], optionally filtered to the exact
+  /// [chapterExact] chapter and optionally filtered by involved entities.
+  ///
+  /// [chapterExact] lets single-chapter queries ("what happened in
+  /// chapter 7?") filter in SQL instead of fetching the full event history.
   Future<Result<List<StoryEvent>>> getEvents(
     String bookId, {
     String readThroughId = 'default',
     int? maxChapter,
+    int? chapterExact,
     List<String>? involvedEntityIds,
   });
 
@@ -90,6 +100,15 @@ abstract interface class StoryMemoryRepository {
     String readThroughId = 'default',
   });
 
+  /// Fetches only the co-occurrence edges touching any of [entityIds] —
+  /// the targeted read an extraction pass uses to seed its
+  /// [CooccurrenceGraph] with persisted history instead of starting empty.
+  Future<Result<List<StoryCooccurrence>>> getCooccurrencesForEntities(
+    String bookId,
+    Set<String> entityIds, {
+    String readThroughId = 'default',
+  });
+
   /// Fetches items awaiting human review in the review queue.
   Future<Result<List<ReviewItem>>> getReviewQueue(
     String bookId, {
@@ -99,6 +118,31 @@ abstract interface class StoryMemoryRepository {
 
   /// Adds an item to the review queue.
   Future<Result<void>> saveReviewItem(ReviewItem item);
+
+  /// Adds [items] to the review queue in a single transaction — the batched
+  /// form used by the extraction pass so a chapter's candidates cost one
+  /// transaction instead of one per item.
+  Future<Result<void>> saveReviewItems(List<ReviewItem> items);
+
+  /// Returns the pending (unresolved) review-queue dedup keys for a book /
+  /// read-through as `type|entityId|candidateName` strings — the prefetch
+  /// that lets an extraction pass deduplicate candidates in memory instead
+  /// of issuing one SQL check per candidate.
+  Future<Result<Set<String>>> pendingReviewItemKeys({
+    required String bookId,
+    String readThroughId = 'default',
+  });
+
+  /// Returns true when a pending (unresolved) review item already exists for
+  /// the same entity + candidate + type — the idempotency guard that keeps
+  /// re-extracted chapters from flooding the review queue with duplicates.
+  Future<Result<bool>> hasPendingReviewItem({
+    required String bookId,
+    String readThroughId = 'default',
+    required ReviewType type,
+    required String entityId,
+    required String candidateName,
+  });
 
   /// Resolves or dismisses a review item.
   Future<Result<void>> resolveReviewItem(String reviewId, ReviewStatus status);
@@ -116,6 +160,60 @@ abstract interface class StoryMemoryRepository {
     int? maxChapter,
     int limit = 10,
   });
+
+  /// Returns the set of chapter indexes already logged as ingested for a
+  /// book / read-through — the coverage snapshot a backfill pass needs to
+  /// decide what still lacks story memory.
+  Future<Result<Set<int>>> ingestedChapterIndexes({
+    required String bookId,
+    String readThroughId = 'default',
+  });
+
+  /// Returns the persisted recap text for one (book, read-through, chapter)
+  /// key, or null when no snapshot has been generated yet. The detail page
+  /// renders from this cache instantly; recompute overwrites the same key.
+  Future<Result<String?>> getRecapSnapshot({
+    required String bookId,
+    String readThroughId = 'default',
+    required int chapterIndex,
+  });
+
+  /// Persists the recap text for one (book, read-through, chapter) key,
+  /// replacing any previous snapshot for that key.
+  Future<Result<void>> saveRecapSnapshot({
+    required String bookId,
+    String readThroughId = 'default',
+    required int chapterIndex,
+    required String recapText,
+  });
+
+  /// Replaces the FTS5 scene rows for one chapter with fresh [scenes]
+  /// (delete-then-insert, safe for re-extraction). Read-through agnostic:
+  /// scenes bound to the book's raw chapter text shared by all read-throughs.
+  Future<Result<void>> saveScenes(
+    String bookId,
+    int chapterIndex,
+    List<String> scenes,
+  );
+
+  /// Returns true when a chapter has already been extracted under the exact
+  /// same [textHash] for [bookId]/[readThroughId] — the idempotency guard that
+  /// keeps re-opening a chapter from re-running the full extraction pipeline.
+  Future<Result<bool>> isChapterIngested(
+    String bookId,
+    String readThroughId,
+    int chapterIndex,
+    String textHash,
+  );
+
+  /// Marks a chapter as ingested with the given [textHash] so a later pass
+  /// with identical text short-circuits in [isChapterIngested].
+  Future<Result<void>> recordChapterIngestion(
+    String bookId,
+    String readThroughId,
+    int chapterIndex,
+    String textHash,
+  );
 
   /// Fetches all read-through sessions for [bookId].
   Future<Result<List<ReadThrough>>> getReadThroughs(String bookId);

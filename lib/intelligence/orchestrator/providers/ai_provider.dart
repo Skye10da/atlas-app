@@ -6,6 +6,7 @@ class AiPrompt {
     this.model,
     this.temperature = 0.3,
     this.maxTokens = 1024,
+    this.cacheSystemPrompt = false,
   });
 
   final String systemPrompt;
@@ -13,6 +14,13 @@ class AiPrompt {
   final String? model;
   final double temperature;
   final int maxTokens;
+
+  /// When true, providers that support prompt caching should mark the stable
+  /// prefix of [systemPrompt] as cacheable (Anthropic `cache_control`);
+  /// providers with implicit caching (OpenAI-compatible) need no marking and
+  /// ignore this. The orchestrator sets it because the system prompt is
+  /// stable per reading position while the user prompt varies per query.
+  final bool cacheSystemPrompt;
 }
 
 /// Abstract contract for an AI provider (Cloud BYOK, Ollama, Local llama.cpp).

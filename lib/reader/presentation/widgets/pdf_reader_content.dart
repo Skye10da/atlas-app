@@ -9,6 +9,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:real_page_flip/real_page_flip.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
@@ -146,7 +147,7 @@ class PdfReaderContent extends HookConsumerWidget {
     final bookTitle = useState<String?>(null);
     final bookCoverPath = useState<String?>(null);
 
-    final isDesktop = MediaQuery.sizeOf(context).width >= 840;
+    final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
     final isDark = Theme.of(context).colorScheme.brightness == Brightness.dark;
 
     Future<String> loadPageText(int pageNumber) async {
@@ -248,7 +249,7 @@ class PdfReaderContent extends HookConsumerWidget {
         final settings =
             ref.read(readingSettingsProvider).valueOrNull ??
             const ReadingSettingsEntity();
-        final isDesktop = MediaQuery.sizeOf(context).width >= 1200;
+        final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.largeDesktop;
         final useDoubleSpread = isDesktop && settings.useBookSpread;
         final targetIndex = useDoubleSpread
             ? ((target - 1) ~/ 2)

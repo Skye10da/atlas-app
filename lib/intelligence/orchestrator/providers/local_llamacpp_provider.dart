@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:atlas_app/intelligence/orchestrator/providers/ai_provider.dart';
+import 'package:atlas_app/intelligence/orchestrator/providers/ollama_provider.dart';
 
 /// Local llama.cpp runner / server provider running on the host machine.
 class LocalLlamaCppProvider implements AiProvider {
@@ -58,7 +59,7 @@ class LocalLlamaCppProvider implements AiProvider {
           {'role': 'user', 'content': prompt.userPrompt},
         ],
       }),
-    );
+    ).timeout(kLocalCompletionTimeout);
 
     if (res.statusCode != 200) {
       throw http.ClientException('llama.cpp server error (${res.statusCode}): ${res.body}');

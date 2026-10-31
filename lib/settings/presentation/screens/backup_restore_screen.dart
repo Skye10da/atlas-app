@@ -16,7 +16,8 @@ class BackupRestoreScreen extends ConsumerStatefulWidget {
   const BackupRestoreScreen({super.key});
 
   @override
-  ConsumerState<BackupRestoreScreen> createState() => _BackupRestoreScreenState();
+  ConsumerState<BackupRestoreScreen> createState() =>
+      _BackupRestoreScreenState();
 }
 
 class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
@@ -36,9 +37,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     final textTheme = theme.textTheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Library Backup & Restore'),
-      ),
+      appBar: AppBar(title: const Text('Library Backup & Restore')),
       body: ListView(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
@@ -51,18 +50,12 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
             decoration: BoxDecoration(
               color: colors.primaryContainer.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-              border: Border.all(
-                color: colors.primary.withValues(alpha: 0.2),
-              ),
+              border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.shield_outlined,
-                  color: colors.primary,
-                  size: 24,
-                ),
+                Icon(Icons.shield_outlined, color: colors.primary, size: 24),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
@@ -108,148 +101,167 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     ColorScheme colors,
     TextTheme textTheme,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow,
+    // Material (not Container/DecoratedBox): the child SwitchListTiles paint
+    // their ink on the nearest Material ancestor, which a DecoratedBox would
+    // hide (framework assertion).
+    return Material(
+      color: colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.4),
-        ),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.4)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.xs),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
-                ),
-                child: Icon(Icons.file_download_outlined, color: colors.primary, size: 20),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                'Export Library Backup',
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colors.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Generate a self-contained archive or portable metadata file.',
-            style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Format Selection (Segmented Button)
-          Text(
-            'Backup Package Format',
-            style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment<bool>(
-                value: true,
-                label: Text('Full Package (.atlas)'),
-                icon: Icon(Icons.folder_zip_outlined, size: 16),
-              ),
-              ButtonSegment<bool>(
-                value: false,
-                label: Text('Metadata Only (.json)'),
-                icon: Icon(Icons.code_rounded, size: 16),
-              ),
-            ],
-            selected: {_isArchive},
-            onSelectionChanged: (Set<bool> newSelection) {
-              setState(() {
-                _isArchive = newSelection.first;
-              });
-            },
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            _isArchive
-                ? 'Includes all covers, offline chapter text, book files, and complete reading state. Fully self-contained.'
-                : 'Lightweight JSON file containing all books, reading progress, exact positions, and sources.',
-            style: textTheme.bodySmall?.copyWith(
-              color: colors.outline,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Options Toggles
-          if (_isArchive)
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Bundle Offline Chapters'),
-              subtitle: const Text('Include cached chapter text files in the package'),
-              value: _includeOfflineChapters,
-              onChanged: _isExporting
-                  ? null
-                  : (val) => setState(() => _includeOfflineChapters = val),
-            ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Include Highlights & Notes'),
-            subtitle: const Text('Export reader annotations and colored highlights'),
-            value: _includeAnnotations,
-            onChanged: _isExporting
-                ? null
-                : (val) => setState(() => _includeAnnotations = val),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Include Reading Analytics'),
-            subtitle: const Text('Export reading sessions and chapter target goals'),
-            value: _includeAnalytics,
-            onChanged: _isExporting
-                ? null
-                : (val) => setState(() => _includeAnalytics = val),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Action Buttons
-          if (_isExporting)
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.borderRadiusSm,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.file_download_outlined,
+                    color: colors.primary,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  _statusMessage ?? 'Preparing backup package...',
-                  style: textTheme.bodySmall?.copyWith(color: colors.primary),
-                ),
-              ],
-            )
-          else
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.share_outlined, size: 16),
-                  label: const Text('Share'),
-                  onPressed: () => _handleShare(context),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                FilledButton.icon(
-                  icon: const Icon(Icons.download_rounded, size: 16),
-                  label: const Text('Save Backup File'),
-                  onPressed: () => _handleExport(context),
+                  'Export Library Backup',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colors.onSurface,
+                  ),
                 ),
               ],
             ),
-        ],
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Generate a self-contained archive or portable metadata file.',
+              style: textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Format Selection (Segmented Button)
+            Text(
+              'Backup Package Format',
+              style: textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment<bool>(
+                  value: true,
+                  label: Text('Full Package (.atlas)'),
+                  icon: Icon(Icons.folder_zip_outlined, size: 16),
+                ),
+                ButtonSegment<bool>(
+                  value: false,
+                  label: Text('Metadata Only (.json)'),
+                  icon: Icon(Icons.code_rounded, size: 16),
+                ),
+              ],
+              selected: {_isArchive},
+              onSelectionChanged: (Set<bool> newSelection) {
+                setState(() {
+                  _isArchive = newSelection.first;
+                });
+              },
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              _isArchive
+                  ? 'Includes all covers, offline chapter text, book files, and complete reading state. Fully self-contained.'
+                  : 'Lightweight JSON file containing all books, reading progress, exact positions, and sources.',
+              style: textTheme.bodySmall?.copyWith(
+                color: colors.outline,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Options Toggles
+            if (_isArchive)
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Bundle Offline Chapters'),
+                subtitle: const Text(
+                  'Include cached chapter text files in the package',
+                ),
+                value: _includeOfflineChapters,
+                onChanged: _isExporting
+                    ? null
+                    : (val) => setState(() => _includeOfflineChapters = val),
+              ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Include Highlights & Notes'),
+              subtitle: const Text(
+                'Export reader annotations and colored highlights',
+              ),
+              value: _includeAnnotations,
+              onChanged: _isExporting
+                  ? null
+                  : (val) => setState(() => _includeAnnotations = val),
+            ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Include Reading Analytics'),
+              subtitle: const Text(
+                'Export reading sessions and chapter target goals',
+              ),
+              value: _includeAnalytics,
+              onChanged: _isExporting
+                  ? null
+                  : (val) => setState(() => _includeAnalytics = val),
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Action Buttons
+            if (_isExporting)
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    _statusMessage ?? 'Preparing backup package...',
+                    style: textTheme.bodySmall?.copyWith(color: colors.primary),
+                  ),
+                ],
+              )
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.share_outlined, size: 16),
+                    label: const Text('Share'),
+                    onPressed: () => _handleShare(context),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.download_rounded, size: 16),
+                    label: const Text('Save Backup File'),
+                    onPressed: () => _handleExport(context),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -259,69 +271,79 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     ColorScheme colors,
     TextTheme textTheme,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow,
+    return Material(
+      color: colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        border: Border.all(
-          color: colors.outlineVariant.withValues(alpha: 0.4),
-        ),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.4)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.xs),
-                decoration: BoxDecoration(
-                  color: colors.secondary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppSpacing.borderRadiusSm),
-                ),
-                child: Icon(Icons.file_upload_outlined, color: colors.secondary, size: 20),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                'Restore Library Backup',
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colors.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Import a previous Atlas backup (.atlas, .zip, or .json). Reading progress, exact chapter positions, and offline content will be seamlessly restored.',
-            style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          if (_isRestoring)
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  decoration: BoxDecoration(
+                    color: colors.secondary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.borderRadiusSm,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.file_upload_outlined,
+                    color: colors.secondary,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  _statusMessage ?? 'Restoring library...',
-                  style: textTheme.bodySmall?.copyWith(color: colors.secondary),
+                  'Restore Library Backup',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colors.onSurface,
+                  ),
                 ),
               ],
-            )
-          else
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.tonalIcon(
-                icon: const Icon(Icons.restore_page_outlined, size: 16),
-                label: const Text('Select Backup to Restore'),
-                onPressed: () => _handleRestore(context),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Import a previous Atlas backup (.atlas, .zip, or .json). Reading progress, exact chapter positions, and offline content will be seamlessly restored.',
+              style: textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
               ),
             ),
-        ],
+            const SizedBox(height: AppSpacing.md),
+            if (_isRestoring)
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    _statusMessage ?? 'Restoring library...',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colors.secondary,
+                    ),
+                  ),
+                ],
+              )
+            else
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonalIcon(
+                  icon: const Icon(Icons.restore_page_outlined, size: 16),
+                  label: const Text('Select Backup to Restore'),
+                  onPressed: () => _handleRestore(context),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -550,20 +572,52 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
                       padding: const EdgeInsets.all(AppSpacing.sm),
                       decoration: BoxDecoration(
                         color: colors.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.borderRadiusMd,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _statRow('Exported on', manifest.exportedAt.toLocal().toString().split('.').first),
-                          _statRow('Books & Novels', '${manifest.booksCount} books, ${manifest.novelsCount} web novels'),
-                          _statRow('Chapters', '${manifest.chaptersCount} chapters'),
-                          _statRow('Reading Progress', '${manifest.readingProgressCount} books with saved positions'),
-                          _statRow('Bookmarks', '${manifest.bookmarksCount} bookmarks'),
-                          _statRow('Vocabulary', '${manifest.wordsCount} words'),
+                          _statRow(
+                            'Exported on',
+                            manifest.exportedAt
+                                .toLocal()
+                                .toString()
+                                .split('.')
+                                .first,
+                          ),
+                          _statRow(
+                            'Books & Novels',
+                            '${manifest.booksCount} books, ${manifest.novelsCount} web novels',
+                          ),
+                          _statRow(
+                            'Chapters',
+                            '${manifest.chaptersCount} chapters',
+                          ),
+                          _statRow(
+                            'Reading Progress',
+                            '${manifest.readingProgressCount} books with saved positions',
+                          ),
+                          _statRow(
+                            'Bookmarks',
+                            '${manifest.bookmarksCount} bookmarks',
+                          ),
+                          _statRow(
+                            'Vocabulary',
+                            '${manifest.wordsCount} words',
+                          ),
                           if (manifest.annotationsCount > 0)
-                            _statRow('Annotations', '${manifest.annotationsCount} annotated books'),
-                          _statRow('Offline Files', manifest.hasBundledFiles ? 'Bundled covers & chapters' : 'Metadata only'),
+                            _statRow(
+                              'Annotations',
+                              '${manifest.annotationsCount} annotated books',
+                            ),
+                          _statRow(
+                            'Offline Files',
+                            manifest.hasBundledFiles
+                                ? 'Bundled covers & chapters'
+                                : 'Metadata only',
+                          ),
                         ],
                       ),
                     ),
@@ -572,7 +626,9 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
                     // Restore Mode Selector
                     Text(
                       'Restore Mode',
-                      style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+                      style: textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     RadioGroup<bool>(
                       groupValue: cleanRestore,
@@ -587,13 +643,17 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
                           RadioListTile<bool>(
                             contentPadding: EdgeInsets.zero,
                             title: Text('Merge with Library'),
-                            subtitle: Text('Updates existing items and adds new items'),
+                            subtitle: Text(
+                              'Updates existing items and adds new items',
+                            ),
                             value: false,
                           ),
                           RadioListTile<bool>(
                             contentPadding: EdgeInsets.zero,
                             title: Text('Clean Replace'),
-                            subtitle: Text('Replaces existing library with backup contents'),
+                            subtitle: Text(
+                              'Replaces existing library with backup contents',
+                            ),
                             value: true,
                           ),
                         ],
@@ -683,12 +743,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
         ],
       ),
     );
@@ -703,7 +758,11 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       builder: (ctx) {
         final colors = Theme.of(ctx).colorScheme;
         return AlertDialog(
-          icon: Icon(Icons.check_circle_outline, color: colors.primary, size: 36),
+          icon: Icon(
+            Icons.check_circle_outline,
+            color: colors.primary,
+            size: 36,
+          ),
           title: const Text('Restore Completed Successfully'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -712,7 +771,10 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
               _statRow('Books Restored', '${summary.booksRestored}'),
               _statRow('Web Novels', '${summary.novelsRestored}'),
               _statRow('Chapters', '${summary.chaptersRestored}'),
-              _statRow('Reading Positions', '${summary.readingProgressRestored}'),
+              _statRow(
+                'Reading Positions',
+                '${summary.readingProgressRestored}',
+              ),
               _statRow('Bookmarks', '${summary.bookmarksRestored}'),
               _statRow('Characters', '${summary.charactersRestored}'),
               _statRow('Vocabulary', '${summary.wordsRestored}'),
@@ -733,4 +795,3 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     );
   }
 }
-

@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:atlas_app/intelligence/orchestrator/providers/ai_provider.dart';
 
+/// Wall-clock cap for a single cloud completion request. Without it a hung
+/// gateway freezes the chat's `isThinking` state forever.
+const Duration kCloudCompletionTimeout = Duration(seconds: 60);
+
 enum CloudProviderType {
   gemini('gemini', 'Google Gemini', 'gemini-2.5-flash'),
   openai('openai', 'OpenAI', 'gpt-4o-mini'),
@@ -77,11 +81,16 @@ class CloudByokProvider implements AiProvider {
 
   Future<String> _completeGemini(AiPrompt prompt, String model) async {
     final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey',
+      'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent',
     );
     final response = await _client.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        // Header (not URL query) so the key never leaks into logs, error
+        // dumps, or exception payloads.
+        'x-goog-api-key': apiKey!,
+      },
       body: jsonEncode({
         'systemInstruction': {
           'parts': [
@@ -101,7 +110,7 @@ class CloudByokProvider implements AiProvider {
           'maxOutputTokens': prompt.maxTokens,
         }
       }),
-    );
+    ).timeout(kCloudCompletionTimeout);
 
     if (response.statusCode != 200) {
       throw http.ClientException('Gemini API error (${response.statusCode}): ${response.body}');
@@ -123,7 +132,7 @@ class CloudByokProvider implements AiProvider {
     final root = switch (providerType) {
       CloudProviderType.openai => 'https://api.openai.com/v1',
       CloudProviderType.openRouter => 'https://openrouter.ai/api/v1',
-      CloudProviderType.opencodeZen => 'https://opencode.zen/v1',
+      CloudProviderType.opencodeZen => 'https://opencode.ai/inference/openai/v1',
       _ => 'https://api.openai.com/v1',
     };
 
@@ -143,7 +152,7 @@ class CloudByokProvider implements AiProvider {
           {'role': 'user', 'content': prompt.userPrompt},
         ]
       }),
-    );
+    ).timeout(kCloudCompletionTimeout);
 
     if (response.statusCode != 200) {
       throw http.ClientException('${providerType.label} error (${response.statusCode}): ${response.body}');
@@ -162,6 +171,21 @@ class CloudByokProvider implements AiProvider {
 
   Future<String> _completeAnthropic(AiPrompt prompt, String model) async {
     final uri = Uri.parse('https://api.anthropic.com/v1/messages');
+
+    // With prompt caching enabled, split the system prompt into two blocks:
+    // the stable identity/spoiler prefix is marked cache_control so repeat
+    // queries at the same reading position reuse the cached token prefix;
+    // the per-chapter story-memory block follows uncached.
+    final system = prompt.cacheSystemPrompt
+        ? [
+            {
+              'type': 'text',
+              'text': prompt.systemPrompt,
+              'cache_control': {'type': 'ephemeral'},
+            },
+          ]
+        : prompt.systemPrompt;
+
     final response = await _client.post(
       uri,
       headers: {
@@ -171,14 +195,14 @@ class CloudByokProvider implements AiProvider {
       },
       body: jsonEncode({
         'model': model,
-        'system': prompt.systemPrompt,
+        'system': system,
         'max_tokens': prompt.maxTokens,
         'temperature': prompt.temperature,
         'messages': [
           {'role': 'user', 'content': prompt.userPrompt}
         ]
       }),
-    );
+    ).timeout(kCloudCompletionTimeout);
 
     if (response.statusCode != 200) {
       throw http.ClientException('Anthropic error (${response.statusCode}): ${response.body}');

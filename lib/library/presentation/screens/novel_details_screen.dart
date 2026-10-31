@@ -1,41 +1,41 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import 'package:atlas_app/core/content_acquisition/models/content_state.dart';
+import 'package:atlas_app/core/content_acquisition/application/chapter_update_service.dart';
+import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/design_system/atoms/app_loading.dart';
 import 'package:atlas_app/core/design_system/atoms/book_badge.dart';
 import 'package:atlas_app/core/design_system/molecules/confirm_delete_dialog.dart';
 import 'package:atlas_app/core/design_system/molecules/milestone_celebration_dialog.dart';
-import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/database/providers.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
+import 'package:atlas_app/intelligence/application/ingestion/story_backfill_service.dart';
 import 'package:atlas_app/library/infrastructure/repositories/drift_library_repository.dart';
 import 'package:atlas_app/library/presentation/providers/book_providers.dart';
-import 'package:atlas_app/library/presentation/providers/chapter_download_provider.dart';
-import 'package:atlas_app/library/presentation/providers/chapter_expansion_provider.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
 import 'package:atlas_app/library/presentation/providers/novel_actions_controller.dart';
-import 'package:atlas_app/library/presentation/widgets/batch_download_sheet.dart';
 import 'package:atlas_app/library/presentation/widgets/import_progress_dialog.dart';
-import 'package:atlas_app/library/presentation/widgets/novel/continue_reading_card.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/genre_tag_row.dart';
-import 'package:atlas_app/library/presentation/widgets/novel/novel_hero_header.dart';
+import 'package:atlas_app/intelligence/presentation/entity_browser/entity_browser_sheet.dart';
+import 'package:atlas_app/intelligence/presentation/providers/intelligence_providers.dart';
+import 'package:atlas_app/intelligence/presentation/read_through/read_through_selector_sheet.dart';
+import 'package:atlas_app/intelligence/presentation/review_queue/review_queue_sheet.dart';
+import 'package:atlas_app/library/presentation/widgets/novel/chapter_number_picker.dart';
+import 'package:atlas_app/library/presentation/widgets/novel/novel_detail_header.dart';
+import 'package:atlas_app/intelligence/presentation/widgets/story_characters_section.dart';
+import 'package:atlas_app/intelligence/presentation/widgets/story_recap_card.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/source_attribution.dart';
 import 'package:atlas_app/library/presentation/widgets/novel/synopsis_card.dart';
 import 'package:atlas_app/intelligence/presentation/widgets/reader_intelligence_sheet.dart';
-import 'package:atlas_app/intelligence/presentation/widgets/story_intelligence_card.dart';
-import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
 import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
 
@@ -59,12 +59,16 @@ class NovelDetailsScreen extends HookConsumerWidget {
             .read(novelActionsControllerProvider.notifier)
             .acknowledgeUpdates(bookId),
       );
+      // Kick the low-priority story-memory backfill (no-op when coverage is
+      // healthy); the progress chip renders below while it runs.
+      unawaited(maybeStartStoryBackfill(ref, bookId));
       return null;
     }, [bookId]);
 
+    final backfillProgress = ref.watch(storyBackfillProgressProvider(bookId));
+
     final bookAsync = ref.watch(bookDetailsProvider(bookId));
     final actionsState = ref.watch(novelActionsControllerProvider);
-    final isDesktop = AppBreakpoints.isDesktop(context);
 
     return bookAsync.when(
       loading: () => isEmbedded
@@ -85,157 +89,302 @@ class NovelDetailsScreen extends HookConsumerWidget {
             ? wtrRawIdOf(sourceId: book.sourceId, sourceUrl: book.sourceUrl)
             : null;
 
-        final scrollView = CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              expandedHeight: isEmbedded ? 240 : 360,
-              pinned: true,
-              flexibleSpace: FlexibleSpaceBar(
-                background: NovelHeroHeader(book: book, isEmbedded: isEmbedded),
+        Future<void> toggleTracking() async {
+          final db = ref.read(databaseProvider);
+          final newTracking = !book.updateTrackingEnabled;
+          await DriftLibraryRepository(
+            db,
+          ).setUpdateTracking(book.id, newTracking);
+          if (newTracking) {
+            unawaited(
+              UpdateNotificationService.instance.ensureNovelChannel(
+                bookId: book.id,
+                title: book.title,
               ),
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              leading: isEmbedded
-                  ? IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: onClose,
-                    )
-                  : null,
-              actions: [
-                IconButton(
-                  icon: actionsState.isLoading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh),
-                  tooltip: 'Check for updates',
-                  onPressed: actionsState.isLoading
-                      ? null
-                      : () => ref
-                            .read(novelActionsControllerProvider.notifier)
-                            .checkForUpdates(context, bookId),
-                ),
-                if (book.isNovel)
-                  IconButton(
-                    icon: Icon(
-                      book.updateTrackingEnabled
-                          ? Icons.notifications_active_outlined
-                          : Icons.notifications_off_outlined,
-                    ),
-                    tooltip: book.updateTrackingEnabled
-                        ? 'Stop tracking updates'
-                        : 'Track updates',
-                    onPressed: () async {
-                      final db = ref.read(databaseProvider);
-                      final newTracking = !book.updateTrackingEnabled;
-                      await DriftLibraryRepository(
-                        db,
-                      ).setUpdateTracking(book.id, newTracking);
-                      if (newTracking) {
-                        unawaited(
-                          UpdateNotificationService.instance.ensureNovelChannel(
-                            bookId: book.id,
-                            title: book.title,
-                          ),
-                        );
-                      } else {
-                        unawaited(
-                          UpdateNotificationService.instance.deleteNovelChannel(
-                            book.id,
-                          ),
-                        );
-                      }
-                      ref.invalidate(bookDetailsProvider(bookId));
-                      ref.invalidate(libraryBooksProvider);
-                    },
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.psychology_outlined),
-                  tooltip: 'Story Intelligence',
-                  onPressed: () => ReaderIntelligenceSheet.show(
-                    context,
-                    bookId: book.id,
-                    bookTitle: book.title,
-                    chapterIndex: (ref.read(lastReadChapterProvider(book.id)).valueOrNull?.index ?? 0) + 1,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.file_upload_outlined),
-                  tooltip: 'Export',
-                  onPressed: () => _exportNovel(context, ref, book),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Delete novel',
-                  onPressed: () => _confirmDelete(context, ref, bookId),
-                ),
-                const SizedBox(width: 4),
-              ],
+            );
+          } else {
+            unawaited(
+              UpdateNotificationService.instance.deleteNovelChannel(book.id),
+            );
+          }
+          ref.invalidate(bookDetailsProvider(bookId));
+          ref.invalidate(libraryBooksProvider);
+        }
+
+        // Floating pill action row, overlaid on the pane so it sits on top of
+        // the blurred cover backdrop. Replaces the old full-width icon bar.
+        Widget pillBar() => Row(
+          children: [
+            _PillButton(
+              icon: isEmbedded ? Icons.close : Icons.arrow_back_rounded,
+              tooltip: isEmbedded ? 'Close' : 'Back',
+              onPressed: isEmbedded ? onClose : () => popOrGoToLibrary(context),
             ),
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: AppSpacing.sm),
-                  if (wtrRawId != null)
-                    WtrTranslationSelector(
-                      rawId: wtrRawId,
-                      onServiceChanged: () => ref
-                          .read(novelActionsControllerProvider.notifier)
-                          .changeWtrService(bookId),
-                    ),
-                  if (wtrRawId != null) const SizedBox(height: AppSpacing.sm),
-                  ContinueReadingCard(book: book),
-                  const SizedBox(height: AppSpacing.sm),
-                  StoryIntelligenceCard(
-                    bookId: book.id,
-                    bookTitle: book.title,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  _ReadingTriviaCard(book: book),
-                  const SizedBox(height: AppSpacing.sm),
-                  GenreTagRow(book: book),
-                  const SizedBox(height: AppSpacing.lg),
-                  SynopsisCard(book: book),
-                  const SizedBox(height: AppSpacing.lg),
-                  SourceAttribution(book: book),
-                  const SizedBox(height: AppSpacing.lg),
-                  _ChapterSectionHeader(
-                    book: book,
-                    totalChapters: book.totalChapters,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  _ChapterPanel(bookId: bookId),
-                  const SizedBox(height: AppSpacing.xxl),
-                ],
+            const Spacer(),
+            _PillButton(
+              icon: Icons.refresh_rounded,
+              tooltip: 'Check for updates',
+              busy: actionsState.isLoading,
+              onPressed: actionsState.isLoading
+                  ? null
+                  : () => ref
+                        .read(novelActionsControllerProvider.notifier)
+                        .checkForUpdates(context, bookId),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            if (book.isNovel) ...[
+              _PillButton(
+                icon: book.updateTrackingEnabled
+                    ? Icons.notifications_active_outlined
+                    : Icons.notifications_off_outlined,
+                tooltip: book.updateTrackingEnabled
+                    ? 'Stop tracking updates'
+                    : 'Track updates',
+                onPressed: toggleTracking,
               ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+            _PillMenuButton(
+              tooltip: 'More',
+              onSelected: (value) {
+                switch (value) {
+                  case 'intelligence':
+                    ReaderIntelligenceSheet.show(
+                      context,
+                      bookId: book.id,
+                      bookTitle: book.title,
+                      chapterIndex:
+                          (ref
+                                  .read(lastReadChapterProvider(book.id))
+                                  .valueOrNull
+                                  ?.index ??
+                              0) +
+                          1,
+                    );
+                  case 'codex':
+                    EntityBrowserSheet.show(
+                      context,
+                      bookId: book.id,
+                      readThroughId: _activeReadThroughId(ref, book.id),
+                    );
+                  case 'review':
+                    ReviewQueueSheet.show(
+                      context,
+                      bookId: book.id,
+                      readThroughId: _activeReadThroughId(ref, book.id),
+                    );
+                  case 'sessions':
+                    ReadThroughSelectorSheet.show(context, bookId: book.id);
+                  case 'repair':
+                    _repairNovelIndex(context, ref, book);
+                  case 'export':
+                    _exportNovel(context, ref, book);
+                  case 'delete':
+                    _confirmDelete(context, ref, bookId);
+                }
+              },
+              itemBuilder: (ctx) {
+                final cs = Theme.of(ctx).colorScheme;
+                return [
+                  const PopupMenuItem(
+                    value: 'intelligence',
+                    child: ListTile(
+                      leading: Icon(Icons.psychology_outlined),
+                      title: Text('Story Intelligence'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'codex',
+                    child: ListTile(
+                      leading: Icon(Icons.menu_book_rounded),
+                      title: Text('Codex'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'review',
+                    child: ListTile(
+                      leading: Icon(Icons.verified_outlined),
+                      title: Text('Review queue'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'sessions',
+                    child: ListTile(
+                      leading: Icon(Icons.auto_stories_rounded),
+                      title: Text('Read-through sessions'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: book.isNovel ? 'repair' : null,
+                    child: const ListTile(
+                      leading: Icon(Icons.healing_outlined),
+                      title: Text('Repair chapter list'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'export',
+                    child: ListTile(
+                      leading: Icon(Icons.file_upload_outlined),
+                      title: Text('Export'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete_outline, color: cs.error),
+                      title: Text(
+                        'Delete novel',
+                        style: TextStyle(color: cs.error),
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ];
+              },
             ),
           ],
         );
 
-        final refreshableScrollView = RefreshIndicator(
+        NovelDetailHeader headerFor(NovelDetailLayout layout) =>
+            NovelDetailHeader(
+              book: book,
+              layout: layout,
+              isEmbedded: isEmbedded,
+            );
+
+        final wtrSelector = wtrRawId == null
+            ? const SizedBox.shrink()
+            : Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: WtrTranslationSelector(
+                  rawId: wtrRawId,
+                  onServiceChanged: () => ref
+                      .read(novelActionsControllerProvider.notifier)
+                      .changeWtrService(bookId),
+                ),
+              );
+
+        // About: genres, synopsis, source.
+        final aboutColumn = <Widget>[
+          const SizedBox(height: AppSpacing.md),
+          GenreTagRow(book: book),
+          const SizedBox(height: AppSpacing.lg),
+          SynopsisCard(book: book),
+          const SizedBox(height: AppSpacing.lg),
+          SourceAttribution(book: book),
+        ];
+
+        // Story: recap, characters, reading stats.
+        List<Widget> storyColumn({
+          required bool scrollCharacters,
+          required int maxCharacters,
+        }) => [
+          const SizedBox(height: AppSpacing.md),
+          if (backfillProgress?.running ?? false)
+            _StoryMemoryProgressChip(progress: backfillProgress!),
+          StoryRecapCard(bookId: book.id),
+          StoryCharactersSection(
+            bookId: book.id,
+            scroll: scrollCharacters,
+            maxVisible: maxCharacters,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          _ReadingTriviaCard(book: book),
+        ];
+
+        Widget pane(List<Widget> children) => RefreshIndicator(
           onRefresh: () => ref
               .read(novelActionsControllerProvider.notifier)
               .checkForUpdates(context, bookId, showSnackbars: false),
-          child: scrollView,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [...children, const SizedBox(height: AppSpacing.xxl)],
+          ),
         );
 
-        if (isEmbedded) return refreshableScrollView;
-
-        return Scaffold(
-          body: isDesktop
-              ? Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 800),
-                    child: refreshableScrollView,
+        // Phone / side panel: one column. >= 600dp: info on the left, story on
+        // the right. >= 1000dp: wider left column with a smaller cover.
+        final content = LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final twoPane = !isEmbedded && width >= 600;
+            if (!twoPane) {
+              // Pill bar floats over the pane, on top of the header backdrop.
+              return Stack(
+                children: [
+                  pane([
+                    headerFor(NovelDetailLayout.compact),
+                    wtrSelector,
+                    ...storyColumn(scrollCharacters: true, maxCharacters: 12),
+                    ...aboutColumn,
+                    const SizedBox(height: AppSpacing.lg),
+                    // Chapter arrangement lives at the very bottom of the page.
+                    ChapterNumberPicker(book: book),
+                  ]),
+                  Positioned(left: 8, right: 8, top: 8, child: pillBar()),
+                ],
+              );
+            }
+            final desktop = width >= 1000;
+            final cs = Theme.of(context).colorScheme;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: desktop ? 372 : 300,
+                  // Pill bar floats over this pane, on top of the header
+                  // backdrop (same treatment as the single-column layout).
+                  child: Stack(
+                    children: [
+                      pane([
+                        headerFor(
+                          desktop
+                              ? NovelDetailLayout.desktop
+                              : NovelDetailLayout.tablet,
+                        ),
+                        wtrSelector,
+                        ...aboutColumn,
+                      ]),
+                      Positioned(left: 8, right: 8, top: 8, child: pillBar()),
+                    ],
                   ),
-                )
-              : refreshableScrollView,
+                ),
+                VerticalDivider(
+                  width: 1,
+                  color: cs.outlineVariant.withValues(alpha: 0.6),
+                ),
+                Expanded(
+                  child: pane(
+                    [
+                      ...storyColumn(
+                        scrollCharacters: false,
+                        maxCharacters: desktop ? 7 : 8,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      // Chapter arrangement lives at the bottom of the pane.
+                      ChapterNumberPicker(book: book),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         );
+
+        if (isEmbedded) return content;
+        return Scaffold(body: SafeArea(bottom: false, child: content));
       },
     );
   }
+
+  static String _activeReadThroughId(WidgetRef ref, String bookId) =>
+      ref.read(activeReadThroughProvider(bookId)).valueOrNull?.id ?? 'default';
 
   static Future<void> _confirmDelete(
     BuildContext context,
@@ -264,6 +413,35 @@ class NovelDetailsScreen extends HookConsumerWidget {
         }
       }
     }
+  }
+
+  static Future<void> _repairNovelIndex(
+    BuildContext context,
+    WidgetRef ref,
+    BookEntity book,
+  ) async {
+    final service = ref.read(chapterUpdateServiceProvider);
+    final repairFuture = service.repairBookIndex(book.id);
+    final opened = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          ImportProgressDialog(future: repairFuture, label: 'Repairing...'),
+    );
+    if (opened == null || !context.mounted) return;
+    final BookRepairResult result = await repairFuture;
+    if (!context.mounted) return;
+    final message = result.error ??
+        (result.changed
+            ? 'Repaired "${result.title}": removed '
+                '${result.removedDuplicates} duplicate chapter(s), '
+                'index rebuilt (${result.totalChapters} chapters).'
+            : 'Chapter list looks healthy (${result.totalChapters} chapters).');
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+    ref.invalidate(bookDetailsProvider(book.id));
+    ref.invalidate(libraryBooksProvider);
   }
 
   static Future<void> _exportNovel(
@@ -392,351 +570,38 @@ class _ExportFormatSheet extends StatelessWidget {
   }
 }
 
-class _ChapterSectionHeader extends ConsumerWidget {
-  const _ChapterSectionHeader({
-    required this.book,
-    required this.totalChapters,
-  });
+/// Slim 'Building story memory …' chip shown while the background backfill
+/// run populates story memory for chapters the reader never opened.
+class _StoryMemoryProgressChip extends StatelessWidget {
+  const _StoryMemoryProgressChip({required this.progress});
 
-  final BookEntity book;
-  final int totalChapters;
+  final StoryBackfillProgress progress;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final chaptersAsync = ref.watch(bookChaptersProvider(book.id));
-    final isDownloadingAll = ref.watch(isBatchDownloadingProvider(book.id));
-
-    final downloadedCount = chaptersAsync.maybeWhen(
-      data: (list) => list
-          .where((ch) => ch.contentState == ContentState.availableOffline.index)
-          .length,
-      orElse: () => 0,
-    );
-
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Row(
         children: [
-          Text(
-            'Chapters',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const Spacer(),
-          Text(
-            '$downloadedCount / $totalChapters',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          Icon(Icons.psychology_outlined, size: 16, color: cs.primary),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              'Building story memory '
+              '${progress.covered}/${progress.totalChapters}',
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.primary),
             ),
           ),
-          if (downloadedCount < totalChapters) ...[
-            const SizedBox(width: 8),
-            SizedBox(
-              height: 28,
-              child: TextButton.icon(
-                onPressed: isDownloadingAll
-                    ? null
-                    : () {
-                        final list = chaptersAsync.valueOrNull ?? [];
-                        BatchDownloadSheet.show(
-                          context,
-                          book: book,
-                          chapters: list,
-                        );
-                      },
-                icon: isDownloadingAll
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.download_rounded, size: 16),
-                label: Text(
-                  isDownloadingAll ? 'Downloading...' : 'Download',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
-  }
-}
-
-class _ChapterPanel extends ConsumerWidget {
-  const _ChapterPanel({required this.bookId});
-
-  final String bookId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final chaptersAsync = ref.watch(bookChaptersProvider(bookId));
-
-    return chaptersAsync.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.all(AppSpacing.md),
-        child: AppLoading(),
-      ),
-      error: (error, stack) => const SizedBox.shrink(),
-      data: (chapters) {
-        if (chapters.isEmpty) return const SizedBox.shrink();
-        final totalChapters = chapters.length;
-        final groups = _groupChapters(totalChapters);
-
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: groups.length,
-          itemBuilder: (context, index) {
-            final group = groups[index];
-            final groupChapters = chapters
-                .where((c) => c.index >= group.start && c.index <= group.end)
-                .toList();
-
-            return _ChapterGroup(
-              bookId: bookId,
-              groupIndex: index,
-              title: group.title,
-              chapters: groupChapters,
-              isFirst: index == 0,
-              isLast: index == groups.length - 1,
-            );
-          },
-        );
-      },
-    );
-  }
-
-  List<({String title, int start, int end})> _groupChapters(int total) {
-    final groupSize = total <= 100 ? 10 : (total <= 500 ? 50 : 100);
-    final groups = <({String title, int start, int end})>[];
-    for (int start = 0; start < total; start += groupSize) {
-      final end = min(start + groupSize - 1, total - 1);
-      final label = total <= 100
-          ? '${start + 1} - ${end + 1}'
-          : 'Ch. ${start + 1} - ${end + 1}';
-      groups.add((title: label, start: start, end: end));
-    }
-    return groups;
-  }
-}
-
-class _ChapterGroup extends ConsumerWidget {
-  const _ChapterGroup({
-    required this.bookId,
-    required this.groupIndex,
-    required this.title,
-    required this.chapters,
-    required this.isFirst,
-    required this.isLast,
-  });
-
-  final String bookId;
-  final int groupIndex;
-  final String title;
-  final List<ChapterEntity> chapters;
-  final bool isFirst;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final groupKey = '$bookId:$groupIndex';
-    final isExpanded = ref.watch(chapterGroupExpandedProvider(groupKey));
-    final colors = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      margin: EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        isFirst ? 0 : AppSpacing.xs,
-        AppSpacing.md,
-        isLast ? 0 : AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () {
-              ref.read(chapterGroupExpandedProvider(groupKey).notifier).state =
-                  !isExpanded;
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    title,
-                    style: textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${chapters.length}',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                    size: 18,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (isExpanded)
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: chapters.length,
-              itemBuilder: (context, index) {
-                final ch = chapters[index];
-                return _ChapterTile(
-                  bookId: bookId,
-                  chapter: ch,
-                  onTap: () =>
-                      context.push('/reader/$bookId?chapterId=${ch.id}'),
-                );
-              },
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChapterTile extends ConsumerWidget {
-  const _ChapterTile({
-    required this.bookId,
-    required this.chapter,
-    required this.onTap,
-  });
-
-  final String bookId;
-  final ChapterEntity chapter;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isDownloading = ref.watch(isChapterDownloadingProvider(chapter.id));
-    final colors = Theme.of(context).colorScheme;
-    final isDownloaded =
-        chapter.contentState == ContentState.availableOffline.index;
-
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isDownloaded
-                    ? colors.primaryContainer
-                    : colors.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: isDownloaded
-                  ? Icon(
-                      Icons.check,
-                      size: 14,
-                      color: colors.onPrimaryContainer,
-                    )
-                  : Text(
-                      '${chapter.index + 1}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                chapter.title,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDownloaded
-                      ? colors.onSurface
-                      : colors.onSurface.withValues(alpha: 0.7),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (chapter.wordCount > 0 && !isDownloading)
-              Padding(
-                padding: const EdgeInsets.only(left: AppSpacing.sm),
-                child: Text(
-                  _formatWords(chapter.wordCount),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            if (isDownloading)
-              const Padding(
-                padding: EdgeInsets.only(left: 4),
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else if (!isDownloaded)
-              IconButton(
-                onPressed: () => ref
-                    .read(chapterDownloadControllerProvider.notifier)
-                    .downloadSingle(bookId, chapter),
-                icon: Icon(
-                  Icons.download_rounded,
-                  size: 18,
-                  color: colors.primary,
-                ),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                tooltip: 'Download chapter',
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatWords(int count) {
-    if (count < 1000) return '${count}w';
-    return '${(count / 1000).toStringAsFixed(1)}kw';
   }
 }
 
 class _ReadingTriviaCard extends ConsumerWidget {
   const _ReadingTriviaCard({required this.book});
-
   final BookEntity book;
 
   @override
@@ -867,6 +732,84 @@ class _TriviaCol extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Capsule background shared by the floating pill action row widgets.
+Widget _pillContainer(BuildContext context, Widget child) {
+  final cs = Theme.of(context).colorScheme;
+  return Container(
+    height: 40,
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: cs.surface.withValues(alpha: 0.85),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
+    ),
+    child: child,
+  );
+}
+
+/// Icon-only capsule button used in the floating pill row over the header.
+class _PillButton extends StatelessWidget {
+  const _PillButton({
+    required this.icon,
+    required this.tooltip,
+    this.onPressed,
+    this.busy = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final onSurface = cs.onSurface.withValues(alpha: onPressed == null ? 0.4 : 1);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(20),
+          child: _pillContainer(
+            context,
+            Icon(icon, size: 20, color: onSurface),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Capsule trigger for the 'More' popup menu, matching [_PillButton].
+class _PillMenuButton extends StatelessWidget {
+  const _PillMenuButton({
+    required this.tooltip,
+    required this.onSelected,
+    required this.itemBuilder,
+  });
+
+  final String tooltip;
+  final ValueChanged<String> onSelected;
+  final List<PopupMenuItem<String>> Function(BuildContext) itemBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return PopupMenuButton<String>(
+      tooltip: tooltip,
+      onSelected: onSelected,
+      itemBuilder: itemBuilder,
+      child: _pillContainer(
+        context,
+        Icon(Icons.more_vert_rounded, size: 20, color: cs.onSurface),
+      ),
     );
   }
 }

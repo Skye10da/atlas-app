@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-import 'package:atlas_app/dictionary/presentation/screens/dictionary_screen.dart';
 import 'package:atlas_app/find_new/presentation/screens/find_new_screen.dart';
 import 'package:atlas_app/search/presentation/widgets/library_search_tab.dart';
 import 'package:atlas_app/search/presentation/widgets/lookup_search_tab.dart';
 
 /// The Search branch, relabelled "Find new". Its default tab is the discovery
-/// surface that used to be the standalone Discover page; Library search,
-/// Lookup and Saved remain as sibling tabs.
+/// surface that used to be the standalone Discover page; Library search and
+/// Lookup remain as sibling tabs. The former Saved tab now lives in the
+/// Saved bottom-nav branch (`/bookmarks`).
 class SearchScreen extends HookConsumerWidget {
   const SearchScreen({
     super.key,
@@ -23,45 +23,26 @@ class SearchScreen extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tabController = useTabController(
-      initialLength: 4,
-      initialIndex: (initialTabIndex ?? 0).clamp(0, 3),
+      initialLength: 3,
+      initialIndex: (initialTabIndex ?? 0).clamp(0, 2),
     );
 
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
+      // Title style comes from the shared AppBar theme (serif, left-aligned).
       appBar: AppBar(
-        title: Text(
-          'Find new',
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        title: const Text('Find new'),
         bottom: TabBar(
           controller: tabController,
           isScrollable: true,
+          tabAlignment: TabAlignment.start,
           indicatorColor: colorScheme.primary,
-          labelColor: colorScheme.primary,
-          unselectedLabelColor: colorScheme.onSurfaceVariant,
           tabs: const [
-            Tab(
-              icon: Icon(Icons.explore_rounded, size: 20),
-              text: 'Browse',
-            ),
-            Tab(
-              icon: Icon(Icons.auto_stories_rounded, size: 20),
-              text: 'Library',
-            ),
-            Tab(
-              icon: Icon(Icons.translate_rounded, size: 20),
-              text: 'Lookup',
-            ),
-            Tab(
-              icon: Icon(Icons.bookmark_rounded, size: 20),
-              text: 'Saved',
-            ),
+            Tab(text: 'Browse'),
+            Tab(text: 'Library'),
+            Tab(text: 'Lookup'),
           ],
         ),
       ),
@@ -71,7 +52,6 @@ class SearchScreen extends HookConsumerWidget {
           const FindNewScreen(),
           LibrarySearchTab(initialQuery: initialTabIndex == 1 ? initialQuery : null),
           LookupSearchTab(initialQuery: initialTabIndex == 2 ? initialQuery : null),
-          const DictionaryScreen(),
         ],
       ),
     );

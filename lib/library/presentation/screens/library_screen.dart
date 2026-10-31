@@ -46,7 +46,11 @@ import 'package:atlas_app/core/router/app_router.dart';
 /// in a right-hand panel). Navigation chrome (bottom bar / rail / sidebar)
 /// lives in [AppShell].
 class LibraryScreen extends HookConsumerWidget {
-  const LibraryScreen({super.key, this.initialGenre, this.initialSort});
+  const LibraryScreen({
+    super.key,
+    this.initialGenre,
+    this.initialSort,
+  });
 
   final String? initialGenre;
   final String? initialSort;
@@ -67,21 +71,15 @@ class LibraryScreen extends HookConsumerWidget {
       }
       if (initialGenre != null && initialGenre!.trim().isNotEmpty) {
         Future.microtask(() {
-          ref
-              .read(libraryViewModelProvider.notifier)
-              .setGenreFilter(initialGenre!.trim());
+          ref.read(libraryViewModelProvider.notifier).setGenreFilter(initialGenre!.trim());
         });
       }
       if (initialSort != null && initialSort!.trim().isNotEmpty) {
         Future.microtask(() {
           if (initialSort == 'recentlyAdded') {
-            ref
-                .read(libraryViewModelProvider.notifier)
-                .setSortOrder(LibrarySortOrder.recentlyAdded);
+            ref.read(libraryViewModelProvider.notifier).setSortOrder(LibrarySortOrder.recentlyAdded);
           } else if (initialSort == 'recentlyRead') {
-            ref
-                .read(libraryViewModelProvider.notifier)
-                .setSortOrder(LibrarySortOrder.recentlyRead);
+            ref.read(libraryViewModelProvider.notifier).setSortOrder(LibrarySortOrder.recentlyRead);
           }
         });
       }
@@ -140,14 +138,12 @@ class LibraryScreen extends HookConsumerWidget {
           ? [
               IconButton(
                 icon: Icon(
-                  selectedBookIds.value.length ==
-                              libraryState.filteredBooks.length &&
+                  selectedBookIds.value.length == libraryState.filteredBooks.length &&
                           libraryState.filteredBooks.isNotEmpty
                       ? Icons.deselect_rounded
                       : Icons.select_all_rounded,
                 ),
-                tooltip:
-                    selectedBookIds.value.length ==
+                tooltip: selectedBookIds.value.length ==
                             libraryState.filteredBooks.length &&
                         libraryState.filteredBooks.isNotEmpty
                     ? 'Deselect all'
@@ -157,9 +153,8 @@ class LibraryScreen extends HookConsumerWidget {
                       libraryState.filteredBooks.length) {
                     selectedBookIds.value = {};
                   } else {
-                    selectedBookIds.value = libraryState.filteredBooks
-                        .map((b) => b.id)
-                        .toSet();
+                    selectedBookIds.value =
+                        libraryState.filteredBooks.map((b) => b.id).toSet();
                   }
                 },
               ),
@@ -174,11 +169,11 @@ class LibraryScreen extends HookConsumerWidget {
                 onPressed: selectedBookIds.value.isEmpty
                     ? null
                     : () => _confirmDeleteSelected(
-                        context,
-                        ref,
-                        selectedBookIds,
-                        isSelectionMode,
-                      ),
+                          context,
+                          ref,
+                          selectedBookIds,
+                          isSelectionMode,
+                        ),
               ),
               IconButton(
                 icon: const Icon(Icons.close),
@@ -320,16 +315,11 @@ class LibraryScreen extends HookConsumerWidget {
     unawaited(addToLibrary(context, ref));
   }
 
-  static Future<void> _deleteBook(
-    BuildContext context,
-    WidgetRef ref,
-    String bookId,
-  ) async {
+  static Future<void> _deleteBook(BuildContext context, WidgetRef ref, String bookId) async {
     final confirmed = await ConfirmDeleteDialog.show(
       context,
       title: 'Delete book?',
-      message:
-          'This will permanently remove the book and all reading progress.',
+      message: 'This will permanently remove the book and all reading progress.',
       confirmLabel: 'Delete',
     );
 
@@ -491,8 +481,7 @@ class _BookshelfContent extends HookConsumerWidget {
 
     if (libraryIsEmpty) {
       return DropTarget(
-        onDragDone: (details) =>
-            _handleFileDrop(context, ref, details, dragging),
+        onDragDone: (details) => _handleFileDrop(context, ref, details, dragging),
         onDragEntered: (_) => dragging.value = true,
         onDragExited: (_) => dragging.value = false,
         child: Column(
@@ -515,8 +504,7 @@ class _BookshelfContent extends HookConsumerWidget {
                       children: [
                         const AppEmptyState(
                           title: 'Your bookshelf is empty',
-                          message:
-                              'Import a book or add a novel to start reading.',
+                          message: 'Import a book or add a novel to start reading.',
                           icon: Icons.library_books,
                         ),
                         const SizedBox(height: 16),
@@ -1020,9 +1008,8 @@ class _EmptyShelfMessage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
-              onPressed: () => ref
-                  .read(libraryViewModelProvider.notifier)
-                  .setSearchQuery(''),
+              onPressed: () =>
+                  ref.read(libraryViewModelProvider.notifier).setSearchQuery(''),
               icon: const Icon(Icons.clear_rounded, size: 18),
               label: const Text('Clear search'),
             ),

@@ -131,7 +131,7 @@ class EpubUrlSource implements SourceAdapter {
     }
     try {
       final file = File(uri.toFilePath());
-      if (await file.exists()) return file.readAsBytes();
+      if (await file.exists()) return await file.readAsBytes();
     } catch (_) {}
     if (uri.scheme.length == 1 && uri.path.isNotEmpty) {
       final file = File('${uri.scheme}:${uri.path}');

@@ -261,6 +261,12 @@ class LayoutTab extends StatelessWidget {
             children: [
               (ReaderChromeStyle.translucent, 'Translucent', Icons.blur_on, 'Subtle tint overlay'),
               (ReaderChromeStyle.frosted, 'Frosted Glass', Icons.grain, 'Blur backdrop filter'),
+              (
+                ReaderChromeStyle.glass,
+                'Liquid Glass',
+                Icons.auto_awesome,
+                'Vibrancy + specular rim',
+              ),
             ].map((entry) {
               final isSelected = chromeStyle == entry.$1;
               return Expanded(

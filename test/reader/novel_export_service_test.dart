@@ -158,7 +158,9 @@ void main() {
     );
   });
 
-  test('exportToEpub fails when a chapter download fails', () async {
+  test('exportToEpub skips a failed download instead of aborting', () async {
+    // One unreachable chapter (source glitch / backoff) used to abort the
+    // whole export; remaining chapters with local content must still export.
     when(
       () => downloader.downloadAllChapters(
         any(),
@@ -176,7 +178,10 @@ void main() {
       outputDirectory: outDir.path,
     );
 
-    expect(result, isA<Failure<String>>());
+    expect(result, isA<Success<String>>());
+    final bytes = await File((result as Success<String>).value).readAsBytes();
+    final read = await EpubReader.readBook(bytes);
+    expect(read.chapters.length, 2);
   });
 
   test(

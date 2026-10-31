@@ -180,7 +180,7 @@ class SourceSearchScreen extends HookConsumerWidget {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: AppBreakpoints.formContentMaxWidth,
+            maxWidth: AppBreakpoints.shellContentMaxWidth,
           ),
           child: Column(
             children: [

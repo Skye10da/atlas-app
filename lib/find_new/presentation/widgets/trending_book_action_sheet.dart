@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
-import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
+import 'package:atlas_app/find_new/presentation/widgets/import_confirm_sheet.dart';
 
 /// Opens the Quick Action & Preview bottom sheet for a trending or recommended book.
 Future<void> showTrendingBookActionSheet(
@@ -238,19 +238,31 @@ class TrendingBookActionSheet extends StatelessWidget {
             ),
             onPressed: () {
               Navigator.of(context).pop();
-              if (book.detailUrl != null && book.detailUrl!.isNotEmpty) {
-                showImportUrlSheet(
-                  context,
-                  initialUrl: book.detailUrl,
-                  skipInputStage: true,
-                );
-              } else {
+              if (book.detailUrl == null || book.detailUrl!.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Importing "${book.title}"...'),
+                    content: Text('No supported site found for "${book.title}".'),
                   ),
                 );
+                return;
               }
+              // Route through the confirm flow: one site imports directly,
+              // several sites open the choose-a-source sheet first, and a
+              // finished import navigates to the book — which the old
+              // direct-call path never did ("Open novel" was a dead end).
+              showImportConfirmSheet(
+                context,
+                title: book.title,
+                author: book.author,
+                candidates: [
+                  ImportCandidate(
+                    siteName: book.sourceName,
+                    url: book.detailUrl!,
+                    coverUrl: book.coverUrl,
+                    description: book.description,
+                  ),
+                ],
+              );
             },
           ),
           const SizedBox(height: AppSpacing.sm),

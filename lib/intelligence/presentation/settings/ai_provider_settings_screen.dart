@@ -4,7 +4,9 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:atlas_app/core/design_system/atoms/app_button.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/intelligence/infrastructure/persistence/ai_credentials_store.dart';
 import 'package:atlas_app/intelligence/orchestrator/providers/ollama_provider.dart';
+import 'package:atlas_app/intelligence/presentation/providers/intelligence_providers.dart';
 
 class AiProviderSettingsScreen extends HookConsumerWidget {
   const AiProviderSettingsScreen({super.key});
@@ -17,6 +19,7 @@ class AiProviderSettingsScreen extends HookConsumerWidget {
     final anthropicKeyController = useTextEditingController();
     final openrouterKeyController = useTextEditingController();
     final ollamaEndpointController = useTextEditingController(text: 'http://localhost:11434');
+    final zenKeyController = useTextEditingController();
 
     final ollamaModels = useState<List<String>>([]);
     final isTestingOllama = useState<bool>(false);
@@ -26,11 +29,17 @@ class AiProviderSettingsScreen extends HookConsumerWidget {
     useEffect(() {
       SharedPreferences.getInstance().then((prefs) {
         activeProviderId.value = prefs.getString('atlas_intel_active_provider') ?? 'offline';
-        geminiKeyController.text = prefs.getString('atlas_intel_gemini_key') ?? '';
-        openaiKeyController.text = prefs.getString('atlas_intel_openai_key') ?? '';
-        anthropicKeyController.text = prefs.getString('atlas_intel_anthropic_key') ?? '';
-        openrouterKeyController.text = prefs.getString('atlas_intel_openrouter_key') ?? '';
         ollamaEndpointController.text = prefs.getString('atlas_intel_ollama_endpoint') ?? 'http://localhost:11434';
+      });
+      // API keys live in the platform secure store (DPAPI / Keychain /
+      // Keystore). Loading also transparently migrates legacy plaintext
+      // SharedPreferences keys and scrubs them.
+      ref.read(aiCredentialsStoreProvider).loadCredentials().then((credentials) {
+        geminiKeyController.text = credentials[AiSecretKey.gemini] ?? '';
+        openaiKeyController.text = credentials[AiSecretKey.openai] ?? '';
+        openrouterKeyController.text = credentials[AiSecretKey.openrouter] ?? '';
+        zenKeyController.text = credentials[AiSecretKey.opencodezen] ?? '';
+        anthropicKeyController.text = credentials[AiSecretKey.anthropic] ?? '';
       });
       return null;
     }, const []);
@@ -38,11 +47,15 @@ class AiProviderSettingsScreen extends HookConsumerWidget {
     Future<void> saveSettings() async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('atlas_intel_active_provider', activeProviderId.value);
-      await prefs.setString('atlas_intel_gemini_key', geminiKeyController.text.trim());
-      await prefs.setString('atlas_intel_openai_key', openaiKeyController.text.trim());
-      await prefs.setString('atlas_intel_anthropic_key', anthropicKeyController.text.trim());
-      await prefs.setString('atlas_intel_openrouter_key', openrouterKeyController.text.trim());
       await prefs.setString('atlas_intel_ollama_endpoint', ollamaEndpointController.text.trim());
+
+      // Secrets are written to the secure store only — never SharedPreferences.
+      final store = ref.read(aiCredentialsStoreProvider);
+      await store.saveCredential(AiSecretKey.gemini, geminiKeyController.text);
+      await store.saveCredential(AiSecretKey.openai, openaiKeyController.text);
+      await store.saveCredential(AiSecretKey.openrouter, openrouterKeyController.text);
+      await store.saveCredential(AiSecretKey.opencodezen, zenKeyController.text);
+      await store.saveCredential(AiSecretKey.anthropic, anthropicKeyController.text);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -140,6 +153,13 @@ class AiProviderSettingsScreen extends HookConsumerWidget {
             onChanged: (val) => activeProviderId.value = val!,
           ),
           _ProviderOptionTile(
+            title: 'OpenCode Console (BYOK)',
+            subtitle: 'Verified model gateway — GLM, Kimi, DeepSeek, free-tier models included.',
+            value: 'cloud_opencodezen',
+            groupValue: activeProviderId.value,
+            onChanged: (val) => activeProviderId.value = val!,
+          ),
+          _ProviderOptionTile(
             title: 'Anthropic Claude (BYOK)',
             subtitle: 'Direct cloud inference using your Anthropic API key.',
             value: 'cloud_anthropic',
@@ -230,6 +250,16 @@ class AiProviderSettingsScreen extends HookConsumerWidget {
             obscureText: true,
             decoration: const InputDecoration(
               labelText: 'OpenRouter API Key',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: zenKeyController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'OpenCode Console API Key',
               border: OutlineInputBorder(),
               isDense: true,
             ),

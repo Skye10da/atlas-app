@@ -69,7 +69,7 @@ class ChapterDownloadService {
         );
       }
 
-      return readerRepo.updateChapterContent(
+      return await readerRepo.updateChapterContent(
         bookId,
         chapterIndex,
         fetched.content!,

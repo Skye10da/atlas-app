@@ -3,6 +3,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
+import 'package:atlas_app/core/design_system/molecules/glass_surfaces.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
@@ -186,7 +187,7 @@ class ChapterStatusShimmer extends ConsumerWidget {
           right: 0,
           bottom: AppSpacing.xxl,
           child: Center(
-            child: _StatusPill(
+            child: ReaderStatusPill(
               phase: phase,
               colors: colors,
             ),
@@ -217,7 +218,7 @@ class ReaderLoadingOverlay extends ConsumerWidget {
       right: 0,
       bottom: AppSpacing.xxl,
       child: Center(
-        child: _StatusPill(
+        child: ReaderStatusPill(
           phase: phase,
           colors: colors,
         ),
@@ -226,8 +227,11 @@ class ReaderLoadingOverlay extends ConsumerWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
+/// Floating chapter-status pill — the liquid-glass shell holding the bouncing
+/// dots + phase label while a chapter loads. Public for widget tests.
+class ReaderStatusPill extends StatelessWidget {
+  const ReaderStatusPill({
+    super.key,
     required this.phase,
     required this.colors,
   });
@@ -237,60 +241,60 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = colors.surface.withValues(alpha: 0.92);
-    final fg = colors.text.withValues(alpha: 0.7);
-
-    return AnimatedContainer(
+    return AnimatedSize(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.xs + 2,
-      ),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
-        border: Border.all(
-          color: colors.surface,
-          width: 1,
+      child: GlassCapsule(
+        pill: true,
+        // Plan phase 2 asks for blur 24, but the pill mode caps at 20 sigma:
+        // the status pill can float over live text while loading, where the
+        // reader's frame budget wins (see reader_glass_pills_plan).
+        blur: 20,
+        strong: false,
+        // A status indicator never blocks page taps behind it.
+        interactive: false,
+        fill: colors.surface.withValues(alpha: 0.85),
+        shadow: BoxShadow(
+          color: colors.text.withValues(alpha: 0.08),
+          offset: const Offset(0, 4),
+          blurRadius: 12,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: colors.text.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs + 2,
           ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _BouncingDots(color: colors.accent),
-          const SizedBox(width: AppSpacing.sm),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.2),
-                  end: Offset.zero,
-                ).animate(anim),
-                child: child,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _BouncingDots(color: colors.accent),
+              const SizedBox(width: AppSpacing.sm),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.2),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: child,
+                  ),
+                ),
+                child: Text(
+                  phase.label,
+                  key: ValueKey(phase),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: colors.text.withValues(alpha: 0.7),
+                    letterSpacing: 0.2,
+                  ),
+                ),
               ),
-            ),
-            child: Text(
-              phase.label,
-              key: ValueKey(phase),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: fg,
-                letterSpacing: 0.2,
-              ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -29,7 +29,7 @@ import 'package:atlas_app/settings/presentation/providers/settings_provider.dart
 import 'package:atlas_app/reader/presentation/utils/glossary_highlight_ranges.dart';
 import 'package:atlas_app/reader/presentation/utils/pager_boundary.dart';
 import 'package:atlas_app/reader/presentation/utils/reader_key_events.dart';
-import 'package:atlas_app/reader/presentation/widgets/chapter_index_sheet.dart';
+import 'package:atlas_app/reader/presentation/widgets/reader_contents_sheet.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_narration_coordinator.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_pager.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_shimmer.dart';
@@ -124,6 +124,18 @@ class PagedReaderLayout extends HookConsumerWidget {
     final chromeState = ref.watch(readerChromeProvider);
     final chromeNotifier = ref.read(readerChromeProvider.notifier);
 
+    final remoteAttemptAtRef = useRef<Map<int, DateTime>>({});
+    // Minimum spacing between two on-demand download attempts for the same
+    // chapter while its file is still missing on disk.
+    bool mayRetryRemoteChapter(int index) {
+      final last = remoteAttemptAtRef.value[index];
+      return last == null ||
+          DateTime.now().difference(last) > const Duration(seconds: 30);
+    }
+
+    void markRemoteAttempt(int index) =>
+        remoteAttemptAtRef.value[index] = DateTime.now();
+
     final outerController = usePageController(initialPage: currentChapterIndex);
     final innerControllers = useRef<Map<int, PageController>>({});
     final pageCache = useRef<Map<int, List<String>>>({});
@@ -156,8 +168,8 @@ class PagedReaderLayout extends HookConsumerWidget {
       updateTrigger.value++;
     }
 
-    final isDesktop = MediaQuery.sizeOf(context).width >= 840;
-    final isWideDesktop = isDesktop && MediaQuery.sizeOf(context).width >= 1200;
+    final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
+    final isWideDesktop = isDesktop && MediaQuery.sizeOf(context).width >= AppBreakpoints.largeDesktop;
     final isDarkTheme =
         Theme.of(context).colorScheme.brightness == Brightness.dark;
     // Whether to render a two-page book spread (requires wide desktop AND user preference)
@@ -613,18 +625,35 @@ class PagedReaderLayout extends HookConsumerWidget {
       }
     }
 
-    void ensureChapterLoaded(int index) {
-      if (loadedChapters.value.contains(index) ||
-          failedChapters.value.contains(index)) {
+    void ensureChapterLoaded(int index, {bool allowRemoteFetch = false}) {
+      if (loadedChapters.value.contains(index)) {
         return;
       }
       final chapter = chapters[index];
-      // Offline-safe: never trigger network for a chapter not cached on disk.
-      if (!File(chapter.contentPath).existsSync()) {
-        loadedChapters.value.remove(index);
-        if (context.mounted) {
-          failedChapters.value = {...failedChapters.value, index};
+      // Heal a stale failure: an earlier attempt could not find the chapter
+      // file on disk, but a background prefetch may have written it since
+      // (this is what leaves the reader stuck on "Preparing reader" — the
+      // failure flag blocked every later load and nothing rebuilt after the
+      // file appeared).
+      if (failedChapters.value.contains(index)) {
+        if (File(chapter.contentPath).existsSync()) {
+          failedChapters.value = Set<int>.from(failedChapters.value)
+            ..remove(index);
+        } else if (!allowRemoteFetch) {
+          return;
+        } else if (!mayRetryRemoteChapter(index)) {
+          return;
+        } else {
+          // Utility-offline chapters must not hot-loop: one on-demand
+          // attempt per debounce window, afterwards the Retry button or a
+          // later build (once the file exists) takes over.
+          markRemoteAttempt(index);
         }
+      }
+      // Disk-only path (neighbor prefetch): never trigger network for a
+      // chapter not cached on disk.
+      if (!File(chapter.contentPath).existsSync() && !allowRemoteFetch) {
+        failedChapters.value = {...failedChapters.value, index};
         return;
       }
       loadedChapters.value.add(index);
@@ -652,7 +681,7 @@ class PagedReaderLayout extends HookConsumerWidget {
       final next = Set<int>.from(failedChapters.value)..remove(index);
       failedChapters.value = next;
       ref.invalidate(readerChapterContentProvider(chapters[index]));
-      ensureChapterLoaded(index);
+      ensureChapterLoaded(index, allowRemoteFetch: true);
     }
 
     void scheduleNeighborPrefetch(int currentIndex, int chapterCount) {
@@ -671,7 +700,7 @@ class PagedReaderLayout extends HookConsumerWidget {
     void onOuterPageChanged(int chapterIdx) {
       if (chapterIdx == chapterIndex.value) return;
       chapterIndex.value = chapterIdx;
-      ensureChapterLoaded(chapterIdx);
+      ensureChapterLoaded(chapterIdx, allowRemoteFetch: true);
       scheduleNeighborPrefetch(chapterIdx, chapters.length);
       reportPositionFromCurrentPage();
       onPageChanged(chapterIdx);
@@ -688,7 +717,7 @@ class PagedReaderLayout extends HookConsumerWidget {
     }
 
     void navigateToChapter(int target, {required bool startAtTop}) {
-      ensureChapterLoaded(target);
+      ensureChapterLoaded(target, allowRemoteFetch: true);
       if (startAtTop) {
         lastPanelIndex.value[target] = 0;
         final controller = innerControllers.value[target];
@@ -719,7 +748,7 @@ class PagedReaderLayout extends HookConsumerWidget {
     }
 
     void selectChapterExplicitly(int idx) {
-      ensureChapterLoaded(idx);
+      ensureChapterLoaded(idx, allowRemoteFetch: true);
       onChapterSelected(idx);
     }
 
@@ -745,7 +774,7 @@ class PagedReaderLayout extends HookConsumerWidget {
     }, [currentChapterIndex]);
 
     final currentIndex = chapterIndex.value;
-    ensureChapterLoaded(currentIndex);
+    ensureChapterLoaded(currentIndex, allowRemoteFetch: true);
     scheduleNeighborPrefetch(currentIndex, chapters.length);
 
     final needsRepaginate = needsRepagination();
@@ -1402,7 +1431,7 @@ class PagedReaderLayout extends HookConsumerWidget {
       final pages = pageCache.value[chIdx];
       if (pages == null || pages.isEmpty) {
         if (chIdx == chapterIndex.value) {
-          ensureChapterLoaded(chIdx);
+          ensureChapterLoaded(chIdx, allowRemoteFetch: true);
         }
         return buildChapterLoadingState(chIdx, rvt, showHeaders: true, cs: cs);
       }
@@ -1425,9 +1454,16 @@ class PagedReaderLayout extends HookConsumerWidget {
       );
     }
 
-    void showChapterIndex(BuildContext ctx) {
-      ChapterIndexSheet.show(
+    void showChapterIndex(BuildContext ctx, {int initialTab = 0}) {
+      ReaderContentsSheet.show(
         ctx,
+        bookId: chapters.first.bookId,
+        bookTitle: bookTitle,
+        coverPath: coverPath,
+        bookmarkedChapterIds: bookmarkedChapterIds,
+        onBookmarkToggle: onBookmarkToggle,
+        isBookmarked: isBookmarked,
+        initialTab: initialTab,
         sheetId: 'paged_chapter_index',
         chapters: chapters,
         currentChapterIndex: chapterIndex.value,
@@ -1465,7 +1501,10 @@ class PagedReaderLayout extends HookConsumerWidget {
       return KeyEventResult.ignored;
     }
 
-    if (!contentCache.value.containsKey(currentIndex)) {
+    if (!contentCache.value.containsKey(currentIndex) &&
+        // A failed chapter must surface its Retry affordance; the loading
+        // shell hides everything behind the status pill otherwise.
+        !failedChapters.value.contains(currentIndex)) {
       return Scaffold(
         backgroundColor:
             settings.customBackgroundColor ??
@@ -1664,7 +1703,7 @@ class PagedReaderLayout extends HookConsumerWidget {
                   },
                   onClose: () => chromeNotifier.setCommandPaletteVisible(false),
                 ),
-              if (!chromeState.narrationPanelVisible)
+              if (!chromeState.narrationPanelVisible && !chromeState.chromeVisible)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -1684,18 +1723,20 @@ class PagedReaderLayout extends HookConsumerWidget {
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: ReaderBarSurface(
-                    style: settings.chromeStyle,
-                    color: colorScheme.surfaceContainerHigh,
-                    child: ReaderChromeBar(
-                      title: chapters[currentIndex].title,
-                      textColor: colorScheme.onSurface,
-                      onSettingsTap: onSettingsTap,
-                      onIntelligenceTap: onIntelligenceTap,
-                      onSearchTap: onSearchTap,
-                      onRedownload: onRedownload,
-                      isRedownloading: isRedownloading,
-                    ),
+                  child: ReaderChromeBar(
+                    title: chapters[currentIndex].title,
+                    textColor: colorScheme.onSurface,
+                    onSettingsTap: onSettingsTap,
+                    onBack: () => Navigator.of(context).maybePop(),
+                    onIntelligenceTap: onIntelligenceTap,
+                    onSearchTap: onSearchTap,
+                    onRedownload: onRedownload,
+                    isRedownloading: isRedownloading,
+                    slim: true,
+                    onTitleTap: () => showChapterIndex(context),
+                    onBookmarkTap: onBookmarkToggle,
+                    isBookmarked: isBookmarked,
+                    chromeStyle: settings.chromeStyle,
                   ),
                 ),
               if (chromeState.chromeVisible)
@@ -1703,44 +1744,35 @@ class PagedReaderLayout extends HookConsumerWidget {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: ReaderBarSurface(
-                    style: settings.chromeStyle,
-                    color: colorScheme.surfaceContainerHigh,
-                    child: ReaderBottomNav(
-                      textColor: colorScheme.onSurface,
-                      onSettingsTap: onSettingsTap,
-                      onChapterIndexTap: () => showChapterIndex(context),
-                      onBookmarkTap: onBookmarkToggle,
-                      isBookmarked: isBookmarked,
-                      onAnnotationsTap: () {
-                        ReaderAnnotationsSheet.show(
-                          context,
-                          bookId: chapters.first.bookId,
-                          chapters: chapters,
-                          currentChapterId: chapters[currentIndex].id,
-                          bookTitle: bookTitle,
-                          coverPath: coverPath,
-                          onJumpToChapter: (chId, _) {
-                            final idx = chapters.indexWhere(
-                              (c) => c.id == chId,
-                            );
-                            if (idx >= 0) {
-                              selectChapterExplicitly(idx);
-                            }
-                          },
-                        );
-                      },
-                      currentChapterTitle: chapters[currentIndex].title,
-                      currentChapterNumber: currentIndex,
-                      totalChapters: chapters.length,
-                      bookTitle: bookTitle,
-                      coverPath: coverPath,
-                      progress: progressNotifier,
-                      progressColor: settings.theme.resolve(colorScheme).accent,
-                      onListenTap: useSidePanels
-                          ? chromeNotifier.toggleNarrationPanel
-                          : null,
-                    ),
+                  child: ReaderBottomNav(
+                    textColor: colorScheme.onSurface,
+                    onSettingsTap: onSettingsTap,
+                    onChapterIndexTap: () => showChapterIndex(context),
+                    onBookmarkTap: onBookmarkToggle,
+                    isBookmarked: isBookmarked,
+                    chromeStyle: settings.chromeStyle,
+                    onAnnotationsTap: () => showChapterIndex(context, initialTab: 2),
+                    currentChapterTitle: chapters[currentIndex].title,
+                    currentChapterNumber: currentIndex,
+                    totalChapters: chapters.length,
+                    bookTitle: bookTitle,
+                    coverPath: coverPath,
+                    progress: progressNotifier,
+                    progressColor: settings.theme.resolve(colorScheme).accent,
+                    onSearchTap: onSearchTap,
+                    onIntelligenceTap: onIntelligenceTap,
+                    onRedownload: onRedownload,
+                    isRedownloading: isRedownloading,
+                    onScrubToChapter: selectChapterExplicitly,
+                    onPrevChapter: currentIndex > 0
+                        ? () => selectChapterExplicitly(currentIndex - 1)
+                        : null,
+                    onNextChapter: currentIndex < chapters.length - 1
+                        ? () => selectChapterExplicitly(currentIndex + 1)
+                        : null,
+                    onListenTap: useSidePanels
+                        ? chromeNotifier.toggleNarrationPanel
+                        : null,
                   ),
                 ),
             ],

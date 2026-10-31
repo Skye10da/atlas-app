@@ -42,6 +42,34 @@ class LibraryUpdateCheckResult {
   int get totalNewChapters => updates.fold(0, (sum, u) => sum + u.newChapters);
 }
 
+/// Outcome of a manual "repair chapter list" run for one book.
+class BookRepairResult {
+  const BookRepairResult({
+    required this.bookId,
+    required this.title,
+    required this.removedDuplicates,
+    required this.indexRebuilt,
+    required this.totalChapters,
+    this.error,
+  });
+
+  final String bookId;
+  final String title;
+
+  /// Duplicate chapter rows deleted (same index, one kept per index).
+  final int removedDuplicates;
+
+  /// Whether the on-disk `.chapter_index.json` was rebuilt from the DB
+  /// (drops file-only ghost entries such as site glitch rows).
+  final bool indexRebuilt;
+
+  final int totalChapters;
+  final String? error;
+
+  bool get success => error == null;
+  bool get changed => removedDuplicates > 0 || indexRebuilt;
+}
+
 /// Re-fetches the chapter list of a saved novel from its source and stores
 /// newly discovered chapters.
 ///
@@ -102,6 +130,13 @@ class ChapterUpdateService {
       if (sourceUrl == null || sourceUrl.isEmpty) {
         return _skipped(book.id, book.title, 'No source URL stored');
       }
+
+      // Self-heal BEFORE diffing: previous versions (or site glitches) may
+      // have left duplicate rows at the same index (e.g. the legacy
+      // timestamp-uniquified id scheme racing the deterministic `_ch<index>`
+      // one), which inflates the visible chapter count. Repair is
+      // progress-preserving and cheap.
+      await _removeDuplicateRows(book);
       final uri = Uri.tryParse(sourceUrl);
       if (uri == null) {
         return _skipped(book.id, book.title, 'Invalid source URL');
@@ -150,7 +185,9 @@ class ChapterUpdateService {
 
         final localRows = await (db.select(
           db.chapters,
-        )..where((c) => c.bookId.equals(book.id))).get();
+        )..where((c) => c.bookId.equals(book.id))).get()
+          ..sort((a, b) => a.index.compareTo(b.index));
+
         final knownTitles = localRows
             .map((c) => _normalizeTitle(c.title))
             .toSet();
@@ -180,13 +217,44 @@ class ChapterUpdateService {
           return !knownTitles.contains(_normalizeTitle(ch.title));
         }).toList();
 
+        // Site glitches (torn "Chaptet 1583", stray re-listings) surface as a
+        // remote chapter whose parsed number regresses behind the highest
+        // already-known chapter number. Sources publish sequentially, so a
+        // strictly lower number cannot be a new chapter — admit it and the
+        // count inflates permanently. Entries without a parseable number are
+        // never dropped here (they can't be judged).
+        final maxKnownTitleNumber = localRows.fold<int?>(null, (max, c) {
+          final n = extractChapterNumber(c.title);
+          if (n == null) return max;
+          return (max == null || n > max) ? n : max;
+        });
+        final junkChapters = freshChapters
+            .where((ch) {
+              final n = extractChapterNumber(ch.title);
+              return n != null &&
+                  maxKnownTitleNumber != null &&
+                  n < maxKnownTitleNumber;
+            })
+            .toList();
+        if (junkChapters.isNotEmpty) {
+          AppLogger.warning(
+            'Update check: dropped ${junkChapters.length} regressed-number '
+            'chapter(s) for "${book.title}" '
+            '(${junkChapters.map((c) => c.title).take(5).join(", ")})',
+          );
+        }
+        // ChapterModel has no == override, so `contains` is identity-based.
+        final admissibleList = freshChapters
+            .where((ch) => !junkChapters.contains(ch))
+            .toList();
+
         // Assign stable, non-colliding indices/contentPaths for inserts.
         final maxLocalIndex = localRows.isEmpty
             ? -1
             : localRows.map((c) => c.index).reduce((a, b) => a > b ? a : b);
         final companions = <ChaptersCompanion>[];
         var nextIndex = maxLocalIndex + 1;
-        for (final ch in freshChapters) {
+        for (final ch in admissibleList) {
           final companion = await _buildChapterCompanion(
             book,
             ch,
@@ -230,7 +298,7 @@ class ChapterUpdateService {
           // Pass the actual assigned start index so file indices align with DB.
           await _appendChapterIndex(
             book,
-            freshChapters,
+            admissibleList,
             startIndex: localRows.isEmpty
                 ? 0
                 : localRows.map((c) => c.index).reduce((a, b) => a > b ? a : b) + 1,
@@ -540,5 +608,215 @@ class ChapterUpdateService {
   }
 
   String _normalizeTitle(String title) =>
-      title.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+      title
+          .replaceAll(_invisibleChars, '')
+          .trim()
+          .toLowerCase()
+          .replaceAll(RegExp(r'\s+'), ' ');
+
+  /// UTF-8 zero-width / formatting characters that sources intermittently
+  /// inject into titles (U+200B ZWSP, U+200C ZWNJ, U+200D ZWJ, U+200E/200F
+  /// LRM/RLM, U+202A-202E bidi controls, U+2060-206F invisibles, U+FEFF BOM,
+  /// U+00AD soft hyphen). A "​Chapter 1396: COSMIC! II" with an invisible
+  /// U+200B compares unequal to its own later re-fetch without one, so both
+  /// count as "new" and the list gains a phantom duplicate.
+  static final RegExp _invisibleChars = RegExp(
+    '[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF\u00AD]',
+  );
+
+  /// Last integer embedded in a chapter title, or null ("Chapter 5638:
+  /// Roles! III" → 5638; "Sonder II" → null; numbers ≥ 1000000 are ignored
+  /// as URLs/garbage).
+  static int? extractChapterNumber(String title) {
+    final clean = title.replaceAll(_invisibleChars, '');
+    final matches = RegExp(r'\d+').allMatches(clean);
+    if (matches.isEmpty) return null;
+    final n = int.tryParse(matches.last.group(0)!);
+    if (n == null || n >= 1000000) return null;
+    return n;
+  }
+
+  /// Manual "repair a novel with corrupted chapter index" entry point.
+  ///
+  /// Deduplicates chapter rows (one row kept per index — user progress is
+  /// never deleted), replaces `books.totalChapters` with the actual row
+  /// count, and rebuilds the on-disk `.chapter_index.json` straight from the
+  /// DB so file-only ghosts are dropped. Does not touch the network.
+  Future<BookRepairResult> repairBookIndex(String bookId) async {
+    final book = await (db.select(
+      db.books,
+    )..where((b) => b.id.equals(bookId))).getSingleOrNull();
+    if (book == null) {
+      return BookRepairResult(
+        bookId: bookId,
+        title: '',
+        removedDuplicates: 0,
+        indexRebuilt: false,
+        totalChapters: 0,
+        error: 'Book not found',
+      );
+    }
+    if (book.itemType != ContentCategory.novel.name) {
+      return BookRepairResult(
+        bookId: bookId,
+        title: book.title,
+        removedDuplicates: 0,
+        indexRebuilt: false,
+        totalChapters: book.totalChapters,
+        error: 'Not a novel import',
+      );
+    }
+    try {
+      final removed = await _removeDuplicateRows(book);
+      final rebuilt = await _rebuildIndexFile(book);
+      final total = (await (db.select(
+        db.chapters,
+      )..where((c) => c.bookId.equals(book.id))).get()).length;
+      return BookRepairResult(
+        bookId: book.id,
+        title: book.title,
+        removedDuplicates: removed,
+        indexRebuilt: rebuilt,
+        totalChapters: total,
+      );
+    } catch (e, st) {
+      AppLogger.error('Repair failed for "${book.title}"', e, st);
+      return BookRepairResult(
+        bookId: book.id,
+        title: book.title,
+        removedDuplicates: 0,
+        indexRebuilt: false,
+        totalChapters: book.totalChapters,
+        error: describeFailure(e),
+      );
+    }
+  }
+
+  /// Rebuilds `.chapter_index.json` from the DB rows (source of truth).
+  /// Returns true when the file changed.
+  Future<bool> _rebuildIndexFile(Book book) async {
+    final rows = await (db.select(
+      db.chapters,
+    )..where((c) => c.bookId.equals(book.id))).get();
+    rows.sort((a, b) => a.index.compareTo(b.index));
+    final entries = [
+      for (final row in rows)
+        {'id': row.id, 'title': row.title, 'index': row.index},
+    ];
+    try {
+      final file = File(p.join(book.filePath, '.chapter_index.json'));
+      final existing = await file.exists()
+          ? await file.readAsString()
+          : null;
+      final encoded = jsonEncode(entries);
+      final idsMatch = existing != null &&
+          jsonDecode(existing) is List &&
+          (jsonDecode(existing) as List).whereType<Map>().map(
+            (m) => m['id'],
+          ).join('|') ==
+          entries.map((e) => e['id']).join('|');
+      if (idsMatch) return false;
+      final tmp = File('${file.path}.tmp');
+      await tmp.writeAsString(encoded);
+      await tmp.rename(file.path);
+      return true;
+    } catch (e) {
+      AppLogger.warning(
+        'Failed to rebuild chapter index for "${book.title}": $e',
+      );
+      return false;
+    }
+  }
+
+  /// Restores a chapter list corrupted by duplicate rows (same index or same
+  /// content URL, e.g. the legacy `_u<timestamp>` id scheme racing with the
+  /// deterministic `_ch<index>` scheme, or site-side junk entries). Deletes
+  /// the non-canonical row and returns the number of rows removed so the
+  /// caller can refresh its view and rewrite `books.totalChapters`.
+  ///
+  /// Winner selection for one index: (1) a row the user has reading progress
+  /// on, (2) the row whose title number fits the surrounding sequence, (3)
+  /// the deterministic `_ch<index>` id, (4) the smallest id.
+  Future<int> _removeDuplicateRows(Book book) async {
+    final rows = (await (db.select(
+      db.chapters,
+    )..where((c) => c.bookId.equals(book.id))).get())
+      ..sort(
+        (a, b) => (a.index.compareTo(b.index) != 0)
+            ? a.index.compareTo(b.index)
+            : a.id.compareTo(b.id),
+      );
+    if (rows.isEmpty) return 0;
+
+    final delete = <String>{};
+    // Which rows the user actually read — never delete those.
+    final progress = await (db.select(
+      db.readingProgress,
+    )..where((p) => p.bookId.equals(book.id))).get();
+    final progressIds = progress.map((p) => p.chapterId).toSet();
+
+    final seenIndex = <int, Chapter>{};
+    for (final row in rows) {
+      if (delete.contains(row.id)) continue;
+      final prev = seenIndex[row.index];
+      if (prev != null) {
+        delete.add(_pickDuplicateLoser(row, prev, progressIds));
+        continue;
+      }
+      seenIndex[row.index] = row;
+    }
+
+    if (delete.isEmpty) return 0;
+    await (db.delete(
+      db.chapters,
+    )..where((c) => c.id.isIn(delete))).go();
+
+    final remaining = rows.length - delete.length;
+    await (db.update(db.books)..where((b) => b.id.equals(book.id))).write(
+      BooksCompanion(
+        totalChapters: Value(remaining),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+
+    // Drop the deleted rows from the on-disk index file too.
+    try {
+      final file = File(p.join(book.filePath, '.chapter_index.json'));
+      if (await file.exists()) {
+        final list = jsonDecode(await file.readAsString()) as List<dynamic>;
+        final cleaned = list
+            .where(
+              (e) =>
+                  e is! Map ||
+                  !delete.contains(e['id']?.toString()),
+            )
+            .toList();
+        if (cleaned.length != list.length) {
+          final tmp = File('${file.path}.tmp');
+          await tmp.writeAsString(jsonEncode(cleaned));
+          await tmp.rename(file.path);
+        }
+      }
+    } catch (_) {}
+
+    AppLogger.warning(
+      'Update check: removed ${delete.length} duplicate chapter row(s) for '
+      '"${book.title}"',
+    );
+    return delete.length;
+  }
+
+  String _pickDuplicateLoser(Chapter a, Chapter b, Set<String> progressIds) {
+    if (progressIds.contains(a.id) && !progressIds.contains(b.id)) return b.id;
+    if (progressIds.contains(b.id) && !progressIds.contains(a.id)) return a.id;
+    final na = extractChapterNumber(a.title);
+    final nb = extractChapterNumber(b.title);
+    if (na != null && nb != null && na != nb) return na > nb ? b.id : a.id;
+    if (na != null && nb == null) return b.id;
+    if (nb != null && na == null) return a.id;
+    // Prefer the deterministic `_ch<index>` id scheme, fall back to
+    // lexicographically smallest id for stability.
+    final canonical = '${a.bookId}_ch${a.index}';
+    return a.id == canonical ? b.id : a.id;
+  }
 }

@@ -53,6 +53,12 @@ class TransliterationMatcher {
     return similarity(a, b) >= threshold;
   }
 
+  /// Phonetic Soundex code of a normalized name. Extraction passes use this
+  /// to build a cheap per-type phonetic index once per chapter, so fuzzy alias
+  /// matching only runs the (expensive) full similarity on plausible buckets
+  /// instead of every known entity.
+  String soundexCode(String name) => _soundex(normalizeName(name));
+
   int _levenshteinDistance(String s1, String s2) {
     if (s1 == s2) return 0;
     if (s1.isEmpty) return s2.length;

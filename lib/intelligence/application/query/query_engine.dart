@@ -10,6 +10,31 @@ import 'package:atlas_app/intelligence/domain/repositories/story_memory_reposito
 
 typedef ChapterTextProvider = Future<String?> Function(String bookId, int chapterIndex);
 
+/// How the offline engine classifies its own answer, consumed by the chat
+/// layer to decide whether to escalate to the AI orchestrator.
+///
+/// This replaces the old fragile contract of sniffing response strings for
+/// phrases like "couldn't find".
+enum QueryAnswerKind {
+  /// A deterministic, factual offline answer — no escalation needed.
+  resolved,
+
+  /// The engine could not answer from story memory (entity unknown, empty
+  /// results, or unrecognized intent). Callers may escalate to the AI layer
+  /// and use [QueryAnswer.text] as the final fallback.
+  needsEscalation,
+}
+
+/// A Layer 2 answer together with its routing classification.
+class QueryAnswer {
+  const QueryAnswer(this.text, {required this.kind});
+
+  final String text;
+  final QueryAnswerKind kind;
+
+  bool get isResolved => kind == QueryAnswerKind.resolved;
+}
+
 /// Layer 2 No-AI Query Engine.
 ///
 /// Handles factual queries, character lookups, relationship inquiries,
@@ -37,7 +62,29 @@ class QueryEngine {
   final ChapterTextProvider? _chapterTextProvider;
 
   /// Executes an offline user query and returns formatted markdown.
+  ///
+  /// Convenience wrapper over [executeQueryDetailed] for callers that only
+  /// need the text (tests, generic fallback). New routing code should prefer
+  /// the typed API so escalation decisions do not depend on string sniffing.
   Future<String> executeQuery({
+    required String bookId,
+    String readThroughId = 'default',
+    required String query,
+    int? readerChapter,
+  }) async {
+    final answer = await executeQueryDetailed(
+      bookId: bookId,
+      readThroughId: readThroughId,
+      query: query,
+      readerChapter: readerChapter,
+    );
+    return answer.text;
+  }
+
+  /// Typed variant of [executeQuery]: the answer carries its routing kind so
+  /// the chat layer knows whether the response is genuinely resolved from
+  /// story memory or merely an "I couldn't find this" answer.
+  Future<QueryAnswer> executeQueryDetailed({
     required String bookId,
     String readThroughId = 'default',
     required String query,
@@ -50,7 +97,7 @@ class QueryEngine {
         return _handleWhoIs(bookId, match, readerChapter, readThroughId);
 
       case QueryIntentType.relationship:
-        return _handleRelationship(bookId, match, readThroughId);
+        return _handleRelationship(bookId, match, readerChapter, readThroughId);
 
       case QueryIntentType.whereIs:
         return _handleWhereIs(bookId, match, readerChapter, readThroughId);
@@ -65,11 +112,11 @@ class QueryEngine {
         return _handleSceneSearch(bookId, match, readerChapter, readThroughId);
 
       case QueryIntentType.unknown:
-        return _templates.formatUnknown(query);
+        return QueryAnswer(_templates.formatUnknown(query), kind: QueryAnswerKind.needsEscalation);
     }
   }
 
-  Future<String> _handleWhoIs(
+  Future<QueryAnswer> _handleWhoIs(
     String bookId,
     QueryIntentMatch match,
     int? readerChapter,
@@ -77,7 +124,7 @@ class QueryEngine {
   ) async {
     final slot = match.primarySlot;
     if (slot == null) {
-      return _templates.formatUnknown(match.rawQuery);
+      return QueryAnswer(_templates.formatUnknown(match.rawQuery), kind: QueryAnswerKind.needsEscalation);
     }
 
     final resolution = await _resolver.resolve(
@@ -86,22 +133,24 @@ class QueryEngine {
       slotText: slot,
     );
     if (resolution.status == ResolutionStatus.notFound) {
-      return _templates.formatNotFound(slot);
+      return QueryAnswer(_templates.formatNotFound(slot), kind: QueryAnswerKind.needsEscalation);
     } else if (resolution.status == ResolutionStatus.ambiguous) {
-      return _templates.formatDisambiguation(
-        query: slot,
-        candidates: resolution.candidates,
+      // A disambiguation list is a complete, useful offline answer.
+      return QueryAnswer(
+        _templates.formatDisambiguation(query: slot, candidates: resolution.candidates),
+        kind: QueryAnswerKind.resolved,
       );
     }
 
     final entity = resolution.entity!;
 
-    // Fetch relationships
+    // Fetch relationships established up to the reader's chapter (anti-spoiler).
     var relationships = <StoryRelationship>[];
     final relRes = await _repository.getRelationships(
       bookId,
       readThroughId: readThroughId,
       entityId: entity.id,
+      maxChapter: readerChapter,
     );
     if (relRes is Success<List<StoryRelationship>>) {
       relationships = relRes.value;
@@ -119,20 +168,20 @@ class QueryEngine {
       events = evRes.value;
     }
 
-    return _templates.formatWhoIs(
-      entity: entity,
-      relationships: relationships,
-      events: events,
+    return QueryAnswer(
+      _templates.formatWhoIs(entity: entity, relationships: relationships, events: events),
+      kind: QueryAnswerKind.resolved,
     );
   }
 
-  Future<String> _handleRelationship(
+  Future<QueryAnswer> _handleRelationship(
     String bookId,
     QueryIntentMatch match,
+    int? readerChapter,
     String readThroughId,
   ) async {
     if (match.primarySlot == null || match.secondarySlot == null) {
-      return _templates.formatUnknown(match.rawQuery);
+      return QueryAnswer(_templates.formatUnknown(match.rawQuery), kind: QueryAnswerKind.needsEscalation);
     }
 
     final resA = await _resolver.resolve(
@@ -142,8 +191,11 @@ class QueryEngine {
     );
     if (resA.status != ResolutionStatus.resolved) {
       return resA.status == ResolutionStatus.ambiguous
-          ? _templates.formatDisambiguation(query: match.primarySlot!, candidates: resA.candidates)
-          : _templates.formatNotFound(match.primarySlot!);
+          ? QueryAnswer(
+              _templates.formatDisambiguation(query: match.primarySlot!, candidates: resA.candidates),
+              kind: QueryAnswerKind.resolved,
+            )
+          : QueryAnswer(_templates.formatNotFound(match.primarySlot!), kind: QueryAnswerKind.needsEscalation);
     }
 
     final resB = await _resolver.resolve(
@@ -153,17 +205,22 @@ class QueryEngine {
     );
     if (resB.status != ResolutionStatus.resolved) {
       return resB.status == ResolutionStatus.ambiguous
-          ? _templates.formatDisambiguation(query: match.secondarySlot!, candidates: resB.candidates)
-          : _templates.formatNotFound(match.secondarySlot!);
+          ? QueryAnswer(
+              _templates.formatDisambiguation(query: match.secondarySlot!, candidates: resB.candidates),
+              kind: QueryAnswerKind.resolved,
+            )
+          : QueryAnswer(_templates.formatNotFound(match.secondarySlot!), kind: QueryAnswerKind.needsEscalation);
     }
 
     final entityA = resA.entity!;
     final entityB = resB.entity!;
 
+    // Anti-spoiler: only relationships established up to the reader's chapter.
     final relsRes = await _repository.getRelationships(
       bookId,
       readThroughId: readThroughId,
       entityId: entityA.id,
+      maxChapter: readerChapter,
     );
     StoryRelationship? matchedRel;
     if (relsRes is Success<List<StoryRelationship>>) {
@@ -176,21 +233,23 @@ class QueryEngine {
       }
     }
 
-    return _templates.formatRelationship(
-      entityA: entityA,
-      entityB: entityB,
-      relationship: matchedRel,
+    // "No direct relationship found" is still a factual offline answer.
+    return QueryAnswer(
+      _templates.formatRelationship(entityA: entityA, entityB: entityB, relationship: matchedRel),
+      kind: QueryAnswerKind.resolved,
     );
   }
 
-  Future<String> _handleWhereIs(
+  Future<QueryAnswer> _handleWhereIs(
     String bookId,
     QueryIntentMatch match,
     int? readerChapter,
     String readThroughId,
   ) async {
     final slot = match.primarySlot;
-    if (slot == null) return _templates.formatUnknown(match.rawQuery);
+    if (slot == null) {
+      return QueryAnswer(_templates.formatUnknown(match.rawQuery), kind: QueryAnswerKind.needsEscalation);
+    }
 
     final res = await _resolver.resolve(
       bookId: bookId,
@@ -199,8 +258,11 @@ class QueryEngine {
     );
     if (res.status != ResolutionStatus.resolved) {
       return res.status == ResolutionStatus.ambiguous
-          ? _templates.formatDisambiguation(query: slot, candidates: res.candidates)
-          : _templates.formatNotFound(slot);
+          ? QueryAnswer(
+              _templates.formatDisambiguation(query: slot, candidates: res.candidates),
+              kind: QueryAnswerKind.resolved,
+            )
+          : QueryAnswer(_templates.formatNotFound(slot), kind: QueryAnswerKind.needsEscalation);
     }
 
     final entity = res.entity!;
@@ -215,10 +277,13 @@ class QueryEngine {
       events = evRes.value;
     }
 
-    return _templates.formatWhereIs(location: entity, events: events);
+    return QueryAnswer(
+      _templates.formatWhereIs(location: entity, events: events),
+      kind: QueryAnswerKind.resolved,
+    );
   }
 
-  Future<String> _handleWhatHappened(
+  Future<QueryAnswer> _handleWhatHappened(
     String bookId,
     QueryIntentMatch match,
     int? readerChapter,
@@ -231,10 +296,10 @@ class QueryEngine {
       final evRes = await _repository.getEvents(
         bookId,
         readThroughId: readThroughId,
-        maxChapter: ch,
+        chapterExact: ch,
       );
       if (evRes is Success<List<StoryEvent>>) {
-        events = evRes.value.where((e) => e.chapter == ch).toList();
+        events = evRes.value;
       }
 
       String? extractive;
@@ -245,10 +310,12 @@ class QueryEngine {
         }
       }
 
-      return _templates.formatChapterSummary(
-        chapter: ch,
-        events: events,
-        extractiveSummary: extractive,
+      // Empty events AND no extractive text means the engine has nothing
+      // grounded to say about that chapter — escalate instead.
+      final hasContent = events.isNotEmpty || (extractive != null && extractive.isNotEmpty);
+      return QueryAnswer(
+        _templates.formatChapterSummary(chapter: ch, events: events, extractiveSummary: extractive),
+        kind: hasContent ? QueryAnswerKind.resolved : QueryAnswerKind.needsEscalation,
       );
     }
 
@@ -260,7 +327,7 @@ class QueryEngine {
     return _handleRecap(bookId, match, readerChapter, readThroughId);
   }
 
-  Future<String> _handleRecap(
+  Future<QueryAnswer> _handleRecap(
     String bookId,
     QueryIntentMatch match,
     int? readerChapter,
@@ -277,13 +344,16 @@ class QueryEngine {
       events = evRes.value;
     }
 
-    return _templates.formatRecap(
-      maxChapter: targetChapter == 999999 ? (events.isNotEmpty ? events.last.chapter : 1) : targetChapter,
-      events: events,
+    return QueryAnswer(
+      _templates.formatRecap(
+        maxChapter: targetChapter == 999999 ? (events.isNotEmpty ? events.last.chapter : 1) : targetChapter,
+        events: events,
+      ),
+      kind: events.isNotEmpty ? QueryAnswerKind.resolved : QueryAnswerKind.needsEscalation,
     );
   }
 
-  Future<String> _handleSceneSearch(
+  Future<QueryAnswer> _handleSceneSearch(
     String bookId,
     QueryIntentMatch match,
     int? readerChapter,
@@ -302,9 +372,12 @@ class QueryEngine {
       for (final scene in ftsRes.value.take(3)) {
         buffer.writeln('• "$scene"\n');
       }
-      return buffer.toString().trim();
+      return QueryAnswer(buffer.toString().trim(), kind: QueryAnswerKind.resolved);
     }
 
-    return 'No matching scenes found for "$query".';
+    return QueryAnswer(
+      'No matching scenes found for "$query".',
+      kind: QueryAnswerKind.needsEscalation,
+    );
   }
 }

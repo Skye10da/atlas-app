@@ -108,7 +108,7 @@ void main() {
         final version = await appDb
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(version.data['user_version'], 15);
+        expect(version.data['user_version'], AppDatabase().schemaVersion);
 
         final result = await DriftLibraryRepository(appDb).getBooks();
         expect(result, isA<Success<List<BookEntity>>>());
@@ -167,7 +167,7 @@ void main() {
           final version = await appDb
               .customSelect('PRAGMA user_version')
               .getSingle();
-          expect(version.data['user_version'], 15);
+          expect(version.data['user_version'], AppDatabase().schemaVersion);
 
           final cols = await appDb
               .customSelect('PRAGMA table_info(chapters)')
@@ -214,7 +214,7 @@ void main() {
         final version = await appDb
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(version.data['user_version'], 15);
+        expect(version.data['user_version'], AppDatabase().schemaVersion);
 
         final cols = await appDb.customSelect('PRAGMA table_info(books)').get();
         final names = cols.map((r) => r.data['name']).toSet();
@@ -276,7 +276,7 @@ void main() {
         final version = await appDb
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(version.data['user_version'], 15);
+        expect(version.data['user_version'], AppDatabase().schemaVersion);
 
         // Check story_entities table exists
         final entityCols = await appDb.customSelect('PRAGMA table_info(story_entities)').get();
@@ -429,7 +429,7 @@ void main() {
         final version = await appDb
             .customSelect('PRAGMA user_version')
             .getSingle();
-        expect(version.data['user_version'], 15);
+        expect(version.data['user_version'], AppDatabase().schemaVersion);
 
         // Check story_read_throughs table exists
         final tables = await appDb.customSelect(

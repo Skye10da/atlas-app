@@ -119,15 +119,46 @@ class ReviewQueueController extends StateNotifier<ReviewQueueState> {
     return const Success(null);
   }
 
-  /// Merges candidate alias into target entity and records merge pattern rule.
+  /// Merges candidate into target entity and records merge pattern rule.
+  ///
+  /// When the candidate references a real duplicate entity row
+  /// (`entityId` exists in the store), the merge is a true consolidation:
+  /// [StoryMemoryRepository.mergeEntities] absorbs the row — aliases and
+  /// mention counts combine, relationships re-point, and the duplicate
+  /// disappears from every rendered entity list. When the candidate is
+  /// name-only (provisional alias candidate with no persisted row), the
+  /// legacy behavior applies: the name is added to the target's aliases.
   Future<Result<void>> mergeAlias(ReviewItem item) async {
     if (item.targetEntityId == null) {
       return const Failure(ValidationException('Target entity is required for alias merge'));
     }
 
     final targetRes = await _repository.getEntityById(item.targetEntityId!);
-    if (targetRes is Success<StoryEntity?> && targetRes.value != null) {
-      final target = targetRes.value!;
+    if (targetRes is! Success<StoryEntity?> || targetRes.value == null) {
+      return const Failure(DatabaseException('Target entity for alias merge was not found'));
+    }
+    final target = targetRes.value!;
+
+    final absorbedRes = await _repository.getEntityById(item.entityId);
+    if (absorbedRes is Success<StoryEntity?> && absorbedRes.value != null) {
+      final absorbed = absorbedRes.value!;
+      if (absorbed.id == target.id) {
+        return const Failure(ValidationException('Cannot merge an entity into itself'));
+      }
+      // True consolidation: the duplicate row is absorbed into the target.
+      final mergedRes = await _repository.mergeEntities(
+        item.bookId,
+        readThroughId: item.readThroughId,
+        keepEntityId: target.id,
+        absorbedEntityId: absorbed.id,
+      );
+      if (mergedRes is! Success<StoryEntity>) {
+        return const Failure(DatabaseException('Failed to merge duplicate entity'));
+      }
+    } else {
+      // Name-only alias candidate (no duplicate row persisted): add the
+      // candidate name to the target's aliases so the next extraction
+      // pass recognizes it as the same entity.
       final updatedAliases = {...target.aliases, item.candidateName}.toList();
       final updated = target.copyWith(
         aliases: updatedAliases,

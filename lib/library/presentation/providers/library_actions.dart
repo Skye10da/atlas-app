@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,7 +29,7 @@ Future<void> addToLibrary(BuildContext context, WidgetRef ref) async {
       final route = result.value.category == ContentCategory.novel
           ? '/novel/${result.value.bookId}'
           : '/book/${result.value.bookId}';
-      unawaited(context.push(route));
+      await context.push(route);
     }
   }
 }

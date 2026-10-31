@@ -7,6 +7,7 @@ import 'package:atlas_app/browser/domain/engines/webview_page_fetcher.dart';
 import 'package:atlas_app/browser/domain/entities/browser_session_cookie.dart';
 import 'package:atlas_app/browser/domain/repository_interfaces/browser_session_repository_interface.dart';
 import 'package:atlas_app/browser/domain/services/headless_webview_pool.dart';
+import 'package:atlas_app/browser/domain/services/webview_offline_guard.dart';
 import 'package:atlas_app/core/content_engine/transport/challenge_detector.dart';
 import 'package:atlas_app/core/content_engine/transport/webview_fetch_result.dart';
 import 'package:atlas_app/core/logging/logger.dart';
@@ -37,12 +38,15 @@ class SilentWebViewService {
     Future<void> Function(Duration duration)? sleep,
     Future<void> Function(Uri origin, List<BrowserSessionCookie> cookies)?
         seeder,
+    bool Function()? offlineCheck,
   })  : pool = pool ??
             (engine != null
                 ? HeadlessWebViewPool.single(engine)
                 : HeadlessWebViewPool()),
         _sleep = sleep ?? _defaultSleep,
-        _seeder = seeder;
+        _seeder = seeder,
+        _offlineCheck = offlineCheck ??
+            (() => WebViewOfflineGuard.instance.isOffline);
 
   final HeadlessWebViewPool pool;
   final BrowserSessionRepositoryInterface? sessionStore;
@@ -52,6 +56,7 @@ class SilentWebViewService {
   final Future<void> Function(Duration duration) _sleep;
   final Future<void> Function(Uri origin, List<BrowserSessionCookie> cookies)?
       _seeder;
+  final bool Function() _offlineCheck;
 
   final Map<String, Future<void>> _originQueues = {};
 
@@ -67,6 +72,11 @@ class SilentWebViewService {
     bool binary = false,
   }) async {
     if (!_servable(url)) return null;
+    // While offline, do not drive webview navigations at all: a doomed load
+    // just feeds the native plugin its crash-triggering network-failure
+    // callbacks. Return null; plain-HTTP fallback handles the retry and its
+    // callers surface "couldn't be reached" instead of crashing.
+    if (_offlineCheck()) return null;
     // Windows headless WebView2 needs COM initialized and the engine's platform
     // view registry ready; `HeadlessWebEngine._ensureInitialized` defers
     // creation past a frame and retries the CoInitialize race, so the pool is

@@ -169,44 +169,7 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
   @override
   Future<Result<void>> saveEntity(StoryEntity entity) async {
     try {
-      await _db.customStatement(
-        '''
-        INSERT INTO story_entities (
-          id, book_id, read_through_id, type, canonical_name, aliases, confidence_score, tier,
-          user_confirmed, attributes, first_seen_chapter, last_seen_chapter,
-          mention_count, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          type = excluded.type,
-          canonical_name = excluded.canonical_name,
-          aliases = excluded.aliases,
-          confidence_score = excluded.confidence_score,
-          tier = excluded.tier,
-          user_confirmed = excluded.user_confirmed,
-          attributes = excluded.attributes,
-          first_seen_chapter = MIN(story_entities.first_seen_chapter, excluded.first_seen_chapter),
-          last_seen_chapter = MAX(story_entities.last_seen_chapter, excluded.last_seen_chapter),
-          mention_count = excluded.mention_count,
-          updated_at = excluded.updated_at;
-        ''',
-        [
-          entity.id,
-          entity.bookId,
-          entity.readThroughId,
-          entity.type.id,
-          entity.canonicalName,
-          jsonEncode(entity.aliases),
-          entity.confidenceScore,
-          entity.tier.id,
-          entity.userConfirmed ? 1 : 0,
-          jsonEncode(entity.attributes),
-          entity.firstSeenChapter,
-          entity.lastSeenChapter,
-          entity.mentionCount,
-          entity.createdAt.millisecondsSinceEpoch,
-          entity.updatedAt.millisecondsSinceEpoch,
-        ],
-      );
+      await _upsertEntity(entity);
       _notifyEntityChange(entity.bookId, entity.readThroughId);
       return const Success(null);
     } catch (e, st) {
@@ -214,14 +177,71 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
     }
   }
 
+  /// Single-row UPSERT without change notification — the building block
+  /// shared by [saveEntity] and [saveEntities] so a batch save emits ONE
+  /// stream notification (and thus one re-query) instead of one per entity.
+  Future<void> _upsertEntity(StoryEntity entity) async {
+    await _db.customStatement(
+      '''
+      INSERT INTO story_entities (
+        id, book_id, read_through_id, type, canonical_name, aliases, confidence_score, tier,
+        user_confirmed, attributes, first_seen_chapter, last_seen_chapter,
+        mention_count, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        type = excluded.type,
+        canonical_name = excluded.canonical_name,
+        aliases = excluded.aliases,
+        confidence_score = excluded.confidence_score,
+        tier = excluded.tier,
+        user_confirmed = excluded.user_confirmed,
+        attributes = excluded.attributes,
+        first_seen_chapter = MIN(story_entities.first_seen_chapter, excluded.first_seen_chapter),
+        last_seen_chapter = MAX(story_entities.last_seen_chapter, excluded.last_seen_chapter),
+        mention_count = excluded.mention_count,
+        updated_at = excluded.updated_at;
+      ''',
+      [
+        entity.id,
+        entity.bookId,
+        entity.readThroughId,
+        entity.type.id,
+        entity.canonicalName,
+        jsonEncode(entity.aliases),
+        entity.confidenceScore,
+        entity.tier.id,
+        entity.userConfirmed ? 1 : 0,
+        jsonEncode(entity.attributes),
+        entity.firstSeenChapter,
+        entity.lastSeenChapter,
+        entity.mentionCount,
+        entity.createdAt.millisecondsSinceEpoch,
+        entity.updatedAt.millisecondsSinceEpoch,
+      ],
+    );
+  }
+
   @override
   Future<Result<void>> saveEntities(List<StoryEntity> entities) async {
+    if (entities.isEmpty) return const Success(null);
     try {
+      String? notifyBookId;
+      final notifyRts = <String>{};
       await _db.transaction(() async {
         for (final entity in entities) {
-          await saveEntity(entity);
+          await _upsertEntity(entity);
+          notifyBookId ??= entity.bookId;
+          notifyRts.add(entity.readThroughId);
         }
       });
+      // One notification per distinct stream key instead of one per row:
+      // a chapter pass used to re-run the full-table getEntities query once
+      // per entity, storming the entity stream consumers.
+      if (notifyBookId != null) {
+        for (final rt in notifyRts) {
+          _notifyEntityChange(notifyBookId!, rt);
+        }
+      }
       return const Success(null);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to batch save story entities', e), st);
@@ -306,8 +326,9 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
       );
 
       await _db.transaction(() async {
-        // 1. Update keep entity
-        await saveEntity(updatedKeep);
+        // 1. Update keep entity (raw upsert — mergeEntities fires its own
+        // single notification below).
+        await _upsertEntity(updatedKeep);
 
         // 2. Re-point relationships
         await _db.customStatement(
@@ -344,6 +365,7 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
     String bookId, {
     String readThroughId = 'default',
     String? entityId,
+    int? maxChapter,
   }) async {
     try {
       final sql = StringBuffer('SELECT * FROM story_relationships WHERE book_id = ? AND read_through_id = ?');
@@ -356,6 +378,13 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
         sql.write(' AND (source_entity_id = ? OR target_entity_id = ?)');
         vars.add(Variable<String>(entityId));
         vars.add(Variable<String>(entityId));
+      }
+
+      // Anti-spoiler: relationships established after the reader's current
+      // chapter must not surface in chapter-bound queries.
+      if (maxChapter != null) {
+        sql.write(' AND chapter_established <= ?');
+        vars.add(Variable<int>(maxChapter));
       }
 
       sql.write(' ORDER BY confidence_score DESC');
@@ -418,6 +447,7 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
     String bookId, {
     String readThroughId = 'default',
     int? maxChapter,
+    int? chapterExact,
     List<String>? involvedEntityIds,
   }) async {
     try {
@@ -430,6 +460,67 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
       if (maxChapter != null) {
         sql.write(' AND chapter <= ?');
         vars.add(Variable<int>(maxChapter));
+      }
+      if (chapterExact != null) {
+        sql.write(' AND chapter = ?');
+        vars.add(Variable<int>(chapterExact));
+      }
+
+      // Push the involved-entity filter into SQLite via the JSON1 extension
+      // instead of fetching and JSON-decoding every event row in Dart —
+      // recap/who-is queries over long books used to decode the full event
+      // history to keep ~10 matches.
+      final targetIds =
+          involvedEntityIds != null && involvedEntityIds.isNotEmpty
+              ? involvedEntityIds.toSet().toList()
+              : const <String>[];
+      if (targetIds.isNotEmpty) {
+        final placeholders = List.filled(targetIds.length, '?').join(', ');
+        sql.write(
+          ' AND EXISTS (SELECT 1 FROM json_each(story_events.involved_entity_ids) je '
+          'WHERE je.value IN ($placeholders))',
+        );
+        vars.addAll(targetIds.map(Variable<String>.new));
+      }
+
+      sql.write(' ORDER BY chapter ASC, created_at ASC');
+      final rows = await _db.customSelect(sql.toString(), variables: vars).get();
+      final events = rows.map(_mapRowToEvent).toList();
+      return Success(events);
+    } catch (e) {
+      // json_each may be unavailable on unusual SQLite builds — degrade to
+      // the previous in-Dart filter rather than failing the query.
+      return _getEventsFilteredInDart(
+        bookId,
+        readThroughId: readThroughId,
+        maxChapter: maxChapter,
+        chapterExact: chapterExact,
+        involvedEntityIds: involvedEntityIds,
+      );
+    }
+  }
+
+  Future<Result<List<StoryEvent>>> _getEventsFilteredInDart(
+    String bookId, {
+    String readThroughId = 'default',
+    int? maxChapter,
+    int? chapterExact,
+    List<String>? involvedEntityIds,
+  }) async {
+    try {
+      final sql = StringBuffer('SELECT * FROM story_events WHERE book_id = ? AND read_through_id = ?');
+      final vars = <Variable<Object>>[
+        Variable<String>(bookId),
+        Variable<String>(readThroughId),
+      ];
+
+      if (maxChapter != null) {
+        sql.write(' AND chapter <= ?');
+        vars.add(Variable<int>(maxChapter));
+      }
+      if (chapterExact != null) {
+        sql.write(' AND chapter = ?');
+        vars.add(Variable<int>(chapterExact));
       }
 
       sql.write(' ORDER BY chapter ASC, created_at ASC');
@@ -507,24 +598,74 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
   }
 
   @override
+  Future<Result<List<StoryCooccurrence>>> getCooccurrencesForEntities(
+    String bookId,
+    Set<String> entityIds, {
+    String readThroughId = 'default',
+  }) async {
+    if (entityIds.isEmpty) return const Success([]);
+    try {
+      final ids = entityIds.toList();
+      // Chunked IN filters keep the SQL under SQLite's variable limit for
+      // very long chapters.
+      final result = <StoryCooccurrence>[];
+      const chunkSize = 100;
+      for (var offset = 0; offset < ids.length; offset += chunkSize) {
+        final chunk = ids.sublist(
+          offset,
+          math.min(offset + chunkSize, ids.length),
+        );
+        final placeholders = List.filled(chunk.length, '?').join(', ');
+        final rows = await _db
+            .customSelect(
+              'SELECT * FROM story_cooccurrences WHERE book_id = ? AND read_through_id = ? '
+              'AND (entity_a_id IN ($placeholders) OR entity_b_id IN ($placeholders))',
+              variables: [
+                Variable<String>(bookId),
+                Variable<String>(readThroughId),
+                ...chunk.map(Variable<String>.new),
+                ...chunk.map(Variable<String>.new),
+              ],
+            )
+            .get();
+        result.addAll(rows.map(_mapRowToCooccurrence));
+      }
+      return Success(result);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to get cooccurrences for entities', e), st);
+    }
+  }
+
+  @override
   Future<Result<void>> updateCooccurrences(
     String bookId,
     List<StoryCooccurrence> edges, {
     String readThroughId = 'default',
   }) async {
+    if (edges.isEmpty) return const Success(null);
     try {
+      // Edge weights are ABSOLUTE totals carried by the [CooccurrenceGraph]
+      // (which is seeded from persisted edges before each pass), so the
+      // upsert replaces instead of incrementing — incrementing was the
+      // double-counting correctness bug.
+      // The pairwise UPSERTs are further batched into multi-row VALUES
+      // statements: a dialogue-heavy chapter used to issue one SQL
+      // round-trip per pair (over a thousand statements for k=50 entities),
+      // now it is a handful of chunked statements inside one transaction.
+      const chunkSize = 100;
       await _db.transaction(() async {
-        for (final edge in edges) {
-          await _db.customStatement(
-            '''
-            INSERT INTO story_cooccurrences (
-              id, book_id, read_through_id, entity_a_id, entity_b_id, weight, last_seen_chapter
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              weight = story_cooccurrences.weight + excluded.weight,
-              last_seen_chapter = MAX(story_cooccurrences.last_seen_chapter, excluded.last_seen_chapter);
-            ''',
-            [
+        for (var start = 0; start < edges.length; start += chunkSize) {
+          final chunk = edges.sublist(
+            start,
+            math.min(start + chunkSize, edges.length),
+          );
+          final values = List.generate(
+            chunk.length,
+            (_) => '(?, ?, ?, ?, ?, ?, ?)',
+          ).join(', ');
+          final vars = <Object>[];
+          for (final edge in chunk) {
+            vars.addAll([
               edge.id,
               edge.bookId,
               edge.readThroughId,
@@ -532,7 +673,18 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
               edge.entityBId,
               edge.weight,
               edge.lastSeenChapter,
-            ],
+            ]);
+          }
+          await _db.customStatement(
+            '''
+            INSERT INTO story_cooccurrences (
+              id, book_id, read_through_id, entity_a_id, entity_b_id, weight, last_seen_chapter
+            ) VALUES $values
+            ON CONFLICT(id) DO UPDATE SET
+              weight = MAX(story_cooccurrences.weight, excluded.weight),
+              last_seen_chapter = MAX(story_cooccurrences.last_seen_chapter, excluded.last_seen_chapter);
+            ''',
+            vars,
           );
         }
       });
@@ -608,6 +760,102 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
   }
 
   @override
+  Future<Result<bool>> hasPendingReviewItem({
+    required String bookId,
+    String readThroughId = 'default',
+    required ReviewType type,
+    required String entityId,
+    required String candidateName,
+  }) async {
+    try {
+      final rows = await _db.customSelect(
+        'SELECT COUNT(*) AS c FROM story_review_queue '
+        'WHERE book_id = ? AND read_through_id = ? AND status = \'pending\' '
+        'AND type = ? AND entity_id = ? AND candidate_name = ? LIMIT 1',
+        variables: [
+          Variable<String>(bookId),
+          Variable<String>(readThroughId),
+          Variable<String>(type.id),
+          Variable<String>(entityId),
+          Variable<String>(candidateName),
+        ],
+      ).get();
+      return Success(rows.first.read<int>('c') > 0);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to check pending review item', e), st);
+    }
+  }
+
+  @override
+  Future<Result<Set<String>>> pendingReviewItemKeys({
+    required String bookId,
+    String readThroughId = 'default',
+  }) async {
+    try {
+      final rows = await _db.customSelect(
+        'SELECT type, entity_id, candidate_name FROM story_review_queue '
+        "WHERE book_id = ? AND read_through_id = ? AND status = 'pending'",
+        variables: [
+          Variable<String>(bookId),
+          Variable<String>(readThroughId),
+        ],
+      ).get();
+      return Success({
+        for (final row in rows)
+          '${row.read<String>('type')}|${row.read<String>('entity_id')}|'
+              '${row.read<String>('candidate_name')}',
+      });
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to list pending review keys', e), st);
+    }
+  }
+
+  @override
+  Future<Result<void>> saveReviewItems(List<ReviewItem> items) async {
+    if (items.isEmpty) return const Success(null);
+    try {
+      await _db.transaction(() async {
+        for (final item in items) {
+          await _db.customStatement(
+            '''
+            INSERT INTO story_review_queue (
+              id, book_id, read_through_id, type, entity_id, target_entity_id, candidate_name,
+              target_name, confidence_score, similarity_score, cooccurrence_count,
+              evidence_json, status, chapter_index, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              confidence_score = excluded.confidence_score,
+              similarity_score = excluded.similarity_score,
+              evidence_json = excluded.evidence_json,
+              status = excluded.status;
+            ''',
+            [
+              item.id,
+              item.bookId,
+              item.readThroughId,
+              item.type.id,
+              item.entityId,
+              item.targetEntityId,
+              item.candidateName,
+              item.targetName,
+              item.confidenceScore,
+              item.similarityScore,
+              item.cooccurrenceCount,
+              jsonEncode(item.evidence),
+              item.status.id,
+              item.chapterIndex,
+              item.createdAt.millisecondsSinceEpoch,
+            ],
+          );
+        }
+      });
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to batch save review items', e), st);
+    }
+  }
+
+  @override
   Future<Result<void>> resolveReviewItem(String reviewId, ReviewStatus status) async {
     try {
       await _db.customStatement(
@@ -653,6 +901,14 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
             'DELETE FROM story_read_throughs WHERE book_id = ? AND id = ?',
             [bookId, readThroughId],
           );
+          await _db.customStatement(
+            'DELETE FROM story_ingestion_log WHERE book_id = ? AND read_through_id = ?',
+            [bookId, readThroughId],
+          );
+          await _db.customStatement(
+            'DELETE FROM story_recap_snapshots WHERE book_id = ? AND read_through_id = ?',
+            [bookId, readThroughId],
+          );
         } else {
           await _db.customStatement('DELETE FROM story_entities WHERE book_id = ?', [bookId]);
           await _db.customStatement('DELETE FROM story_relationships WHERE book_id = ?', [bookId]);
@@ -661,7 +917,9 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
           await _db.customStatement('DELETE FROM story_review_queue WHERE book_id = ?', [bookId]);
           await _db.customStatement('DELETE FROM story_corrections WHERE book_id = ?', [bookId]);
           await _db.customStatement('DELETE FROM story_scenes_fts WHERE book_id = ?', [bookId]);
+          await _db.customStatement('DELETE FROM story_recap_snapshots WHERE book_id = ?', [bookId]);
           await _db.customStatement('DELETE FROM story_read_throughs WHERE book_id = ?', [bookId]);
+          await _db.customStatement('DELETE FROM story_ingestion_log WHERE book_id = ?', [bookId]);
         }
       });
 
@@ -689,8 +947,13 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
     int limit = 10,
   }) async {
     try {
-      final sanitized = query.replaceAll('"', '""').trim();
-      if (sanitized.isEmpty) return const Success([]);
+      final terms = query
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((t) => t.isNotEmpty)
+          .map((t) => '"${t.replaceAll('"', '""')}"')
+          .join(' ');
+      if (terms.isEmpty) return const Success([]);
 
       final sql = StringBuffer(
         '''
@@ -700,7 +963,10 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
       );
       final vars = <Variable<Object>>[
         Variable<String>(bookId),
-        Variable<String>('"$sanitized"'),
+        // One quoted phrase per term joined as an implicit AND, so a
+        // multi-word query keeps matching when terms appear scattered in
+        // the scene instead of as one contiguous phrase.
+        Variable<String>(terms),
       ];
 
       if (maxChapter != null) {
@@ -716,6 +982,164 @@ class DriftStoryMemoryRepository implements StoryMemoryRepository {
       return Success(excerpts);
     } catch (e, st) {
       return Failure(DatabaseException('Failed to execute scene search', e), st);
+    }
+  }
+
+  @override
+  Future<Result<void>> saveScenes(
+    String bookId,
+    int chapterIndex,
+    List<String> scenes,
+  ) async {
+    if (scenes.isEmpty) return const Success(null);
+    try {
+      await _db.transaction(() async {
+        // Delete-then-insert keeps re-extraction idempotent: changing a
+        // translation service rewrites the chapter text and scenes.
+        await _db.customStatement(
+          'DELETE FROM story_scenes_fts WHERE book_id = ? AND chapter_index = ?',
+          [bookId, chapterIndex],
+        );
+        for (final scene in scenes) {
+          if (scene.trim().isEmpty) continue;
+          await _db.customStatement(
+            'INSERT INTO story_scenes_fts (book_id, chapter_index, scene_text) VALUES (?, ?, ?)',
+            [bookId, chapterIndex, scene],
+          );
+        }
+      });
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to save scenes', e), st);
+    }
+  }
+
+  @override
+  Future<Result<bool>> isChapterIngested(
+    String bookId,
+    String readThroughId,
+    int chapterIndex,
+    String textHash,
+  ) async {
+    try {
+      final rows = await _db.customSelect(
+        'SELECT text_hash FROM story_ingestion_log '
+        'WHERE book_id = ? AND read_through_id = ? AND chapter_index = ? LIMIT 1',
+        variables: [
+          Variable<String>(bookId),
+          Variable<String>(readThroughId),
+          Variable<int>(chapterIndex),
+        ],
+      ).get();
+      if (rows.isEmpty) return const Success(false);
+      return Success(rows.first.read<String>('text_hash') == textHash);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to check chapter ingestion', e), st);
+    }
+  }
+
+  @override
+  Future<Result<void>> recordChapterIngestion(
+    String bookId,
+    String readThroughId,
+    int chapterIndex,
+    String textHash,
+  ) async {
+    try {
+      await _db.customStatement(
+        '''
+        INSERT OR REPLACE INTO story_ingestion_log (
+          book_id, read_through_id, chapter_index, text_hash, ingested_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ''',
+        [
+          bookId,
+          readThroughId,
+          chapterIndex,
+          textHash,
+          DateTime.now().millisecondsSinceEpoch,
+        ],
+      );
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to record chapter ingestion', e), st);
+    }
+  }
+
+  @override
+  Future<Result<Set<int>>> ingestedChapterIndexes({
+    required String bookId,
+    String readThroughId = 'default',
+  }) async {
+    try {
+      final rows = await _db.customSelect(
+        'SELECT chapter_index FROM story_ingestion_log '
+        'WHERE book_id = ? AND read_through_id = ?',
+        variables: [
+          Variable<String>(bookId),
+          Variable<String>(readThroughId),
+        ],
+      ).get();
+      return Success({
+        for (final r in rows) r.read<int>('chapter_index'),
+      });
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to list ingested chapters', e), st);
+    }
+  }
+
+  @override
+  Future<Result<String?>> getRecapSnapshot({
+    required String bookId,
+    String readThroughId = 'default',
+    required int chapterIndex,
+  }) async {
+    try {
+      final rows = await _db.customSelect(
+        'SELECT recap_text FROM story_recap_snapshots '
+        'WHERE book_id = ? AND read_through_id = ? AND chapter_index = ? LIMIT 1',
+        variables: [
+          Variable<String>(bookId),
+          Variable<String>(readThroughId),
+          Variable<int>(chapterIndex),
+        ],
+      ).get();
+      return Success(
+        rows.isEmpty ? null : rows.first.read<String>('recap_text'),
+      );
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to load recap snapshot', e), st);
+    }
+  }
+
+  @override
+  Future<Result<void>> saveRecapSnapshot({
+    required String bookId,
+    String readThroughId = 'default',
+    required int chapterIndex,
+    required String recapText,
+  }) async {
+    try {
+      await _db.customStatement(
+        '''
+        INSERT INTO story_recap_snapshots (
+          book_id, read_through_id, chapter_index, recap_text, generated_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(book_id, read_through_id, chapter_index) DO UPDATE SET
+          recap_text = excluded.recap_text,
+          generated_at = excluded.generated_at;
+        ''',
+        [
+          bookId,
+          readThroughId,
+          chapterIndex,
+          recapText,
+          DateTime.now().millisecondsSinceEpoch,
+        ],
+      );
+      return const Success(null);
+    } catch (e, st) {
+      return Failure(DatabaseException('Failed to save recap snapshot', e), st);
     }
   }
 

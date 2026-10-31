@@ -152,7 +152,7 @@ class _TrendingListScreenState extends ConsumerState<TrendingListScreen> {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(
-          maxWidth: AppBreakpoints.formContentMaxWidth,
+          maxWidth: AppBreakpoints.shellContentMaxWidth,
         ),
         child: RefreshIndicator(
           onRefresh: () async {

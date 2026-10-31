@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
-import 'package:atlas_app/discover/presentation/providers/discover_providers.dart';
 import 'package:atlas_app/discover/presentation/providers/reading_analytics_providers.dart';
 import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
 
@@ -76,14 +75,13 @@ class SplashScreen extends HookConsumerWidget {
     useEffect(() {
       pulseController.repeat(reverse: true);
 
-      // Pre-warm Discover data during the 2s animation (fire-and-forget).
-      // By the time navigation fires, Riverpod cache is warm -> 0ms load.
+      // Pre-warm the Library home data during the 2s animation
+      // (fire-and-forget). By the time navigation fires, Riverpod cache is
+      // warm -> 0ms load.
+      // The "Find new" dashboard is deliberately NOT warmed here — nothing
+      // on that discovery surface may run until the Find new tab is
+      // actually opened (its provider is autoDispose, started lazily).
       Future.microtask(() {
-        unawaited(
-          ref
-              .read(discoverDashboardProvider.future)
-              .then((_) {}, onError: (_, _) {}),
-        );
         unawaited(
           ref
               .read(readingAnalyticsReportProvider.future)

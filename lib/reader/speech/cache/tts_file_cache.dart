@@ -99,7 +99,7 @@ class TtsFileCache {
         locale: locale,
       );
       if (!file.existsSync()) return null;
-      return file.readAsBytes();
+      return await file.readAsBytes();
     } catch (_) {
       return null;
     }

@@ -117,17 +117,19 @@ extension ScrollAnimationX on ScrollAnimation {
   };
 }
 
-enum ReaderChromeStyle { translucent, frosted }
+enum ReaderChromeStyle { translucent, frosted, glass }
 
 extension ReaderChromeStyleX on ReaderChromeStyle {
   String get label => switch (this) {
     ReaderChromeStyle.translucent => 'Translucent',
     ReaderChromeStyle.frosted => 'Frosted Glass',
+    ReaderChromeStyle.glass => 'Liquid Glass',
   };
 
   IconData get icon => switch (this) {
     ReaderChromeStyle.translucent => Icons.blur_on,
     ReaderChromeStyle.frosted => Icons.grain,
+    ReaderChromeStyle.glass => Icons.auto_awesome,
   };
 }
 

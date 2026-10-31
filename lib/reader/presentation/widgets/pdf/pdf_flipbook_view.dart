@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:real_page_flip/real_page_flip.dart';
 
+import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/widgets/app_context_menu.dart';
 import 'package:atlas_app/reader/domain/entities/reader_annotation_entity.dart';
@@ -314,7 +315,7 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
       );
     }
 
-    final isDesktop = MediaQuery.sizeOf(context).width >= 1200;
+    final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.largeDesktop;
     final useDoubleSpread = isDesktop && widget.settings.useBookSpread;
 
     final count = useDoubleSpread

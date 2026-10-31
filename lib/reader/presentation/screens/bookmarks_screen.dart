@@ -7,6 +7,7 @@ import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/molecules/app_empty_state.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
+import 'package:atlas_app/dictionary/presentation/screens/dictionary_screen.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
@@ -68,219 +69,243 @@ class BookmarksScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Saved Bookmarks',
-          style: TextStyle(
-            fontFamily: 'Fraunces',
-            fontWeight: FontWeight.w700,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Saved',
+            style: TextStyle(
+              fontFamily: 'Fraunces',
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          // Everything that is "saved" lives here: chapter bookmarks and
+          // (moved from the Find new branch) saved dictionary words.
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Bookmarks'),
+              Tab(text: 'Words'),
+            ],
           ),
         ),
-      ),
-      body: bookmarksAsync.when(
-        loading: () => const AppLoading(),
-        error: (_, _) => const AppEmptyState(
-          title: 'Could not load bookmarks',
-          icon: Icons.bookmark_border,
-        ),
-        data: (bookmarks) {
-          if (bookmarks.isEmpty) {
-            return const AppEmptyState(
-              title: 'No bookmarks yet',
-              message: 'Bookmark chapters while reading to see them here.',
-              icon: Icons.bookmark_border,
-            );
-          }
+        body: TabBarView(
+          children: [
+            bookmarksAsync.when(
+              loading: () => const AppLoading(),
+              error: (_, _) => const AppEmptyState(
+                title: 'Could not load bookmarks',
+                icon: Icons.bookmark_border,
+              ),
+              data: (bookmarks) {
+                if (bookmarks.isEmpty) {
+                  return const AppEmptyState(
+                    title: 'No bookmarks yet',
+                    message:
+                        'Bookmark chapters while reading to see them here.',
+                    icon: Icons.bookmark_border,
+                  );
+                }
 
-          // Group bookmarks by bookId
-          final grouped = <String, List<EnrichedBookmark>>{};
-          for (final item in bookmarks) {
-            grouped.putIfAbsent(item.bookmark.bookId, () => []).add(item);
-          }
+                // Group bookmarks by bookId
+                final grouped = <String, List<EnrichedBookmark>>{};
+                for (final item in bookmarks) {
+                  grouped.putIfAbsent(item.bookmark.bookId, () => []).add(item);
+                }
 
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm,
-            ),
-            itemCount: grouped.length,
-            itemBuilder: (context, groupIndex) {
-              final entry = grouped.entries.elementAt(groupIndex);
-              final bookItems = entry.value;
-              final book = bookItems.first.book;
-              final bookTitle = book?.title ?? 'Unknown Book';
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  itemCount: grouped.length,
+                  itemBuilder: (context, groupIndex) {
+                    final entry = grouped.entries.elementAt(groupIndex);
+                    final bookItems = entry.value;
+                    final book = bookItems.first.book;
+                    final bookTitle = book?.title ?? 'Unknown Book';
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xs,
-                        vertical: AppSpacing.xs,
-                      ),
-                      child: Row(
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.auto_stories,
-                            size: 16,
-                            color: colorScheme.primary,
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: Text(
-                              bookTitle,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.onSurface,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            '${bookItems.length}',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    ...bookItems.map((item) {
-                      final bm = item.bookmark;
-                      final ch = item.chapter;
-                      final chapterTitle =
-                          ch?.title ??
-                          (bm.position > 0
-                              ? 'Chapter ${bm.position + 1}'
-                              : 'Chapter');
-                      final timeAgo = _formatTimestamp(bm.createdAt);
-
-                      return Dismissible(
-                        key: ValueKey(bm.id),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: AppSpacing.md),
-                          decoration: BoxDecoration(
-                            color: colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(
-                              AppSpacing.borderRadiusMd,
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.delete_outline,
-                            color: colorScheme.onErrorContainer,
-                          ),
-                        ),
-                        onDismissed: (_) async {
-                          final repo = ref.read(readerRepositoryProvider);
-                          await repo.removeBookmark(bm.id);
-                          ref.invalidate(allBookmarksProvider);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Bookmark removed'),
-                                action: SnackBarAction(
-                                  label: 'Undo',
-                                  onPressed: () async {
-                                    await repo.addBookmark(bm);
-                                    ref.invalidate(allBookmarksProvider);
-                                  },
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                        child: Card(
-                          margin: const EdgeInsets.only(bottom: AppSpacing.xs),
-                          elevation: 0,
-                          color: colorScheme.surfaceContainerLow,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppSpacing.borderRadiusMd,
-                            ),
-                            side: BorderSide(
-                              color: colorScheme.outlineVariant.withValues(
-                                alpha: 0.5,
-                              ),
-                            ),
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.md,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xs,
                               vertical: AppSpacing.xs,
                             ),
-                            leading: book?.coverPath != null
-                                ? BookCover(
-                                    coverPath: book!.coverPath,
-                                    width: 38,
-                                    height: 52,
-                                  )
-                                : CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor:
-                                        colorScheme.primaryContainer,
-                                    child: Icon(
-                                      Icons.bookmark_rounded,
-                                      size: 18,
-                                      color: colorScheme.onPrimaryContainer,
-                                    ),
-                                  ),
-                            title: Text(
-                              chapterTitle,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Row(
+                            child: Row(
                               children: [
-                                if (bm.note != null && bm.note!.isNotEmpty) ...[
-                                  Expanded(
-                                    child: Text(
-                                      bm.note!,
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                Icon(
+                                  Icons.auto_stories,
+                                  size: 16,
+                                  color: colorScheme.primary,
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    bookTitle,
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.onSurface,
                                     ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(width: AppSpacing.sm),
-                                ],
+                                ),
                                 Text(
-                                  timeAgo,
+                                  '${bookItems.length}',
                                   style: theme.textTheme.labelSmall?.copyWith(
-                                    color: colorScheme.outline,
+                                    color: colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ],
                             ),
-                            trailing: Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 14,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            onTap: () => context.push(
-                              '/reader/${bm.bookId}?chapterId=${bm.chapterId}',
-                            ),
                           ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              );
-            },
-          );
-        },
+                          const SizedBox(height: AppSpacing.xs),
+                          ...bookItems.map((item) {
+                            final bm = item.bookmark;
+                            final ch = item.chapter;
+                            final chapterTitle =
+                                ch?.title ??
+                                    (bm.position > 0
+                                        ? 'Chapter ${bm.position + 1}'
+                                        : 'Chapter');
+                            final timeAgo = _formatTimestamp(bm.createdAt);
+
+                            return Dismissible(
+                              key: ValueKey(bm.id),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding:
+                                    const EdgeInsets.only(right: AppSpacing.md),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.errorContainer,
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.borderRadiusMd,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.delete_outline,
+                                  color: colorScheme.onErrorContainer,
+                                ),
+                              ),
+                              onDismissed: (_) async {
+                                final repo = ref.read(readerRepositoryProvider);
+                                await repo.removeBookmark(bm.id);
+                                ref.invalidate(allBookmarksProvider);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('Bookmark removed'),
+                                      action: SnackBarAction(
+                                        label: 'Undo',
+                                        onPressed: () async {
+                                          await repo.addBookmark(bm);
+                                          ref.invalidate(allBookmarksProvider);
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Card(
+                                margin:
+                                    const EdgeInsets.only(bottom: AppSpacing.xs),
+                                elevation: 0,
+                                color: colorScheme.surfaceContainerLow,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.borderRadiusMd,
+                                  ),
+                                  side: BorderSide(
+                                    color: colorScheme.outlineVariant.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.md,
+                                    vertical: AppSpacing.xs,
+                                  ),
+                                  leading: book?.coverPath != null
+                                      ? BookCover(
+                                          coverPath: book!.coverPath,
+                                          width: 38,
+                                          height: 52,
+                                        )
+                                      : CircleAvatar(
+                                          radius: 18,
+                                          backgroundColor:
+                                              colorScheme.primaryContainer,
+                                          child: Icon(
+                                            Icons.bookmark_rounded,
+                                            size: 18,
+                                            color: colorScheme.onPrimaryContainer,
+                                          ),
+                                        ),
+                                  title: Text(
+                                    chapterTitle,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Row(
+                                    children: [
+                                      if (bm.note != null &&
+                                          bm.note!.isNotEmpty) ...[
+                                        Expanded(
+                                          child: Text(
+                                            bm.note!,
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                              color: colorScheme.onSurfaceVariant,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                      ],
+                                      Text(
+                                        timeAgo,
+                                        style: theme.textTheme.labelSmall
+                                            ?.copyWith(
+                                          color: colorScheme.outline,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    size: 14,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  onTap: () => context.push(
+                                    '/reader/${bm.bookId}?chapterId=${bm.chapterId}',
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+            // The saved-words dictionary (moved from the Find new screen's
+            // former "Saved" tab) keeps its own scroll + toolbar.
+            const DictionaryScreen(),
+          ],
+        ),
       ),
     );
   }

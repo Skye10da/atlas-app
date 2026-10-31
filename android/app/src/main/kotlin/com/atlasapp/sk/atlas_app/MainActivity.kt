@@ -2,7 +2,11 @@ package com.atlasapp.sk.atlas_app
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
+import android.provider.Settings
+import android.widget.Toast
+import androidx.core.content.FileProvider
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -11,6 +15,8 @@ import java.io.File
 class MainActivity : AudioServiceActivity() {
     companion object {
         private const val CHANNEL = "com.atlasapp/file_open"
+        private const val UPDATE_CHANNEL = "com.atlasapp/update_install"
+        private const val APK_MIME = "application/vnd.android.package-archive"
     }
 
     private var channel: MethodChannel? = null
@@ -25,6 +31,28 @@ class MainActivity : AudioServiceActivity() {
                         val path = pendingPath
                         pendingPath = null
                         result.success(path)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATE_CHANNEL).apply {
+            setMethodCallHandler { call, result ->
+                when (call.method) {
+                    // Dart verifies the manifest hash and downloaded bytes; this
+                    // endpoint only hands the file to the system installer.
+                    "installApk" -> {
+                        val path = call.arguments as? String
+                        if (path == null) {
+                            result.error("INVALID", "Missing APK path", null)
+                            return@setMethodCallHandler
+                        }
+                        result.success(installApk(File(path)))
+                    }
+                    "canRequestInstall" -> result.success(canRequestInstall())
+                    "openInstallPermissionSettings" -> {
+                        openInstallPermissionSettings()
+                        result.success(null)
                     }
                     else -> result.notImplemented()
                 }
@@ -115,6 +143,51 @@ class MainActivity : AudioServiceActivity() {
             mime == "application/octet-stream" && nameExt.isNotEmpty() -> nameExt
             nameExt.isNotEmpty() -> nameExt
             else -> "atlas"
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Self-update install intent (see lib/updater/ + docs/release.md).
+    // ---------------------------------------------------------------------
+
+    /** Android 8+: sideloading requires explicit per-app "install unknown apps" consent. */
+    private fun canRequestInstall(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            packageManager.canRequestPackageInstalls()
+
+    /** Opens the system page where the user opts in to installing from Atlas. */
+    private fun openInstallPermissionSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !packageManager.canRequestPackageInstalls()
+        ) {
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"),
+                )
+            )
+        }
+    }
+
+    private fun installApk(apkFile: File): String {
+        if (!apkFile.exists() || apkFile.length() == 0L) return "missing"
+        if (!canRequestInstall()) return "permission_needed"
+        val uri: Uri = FileProvider.getUriForFile(
+            this,
+            "$packageName.fileprovider",
+            apkFile,
+        )
+        val install = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+            data = uri
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return try {
+            startActivity(install)
+            "launched"
+        } catch (e: Exception) {
+            Toast.makeText(applicationContext, "No installer available", Toast.LENGTH_LONG).show()
+            "error:${e.message}"
         }
     }
 }

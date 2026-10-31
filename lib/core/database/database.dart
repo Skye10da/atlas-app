@@ -45,7 +45,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open(super.executor);
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 18;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     beforeOpen: (details) async {
@@ -301,6 +301,22 @@ class AppDatabase extends _$AppDatabase {
             FROM story_entities;
           ''');
         } catch (_) {}
+      }
+      if (from <= 16) {
+        // Chapter idempotency tracking for Story Memory extraction (schema 17).
+        for (final stmt in StorySchema.createStatements) {
+          try {
+            await customStatement(stmt);
+          } catch (_) {}
+        }
+      }
+      if (from <= 17) {
+        // Persisted recap snapshots (schema 18, additive).
+        for (final stmt in StorySchema.createStatements) {
+          try {
+            await customStatement(stmt);
+          } catch (_) {}
+        }
       }
       if (from <= 15) {
         // Selector Healing tables (schema 16)

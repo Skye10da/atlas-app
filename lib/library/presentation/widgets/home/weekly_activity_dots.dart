@@ -104,29 +104,15 @@ class WeeklyActivityDots extends StatelessWidget {
                 const SizedBox(height: AppSpacing.smMd),
                 Row(
                   children: [
-                    Expanded(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: _StatNumber(
-                          value: '$today',
-                          label: today == 1
-                              ? 'chapter today'
-                              : 'chapters today',
-                          accent: true,
-                        ),
-                      ),
+                    _StatNumber(
+                      value: '$today',
+                      label: today == 1 ? 'chapter today' : 'chapters today',
+                      accent: true,
                     ),
                     const SizedBox(width: AppSpacing.lg),
-                    Expanded(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: _StatNumber(
-                          value: '$totalChapters',
-                          label: 'this week',
-                        ),
-                      ),
+                    _StatNumber(
+                      value: '$totalChapters',
+                      label: 'this week',
                     ),
                   ],
                 ),
@@ -190,17 +176,11 @@ class WeeklyActivityStrip extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
-                  child: _StatNumber(
-                    value: '$today',
-                    label: today == 1 ? 'chapter today' : 'chapters today',
-                    accent: true,
-                    alignEnd: true,
-                  ),
-                ),
+              _StatNumber(
+                value: '$today',
+                label: today == 1 ? 'chapter today' : 'chapters today',
+                accent: true,
+                alignEnd: true,
               ),
               Icon(
                 Icons.chevron_right_rounded,
@@ -248,26 +228,13 @@ class _StatNumber extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 3),
-        _StatLabel(label: label, cs: cs),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: cs.onSurfaceVariant,
+          ),
+        ),
       ],
-    );
-  }
-}
-
-class _StatLabel extends StatelessWidget {
-  const _StatLabel({required this.label, required this.cs});
-
-  final String label;
-  final ColorScheme cs;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text(
-      label,
-      style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
     );
   }
 }

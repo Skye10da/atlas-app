@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/design_system/nav_chrome_providers.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/theme/app_brand.dart';
@@ -17,6 +18,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(readingSettingsProvider);
     final fontFamiliesAsync = ref.watch(availableFontFamiliesProvider);
+    final chromeStyle = ref.watch(navChromeProvider);
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -24,10 +26,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(
           'Appearance',
-          style: TextStyle(
-            fontFamily: 'Fraunces',
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(fontFamily: 'Fraunces', fontWeight: FontWeight.w700),
         ),
       ),
       body: settingsAsync.when(
@@ -135,7 +134,9 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                         visualDensity: VisualDensity.compact,
                         shape: WidgetStatePropertyAll(
                           RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.borderRadiusFull,
+                            ),
                           ),
                         ),
                       ),
@@ -143,7 +144,45 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.md),
 
-                  // 4. System Font & Font Manager
+                  // 4. Navigation Chrome (glass capsule / classic Material)
+                  _SettingsCard(
+                    title: 'Navigation Style',
+                    subtitle:
+                        'Glass uses a floating translucent capsule with a spring-loaded indicator. Classic uses the solid Material chrome.',
+                    child: SegmentedButton<NavChromeStyle>(
+                      segments: const [
+                        ButtonSegment(
+                          value: NavChromeStyle.glass,
+                          label: Text('Glass'),
+                          icon: Icon(Icons.auto_awesome, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: NavChromeStyle.classic,
+                          label: Text('Classic'),
+                          icon: Icon(Icons.style, size: 16),
+                        ),
+                      ],
+                      selected: {chromeStyle},
+                      onSelectionChanged: (selected) {
+                        ref
+                            .read(navChromeProvider.notifier)
+                            .set(selected.first);
+                      },
+                      style: ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        shape: WidgetStatePropertyAll(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.borderRadiusFull,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // 5. System Font & Font Manager
                   _SettingsCard(
                     title: 'App Typography',
                     child: Column(
@@ -159,7 +198,8 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                               runSpacing: 6,
                               children: List.generate(options.length, (i) {
                                 final f = options[i];
-                                final isSelected = settings.systemFontFamily == f;
+                                final isSelected =
+                                    settings.systemFontFamily == f;
                                 return ChoiceChip(
                                   label: Text(
                                     f ?? 'System Default',
@@ -188,7 +228,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                           ),
                           title: const Text(
                             'Font Manager',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           subtitle: Text(
                             'Download literary fonts like Literata, EB Garamond, & Crimson Pro',
@@ -238,7 +281,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                               border: Border.all(
                                 color: isSelected
                                     ? colors.primary
-                                    : t.resolve(colors).text.withValues(alpha: 0.2),
+                                    : t
+                                          .resolve(colors)
+                                          .text
+                                          .withValues(alpha: 0.2),
                                 width: isSelected ? 2.5 : 1,
                               ),
                               boxShadow: [
@@ -265,7 +311,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                                   t.label,
                                   style: TextStyle(
                                     fontSize: 9,
-                                    color: t.resolve(colors).text.withValues(alpha: 0.8),
+                                    color: t
+                                        .resolve(colors)
+                                        .text
+                                        .withValues(alpha: 0.8),
                                   ),
                                   textAlign: TextAlign.center,
                                   maxLines: 1,
@@ -305,9 +354,7 @@ class _LivePreviewCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cs.surfaceContainerLow,
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        border: Border.all(
-          color: brand.seed.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: brand.seed.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -368,7 +415,11 @@ class _LivePreviewCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Center(
-                    child: Icon(Icons.auto_stories, size: 20, color: brand.seed),
+                    child: Icon(
+                      Icons.auto_stories,
+                      size: 20,
+                      color: brand.seed,
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.smMd),
@@ -429,36 +480,39 @@ class _SettingsCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerLow,
+    // Material (not Container/DecoratedBox): the card's child ListTiles paint
+    // their ink on the nearest Material ancestor, which a DecoratedBox would
+    // hide (framework assertion).
+    return Material(
+      color: cs.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: 0.35),
-        ),
+        side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.35)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 2),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              subtitle!,
-              style: textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
+              title,
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
               ),
             ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                subtitle!,
+                style: textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            child,
           ],
-          const SizedBox(height: AppSpacing.md),
-          child,
-        ],
+        ),
       ),
     );
   }
