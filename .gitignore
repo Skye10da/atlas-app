@@ -50,3 +50,4 @@ web/build/
 .atlas.zip
 opencode.json
 eval/
+.vercel
