@@ -49,6 +49,24 @@ class LocalAccountNotifier extends StateNotifier<AsyncValue<LocalAccountEntity>>
     await _repository.save(updated);
   }
 
+  Future<void> saveProfile({
+    required String displayName,
+    required int avatarColorIndex,
+  }) async {
+    final trimmed = displayName.trim();
+    final current = state.valueOrNull ?? const LocalAccountEntity();
+    final normalized = kAvatarColors.isEmpty
+        ? 0
+        : avatarColorIndex.clamp(0, kAvatarColors.length - 1);
+    final updated = current.copyWith(
+      displayName: trimmed.isEmpty ? 'Reader' : trimmed,
+      avatarColorIndex: normalized,
+      createdAt: current.createdAt ?? DateTime.now(),
+    );
+    state = AsyncData(updated);
+    await _repository.save(updated);
+  }
+
   Future<void> setAvatarColorIndex(int index) async {
     final current = state.valueOrNull ?? const LocalAccountEntity();
     final normalized = kAvatarColors.isEmpty

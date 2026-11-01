@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/updater/domain/entities/app_release.dart';
 import 'package:atlas_app/updater/domain/repositories/app_update_repository.dart';
+import 'package:atlas_app/updater/domain/version_policy.dart';
 import 'package:atlas_app/updater/infrastructure/manifest_codec.dart';
 
 /// GitHub repository whose Releases feed the app consumes. The slug is a
@@ -84,6 +85,60 @@ class GithubReleaseRepository implements AppUpdateRepository {
       if (release != null) return release;
     }
     return null;
+  }
+
+  /// What's-new history: the release listing alone (tag, date, notes) — no
+  /// per-release manifest round-trip. Drafts and non-workflow tags (no
+  /// `+<build>`) are skipped; parsing failures degrade entry-by-entry.
+  @override
+  Future<List<AppRelease>> fetchReleaseHistory({int limit = 20}) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$_apiBase/repos/$repoSlug/releases?per_page=$limit'),
+        headers: _headers,
+      );
+      if (response.statusCode != 200) {
+        throw AppUpdateException(
+          'GitHub returned ${response.statusCode} while loading the release '
+          'history.',
+        );
+      }
+      final decoded = json.decode(utf8.decode(response.bodyBytes));
+      if (decoded is! List) return const [];
+      final releases = <AppRelease>[];
+      for (final candidate in decoded.whereType<Map>()) {
+        if (candidate['draft'] == true) continue;
+        final tag = candidate['tag_name'];
+        if (tag is! String) continue;
+        final parsed = VersionPolicy.parseTag(tag);
+        if (parsed.versionCode == null) continue;
+        final publishedAtRaw =
+            candidate['published_at'] ?? candidate['created_at'];
+        final publishedAt =
+            publishedAtRaw is String ? DateTime.tryParse(publishedAtRaw) : null;
+        final htmlUrl = candidate['html_url'];
+        releases.add(
+          AppRelease(
+            tag: tag,
+            version: parsed.version,
+            versionCode: parsed.versionCode!,
+            channel: parsed.isPrerelease
+                ? UpdateChannel.beta
+                : UpdateChannel.stable,
+            publishedAt: publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+            notes: candidate['body'] is String ? candidate['body'] as String : null,
+            releaseUrl: htmlUrl is String ? htmlUrl : null,
+            artifacts: const {},
+          ),
+        );
+      }
+      return releases;
+    } on AppUpdateException {
+      rethrow;
+    } catch (e, st) {
+      AppLogger.error('Updater: fetching release history failed', e, st);
+      throw AppUpdateException('Could not load the release history.', e);
+    }
   }
 
   /// Release JSON → [AppRelease] with artifact URLs resolved. Requires the

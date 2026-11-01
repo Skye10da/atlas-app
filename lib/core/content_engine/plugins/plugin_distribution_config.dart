@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 /// Locates plugin artifacts in the distribution GitHub repo.
 ///
 /// Expected layout in that repo:
@@ -33,7 +35,7 @@ class GithubPluginDistributionConfig {
   /// directly from this path, so edits take effect on next app launch without
   /// needing a commit or push.
   static String? get localPluginsDir =>
-      Platform.environment['ATLAS_PLUGINS_DIR'];
+      kIsWeb ? null : Platform.environment['ATLAS_PLUGINS_DIR'];
 
   String get _base => 'https://raw.githubusercontent.com/$owner/$repo/$branch';
 

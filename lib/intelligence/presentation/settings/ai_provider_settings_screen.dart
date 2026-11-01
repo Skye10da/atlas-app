@@ -7,6 +7,7 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/intelligence/infrastructure/persistence/ai_credentials_store.dart';
 import 'package:atlas_app/intelligence/orchestrator/providers/ollama_provider.dart';
 import 'package:atlas_app/intelligence/presentation/providers/intelligence_providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class AiProviderSettingsScreen extends HookConsumerWidget {
   const AiProviderSettingsScreen({super.key});
@@ -58,9 +59,7 @@ class AiProviderSettingsScreen extends HookConsumerWidget {
       await store.saveCredential(AiSecretKey.anthropic, anthropicKeyController.text);
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('AI settings saved successfully')),
-        );
+        AppToast.showSuccess('AI settings saved successfully');
       }
     }
 

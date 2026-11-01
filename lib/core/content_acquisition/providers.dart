@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -19,6 +20,7 @@ import 'package:atlas_app/core/content_engine/index/content_indexer.dart';
 import 'package:atlas_app/core/content_engine/universal/origin_rules.dart';
 import 'package:atlas_app/core/content_engine/pipeline/content_pipeline_orchestrator.dart';
 import 'package:atlas_app/core/content_engine/plugins/github_plugin_source.dart';
+import 'package:atlas_app/core/content_engine/plugins/plugin_catalog_store.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_distribution_config.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_repository.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_updater.dart';
@@ -66,42 +68,63 @@ final pluginSourcesProvider = FutureProvider<List<PluginSource>>((ref) async {
 
   final localOverride = GithubPluginDistributionConfig.localPluginsDir;
   final Directory pluginsDir;
-  if (localOverride != null && localOverride.isNotEmpty) {
-    pluginsDir = Directory(localOverride);
-    AppLogger.info('Using local plugin directory: $localOverride');
-  } else {
-    final supportDir = await getApplicationSupportDirectory();
-    pluginsDir = Directory(p.join(supportDir.path, 'plugins'));
-
-    final updater = PluginUpdater(
-      source: GithubPluginSource(
-        config: const GithubPluginDistributionConfig(),
-        transport: HttpTransport(client: ref.watch(httpClientProvider)),
+  final PluginRepository repository;
+  if (kIsWeb) {
+    // Web target: no device file system, so nothing can be installed to
+    // disk. Plugin artifacts are fetched live from the distribution repo
+    // (HTTP, checksum-verified in memory) and PluginUpdater is skipped.
+    repository = PluginRepository(
+      baseDirectory: Directory(
+        const GithubPluginDistributionConfig().pluginsDir,
       ),
-      targetDirectory: pluginsDir,
+      templateRegistry: templateRegistry,
+      database: database,
+      store: PluginCatalogArtifactStore(
+        source: GithubPluginSource(
+          config: const GithubPluginDistributionConfig(),
+          transport: HttpTransport(client: ref.watch(httpClientProvider)),
+        ),
+      ),
+    );
+  } else {
+    if (localOverride != null && localOverride.isNotEmpty) {
+      pluginsDir = Directory(localOverride);
+      AppLogger.info('Using local plugin directory: $localOverride');
+    } else {
+      final supportDir = await getApplicationSupportDirectory();
+      pluginsDir = Directory(p.join(supportDir.path, 'plugins'));
+
+      final updater = PluginUpdater(
+        source: GithubPluginSource(
+          config: const GithubPluginDistributionConfig(),
+          transport: HttpTransport(client: ref.watch(httpClientProvider)),
+        ),
+        targetDirectory: pluginsDir,
+        templateRegistry: templateRegistry,
+        database: database,
+      );
+      try {
+        final updates = await updater.sync();
+        for (final update in updates) {
+          AppLogger.info(
+            'Plugin ${update.pluginId}: ${update.status.name} '
+            '(-> ${update.toVersion})',
+          );
+        }
+      } catch (e) {
+        AppLogger.warning(
+          'Plugin catalog sync failed; using installed plugins only: $e',
+        );
+      }
+    }
+
+    repository = PluginRepository(
+      baseDirectory: pluginsDir,
       templateRegistry: templateRegistry,
       database: database,
     );
-    try {
-      final updates = await updater.sync();
-      for (final update in updates) {
-        AppLogger.info(
-          'Plugin ${update.pluginId}: ${update.status.name} '
-          '(-> ${update.toVersion})',
-        );
-      }
-    } catch (e) {
-      AppLogger.warning(
-        'Plugin catalog sync failed; using installed plugins only: $e',
-      );
-    }
   }
 
-  final repository = PluginRepository(
-    baseDirectory: pluginsDir,
-    templateRegistry: templateRegistry,
-    database: database,
-  );
   final manifests = await repository.loadAll();
   final registry = ref.watch(sourceRegistryProvider);
   final sources = <PluginSource>[];

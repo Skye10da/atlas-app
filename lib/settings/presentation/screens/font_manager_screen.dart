@@ -10,6 +10,7 @@ import 'package:atlas_app/core/theme/font_downloader.dart';
 import 'package:atlas_app/settings/infrastructure/repositories/font_download_repository.dart';
 import 'package:atlas_app/settings/presentation/providers/font_download_provider.dart';
 import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class FontManagerScreen extends HookConsumerWidget {
   const FontManagerScreen({super.key});
@@ -536,9 +537,7 @@ class _CacheTile extends ConsumerWidget {
         await FontDownloader.clearAllCachedFonts();
         ref.invalidate(cachedFontSizeBytesProvider);
         if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Font cache cleared')));
+          AppToast.showSuccess('Font cache cleared');
         }
       },
     );

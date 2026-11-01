@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
@@ -28,7 +29,7 @@ class AtlasSourceImportService {
   Future<Result<String?>> pickSourceUrl() async {
     try {
       FilePickerResult? result;
-      if (Platform.isAndroid) {
+      if (!kIsWeb && Platform.isAndroid) {
         result = await FilePicker.platform.pickFiles(
           type: FileType.any,
           withData: true,

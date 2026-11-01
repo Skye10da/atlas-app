@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/view_models/pronunciation_view_model.dart';
 import 'package:atlas_app/reader/speech/pronunciation/models/pronunciation_rule.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 /// View: dumb UI for pronunciation lexicon.
 /// Uses `ListenableBuilder` to listen to `PronunciationViewModel`.
@@ -177,7 +178,7 @@ class PronunciationSheetView extends StatelessWidget {
                 onPressed: () async {
                   await viewModel.save();
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pronunciations saved')));
+                    AppToast.showSuccess('Pronunciations saved');
                   }
                 },
                 child: const Text('Save'),

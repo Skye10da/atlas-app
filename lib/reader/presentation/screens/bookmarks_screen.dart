@@ -13,6 +13,7 @@ import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/reader/domain/entities/bookmark_entity.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class EnrichedBookmark {
   const EnrichedBookmark({
@@ -197,16 +198,15 @@ class BookmarksScreen extends ConsumerWidget {
                                 await repo.removeBookmark(bm.id);
                                 ref.invalidate(allBookmarksProvider);
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text('Bookmark removed'),
-                                      action: SnackBarAction(
-                                        label: 'Undo',
-                                        onPressed: () async {
-                                          await repo.addBookmark(bm);
-                                          ref.invalidate(allBookmarksProvider);
-                                        },
-                                      ),
+                                  AppToast.show(
+                                    'Bookmark removed',
+                                    tone: AppToastTone.bookmark,
+                                    action: AppToastAction(
+                                      'Undo',
+                                      () async {
+                                        await repo.addBookmark(bm);
+                                        ref.invalidate(allBookmarksProvider);
+                                      },
                                     ),
                                   );
                                 }

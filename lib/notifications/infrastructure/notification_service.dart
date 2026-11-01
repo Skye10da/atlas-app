@@ -1,15 +1,32 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart' show WidgetsBinding, AppLifecycleState;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'package:atlas_app/core/database/database.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 import 'package:atlas_app/core/logging/logger.dart';
 import 'package:atlas_app/core/router/app_router.dart';
 import 'package:atlas_app/notifications/domain/entities/update_check_settings.dart';
 import 'package:atlas_app/notifications/infrastructure/update_check_settings_store.dart';
+
+/// True when the app window is visible right now — in that case notifications
+/// surface as in-app glass toast pills instead of OS drawer entries.
+bool _appIsForeground() {
+  try {
+    if (!WidgetsBinding.instance.isRootWidgetAttached) return false;
+    return WidgetsBinding.instance.lifecycleState ==
+        AppLifecycleState.resumed;
+  } catch (_) {
+    // Background isolate or binding not built: not foreground.
+    return false;
+  }
+}
+
 
 /// Top-level callback for notification actions invoked when the app is in
 /// background or terminated.
@@ -114,12 +131,17 @@ class UpdateNotificationService {
   int get currentUnreadCount => _unreadCountController.value;
 
   /// Whether OS notifications can be shown on this platform at all.
+  ///
+  /// On web kIsWeb short-circuits before the `dart:io` Platform reads — its
+  /// stub throws "Unsupported operation" there; notifications surface as
+  /// in-app glass pills instead.
   static bool get isSupported =>
-      Platform.isAndroid ||
-      Platform.isIOS ||
-      Platform.isMacOS ||
-      Platform.isLinux ||
-      Platform.isWindows;
+      !kIsWeb &&
+      (Platform.isAndroid ||
+          Platform.isIOS ||
+          Platform.isMacOS ||
+          Platform.isLinux ||
+          Platform.isWindows);
 
   /// Initializes the notification service. Call once during app bootstrap.
   ///
@@ -207,7 +229,7 @@ class UpdateNotificationService {
     bool sound = true,
     bool vibration = true,
   }) async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     try {
       final androidPlugin = _plugin
           .resolvePlatformSpecificImplementation<
@@ -229,7 +251,7 @@ class UpdateNotificationService {
 
   /// Deletes a novel's Android notification channel when untracked or deleted.
   Future<void> deleteNovelChannel(String bookId) async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     try {
       final androidPlugin = _plugin
           .resolvePlatformSpecificImplementation<
@@ -294,6 +316,20 @@ class UpdateNotificationService {
 
       if (showIndividual) {
         for (final update in updates) {
+          // App open: surface as a glass droplet pill instead of the OS
+          // drawer; tapping deep-links exactly like the OS notification.
+          if (_appIsForeground()) {
+            AppToast.show(
+              '${update.title} (${update.count})',
+              tone: AppToastTone.read,
+              action: AppToastAction(
+                'Open',
+                () => AppRouter.router.push('/novel/${update.bookId}'),
+              ),
+            );
+            continue;
+          }
+
           await ensureNovelChannel(
             bookId: update.bookId,
             title: update.title,
@@ -306,7 +342,7 @@ class UpdateNotificationService {
             id: notificationId,
             title: update.title,
             body:
-                '${update.count} new chapter${update.count == 1 ? '' : 's'} available',
+                '📖 ${update.count} new chapter${update.count == 1 ? '' : 's'} available',
             notificationDetails: NotificationDetails(
               android: AndroidNotificationDetails(
                 'novel_${update.bookId}',
@@ -342,11 +378,22 @@ class UpdateNotificationService {
         }
       }
 
-      if (showSummary && Platform.isAndroid) {
+      if (showSummary && !kIsWeb && Platform.isAndroid) {
         final detail = updates.map((u) => '${u.title} (${u.count})').join(', ');
+        if (_appIsForeground()) {
+          AppToast.show(
+            detail,
+            tone: AppToastTone.sparkle,
+            action: AppToastAction(
+              'Open',
+              () => AppRouter.router.push('/library'),
+            ),
+          );
+          return; // summary is the last thing this method does
+        }
         await _plugin.show(
           id: _summaryId,
-          title: '$total new chapter${total == 1 ? '' : 's'}',
+          title: '✨ $total new chapter${total == 1 ? '' : 's'}',
           body: detail,
           notificationDetails: NotificationDetails(
             android: AndroidNotificationDetails(
@@ -385,9 +432,9 @@ class UpdateNotificationService {
     try {
       await _plugin.show(
         id: _testNotificationId,
-        title: 'Atlas test notification',
+        title: '🎙️ Atlas test notification',
         body:
-            'Notifications are working. Shown ${delay.inSeconds}s after launch.',
+            '✅ Notifications are working. Shown ${delay.inSeconds}s after launch.',
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,

@@ -114,7 +114,7 @@ class AppShell extends HookConsumerWidget {
             Positioned(
               left: sideMargin,
               top: sideMargin,
-              bottom: sideMargin,
+              bottom: 4, // bare-minimum gap below the dock capsule
               width: sidebarWidth,
               child: GlassCapsule(
                 borderRadius: 24,
@@ -271,7 +271,7 @@ class AppShell extends HookConsumerWidget {
             Positioned(
               left: 8,
               top: 8,
-              bottom: 8,
+              bottom: 0, // bare-minimum bottom clearance (rail pads itself 4)
               child: AtlasGlassRail(
                 items: items,
                 currentIndex: navigationShell.currentIndex,
@@ -403,8 +403,9 @@ class AppShell extends HookConsumerWidget {
     ];
 
     // Glass mode floats the capsule over the content (extendBody), so the
-    // docked mini player must sit ABOVE it: bar = 12 top pad + 68 + 12 bottom.
-    final miniPlayerBottom = glass ? 96.0 : AppSpacing.sm;
+    // docked mini player must sit ABOVE it: bar = 68 capsule + 4 bottom pad
+    // (+ small buffer).
+    final miniPlayerBottom = glass ? 76.0 : AppSpacing.sm;
 
     Widget miniPlayer(double bottom) => Positioned(
           left: AppSpacing.md,

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:epub_plus/epub_plus.dart';
@@ -9,6 +8,7 @@ import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.da
 import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
+import 'package:atlas_app/core/shared/utils/run_in_background.dart';
 
 class GutenbergSource implements SearchableSource {
   GutenbergSource({http.Client? client}) : _client = client ?? http.Client();
@@ -452,4 +452,4 @@ class _ChapterSection {
 }
 
 Future<EpubBook> _readEpubInIsolate(List<int> bytes) =>
-    Isolate.run(() => EpubReader.readBook(bytes));
+    runInBackground(() => EpubReader.readBook(bytes));

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:atlas_app/updater/domain/entities/app_release.dart';
+import 'package:atlas_app/updater/domain/repositories/app_update_repository.dart';
 import 'package:atlas_app/updater/infrastructure/github_release_repository.dart';
 
 const _manifestJson = <String, dynamic>{
@@ -140,6 +141,94 @@ void main() {
       });
       final repo = GithubReleaseRepository(client: client);
       expect(await repo.fetchLatest(), isNull);
+    });
+  });
+
+  group('GithubReleaseRepository.fetchReleaseHistory', () {
+    test(
+        'maps the listing to ordered releases without manifest round-trips',
+        () async {
+      final client = MockClient(
+        (request) async {
+          expect(request.url.queryParameters['per_page'], '5');
+          return http.Response(
+            json.encode([
+              {
+                'tag_name': 'v1.0.9+9',
+                'html_url': 'https://github.com/x/releases/tag/v1.0.9+9',
+                'published_at': '2026-10-31T12:00:00Z',
+                'assets': [],
+                'body': '# Fixed\n- crash on boot',
+              },
+              {
+                'tag_name': 'v1.0.9-rc.1+9',
+                'published_at': '2026-10-30T08:00:00Z',
+                'assets': [],
+              },
+              {'tag_name': 'draft-notes', 'draft': true},
+              {'tag_name': 'nightly-build'},
+              'not-a-map',
+            ]),
+            200,
+          );
+        },
+      );
+      final repo = GithubReleaseRepository(client: client);
+      final history = await repo.fetchReleaseHistory(limit: 5);
+
+      expect(history, hasLength(2));
+      // newest first as GitHub returns them
+      expect(history.first.version, '1.0.9');
+      expect(history.first.versionCode, 9);
+      expect(history.first.channel, UpdateChannel.stable);
+      expect(history.first.notes, '# Fixed\n- crash on boot');
+      expect(history[1].channel, UpdateChannel.beta);
+      expect(history[1].version, '1.0.9-rc.1');
+    });
+
+    test('missing published_at falls back to created_at then the epoch',
+        () async {
+      final client = MockClient(
+        (request) async => http.Response(
+          json.encode([
+            {'tag_name': 'v1.0.8+8', 'created_at': '2026-10-01T00:00:00Z'},
+          ]),
+          200,
+        ),
+      );
+      final repo = GithubReleaseRepository(client: client);
+      final history = await repo.fetchReleaseHistory();
+
+      expect(history, hasLength(1));
+      expect(history.first.publishedAt, DateTime.utc(2026, 10, 1));
+    });
+
+    test('network failure surfaces as AppUpdateException', () async {
+      final repo = GithubReleaseRepository(
+        client: MockClient((request) async => throw Exception('offline')),
+      );
+      await expectLater(
+        repo.fetchReleaseHistory(),
+        throwsA(isA<AppUpdateException>()),
+      );
+    });
+
+    test('non-200 status surfaces as AppUpdateException', () async {
+      final repo = GithubReleaseRepository(
+        client: MockClient(
+          (request) async => http.Response('rate limited', 403),
+        ),
+      );
+      await expectLater(
+        repo.fetchReleaseHistory(),
+        throwsA(
+          isA<AppUpdateException>().having(
+            (e) => e.userMessage,
+            'userMessage',
+            contains('403'),
+          ),
+        ),
+      );
     });
   });
 }

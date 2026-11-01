@@ -93,5 +93,20 @@ class DuplicateBookException extends AppException {
   @override
   String get code => 'DUPLICATE_BOOK';
   @override
-  String get userMessage => 'This book already exists in your library.';
+  String get userMessage => 'This book is already in your library. Open it from your shelf instead.';
+}
+
+/// Book imports that must write to the device file system (EPUB/TXT/PDF/
+/// Atlas packages store chapter text, covers and embedded images as files)
+/// cannot complete on the web target, where no device file system exists.
+/// Thrown instead of failing with an opaque storage error mid-import.
+class DeviceImportUnsupportedException extends AppException {
+  const DeviceImportUnsupportedException()
+      : super('Device file import is not available on this platform.');
+  @override
+  String get code => 'UNSUPPORTED_PLATFORM';
+  @override
+  String get userMessage =>
+      'Importing files from your device isn\'t supported in the web app yet '
+      '— paste a book URL or use Discover instead.';
 }

@@ -9,6 +9,7 @@ import 'package:atlas_app/core/content_acquisition/providers.dart';
 import 'package:atlas_app/core/design_system/molecules/app_snackbar.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 /// Opens the unified "Add to library" sheet and routes to the new book.
 ///
@@ -22,9 +23,7 @@ Future<void> addToLibrary(BuildContext context, WidgetRef ref) async {
   if (result is Success<ImportOutcome>) {
     if (result.value.bookId.startsWith('batch:')) {
       final count = result.value.bookId.split(':').last;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Successfully imported $count books.')),
-      );
+      AppToast.showSuccess('Successfully imported $count books.');
     } else {
       final route = result.value.category == ContentCategory.novel
           ? '/novel/${result.value.bookId}'

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/discover/presentation/providers/reading_analytics_providers.dart';
 import 'package:atlas_app/notifications/infrastructure/notification_service.dart';
+import 'package:atlas_app/onboarding/presentation/providers/onboarding_providers.dart';
 
 class SplashScreen extends HookConsumerWidget {
   const SplashScreen({super.key});
@@ -102,9 +104,22 @@ class SplashScreen extends HookConsumerWidget {
           if (launchPayload != null && launchPayload.isNotEmpty) {
             context.go('/library');
             unawaited(context.push(launchPayload));
-          } else {
-            context.go('/library');
+            return;
           }
+          final start = await ref.read(startLocationProvider.future);
+          if (!context.mounted) return;
+          if (start == OnboardingRoutes.onboarding) {
+            context.go(OnboardingRoutes.onboarding);
+            return;
+          }
+          // Flutter Web is the public face of Atlas — first-time visitors
+          // land on the marketing page, not inside the reader. Deep-linked
+          // paths still resolve through the router untouched.
+          if (kIsWeb) {
+            context.go('/');
+            return;
+          }
+          context.go('/library');
         }
       }
 

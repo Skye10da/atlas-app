@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -52,7 +53,7 @@ class TextImportService {
       final FilePickerResult? result;
       // `markdown`/`text` have no MimeTypeMap entry on Android, so a
       // custom filter would hide them. Use `any` on Android.
-      if (Platform.isAndroid) {
+      if (!kIsWeb && Platform.isAndroid) {
         result = await FilePicker.platform.pickFiles(
           type: FileType.any,
           withData: true,

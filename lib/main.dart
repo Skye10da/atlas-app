@@ -22,6 +22,7 @@ import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/file_open_providers.dart';
 import 'package:atlas_app/core/import/opened_file_import_service.dart';
 import 'package:atlas_app/core/router/app_router.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 import 'package:atlas_app/core/services/window_theme_channel.dart';
@@ -35,6 +36,7 @@ import 'package:atlas_app/reader/presentation/providers/lockscreen_providers.dar
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
+import 'package:atlas_app/updater/domain/entities/changelog_entry.dart';
 import 'package:atlas_app/updater/presentation/providers/updater_providers.dart';
 import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
 
@@ -90,6 +92,8 @@ class AtlasApp extends ConsumerWidget {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_bootstrap(ref));
       _syncNativeTheme(context, settings);
+      // Glass toast pills display on the root navigator's overlay.
+      AppToast.bind(AppRouter.rootNavigatorKey);
     });
 
     return MaterialApp.router(
@@ -213,16 +217,42 @@ class AtlasApp extends ConsumerWidget {
   static bool _updateChecksInitialized = false;
 
   /// Waits for the updater's async build (prefs + PackageInfo) to resolve so
-  /// the notifier has its stores wired, then runs the throttled check.
+  /// the notifier has its stores wired, then runs the throttled check. After
+  /// that, records the changelog entry of a freshly-installed version and
+  /// surfaces it as a one-tap "What's new" banner (self-update, docs/release.md).
   Future<void> _bootSelfUpdater(WidgetRef ref) async {
     try {
       await ref.read(updaterControllerProvider.future);
       await ref.read(updaterControllerProvider.notifier).maybeAutoCheck();
+
+      final updaterState = ref.read(updaterControllerProvider).valueOrNull;
+      if (updaterState == null || updaterState.currentBuild == 0) return;
+      final entry = await ref
+          .read(changelogControllerProvider.notifier)
+          .detectInstalledVersionChange(
+            currentBuild: updaterState.currentBuild,
+            currentVersion: updaterState.currentVersion,
+          );
+      if (entry != null) _showWhatsNewBanner(entry);
     } catch (e, st) {
       AppLogger.error('App self-update check failed', e, st);
     }
   }
 
+  /// Post-update surfacing: a single glass droplet pill over whatever screen
+  /// the user lands on, offering the What's-new screen. Skipped when the pill
+  /// host isn't ready yet (the entry is already in the changelog store,
+  /// so Settings → What's new covers it).
+  static void _showWhatsNewBanner(ChangelogEntry entry) {
+    AppToast.show(
+      'Atlas ${entry.version} installed — see what changed.',
+      tone: AppToastTone.sparkle,
+      action: AppToastAction(
+        'Read',
+        () => AppRouter.openWhatsNew(),
+      ),
+    );
+  }
   Future<void> _initUpdateChecks(WidgetRef ref) async {
     if (_updateChecksInitialized) return;
     _updateChecksInitialized = true;
@@ -380,6 +410,11 @@ class AtlasApp extends ConsumerWidget {
     final route = outcome.category == ContentCategory.novel
         ? '/novel/${outcome.bookId}'
         : '/book/${outcome.bookId}';
+    // The OS can report the same cold-start file both as an initial argument
+    // and as a stream event. Avoid stacking the same detail page twice.
+    if (AppRouter.router.routeInformationProvider.value.uri.path == route) {
+      return;
+    }
     // Retry in case the navigator isn't mounted yet on a cold-start open.
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
@@ -408,9 +443,7 @@ class AtlasApp extends ConsumerWidget {
   }
 
   void _showToast(String message) {
-    rootScaffoldMessengerKey.currentState?.showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    AppToast.show(message);
   }
 
   void _syncNativeTheme(BuildContext context, ReadingSettingsEntity settings) {

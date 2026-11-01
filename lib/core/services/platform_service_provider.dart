@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 
 import 'package:atlas_app/core/services/dictionary_service.dart';
+import 'package:atlas_app/core/services/http_client_facade.dart';
 import 'package:atlas_app/core/services/platform_service.dart';
 import 'package:atlas_app/core/services/platform_service_stub.dart';
 import 'package:atlas_app/core/services/screen_brightness_service.dart';
@@ -65,12 +64,7 @@ void _emitBatteryLevel(
 }
 
 final httpClientProvider = Provider<http.Client>((ref) {
-  final httpClient = HttpClient();
-  httpClient.badCertificateCallback = (_, _, _) => true;
-  // Without this, a stalled TLS negotiation (e.g. "connection terminated
-  // during handshake") blocks the request forever.
-  httpClient.connectionTimeout = const Duration(seconds: 15);
-  final client = IOClient(httpClient);
+  final client = createConfiguredHttpClient();
   ref.onDispose(client.close);
   return client;
 });

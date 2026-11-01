@@ -5,6 +5,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/wtr/domain/services/wtr_authentication_manager.dart';
 import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 /// Full-screen WTR-Lab sign-in. Renders WTR-Lab's own login page (GitHub /
 /// Discord OAuth) in a WebView so credentials are entered and handled entirely
@@ -48,13 +49,9 @@ class WtrLoginScreen extends HookConsumerWidget {
         Navigator.of(context).pop(true);
       } else {
         completing.value = false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'WTR-Lab sign-in did not complete. Check that you reached the '
-              'wtr-lab.com site, then try again.',
-            ),
-          ),
+        AppToast.showError(
+          'WTR-Lab sign-in did not complete. Check that you reached the '
+          'wtr-lab.com site, then try again.',
         );
       }
     }

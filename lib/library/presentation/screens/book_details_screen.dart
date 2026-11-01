@@ -21,6 +21,7 @@ import 'package:atlas_app/library/presentation/widgets/open_reader.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/infrastructure/repositories/drift_reader_repository.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class BookDetailsScreen extends ConsumerWidget {
   const BookDetailsScreen({
@@ -97,9 +98,7 @@ Future<void> _deleteBook(
       ref.invalidate(libraryBooksProvider);
       popOrGoToLibrary(context);
     } else if (r is Failure) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(r.error.userMessage)));
+      AppToast.showError(r.error.userMessage);
     }
   }
 }
@@ -506,23 +505,19 @@ class _BookDetailsBody extends HookConsumerWidget {
           latched != null &&
           SessionRefreshService.sameOrigin(latched, bookOrigin);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            challenge
-                ? 'Redownload blocked by a bot check. Re-verify the session to continue.'
-                : failures == 0
-                ? 'Redownloaded ${chapters.length} chapters'
-                : 'Redownloaded ${chapters.length - failures}/${chapters.length} chapters ($failures failed)',
-          ),
-          duration: challenge
-              ? const Duration(seconds: 8)
-              : const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: challenge ? 'Re-verify' : 'Dismiss',
-            onPressed: !challenge
-                ? () {}
-                : () => unawaited(() async {
+      AppToast.show(
+        challenge
+            ? 'Redownload blocked by a bot check. Re-verify the session to continue.'
+            : failures == 0
+            ? 'Redownloaded ${chapters.length} chapters'
+            : 'Redownloaded ${chapters.length - failures}/${chapters.length} chapters ($failures failed)',
+        tone: challenge ? AppToastTone.warning : AppToastTone.success,
+        duration: challenge ? const Duration(seconds: 8) : const Duration(seconds: 4),
+        action: AppToastAction(
+          challenge ? 'Re-verify' : 'Dismiss',
+          !challenge
+            ? () {}
+            : () => unawaited(() async {
                     final ok = await SessionRefreshService.instance
                         .ensureFresh(
                           bookOrigin,
@@ -550,15 +545,16 @@ class _BookDetailsBody extends HookConsumerWidget {
                         ref.invalidate(readerChapterContentProvider(ch));
                       }
                       final stillFailing = retry.whereType<Failure>().length;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            stillFailing == 0
-                                ? 'Redownloaded ${chapters.length} chapters'
-                                : 'Redownloaded ${chapters.length - stillFailing}/${chapters.length} chapters ($stillFailing failed)',
-                          ),
-                        ),
-                      );
+                      if (stillFailing == 0) {
+                        AppToast.show(
+                          'Redownloaded ${chapters.length} chapters',
+                          tone: AppToastTone.success,
+                        );
+                      } else {
+                        AppToast.showError(
+                          'Redownloaded ${chapters.length - stillFailing}/${chapters.length} chapters ($stillFailing failed)',
+                        );
+                      }
                     } finally {
                       if (context.mounted) {
                         isRedownloading.value = false;
@@ -567,7 +563,6 @@ class _BookDetailsBody extends HookConsumerWidget {
                     }
                   }()),
           ),
-        ),
       );
     } finally {
       if (context.mounted) {

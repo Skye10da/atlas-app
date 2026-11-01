@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -349,6 +350,14 @@ class _ImportUrlSheet extends HookConsumerWidget {
     Future<void> pickFile() async {
       loading.value = true;
       error.value = null;
+      // Imported books persist as device files, which the web target can't
+      // write — stop before the picker instead of failing with an opaque
+      // storage error after a full parse.
+      if (kIsWeb) {
+        error.value = const DeviceImportUnsupportedException().userMessage;
+        loading.value = false;
+        return;
+      }
       try {
         // On Android MimeTypeMap has no entry for `.atlas`; a
         // FileType.custom filter that includes `atlas` yields
@@ -356,7 +365,7 @@ class _ImportUrlSheet extends HookConsumerWidget {
         // (FileUtils.getMimeTypes skips the unknown extension). Fall back
         // to FileType.any on Android and validate extensions in Dart.
         final FilePickerResult? result;
-        if (Platform.isAndroid) {
+        if (!kIsWeb && Platform.isAndroid) {
           result = await FilePicker.platform.pickFiles(
             type: FileType.any,
             allowMultiple: true,

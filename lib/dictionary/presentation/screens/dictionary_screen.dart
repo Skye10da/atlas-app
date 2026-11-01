@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/dictionary_service.dart';
 import 'package:atlas_app/dictionary/domain/entities/dictionary_word_entity.dart';
@@ -71,9 +72,7 @@ class DictionaryScreen extends HookConsumerWidget {
         await ref.read(dictionaryRepositoryProvider).delete(word.id);
         ref.invalidate(savedWordsProvider);
         if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Removed "${word.word}"')));
+          AppToast.show('Removed "${word.word}"', tone: AppToastTone.bookmark);
         }
       }
     }
@@ -251,10 +250,9 @@ class DictionaryScreen extends HookConsumerWidget {
                                 text: '${word.word} — ${word.definition}',
                               ),
                             );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Copied to clipboard'),
-                              ),
+                            AppToast.show(
+                              'Copied to clipboard',
+                              emoji: '📋',
                             );
                           },
                           onDelete: () => confirmDelete(word),

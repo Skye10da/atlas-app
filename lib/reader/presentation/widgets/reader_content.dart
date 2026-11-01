@@ -41,6 +41,7 @@ import 'package:atlas_app/reader/speech/speech_session_builder.dart';
 import 'package:atlas_app/discover/presentation/providers/reading_analytics_providers.dart';
 import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class ReaderContent extends HookConsumerWidget {
   const ReaderContent({
@@ -134,17 +135,13 @@ class ReaderContent extends HookConsumerWidget {
           ref.invalidate(readerChapterContentProvider(ch));
           // Refresh chapter list so contentState/version updates in DB watch.
           ref.invalidate(novelChaptersProvider(bookId));
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Redownloaded "${ch.title}"')));
+          AppToast.show('Redownloaded "${ch.title}"', tone: AppToastTone.success);
         } else {
           final err = (result as Failure).error;
           final msg = err is AppException
               ? err.userMessage
               : 'Redownload failed — check connection and try again.';
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(msg)));
+          AppToast.showError(msg);
         }
       } finally {
         if (context.mounted) isRedownloading.value = false;
@@ -443,7 +440,7 @@ class ReaderContent extends HookConsumerWidget {
         await saveProgress(chapter);
       }
       if (context.mounted) {
-        Navigator.of(context).pop();
+        context.pop();
       }
     }
 

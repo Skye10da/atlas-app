@@ -575,7 +575,14 @@ class InappWebviewEngine implements BrowserWebEngine {
   Future<void> _refreshNavState() async {
     final controller = _controller;
     if (_disposed || controller == null) return;
-    _canGoBack.value = await controller.canGoBack();
-    _canGoForward.value = await controller.canGoForward();
+    // flutter_inappwebview's web implementation throws UnimplementedError
+    // for canGoBack/canGoForward; treat those as "no history" there.
+    try {
+      _canGoBack.value = await controller.canGoBack();
+      _canGoForward.value = await controller.canGoForward();
+    } on UnimplementedError {
+      _canGoBack.value = false;
+      _canGoForward.value = false;
+    }
   }
 }

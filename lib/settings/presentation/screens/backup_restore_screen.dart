@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -11,6 +12,7 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/library/application/library_backup_service.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class BackupRestoreScreen extends ConsumerStatefulWidget {
   const BackupRestoreScreen({super.key});
@@ -354,7 +356,6 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       _statusMessage = 'Exporting backup...';
     });
 
-    final messenger = ScaffoldMessenger.of(context);
     final backupService = ref.read(libraryBackupServiceProvider);
 
     try {
@@ -372,19 +373,12 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         });
 
         if (path != null) {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('Backup exported successfully:\n$path'),
-              behavior: SnackBarBehavior.floating,
-            ),
+          AppToast.show(
+            'Backup exported successfully:\n$path',
+            tone: AppToastTone.backup,
           );
         } else {
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Backup export cancelled or failed.'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          AppToast.showError('Backup export cancelled or failed.');
         }
       }
     } catch (e) {
@@ -393,12 +387,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
           _isExporting = false;
           _statusMessage = null;
         });
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Export error: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppToast.showError('Export error: $e');
       }
     }
   }
@@ -409,7 +398,6 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       _statusMessage = 'Preparing backup for sharing...';
     });
 
-    final messenger = ScaffoldMessenger.of(context);
     final backupService = ref.read(libraryBackupServiceProvider);
 
     try {
@@ -457,18 +445,12 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
           _isExporting = false;
           _statusMessage = null;
         });
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Failed to share backup: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppToast.showError('Failed to share backup: $e');
       }
     }
   }
 
   Future<void> _handleRestore(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
     final backupService = ref.read(libraryBackupServiceProvider);
 
     try {
@@ -476,7 +458,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       // ['atlas'] hides the files (greyed out). Use FileType.any on Android
       // to guarantee .atlas visibility; validate after pick. withData ensures
       // bytes are available when path is null (scoped storage / content://).
-      final isAndroid = Platform.isAndroid;
+      final isAndroid = !kIsWeb && Platform.isAndroid;
       final result = await FilePicker.platform.pickFiles(
         dialogTitle: 'Select Atlas Backup File',
         type: isAndroid ? FileType.any : FileType.custom,
@@ -509,24 +491,14 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
 
       switch (inspectionResult) {
         case Failure(:final error):
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('Invalid backup file: ${error.userMessage}'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          AppToast.showError('Invalid backup file: ${error.userMessage}');
           return;
         case Success(:final value):
           await _showInspectionDialog(context, value, bytes, resolvedPath);
       }
     } catch (e) {
       if (context.mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Restore selection failed: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppToast.showError('Restore selection failed: $e');
       }
     }
   }
@@ -685,7 +657,6 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       _statusMessage = 'Restoring library items and reading positions...';
     });
 
-    final messenger = ScaffoldMessenger.of(context);
     final backupService = ref.read(libraryBackupServiceProvider);
 
     try {
@@ -703,12 +674,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
 
       switch (restoreResult) {
         case Failure(:final error):
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('Restore failed: ${error.userMessage}'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          AppToast.showError('Restore failed: ${error.userMessage}');
         case Success(:final value):
           ref.invalidate(libraryBooksProvider);
           if (!context.mounted) return;
@@ -720,12 +686,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
           _isRestoring = false;
           _statusMessage = null;
         });
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Restore error: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppToast.showError('Restore error: $e');
       }
     }
   }

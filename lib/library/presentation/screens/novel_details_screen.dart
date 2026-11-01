@@ -38,6 +38,7 @@ import 'package:atlas_app/library/presentation/widgets/novel/synopsis_card.dart'
 import 'package:atlas_app/intelligence/presentation/widgets/reader_intelligence_sheet.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_novel_identity.dart';
 import 'package:atlas_app/wtr/presentation/widgets/wtr_translation_selector.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class NovelDetailsScreen extends HookConsumerWidget {
   const NovelDetailsScreen({
@@ -407,9 +408,7 @@ class NovelDetailsScreen extends HookConsumerWidget {
           ref.invalidate(libraryBooksProvider);
           popOrGoToLibrary(context);
         } else if (r is Failure) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(r.error.userMessage)));
+          AppToast.showError(r.error.userMessage);
         }
       }
     }
@@ -431,15 +430,18 @@ class NovelDetailsScreen extends HookConsumerWidget {
     if (opened == null || !context.mounted) return;
     final BookRepairResult result = await repairFuture;
     if (!context.mounted) return;
-    final message = result.error ??
-        (result.changed
-            ? 'Repaired "${result.title}": removed '
-                '${result.removedDuplicates} duplicate chapter(s), '
-                'index rebuilt (${result.totalChapters} chapters).'
-            : 'Chapter list looks healthy (${result.totalChapters} chapters).');
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    final error = result.error;
+    final message = error ?? (result.changed
+        ? 'Repaired "${result.title}": removed '
+            '${result.removedDuplicates} duplicate chapter(s), '
+            'index rebuilt (${result.totalChapters} chapters).'
+        : 'Chapter list looks healthy (${result.totalChapters} chapters).');
+    if (!context.mounted) return;
+    if (error != null) {
+      AppToast.showError(error);
+    } else {
+      AppToast.showSuccess(message);
+    }
     ref.invalidate(bookDetailsProvider(book.id));
     ref.invalidate(libraryBooksProvider);
   }
@@ -496,14 +498,13 @@ class NovelDetailsScreen extends HookConsumerWidget {
 
     if (!context.mounted) return;
     final result = await exportFuture;
-    final message = switch (result) {
-      Success(value: final path) => 'Exported to $path',
-      Failure(error: final error) => error.userMessage,
-    };
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    switch (result) {
+      case Success(value: final path):
+        AppToast.showSuccess('Exported to $path');
+      case Failure(error: final error):
+        AppToast.showError(error.userMessage);
+    }
   }
 }
 

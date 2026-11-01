@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io' show InternetAddress, InternetAddressType;
 
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 
 import 'package:atlas_app/browser/domain/engines/browser_web_engine.dart';
 import 'package:atlas_app/core/logging/logger.dart';
@@ -117,9 +117,15 @@ class WebViewOfflineGuard {
   }
 
   /// Best-effort DNS probe. A resolved record is treated as "online".
+  ///
+  /// On web this is a no-op that always reports "online": `InternetAddress`
+  /// is a `dart:io` stub there (it throws synchronously, which previously
+  /// surfaced as an unhandled root-zone error every 2s), and there is no
+  /// native webview plugin DLL to protect on the web target.
   Future<bool> probeConnectivity() {
     final probe = probeOverride;
     if (probe != null) return probe();
+    if (kIsWeb) return Future<bool>.value(true);
     return InternetAddress.lookup('pub.dev', type: InternetAddressType.IPv4)
         .then<bool>(
       (records) => records.isNotEmpty,

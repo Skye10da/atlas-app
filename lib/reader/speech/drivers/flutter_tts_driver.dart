@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_tts/flutter_tts.dart';
 
 import 'package:atlas_app/reader/speech/speech_driver.dart';
@@ -131,7 +132,7 @@ class FlutterTtsDriver implements SpeechDriver {
 
   @override
   Future<void> warmup(SpeechItem item) async {
-    if (Platform.isWindows && _selectedVoiceId != null) return;
+    if (!kIsWeb && Platform.isWindows && _selectedVoiceId != null) return;
     try {
       if (item.language.isNotEmpty) {
         await _tts.setLanguage(item.language);
@@ -160,7 +161,7 @@ class FlutterTtsDriver implements SpeechDriver {
     // Windows SAPI: per-item setLanguage overrides the selected voice and can select a non-existent
     // locale (e.g. book language 'zh' while selected voice is 'en-US' David), resulting in silent 0 return.
     // Keep the user's selected voice on Windows; only setLanguage when no voice is selected or on mobile.
-    final shouldSetLanguage = !(Platform.isWindows && _selectedVoiceId != null);
+    final shouldSetLanguage = !(!kIsWeb && Platform.isWindows && _selectedVoiceId != null);
     if (shouldSetLanguage && item.language.isNotEmpty) {
       try {
         await _tts.setLanguage(item.language);

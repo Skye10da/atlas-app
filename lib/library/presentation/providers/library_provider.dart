@@ -105,6 +105,12 @@ final selectedBookIdProvider = Provider<String?>((ref) {
 /// the inline "Search library" field (e.g. the Ctrl K shortcut in the shell).
 final librarySearchFocusSignalProvider = StateProvider<int>((_) => 0);
 
+/// First-use flag for the "Find Novels to Read" empty-state flow: whether the
+/// user has already seen the discovery intro sheet. Persisted in the shared
+/// prefs store (`atlas.library.search_intro_seen`) and seeded `false` on
+/// install.
+final librarySearchIntroSeenProvider = StateProvider<bool>((_) => false);
+
 /// Incremented whenever something outside the Library screen requests the
 /// "Add book" flow (shell FAB, tablet rail, desktop sidebar button).
 final libraryAddBookSignalProvider = StateProvider<int>((_) => 0);

@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
@@ -13,6 +12,7 @@ import 'package:xml/xml.dart' as xml;
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/content_acquisition/utils/book_id_normalizer.dart';
+import 'package:atlas_app/core/shared/utils/run_in_background.dart';
 import 'package:atlas_app/core/database/database.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/import/epub_html_converter.dart';
@@ -59,10 +59,12 @@ class EpubImportService {
     return _importFromBytes(bytes, fileName);
   }
 
-  /// Static isolate entry — avoids capturing `this` (which holds the
-  /// unsendable [_db]) in the closure passed to [Isolate.run].
+  /// Static entry — avoids capturing `this` (which holds the unsendable
+  /// [_db]) in the closure passed to [runInBackground]. Executes on a
+  /// background isolate on native platforms, and inline after a yield on web
+  /// (where `dart:isolate` is unavailable).
   static Future<_ParsedEpub> _parseInIsolate(List<int> bytes) =>
-      Isolate.run(() => _parseEpubBytes(bytes));
+      runInBackground(() => _parseEpubBytes(bytes));
 
   /// Extracts metadata from EPUB bytes without importing.
   /// Used by the import sheet to show a preview before the user confirms.

@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:atlas_app/reader/speech/cache/tts_file_cache.dart';
@@ -148,8 +149,8 @@ final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
             'Background novel narration and text-to-speech',
         // Mobile: ongoing lockscreen widget; Desktop (Windows SMTC): non-ongoing
         // so SAPI not ducked, still shows in System Media Controls.
-        androidNotificationOngoing: !Platform.isWindows,
-        androidStopForegroundOnPause: !Platform.isWindows,
+        androidNotificationOngoing: !kIsWeb && !Platform.isWindows,
+        androidStopForegroundOnPause: !kIsWeb && !Platform.isWindows,
         androidNotificationClickStartsActivity: true,
         fastForwardInterval: const Duration(seconds: 15),
         rewindInterval: const Duration(seconds: 15),
@@ -164,7 +165,7 @@ final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
   }
   // Configure audio session for ducking/interruptions where available.
   // Skip on Windows — AudioSession speech config can duck SAPI to 0 and cause "no audio".
-  if (!Platform.isWindows) {
+  if (!kIsWeb && !Platform.isWindows) {
     try {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.speech());

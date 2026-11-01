@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:epub_plus/epub_plus.dart';
@@ -10,6 +9,7 @@ import 'package:atlas_app/core/content_acquisition/models/chapter_model.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_acquisition/models/novel_model.dart';
 import 'package:atlas_app/core/import/epub_html_converter.dart';
+import 'package:atlas_app/core/shared/utils/run_in_background.dart';
 
 class EpubUrlSource implements SourceAdapter {
   List<EpubChapter>? _cachedFlatChapters;
@@ -204,6 +204,6 @@ class EpubUrlSource implements SourceAdapter {
 
 Future<EpubBook> _readEpubBook(List<int> bytes) => EpubReader.readBook(bytes);
 
-/// Static isolate entry — avoids capturing `this` in the closure.
+/// Static entry — avoids capturing `this` in the closure.
 Future<EpubBook> _readEpubInIsolate(List<int> bytes) =>
-    Isolate.run(() => _readEpubBook(bytes));
+    runInBackground(() => _readEpubBook(bytes));

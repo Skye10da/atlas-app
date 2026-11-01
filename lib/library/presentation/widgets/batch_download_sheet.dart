@@ -12,6 +12,7 @@ import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/providers/book_providers.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class BatchDownloadSheet extends HookConsumerWidget {
   const BatchDownloadSheet({
@@ -114,12 +115,9 @@ class BatchDownloadSheet extends HookConsumerWidget {
 
       if (!context.mounted) return;
       if (failures.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Downloaded ${completed.value} chapters successfully.',
-            ),
-          ),
+        AppToast.show(
+          'Downloaded ${completed.value} chapters successfully.',
+          tone: AppToastTone.download,
         );
         Navigator.of(context).pop();
         return;
@@ -137,24 +135,20 @@ class BatchDownloadSheet extends HookConsumerWidget {
           bookOrigin != null &&
           SessionRefreshService.sameOrigin(latched, bookOrigin);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            challenge
-                ? '${failures.length} chapters blocked by a bot check. Re-verify the session to download them.'
-                : 'Failed to download ${failures.length} chapters.',
+      if (challenge) {
+        AppToast.show(
+          '${failures.length} chapters blocked by a bot check. Re-verify the '
+          'session to download them.',
+          tone: AppToastTone.warning,
+          duration: const Duration(seconds: 8),
+          action: AppToastAction(
+            'Re-verify',
+            () => unawaited(reverifyAndDownload(failures)),
           ),
-          duration: challenge
-              ? const Duration(seconds: 8)
-              : const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: challenge ? 'Re-verify' : 'Dismiss',
-            onPressed: challenge
-                ? () => unawaited(reverifyAndDownload(failures))
-                : () {},
-          ),
-        ),
-      );
+        );
+      } else {
+        AppToast.showError('Failed to download ${failures.length} chapters.');
+      }
       if (!challenge) Navigator.of(context).pop();
     }
 

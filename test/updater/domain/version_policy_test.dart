@@ -131,4 +131,33 @@ void main() {
       expect(VersionPolicy.isPrerelease('1.0.9-beta.2'), isTrue);
     });
   });
+
+  group('VersionPolicy.parseTag', () {
+    test('splits stable release tags', () {
+      final parsed = VersionPolicy.parseTag('v1.0.8+8');
+      expect(parsed.version, '1.0.8');
+      expect(parsed.versionCode, 8);
+      expect(parsed.isPrerelease, isFalse);
+    });
+
+    test('splits prerelease tags', () {
+      final parsed = VersionPolicy.parseTag('v1.0.9-rc.1+9');
+      expect(parsed.version, '1.0.9-rc.1');
+      expect(parsed.versionCode, 9);
+      expect(parsed.isPrerelease, isTrue);
+    });
+
+    test('tags without a build suffix just have a null versionCode', () {
+      final parsed = VersionPolicy.parseTag('v1.0.8');
+      expect(parsed.version, '1.0.8');
+      expect(parsed.versionCode, isNull);
+    });
+
+    test('non-atlas tags parse with null parts intact', () {
+      final parsed = VersionPolicy.parseTag('workshop-build');
+      expect(parsed.version, 'workshop-build');
+      expect(parsed.versionCode, isNull);
+      expect(parsed.isPrerelease, isTrue);
+    });
+  });
 }

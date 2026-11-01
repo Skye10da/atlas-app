@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
 
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
@@ -72,7 +73,9 @@ class OpenedFileImportService {
   bool shouldDeleteTempCopy(String path) {
     final name = p.basename(path);
     if (!name.startsWith('opened_')) return false;
-    return Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+    // kIsWeb short-circuits first: `dart:io`'s Platform is a stub on the web
+    // target (any member read throws "Unsupported operation").
+    return !kIsWeb && (Platform.isIOS || Platform.isAndroid || Platform.isMacOS);
   }
 
   /// Routes in-memory [bytes] + [fileName] to the correct importer by
@@ -83,6 +86,11 @@ class OpenedFileImportService {
     List<int> bytes,
     String fileName,
   ) async {
+    // Imported books persist chapter text / cover / images as device files;
+    // the web target has no file system, so device imports cannot complete.
+    if (kIsWeb) {
+      return const Failure(DeviceImportUnsupportedException());
+    }
     final ext = p.extension(fileName).toLowerCase();
     return switch (ext) {
       '.epub' => await _importEpub(bytes, fileName),

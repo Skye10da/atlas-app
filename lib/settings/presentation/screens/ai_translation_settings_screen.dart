@@ -11,6 +11,7 @@ import 'package:atlas_app/wtr/domain/entities/wtr_ai_provider.dart';
 import 'package:atlas_app/wtr/domain/entities/wtr_ai_settings.dart';
 import 'package:atlas_app/wtr/infrastructure/services/ai_chat_clients.dart';
 import 'package:atlas_app/wtr/presentation/providers/wtr_providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class AiTranslationSettingsScreen extends HookConsumerWidget {
   const AiTranslationSettingsScreen({super.key});
@@ -36,9 +37,7 @@ class AiTranslationSettingsScreen extends HookConsumerWidget {
       await ref.read(wtrAiSettingsRepositoryProvider).save(next);
       ref.invalidate(wtrAiSettingsProvider);
       if (!context.mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('Settings saved'), duration: Duration(seconds: 1)),
-      );
+      AppToast.showSuccess('Settings saved', duration: const Duration(seconds: 1));
     }
 
     Future<void> fetchModels({bool force = false}) async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 import 'package:atlas_app/find_new/presentation/widgets/import_confirm_sheet.dart';
 
 ImportCandidate site(String name, String url) => ImportCandidate(
@@ -16,8 +17,11 @@ Future<void> pumpHub(
   required void Function() onDone,
   String? recommendedUrl,
 }) {
+  final navigatorKey = GlobalKey<NavigatorState>();
+  AppToast.bind(navigatorKey);
   return tester.pumpWidget(
     MaterialApp(
+      navigatorKey: navigatorKey,
       home: Scaffold(
         body: Center(
           child: Builder(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
 import 'package:atlas_app/find_new/presentation/widgets/import_confirm_sheet.dart';
@@ -239,10 +240,8 @@ class TrendingBookActionSheet extends StatelessWidget {
             onPressed: () {
               Navigator.of(context).pop();
               if (book.detailUrl == null || book.detailUrl!.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('No supported site found for "${book.title}".'),
-                  ),
+                AppToast.showError(
+                  'No supported site found for "${book.title}".',
                 );
                 return;
               }

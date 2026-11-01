@@ -96,6 +96,7 @@ jobs:
           BUILD_NAME="${VERSION%%+*}"
           # versionCode (the +build suffix) is mandatory — the updater relies on
           # it for comparisons, so a tag without one must fail loudly.
+          BUILD_NUMBER="${VERSION##*+}"
           if [ "$BUILD_NUMBER" = "$VERSION" ]; then
             echo "::error::Tag '$TAG' has no '+<versionCode>' suffix (expected v$VERSION+<n>)."
             exit 1
@@ -115,6 +116,11 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk \
             "dist/atlas-${{ github.ref_name }}-android.apk"
 
+      # Asset naming contract (consumed by the landing page's smart-download
+      # resolver + tool/generate_manifest.py):
+      #   atlas-<tag>-<platform>[-<arch>].<ext>
+      # Windows ships x64 today; the -x64 suffix keeps the resolver able to
+      # serve Windows-ARM/x64 ambiguity and any future ARM64 job.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: android-apk
@@ -147,7 +153,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive -Path "build/windows/x64/runner/Release/*" `
-            -DestinationPath "dist/atlas-${{ github.ref_name }}-windows.zip"
+            -DestinationPath "dist/atlas-${{ github.ref_name }}-windows-x64.zip"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

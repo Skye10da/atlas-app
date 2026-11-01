@@ -64,4 +64,17 @@ class VersionPolicy {
     final core = plus > 0 ? semver.substring(0, plus) : semver;
     return core.contains('-');
   }
+
+  /// Splits a release tag into its displayable parts. Tags outside the
+  /// `v<semver>[+<build>]` shape still parse, but [parsed.versionCode] is
+  /// null (callers decide whether that disqualifies the release).
+  static ({String version, int? versionCode, bool isPrerelease}) parseTag(
+    String tag,
+  ) {
+    var version = tag.startsWith('v') ? tag.substring(1) : tag;
+    final plus = version.indexOf('+');
+    final code = plus >= 0 ? int.tryParse(version.substring(plus + 1)) : null;
+    if (plus >= 0) version = version.substring(0, plus);
+    return (version: version, versionCode: code, isPrerelease: isPrerelease(tag));
+  }
 }

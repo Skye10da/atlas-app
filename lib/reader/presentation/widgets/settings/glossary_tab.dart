@@ -6,6 +6,7 @@ import 'package:atlas_app/reader/domain/entities/atlas_glossary_entry.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/glossary_term_sheet.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 /// Manages the per-novel glossary from reader settings.
 ///
@@ -93,16 +94,11 @@ class GlossaryTab extends ConsumerWidget {
     // re-resolve), so re-render the open chapter explicitly to drop
     // the removed term.
     ref.invalidate(readerChapterContentProvider);
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            '"${entry.term}" removed — the original text renders again.',
-          ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    AppToast.show(
+      '"${entry.term}" removed — the original text renders again.',
+      tone: AppToastTone.read,
+      duration: const Duration(seconds: 2),
+    );
   }
 
   @override

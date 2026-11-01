@@ -101,6 +101,9 @@ dependencies:
   flutter_secure_storage: ^10.3.4
   package_info_plus: ^9.0.1
 
+  # Markdown rendering (release notes on the landing page)
+  flutter_markdown: ^0.7.3
+
 # permission_handler_android 14.0.0 is broken (requires compileSdk 37 / AGP 9,
 # which no stable toolchain provides — see Baseflow issue #1556).
 dependency_overrides:

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -6,6 +7,7 @@ import 'package:atlas_app/core/design_system/molecules/app_snackbar.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/updater/application/updater_controller.dart';
+import 'package:atlas_app/updater/domain/changelog_text.dart';
 import 'package:atlas_app/updater/domain/entities/app_release.dart';
 import 'package:atlas_app/updater/domain/repositories/app_update_repository.dart';
 import 'package:atlas_app/updater/presentation/providers/updater_providers.dart';
@@ -61,8 +63,9 @@ class AppUpdateSettingsScreen extends ConsumerWidget {
                       version: state.currentVersion,
                       buildCode: state.currentBuild,
                     ),
-                    const SizedBox(height: AppSpacing.md),
-                    _StatusCard.fromState(state, ref),
+                    const SizedBox(height: AppSpacing.sm),
+                    const _WhatsNewCard(),                    const SizedBox(height: AppSpacing.sm),
+                    _StatusCard.fromState(state, ref, context),
                     const SizedBox(height: AppSpacing.lg),
                     _SettingsCard.fromState(state, ref),
                   ],
@@ -107,6 +110,34 @@ class _VersionCard extends StatelessWidget {
   }
 }
 
+/// Card linking to the full release-notes history (WhatsNewScreen, also the
+/// landing page of the post-update banner).
+class _WhatsNewCard extends StatelessWidget {
+  const _WhatsNewCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 0,
+      color: colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.4)),
+      ),
+      child: ListTile(
+        leading: Icon(Icons.auto_awesome_rounded, color: colors.primary),
+        title: const Text("What's new"),
+        subtitle: const Text(
+          "Every version's release notes, readable anytime.",
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/whats-new'),
+      ),
+    );
+  }
+}
+
 /// Renders the phase-driven status line plus the primary action button.
 class _StatusCard extends StatelessWidget {
   const _StatusCard({
@@ -123,7 +154,7 @@ class _StatusCard extends StatelessWidget {
     this.tertiaryLabel,
   });
 
-  factory _StatusCard.fromState(UpdaterState state, WidgetRef ref) {
+  factory _StatusCard.fromState(UpdaterState state, WidgetRef ref, BuildContext context) {
     return switch (state.phase) {
       UpdaterPhase.idle => _StatusCard(
           icon: Icons.update_rounded,
@@ -152,14 +183,17 @@ class _StatusCard extends StatelessWidget {
           icon: Icons.install_mobile_rounded,
           color: Colors.blue,
           title: 'Atlas ${state.release?.version} is available',
-          message: state.release?.notes ?? 'A newer build is ready to install.',
+          message:
+              'A newer build is ready. Read the changelog before installing.',
           primaryLabel: 'Download update',
           onPrimary: state.installAvailable ? () => _startDownload(ref) : null,
           secondaryLabel: 'Skip this version',
           onSecondary: () =>
               ref.read(updaterControllerProvider.notifier).skipThisVersion(),
-          tertiaryLabel: 'View on GitHub',
-          onTertiary: () => _openRelease(state.release),
+          tertiaryLabel: 'Read changelog',
+          onTertiary: state.release == null
+              ? null
+              : () => _showReleaseNotesDialog(context, state.release!),
         ),
       UpdaterPhase.downloading => _StatusCard(
           icon: Icons.downloading_rounded,
@@ -183,6 +217,10 @@ class _StatusCard extends StatelessWidget {
           secondaryLabel: 'Discard download',
           onSecondary: () =>
               ref.read(updaterControllerProvider.notifier).discardDownload(),
+          tertiaryLabel: state.release == null ? null : 'Read changelog',
+          onTertiary: state.release == null
+              ? null
+              : () => _showReleaseNotesDialog(context, state.release!),
         ),
       UpdaterPhase.installing => const _StatusCard(
           icon: Icons.autorenew_rounded,
@@ -223,6 +261,50 @@ class _StatusCard extends StatelessWidget {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  /// Read-before-install: the pending release's notes in a dialog, with the
+  /// GitHub page as the escape hatch for anything the renderer skips.
+  static Future<void> _showReleaseNotesDialog(
+    BuildContext context,
+    AppRelease release,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final notes = release.notes ?? '';
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text("What's new in Atlas ${release.version}"),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Text(
+              notes.trim().isEmpty
+                  ? 'No release notes were published for this version.'
+                  : ChangelogText.render(notes),
+              style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.45,
+                  ),
+            ),
+          ),
+        ),
+        actions: [
+          if (release.releaseUrl != null)
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _openRelease(release);
+              },
+              child: const Text('View on GitHub'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   final IconData icon;

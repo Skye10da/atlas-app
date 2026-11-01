@@ -19,9 +19,25 @@ import sys
 import datetime
 from pathlib import Path
 
+# Asset naming contract (see .github/workflows/release.yml and
+# docs/plans/landing_upgrade_plan.md):
+#     atlas-<version>-<platform>[-<arch>].<ext>
+#
+# Keys map to the platform vocabulary the in-app updater consumes
+# (lib/updater/infrastructure/manifest_codec.dart reads `artifacts[platform]`).
+# Arch-tagged names widen the suffix match while keeping the same platform
+# key when no plain-named sibling exists — sorted iteration picks the most
+# specific suffix first.
 PLATFORM_SUFFIXES = {
     "-android.apk": "android",
     "-windows.zip": "windows",
+    "-windows-x64.zip": "windows",
+    "-windows-arm64.zip": "windows-arm64",
+    "-macos.zip": "macos",
+    "-macos-arm64.zip": "macos-arm64",
+    "-macos-x64.zip": "macos-x64",
+    "-linux.tar.gz": "linux",
+    "-linux-x64.tar.gz": "linux-x64",
 }
 
 VERSION_RE = re.compile(r"^(?P<version>[0-9]+\.[0-9]+\.[0-9]+(?:-[\w.]+)?)(?:\+(?P<build>\d+))?$")

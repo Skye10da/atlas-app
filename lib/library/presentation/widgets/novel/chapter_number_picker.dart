@@ -12,6 +12,7 @@ import 'package:atlas_app/library/presentation/providers/chapter_download_provid
 import 'package:atlas_app/library/presentation/widgets/batch_download_sheet.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 enum _ChapterFilter {
   all('All'),
@@ -101,9 +102,7 @@ class ChapterNumberPicker extends HookConsumerWidget {
               ? null
               : chapters.where((c) => c.index == n - 1).firstOrNull;
           if (target == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('No chapter ${value.trim()} (1 – $total)')),
-            );
+            AppToast.showError('No chapter ${value.trim()} (1 – $total)');
             return;
           }
           jump.clear();

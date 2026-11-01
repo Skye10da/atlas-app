@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'package:atlas_app/core/content_engine/plugins/plugin_artifact_store.dart';
+import 'package:atlas_app/core/content_engine/plugins/plugin_artifact_store_io.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_filters.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_manifest.dart';
 import 'package:atlas_app/core/content_engine/plugins/plugin_permissions.dart';
@@ -12,8 +14,9 @@ import 'package:atlas_app/core/content_engine/templates/template_registry.dart';
 import 'package:atlas_app/core/content_engine/transport/transport_registry.dart';
 import 'package:atlas_app/core/database/database.dart';
 
-/// Loads plugin manifests from `<baseDirectory>/<pluginId>/plugin.json` and
-/// resolves them into runnable [PluginSource]s.
+/// Resolves plugins from an artifact backend (installed files on disk by
+/// default, fetched-in-memory from the distribution repo on the web) into
+/// runnable [PluginSource]s.
 ///
 /// Validation failures — missing/unknown `templateId`, capabilities the
 /// resolved template doesn't implement, `requiresJsRendering` — throw at load
@@ -25,24 +28,30 @@ class PluginRepository {
     required this.templateRegistry,
     required this.database,
     TransportRegistry? transportRegistry,
-  }) : transportRegistry = transportRegistry ?? const TransportRegistry();
+    PluginArtifactStore? store,
+  }) : _store = store ?? DirectoryPluginArtifactStore(baseDirectory),
+       transportRegistry = transportRegistry ?? const TransportRegistry();
 
   final Directory baseDirectory;
   final TemplateRegistry templateRegistry;
   final TransportRegistry transportRegistry;
   final AppDatabase database;
 
+  /// Where plugin files are read from. [baseDirectory] is only meaningful
+  /// for the default disk store (and for [pluginDir], used by installers).
+  final PluginArtifactStore _store;
+
   Directory pluginDir(String pluginId) =>
       Directory(p.join(baseDirectory.path, pluginId));
 
   Future<PluginManifest> load(String pluginId) async {
-    final file = File(p.join(pluginDir(pluginId).path, 'plugin.json'));
-    if (!await file.exists()) {
+    final content = await _store.readText(pluginId, 'plugin.json');
+    if (content == null) {
       throw PluginManifestException(
-        'No plugin.json found for "$pluginId" at ${file.path}',
+        'No plugin.json found for "$pluginId"',
       );
     }
-    final decoded = jsonDecode(await file.readAsString());
+    final decoded = jsonDecode(content);
     if (decoded is! Map) {
       throw PluginManifestException(
         'plugin.json for "$pluginId" must be a JSON object',
@@ -61,14 +70,13 @@ class PluginRepository {
     return manifest;
   }
 
-  /// Loads every plugin directory under [baseDirectory]. Fails loudly: a
-  /// malformed manifest throws rather than being silently skipped.
+  /// Loads every available plugin. Fails loudly: a malformed manifest throws
+  /// rather than being silently skipped.
   Future<List<PluginManifest>> loadAll() async {
-    if (!await baseDirectory.exists()) return const [];
+    final ids = await _store.listPluginIds();
     final results = <PluginManifest>[];
-    await for (final entry in baseDirectory.list()) {
-      if (entry is! Directory) continue;
-      results.add(await load(p.basename(entry.path)));
+    for (final id in ids) {
+      results.add(await load(id));
     }
     return results;
   }
@@ -118,9 +126,9 @@ class PluginRepository {
     PluginManifest plugin,
     String filename,
   ) async {
-    final file = File(p.join(pluginDir(plugin.id).path, filename));
-    if (!await file.exists()) return const {};
-    final decoded = jsonDecode(await file.readAsString());
+    final content = await _store.readText(plugin.id, filename);
+    if (content == null) return const {};
+    final decoded = jsonDecode(content);
     if (decoded is! Map) {
       throw PluginManifestException(
         '$filename for "${plugin.id}" must be a JSON object',

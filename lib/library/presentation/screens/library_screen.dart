@@ -14,6 +14,7 @@ import 'package:atlas_app/core/design_system/molecules/app_empty_state.dart';
 import 'package:atlas_app/core/design_system/molecules/app_error_state.dart';
 import 'package:atlas_app/core/design_system/molecules/confirm_delete_dialog.dart';
 import 'package:atlas_app/core/design_system/organisms/app_scaffold.dart';
+import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
@@ -33,10 +34,12 @@ import 'package:atlas_app/library/presentation/widgets/home/library_insights_pan
 import 'package:atlas_app/library/presentation/widgets/home/library_status_tabs.dart';
 import 'package:atlas_app/library/presentation/widgets/home/weekly_activity_dots.dart';
 import 'package:atlas_app/library/presentation/widgets/library_sort_filter_sheet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:atlas_app/discover/presentation/providers/reading_analytics_providers.dart';
 import 'package:atlas_app/discover/domain/entities/discover_dashboard_data.dart';
 import 'package:atlas_app/core/router/app_router.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 /// Library home.
 ///
@@ -46,11 +49,7 @@ import 'package:atlas_app/core/router/app_router.dart';
 /// in a right-hand panel). Navigation chrome (bottom bar / rail / sidebar)
 /// lives in [AppShell].
 class LibraryScreen extends HookConsumerWidget {
-  const LibraryScreen({
-    super.key,
-    this.initialGenre,
-    this.initialSort,
-  });
+  const LibraryScreen({super.key, this.initialGenre, this.initialSort});
 
   final String? initialGenre;
   final String? initialSort;
@@ -71,15 +70,21 @@ class LibraryScreen extends HookConsumerWidget {
       }
       if (initialGenre != null && initialGenre!.trim().isNotEmpty) {
         Future.microtask(() {
-          ref.read(libraryViewModelProvider.notifier).setGenreFilter(initialGenre!.trim());
+          ref
+              .read(libraryViewModelProvider.notifier)
+              .setGenreFilter(initialGenre!.trim());
         });
       }
       if (initialSort != null && initialSort!.trim().isNotEmpty) {
         Future.microtask(() {
           if (initialSort == 'recentlyAdded') {
-            ref.read(libraryViewModelProvider.notifier).setSortOrder(LibrarySortOrder.recentlyAdded);
+            ref
+                .read(libraryViewModelProvider.notifier)
+                .setSortOrder(LibrarySortOrder.recentlyAdded);
           } else if (initialSort == 'recentlyRead') {
-            ref.read(libraryViewModelProvider.notifier).setSortOrder(LibrarySortOrder.recentlyRead);
+            ref
+                .read(libraryViewModelProvider.notifier)
+                .setSortOrder(LibrarySortOrder.recentlyRead);
           }
         });
       }
@@ -138,12 +143,14 @@ class LibraryScreen extends HookConsumerWidget {
           ? [
               IconButton(
                 icon: Icon(
-                  selectedBookIds.value.length == libraryState.filteredBooks.length &&
+                  selectedBookIds.value.length ==
+                              libraryState.filteredBooks.length &&
                           libraryState.filteredBooks.isNotEmpty
                       ? Icons.deselect_rounded
                       : Icons.select_all_rounded,
                 ),
-                tooltip: selectedBookIds.value.length ==
+                tooltip:
+                    selectedBookIds.value.length ==
                             libraryState.filteredBooks.length &&
                         libraryState.filteredBooks.isNotEmpty
                     ? 'Deselect all'
@@ -153,8 +160,9 @@ class LibraryScreen extends HookConsumerWidget {
                       libraryState.filteredBooks.length) {
                     selectedBookIds.value = {};
                   } else {
-                    selectedBookIds.value =
-                        libraryState.filteredBooks.map((b) => b.id).toSet();
+                    selectedBookIds.value = libraryState.filteredBooks
+                        .map((b) => b.id)
+                        .toSet();
                   }
                 },
               ),
@@ -169,11 +177,11 @@ class LibraryScreen extends HookConsumerWidget {
                 onPressed: selectedBookIds.value.isEmpty
                     ? null
                     : () => _confirmDeleteSelected(
-                          context,
-                          ref,
-                          selectedBookIds,
-                          isSelectionMode,
-                        ),
+                        context,
+                        ref,
+                        selectedBookIds,
+                        isSelectionMode,
+                      ),
               ),
               IconButton(
                 icon: const Icon(Icons.close),
@@ -293,7 +301,7 @@ class LibraryScreen extends HookConsumerWidget {
                   selectedBookIds.value = {id};
                 }
               },
-              onLoadSamples: () => _loadSamples(ref),
+              onFindNovels: () => unawaited(_handleFindNovels(context, ref)),
               onImport: () => _showAddSheet(context, ref),
               onDeleteBook: (id) => _deleteBook(context, ref, id),
               isImporting: isImporting,
@@ -305,21 +313,46 @@ class LibraryScreen extends HookConsumerWidget {
     );
   }
 
-  static void _loadSamples(WidgetRef ref) {
-    ref.read(librarySeedProvider.future).then((_) {
-      ref.invalidate(libraryBooksProvider);
-    });
+  /// "Find Novels to Read" entry: first use shows the discovery intro sheet
+  /// (and only then navigates); later uses go straight to the search surface.
+  static Future<void> _handleFindNovels(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    if (!ref.read(librarySearchIntroSeenProvider)) {
+      await AppSheet.show<void>(
+        context: context,
+        id: 'library_search_intro',
+        mode: AppSheetMode.dialog,
+        title: 'Find novels to read',
+        subtitle: 'New here? Here’s how the discovery page works',
+        child: const _SearchIntroContent(),
+      );
+
+      if (context.mounted) {
+        ref.read(librarySearchIntroSeenProvider.notifier).state = true;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('atlas.library.search_intro_seen', true);
+      }
+    }
+
+    if (context.mounted) unawaited(context.push('/search'));
   }
 
   static void _showAddSheet(BuildContext context, WidgetRef ref) {
     unawaited(addToLibrary(context, ref));
   }
 
-  static Future<void> _deleteBook(BuildContext context, WidgetRef ref, String bookId) async {
+  static Future<void> _deleteBook(
+    BuildContext context,
+    WidgetRef ref,
+    String bookId,
+  ) async {
     final confirmed = await ConfirmDeleteDialog.show(
       context,
       title: 'Delete book?',
-      message: 'This will permanently remove the book and all reading progress.',
+      message:
+          'This will permanently remove the book and all reading progress.',
       confirmLabel: 'Delete',
     );
 
@@ -330,11 +363,11 @@ class LibraryScreen extends HookConsumerWidget {
     ref.invalidate(libraryBooksProvider);
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        result is Success
-            ? const SnackBar(content: Text('Book deleted'))
-            : SnackBar(content: Text((result as Failure).error.userMessage)),
-      );
+      if (result is Success) {
+        AppToast.show('Book deleted', tone: AppToastTone.success);
+      } else if (result is Failure) {
+        AppToast.showError(result.error.userMessage);
+      }
     }
   }
 
@@ -365,12 +398,58 @@ class LibraryScreen extends HookConsumerWidget {
     if (context.mounted) {
       isSelectionMode.value = false;
       selectedBookIds.value = {};
-      ScaffoldMessenger.of(context).showSnackBar(
-        result is Success
-            ? SnackBar(content: Text('Deleted $count books'))
-            : SnackBar(content: Text((result as Failure).error.userMessage)),
-      );
+      if (result is Success) {
+        AppToast.show('Deleted $count books', tone: AppToastTone.success);
+      } else if (result is Failure) {
+        AppToast.showError(result.error.userMessage);
+      }
     }
+  }
+}
+
+/// First-use content for the "Find Novels to Read" intro sheet: a short
+/// explainer for how the discovery / search surface works.
+class _SearchIntroContent extends StatelessWidget {
+  const _SearchIntroContent();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'A calm place to find your next read.',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontFamily: 'Fraunces',
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Atlas finds novels for you through the Discover surface. '
+          'Browse curated discovery picks, run a Library or Lookup search, '
+          'then add the book to your shelf when it feels right.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: cs.onSurfaceVariant,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Tip: the search field accepts titles, authors and keywords — '
+          'start anywhere, Atlas will surface the next book to read.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: cs.onSurfaceVariant,
+            height: 1.45,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -436,7 +515,7 @@ class _BookshelfContent extends HookConsumerWidget {
     required this.isTablet,
     required this.onBookTap,
     required this.onBookLongPress,
-    required this.onLoadSamples,
+    required this.onFindNovels,
     required this.onImport,
     required this.onDeleteBook,
     this.searchQuery = '',
@@ -466,7 +545,7 @@ class _BookshelfContent extends HookConsumerWidget {
   final bool isBigDesktop;
   final void Function(String id) onBookTap;
   final void Function(String id, Offset globalPosition) onBookLongPress;
-  final VoidCallback onLoadSamples;
+  final VoidCallback onFindNovels;
   final VoidCallback onImport;
   final void Function(String id) onDeleteBook;
   final bool isImporting;
@@ -481,7 +560,8 @@ class _BookshelfContent extends HookConsumerWidget {
 
     if (libraryIsEmpty) {
       return DropTarget(
-        onDragDone: (details) => _handleFileDrop(context, ref, details, dragging),
+        onDragDone: (details) =>
+            _handleFileDrop(context, ref, details, dragging),
         onDragEntered: (_) => dragging.value = true,
         onDragExited: (_) => dragging.value = false,
         child: Column(
@@ -504,7 +584,8 @@ class _BookshelfContent extends HookConsumerWidget {
                       children: [
                         const AppEmptyState(
                           title: 'Your bookshelf is empty',
-                          message: 'Import a book or add a novel to start reading.',
+                          message:
+                              'Import a book or add a novel to start reading.',
                           icon: Icons.library_books,
                         ),
                         const SizedBox(height: 16),
@@ -525,8 +606,8 @@ class _BookshelfContent extends HookConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                         TextButton(
-                          onPressed: onLoadSamples,
-                          child: const Text('Load Sample Books'),
+                          onPressed: onFindNovels,
+                          child: const Text('Find Novels to Read'),
                         ),
                       ],
                     ),
@@ -716,7 +797,6 @@ class _BookshelfContent extends HookConsumerWidget {
 
     final importer = ref.read(openedFileImportServiceProvider);
     final router = GoRouter.of(context);
-    final messenger = ScaffoldMessenger.of(context);
 
     if (details.files.length == 1) {
       final file = details.files.first;
@@ -729,12 +809,15 @@ class _BookshelfContent extends HookConsumerWidget {
             ? '/novel/${result.value.bookId}'
             : '/book/${result.value.bookId}';
         unawaited(router.push(route));
+      } else if (result is Failure<ImportOutcome> && context.mounted) {
+        AppToast.show(result.error.userMessage, tone: AppToastTone.error);
       }
       return;
     }
 
-    messenger.showSnackBar(
-      SnackBar(content: Text('Importing ${details.files.length} books...')),
+    AppToast.show(
+      'Importing ${details.files.length} books...',
+      tone: AppToastTone.read,
     );
 
     int count = 0;
@@ -749,9 +832,7 @@ class _BookshelfContent extends HookConsumerWidget {
     ref.invalidate(libraryBooksProvider);
 
     if (context.mounted) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Successfully imported $count books.')),
-      );
+      AppToast.showSuccess('Successfully imported $count books.');
     }
   }
 }
@@ -1008,8 +1089,9 @@ class _EmptyShelfMessage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
-              onPressed: () =>
-                  ref.read(libraryViewModelProvider.notifier).setSearchQuery(''),
+              onPressed: () => ref
+                  .read(libraryViewModelProvider.notifier)
+                  .setSearchQuery(''),
               icon: const Icon(Icons.clear_rounded, size: 18),
               label: const Text('Clear search'),
             ),

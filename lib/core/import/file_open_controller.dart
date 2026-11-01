@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
 /// Bridges files opened *on* the OS ("Open with Atlas") into the app.
@@ -56,7 +57,7 @@ class FileOpenController {
     // On Android the VIEW Intent can surface as a file path that the
     // Flutter engine also forwards as an initial route (e.g. /509/..).
     // Only treat executableArguments as file opens on desktop.
-    if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
+    if (kIsWeb || (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)) {
       return;
     }
     for (final arg in Platform.executableArguments) {

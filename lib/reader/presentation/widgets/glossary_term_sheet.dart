@@ -6,6 +6,7 @@ import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/atlas_glossary_entry.dart';
 import 'package:atlas_app/reader/presentation/providers/atlas_glossary_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 /// Lets the reader define what a selected term should display as in this novel.
 ///
@@ -47,8 +48,10 @@ class GlossaryTermSheet extends HookConsumerWidget {
     final effectiveTerm = entry?.term ?? term;
 
     void snack(String message) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      AppToast.show(
+        message,
+        tone: AppToastTone.read,
+        duration: const Duration(seconds: 2),
       );
     }
 

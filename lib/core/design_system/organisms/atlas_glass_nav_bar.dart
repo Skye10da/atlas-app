@@ -81,7 +81,9 @@ class AtlasGlassNavBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        // 4px: bare-minimum gap to the window/system-bar edge; the SafeArea
+        // above already keeps the capsule clear of the gesture inset.
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
         child: _GlassNavCore(
           axis: Axis.horizontal,
           items: items,
@@ -127,8 +129,10 @@ class AtlasGlassRail extends StatelessWidget {
     // Bound the cross axis explicitly: when placed in a Stack as a
     // Positioned(left/top/bottom) child, Stack hands this widget an
     // unconstrained width, which the internal Column then propagates.
+    // Bottom 4: bare-minimum gap to the window edge (matches the mobile
+    // bar); top/side margins keep the dock spacing.
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: SizedBox(
         width: width,
         child: _GlassNavCore(

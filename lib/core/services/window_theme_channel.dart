@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
 /// Sends the app's current theme state to the native Windows runner so it can
@@ -20,7 +21,7 @@ class WindowThemeChannel {
   /// native title bar chrome.  [brandSeed] is the brand's primary color
   /// used as the caption background on Windows 11+.
   void syncTheme({required Brightness brightness, required Color brandSeed}) {
-    if (!Platform.isWindows) return;
+    if (kIsWeb || !Platform.isWindows) return;
 
     final isDark = brightness == Brightness.dark;
 

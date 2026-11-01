@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -1118,7 +1119,7 @@ class LibraryBackupService {
     bool cleanRestore = false,
   }) async {
     try {
-      final isAndroid = Platform.isAndroid;
+      final isAndroid = !kIsWeb && Platform.isAndroid;
       final result = await FilePicker.platform.pickFiles(
         dialogTitle: 'Select Atlas Backup File',
         type: isAndroid ? FileType.any : FileType.custom,

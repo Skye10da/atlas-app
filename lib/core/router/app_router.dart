@@ -13,14 +13,18 @@ import 'package:atlas_app/library/presentation/screens/library_screen.dart';
 import 'package:atlas_app/library/presentation/screens/novel_details_screen.dart';
 import 'package:atlas_app/library/presentation/screens/source_browser_screen.dart';
 import 'package:atlas_app/library/presentation/screens/source_search_screen.dart';
+import 'package:atlas_app/marketing/presentation/screens/download_redirect_screen.dart';
+import 'package:atlas_app/marketing/presentation/screens/landing_screen.dart';
 import 'package:atlas_app/intelligence/domain/entities/reader_position.dart';
 import 'package:atlas_app/intelligence/presentation/chat/chat_screen.dart';
 import 'package:atlas_app/intelligence/presentation/settings/ai_provider_settings_screen.dart';
 import 'package:atlas_app/notifications/presentation/screens/notification_screen.dart';
+import 'package:atlas_app/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/bookmarks_screen.dart';
 import 'package:atlas_app/reader/presentation/screens/reader_screen.dart';
 import 'package:atlas_app/search/presentation/screens/search_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/settings_screen.dart';
+import 'package:atlas_app/updater/presentation/screens/whats_new_screen.dart';
 
 abstract final class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -35,11 +39,10 @@ abstract final class AppRouter {
     try {
       context.push('/analytics');
     } catch (_) {
-      Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute(
-          builder: (_) => const ReadingAnalyticsScreen(),
-        ),
-      );
+      Navigator.of(
+        context,
+        rootNavigator: true,
+      ).push(MaterialPageRoute(builder: (_) => const ReadingAnalyticsScreen()));
     }
   }
 
@@ -53,19 +56,14 @@ abstract final class AppRouter {
     try {
       final uri = Uri(
         path: '/trending',
-        queryParameters: {
-          'type': type,
-          'source': ?source,
-        },
+        queryParameters: {'type': type, 'source': ?source},
       );
       context.push(uri.toString());
     } catch (_) {
       Navigator.of(context, rootNavigator: true).push(
         MaterialPageRoute(
-          builder: (_) => TrendingListScreen(
-            initialType: type,
-            initialSource: source,
-          ),
+          builder: (_) =>
+              TrendingListScreen(initialType: type, initialSource: source),
         ),
       );
     }
@@ -100,21 +98,21 @@ abstract final class AppRouter {
       context.push('/intelligence/settings');
     } catch (_) {
       Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute(
-          builder: (_) => const AiProviderSettingsScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const AiProviderSettingsScreen()),
       );
     }
+  }
+
+  /// Opens the What's-new (release notes history) screen. Context-free so the
+  /// post-update banner action can push it from the bootstrap path.
+  static void openWhatsNew() {
+    router.push('/whats-new');
   }
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
     redirect: (context, state) {
-      // "/" has never been a valid location — send it to home instead of
-      // landing on the default error screen where "Go home" previously went
-      // to "/" and thus nowhere.
-      if (state.uri.path == '/') return '/library';
       // Discover was folded into the Library home and the "Find new" tab.
       if (state.uri.path == '/discover') return '/library';
       // File-manager launches can surface the raw file path as a deep link
@@ -131,17 +129,28 @@ abstract final class AppRouter {
       }
       return null;
     },
-    errorBuilder: (context, state) => _NotFoundScreen(
-      uri: state.uri.toString(),
-      error: state.error,
-    ),
+    errorBuilder: (context, state) =>
+        _NotFoundScreen(uri: state.uri.toString(), error: state.error),
     routes: [
       GoRoute(
         path: '/splash',
         name: 'splash',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            buildPageTransition(child: const SplashScreen(), key: state.pageKey),
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const SplashScreen(),
+          key: state.pageKey,
+        ),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        name: 'onboarding',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: OnboardingScreen(
+            replay: state.uri.queryParameters['replay'] == '1',
+          ),
+          key: state.pageKey,
+        ),
       ),
       GoRoute(
         path: '/reader/:bookId',
@@ -203,6 +212,15 @@ abstract final class AppRouter {
         ),
       ),
       GoRoute(
+        path: '/whats-new',
+        name: 'whatsNew',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const WhatsNewScreen(),
+          key: state.pageKey,
+        ),
+      ),
+      GoRoute(
         path: '/analytics',
         name: 'analytics',
         parentNavigatorKey: _rootNavigatorKey,
@@ -219,10 +237,7 @@ abstract final class AppRouter {
           final type = state.uri.queryParameters['type'] ?? 'opds';
           final source = state.uri.queryParameters['source'];
           return buildPageTransition(
-            child: TrendingListScreen(
-              initialType: type,
-              initialSource: source,
-            ),
+            child: TrendingListScreen(initialType: type, initialSource: source),
             key: state.pageKey,
           );
         },
@@ -253,6 +268,24 @@ abstract final class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => buildPageTransition(
           child: const AiProviderSettingsScreen(),
+          key: state.pageKey,
+        ),
+      ),
+      GoRoute(
+        path: '/',
+        name: 'landing',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const LandingScreen(),
+          key: state.pageKey,
+        ),
+      ),
+      GoRoute(
+        path: '/download',
+        name: 'download',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => buildPageTransition(
+          child: const DownloadRedirectScreen(),
           key: state.pageKey,
         ),
       ),
@@ -389,27 +422,25 @@ class _NotFoundScreen extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 'Page not found',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               Text(
                 'No route for "$uri"',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
               if (error != null) ...[
                 const SizedBox(height: 8),
                 Text(
                   error.toString(),
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelSmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -431,4 +462,3 @@ class _NotFoundScreen extends StatelessWidget {
     );
   }
 }
-

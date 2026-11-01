@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:atlas_app/core/content_acquisition/content_acquisition_engine.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/design_system/atoms/source_visuals.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 import 'package:atlas_app/library/presentation/widgets/import_url_dialog.dart';
 
 /// A single, concrete import target: one book on one supported site.
@@ -65,9 +66,7 @@ Future<ImportOutcome?> showImportConfirmSheet(
   }
 
   if (unique.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('No supported site found for "$title".')),
-    );
+    AppToast.showError('No supported site found for "$title".');
     return Future.value();
   }
 

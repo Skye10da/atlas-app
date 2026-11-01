@@ -16,6 +16,7 @@ import 'package:atlas_app/dictionary/presentation/providers/dictionary_providers
 import 'package:atlas_app/reader/speech/selection_speaker.dart';
 import 'package:atlas_app/search/presentation/providers/search_engine_provider.dart';
 import 'package:atlas_app/search/presentation/widgets/search_engine_picker.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class WordLookupSheet extends HookConsumerWidget {
   const WordLookupSheet({
@@ -131,13 +132,10 @@ class WordLookupSheet extends HookConsumerWidget {
       ref.invalidate(savedWordsProvider);
       if (!context.mounted) return;
       saved.value = !saved.value;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            saved.value ? 'Saved "$word"' : 'Removed from saved words',
-          ),
-          duration: const Duration(seconds: 2),
-        ),
+      AppToast.show(
+        saved.value ? 'Saved "$word"' : 'Removed from saved words',
+        tone: AppToastTone.bookmark,
+        duration: const Duration(seconds: 2),
       );
     }
 
@@ -148,9 +146,10 @@ class WordLookupSheet extends HookConsumerWidget {
           .map((s) => '${s.partOfSpeech}: ${s.definition}')
           .join('\n');
       Clipboard.setData(ClipboardData(text: '$word\n$text'));
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
+      AppToast.show(
+        'Copied to clipboard',
+        emoji: '📋',
+      );
     }
 
     Future<void> speak() async {

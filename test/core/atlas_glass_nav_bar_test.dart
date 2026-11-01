@@ -148,8 +148,8 @@ void main() {
 
     final rail = find.byType(AtlasGlassRail);
     final rect = tester.getRect(rail);
-    // Rail: 4 slots over (420 - 24 outer pads - 12 inner pads).
-    final slotW = (rect.height - 24 - 12) / 4;
+    // Rail: 4 slots over (4 bottom pad + 12 top pad + 12 inner pads).
+    final slotW = (rect.height - 16 - 12) / 4;
     final x = rect.left + rect.width / 2;
     await tester.tapAt(Offset(x, rect.top + 12 + 6 + 0.5 * slotW));
     await tester.pumpAndSettle();
@@ -194,7 +194,8 @@ void main() {
     expect(rail.width, closeTo(76 + 24, 1)); // capsule + outer pads
 
     final x = rail.left + rail.width / 2;
-    final slotH = (rail.height - 24 - 12) / 4;
+    // 4 bottom + 12 top internal pads + 12 inner pads.
+    final slotH = (rail.height - 16 - 12) / 4;
     await tester.tapAt(Offset(x, rail.top + 12 + 6 + 2.5 * slotH));
     await tester.pumpAndSettle();
     expect(changes, [2]);

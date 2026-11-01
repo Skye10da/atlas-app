@@ -7,6 +7,7 @@ import 'package:atlas_app/intelligence/presentation/providers/intelligence_provi
 import 'package:atlas_app/reader/presentation/providers/reader_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/block_card_theme.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 /// Renders a detected [BlockCard] using the theme resolved for the active
 /// reader palette. Also exposes a local-only intelligence menu
@@ -319,7 +320,6 @@ class _BlockCardFeedbackMenu extends ConsumerWidget {
       tooltip: 'Card feedback',
       onSelected: (value) async {
         final repo = ref.read(correctionRepositoryProvider);
-        final messenger = ScaffoldMessenger.maybeOf(context);
         switch (value) {
           case 'confirm':
             await repo.saveCorrection(
@@ -329,11 +329,9 @@ class _BlockCardFeedbackMenu extends ConsumerWidget {
               ),
             );
             ref.invalidate(blockCardLocalCorrectionsProvider(bookId));
-            messenger?.showSnackBar(
-              SnackBar(
-                content: const Text('Marked as correct — will stay themed'),
-                backgroundColor: theme.glowOrAccent.withValues(alpha: 0.95),
-              ),
+            AppToast.show(
+              'Marked as correct — will stay themed',
+              tone: AppToastTone.success,
             );
             break;
           case 'reject':
@@ -344,13 +342,9 @@ class _BlockCardFeedbackMenu extends ConsumerWidget {
               ),
             );
             ref.invalidate(blockCardLocalCorrectionsProvider(bookId));
-            messenger?.showSnackBar(
-              SnackBar(
-                content: const Text(
-                  'Marked not a card — will show as plain text',
-                ),
-                backgroundColor: theme.glowOrAccent.withValues(alpha: 0.95),
-              ),
+            AppToast.show(
+              'Marked not a card — will show as plain text',
+              tone: AppToastTone.read,
             );
             break;
           case 'type':
@@ -387,13 +381,9 @@ class _BlockCardFeedbackMenu extends ConsumerWidget {
                 colors,
                 fontSize,
               );
-              messenger?.showSnackBar(
-                SnackBar(
-                  content: Text('Type corrected to ${chosenTheme.label}'),
-                  backgroundColor: chosenTheme.glowOrAccent.withValues(
-                    alpha: 0.95,
-                  ),
-                ),
+              AppToast.show(
+                'Type corrected to ${chosenTheme.label}',
+                tone: AppToastTone.read,
               );
             }
             break;

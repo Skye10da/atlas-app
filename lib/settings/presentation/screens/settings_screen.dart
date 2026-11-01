@@ -11,9 +11,11 @@ import 'package:atlas_app/notifications/presentation/screens/update_check_settin
 import 'package:atlas_app/settings/presentation/screens/ai_translation_settings_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/appearance_settings_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/backup_restore_screen.dart';
+import 'package:atlas_app/onboarding/presentation/screens/onboarding_replay_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/danger_zone_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/reading_settings_screen.dart';
 import 'package:atlas_app/settings/presentation/screens/search_engine_settings_screen.dart';
+import 'package:atlas_app/updater/presentation/providers/updater_providers.dart';
 import 'package:atlas_app/updater/presentation/screens/app_update_settings_screen.dart';
 
 /// Content width at which Settings becomes master-detail: the section list on
@@ -40,6 +42,13 @@ class _Section {
 }
 
 final List<_Section> _sections = [
+  _Section(
+    group: 'Personalization',
+    icon: Icons.waving_hand_outlined,
+    title: 'Welcome tour',
+    subtitle: 'Replay the intro and revisit your profile and goals',
+    builder: () => const OnboardingReplayScreen(),
+  ),
   _Section(
     group: 'Personalization',
     icon: Icons.palette_outlined,
@@ -119,6 +128,7 @@ class SettingsScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = useState(0);
     final account = ref.watch(localAccountSummaryProvider);
+    final version = ref.watch(appVersionProvider).valueOrNull;
     final cs = Theme.of(context).colorScheme;
 
     return LayoutBuilder(
@@ -131,6 +141,7 @@ class SettingsScreen extends HookConsumerWidget {
               bottom: false,
               child: _SettingsList(
                 account: account,
+                version: version,
                 selectedIndex: null,
                 onSelect: (i) => Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -151,6 +162,7 @@ class SettingsScreen extends HookConsumerWidget {
                   bottom: false,
                   child: _SettingsList(
                     account: account,
+                    version: version,
                     selectedIndex: selected.value,
                     onSelect: (i) => selected.value = i,
                   ),
@@ -177,11 +189,16 @@ class SettingsScreen extends HookConsumerWidget {
 class _SettingsList extends StatelessWidget {
   const _SettingsList({
     required this.account,
+    this.version,
     required this.selectedIndex,
     required this.onSelect,
   });
 
   final LocalAccountEntity account;
+
+  /// Installed version from [appVersionProvider]; null while resolving
+  /// (PackageInfo is async) — the footer then shows the tagline only.
+  final String? version;
 
   /// Highlighted section in master-detail mode; null when pushing pages.
   final int? selectedIndex;
@@ -274,7 +291,9 @@ class _SettingsList extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'Version 1.2.0 • Offline-first sanctuary for readers',
+                version == null
+                    ? 'Offline-first sanctuary for readers'
+                    : 'Version $version • Offline-first sanctuary for readers',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.labelSmall?.copyWith(color: cs.outline),
               ),
@@ -427,10 +446,7 @@ class _SettingsTile extends StatelessWidget {
                   ),
                 ),
                 if (showChevron)
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: cs.onSurfaceVariant,
-                  ),
+                  Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
               ],
             ),
           ),

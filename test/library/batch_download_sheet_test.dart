@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 import 'package:atlas_app/core/error_handling/result.dart';
 import 'package:atlas_app/core/session/session_refresh_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
@@ -61,10 +62,13 @@ void main() {
     WidgetTester tester,
     ChapterDownloadService service,
   ) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    AppToast.bind(navigatorKey);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [chapterDownloadServiceProvider.overrideWithValue(service)],
         child: MaterialApp(
+          navigatorKey: navigatorKey,
           home: Scaffold(
             body: Builder(
               builder: (context) => TextButton(

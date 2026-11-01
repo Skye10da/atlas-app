@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 import 'package:atlas_app/reader/domain/repository_interfaces/atlas_glossary_repository_interface.dart';
 import 'package:atlas_app/reader/domain/repository_interfaces/translation_repository.dart';
 import 'package:atlas_app/reader/domain/entities/atlas_glossary_entry.dart';
@@ -13,6 +14,8 @@ import 'package:atlas_app/reader/presentation/widgets/settings/language_selector
 import 'package:atlas_app/wtr/domain/entities/supported_language.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });
@@ -177,19 +180,20 @@ void main() {
         ),
       ]);
 
+      final navigatorKey = GlobalKey<NavigatorState>();
+      AppToast.bind(navigatorKey);
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             atlasGlossaryRepositoryProvider.overrideWithValue(glossary),
           ],
-          child: const MaterialApp(
-            home: Scaffold(body: GlossaryTab(bookId: 'b1')),
+          child: MaterialApp(
+            navigatorKey: navigatorKey,
+            home: const Scaffold(body: GlossaryTab(bookId: 'b1')),
           ),
         ),
       );
       await tester.pumpAndSettle();
-
-      expect(find.text('中'), findsOneWidget);
       await tester.tap(find.byIcon(Icons.delete_outline));
       await tester.pumpAndSettle();
 

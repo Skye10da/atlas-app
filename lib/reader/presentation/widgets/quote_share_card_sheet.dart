@@ -14,6 +14,7 @@ import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/settings/presentation/providers/font_download_provider.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 enum ShareCardTheme {
   editorial,
@@ -155,11 +156,10 @@ class QuoteShareCardSheet extends HookConsumerWidget {
     final authorStr = author != null ? ' by $author' : '';
     final formatted = '“${quoteText.trim()}”\n\n— $title$authorStr';
     Clipboard.setData(ClipboardData(text: formatted));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Quote copied to clipboard!'),
-        duration: Duration(seconds: 2),
-      ),
+    AppToast.show(
+      'Quote copied to clipboard!',
+      emoji: '📋',
+      duration: const Duration(seconds: 2),
     );
   }
 
@@ -205,9 +205,7 @@ class QuoteShareCardSheet extends HookConsumerWidget {
 
   void _showError(BuildContext context, String message) {
     if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      AppToast.showError(message);
     }
   }
 
@@ -324,28 +322,20 @@ class QuoteShareCardSheet extends HookConsumerWidget {
           await file.writeAsBytes(pngBytes);
 
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Quote card saved to: ${file.path}'),
-                duration: const Duration(seconds: 3),
-              ),
+            AppToast.show(
+              'Quote card saved to: ${file.path}',
+              tone: AppToastTone.success,
+              duration: const Duration(seconds: 3),
             );
           }
         } else {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Image rendered successfully!'),
-                duration: Duration(seconds: 2),
-              ),
-            );
+            AppToast.showSuccess('Image rendered successfully!', duration: const Duration(seconds: 2));
           }
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to export image: $e')));
+          AppToast.showError('Failed to export image: $e');
         }
       } finally {
         if (context.mounted) isExporting.value = false;

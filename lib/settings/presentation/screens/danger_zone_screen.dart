@@ -11,6 +11,7 @@ import 'package:atlas_app/library/application/library_backup_service.dart';
 import 'package:atlas_app/library/domain/entities/book_entity.dart';
 import 'package:atlas_app/library/presentation/providers/library_provider.dart';
 import 'package:atlas_app/settings/presentation/screens/backup_restore_screen.dart';
+import 'package:atlas_app/core/design_system/molecules/app_toast.dart';
 
 class DangerZoneScreen extends ConsumerWidget {
   const DangerZoneScreen({super.key});
@@ -193,13 +194,9 @@ class DangerZoneScreen extends ConsumerWidget {
 
     if (result is Success) {
       ref.invalidate(libraryBooksProvider);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('All books deleted.')));
+      AppToast.show('All books deleted.', tone: AppToastTone.success);
     } else if (result is Failure) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: ${result.error.userMessage}')),
-      );
+      AppToast.showError('Failed: ${result.error.userMessage}');
     }
   }
 
@@ -227,30 +224,25 @@ class DangerZoneScreen extends ConsumerWidget {
     }
     if (!context.mounted) return;
     ref.invalidate(libraryBooksProvider);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('All web novels deleted.')));
+    AppToast.show('All web novels deleted.', tone: AppToastTone.success);
   }
 
   Future<void> _exportBackup(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
     final backupService = ref.read(libraryBackupServiceProvider);
     final path = await backupService.exportBackupToFile();
     if (!context.mounted) return;
 
     if (path != null) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Backup exported successfully:\n$path')),
+      AppToast.show(
+        'Backup exported successfully:\n$path',
+        tone: AppToastTone.backup,
       );
     } else {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Backup export cancelled or failed.')),
-      );
+      AppToast.showError('Backup export cancelled or failed.');
     }
   }
 
   Future<void> _restoreBackup(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
     final backupService = ref.read(libraryBackupServiceProvider);
     final result = await backupService.restoreBackupFromFile();
     if (!context.mounted) return;
@@ -258,17 +250,12 @@ class DangerZoneScreen extends ConsumerWidget {
     switch (result) {
       case Success(:final value):
         ref.invalidate(libraryBooksProvider);
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'Restored ${value.totalBooks} items (${value.booksRestored} books, ${value.novelsRestored} novels), ${value.chaptersRestored} chapters, and ${value.readingProgressRestored} reading positions.',
-            ),
-          ),
+        AppToast.show(
+          'Restored ${value.totalBooks} items (${value.booksRestored} books, ${value.novelsRestored} novels), ${value.chaptersRestored} chapters, and ${value.readingProgressRestored} reading positions.',
+          tone: AppToastTone.backup,
         );
       case Failure(:final error):
-        messenger.showSnackBar(
-          SnackBar(content: Text('Restore failed: ${error.userMessage}')),
-        );
+        AppToast.showError('Restore failed: ${error.userMessage}');
     }
   }
 }
