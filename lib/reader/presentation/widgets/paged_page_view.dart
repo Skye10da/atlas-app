@@ -139,11 +139,9 @@ class PagedPageView extends StatelessWidget {
 
     void handlePageTap() {
       final primaryFocus = FocusManager.instance.primaryFocus;
-      final isEditing =
-          primaryFocus?.context
-              ?.findAncestorWidgetOfExactType<EditableText>() !=
-          null;
-      if (isEditing) {
+      final editable = primaryFocus?.context
+          ?.findAncestorWidgetOfExactType<EditableText>();
+      if (editable != null && !editable.readOnly) {
         HapticFeedback.selectionClick();
         primaryFocus?.unfocus();
         return;
@@ -221,11 +219,9 @@ class PagedPageView extends StatelessWidget {
 
     void handleTap() {
       final primaryFocus = FocusManager.instance.primaryFocus;
-      final isEditing =
-          primaryFocus?.context
-              ?.findAncestorWidgetOfExactType<EditableText>() !=
-          null;
-      if (isEditing) {
+      final editable = primaryFocus?.context
+          ?.findAncestorWidgetOfExactType<EditableText>();
+      if (editable != null && !editable.readOnly) {
         primaryFocus?.unfocus();
         return;
       }

@@ -26,6 +26,7 @@ const _novelPage = '''
 <meta property="og:title" content="Defying the Lycan King">
 <meta property="og:image" content="https://freewebnovel.com/files/article/image/13/13246/13246s.jpg">
 <meta property="og:description" content="Defying the Lycan King - She has spent her life believing she's cursed.">
+<meta property="og:novel:status" content="Ongoing">
 </head><body>
 <div class="m-desc"><h1 class="tit">Defying the Lycan King</h1></div>
 <ul class="ul-list5" id="idData">
@@ -254,7 +255,10 @@ void main() {
     );
 
     test('getChapters walks the paginated index and merges in order', () async {
-      final source = await repo(FakeTransport()).buildSource('freewebnovel');
+      final transport = FakeTransport()
+        ..addHtml(_novelUrl, _novelPage)
+        ..addHtml('$_novelUrl?page=2', _novelPage2);
+      final source = await repo(transport).buildSource('freewebnovel');
       final novel = await source.getMetadata(Uri.parse(_novelUrl));
 
       final chapters = await source.getChapters(novel);
@@ -270,7 +274,7 @@ void main() {
     test('getChapters walks the paginated index and merges in order', () async {
       final transport = FakeTransport()
         ..addHtml(_novelUrl, _novelPage)
-        ..addHtml(_novelPage2, _novelPage2);
+        ..addHtml('$_novelUrl?page=2', _novelPage2);
       final source = await repo(transport).buildSource('freewebnovel');
       final novel = await source.getMetadata(Uri.parse(_novelUrl));
 

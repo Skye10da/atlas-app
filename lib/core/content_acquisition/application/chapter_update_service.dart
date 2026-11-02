@@ -147,7 +147,7 @@ class ChapterUpdateService {
       }
 
       // Acquire permit from DomainGovernor (enforces concurrency, robots.txt, backoff)
-      await _governor.acquire(uri);
+      final permit = await _governor.acquire(uri);
       try {
         final novel = NovelModel(
           sourceId: book.sourceId ?? book.sourceUrl ?? book.id,
@@ -169,24 +169,27 @@ class ChapterUpdateService {
         // Guard truly empty titles only — site already supplies "Chapter N"
         // for untitled chapters, so this is just a parser-glitch fallback.
         final fresh = rawFresh
-            .map((ch) => ch.title.trim().isEmpty
-                ? ChapterModel(
-                    id: ch.id,
-                    title: 'Chapter ${ch.index + 1}',
-                    index: ch.index,
-                    content: ch.content,
-                    contentUrl: ch.contentUrl,
-                    wordCount: ch.wordCount,
-                    publishedAt: ch.publishedAt,
-                    language: ch.language,
-                  )
-                : ch)
+            .map(
+              (ch) => ch.title.trim().isEmpty
+                  ? ChapterModel(
+                      id: ch.id,
+                      title: 'Chapter ${ch.index + 1}',
+                      index: ch.index,
+                      content: ch.content,
+                      contentUrl: ch.contentUrl,
+                      wordCount: ch.wordCount,
+                      publishedAt: ch.publishedAt,
+                      language: ch.language,
+                    )
+                  : ch,
+            )
             .toList();
 
-        final localRows = await (db.select(
-          db.chapters,
-        )..where((c) => c.bookId.equals(book.id))).get()
-          ..sort((a, b) => a.index.compareTo(b.index));
+        final localRows =
+            await (db.select(
+                db.chapters,
+              )..where((c) => c.bookId.equals(book.id))).get()
+              ..sort((a, b) => a.index.compareTo(b.index));
 
         final knownTitles = localRows
             .map((c) => _normalizeTitle(c.title))
@@ -228,14 +231,12 @@ class ChapterUpdateService {
           if (n == null) return max;
           return (max == null || n > max) ? n : max;
         });
-        final junkChapters = freshChapters
-            .where((ch) {
-              final n = extractChapterNumber(ch.title);
-              return n != null &&
-                  maxKnownTitleNumber != null &&
-                  n < maxKnownTitleNumber;
-            })
-            .toList();
+        final junkChapters = freshChapters.where((ch) {
+          final n = extractChapterNumber(ch.title);
+          return n != null &&
+              maxKnownTitleNumber != null &&
+              n < maxKnownTitleNumber;
+        }).toList();
         if (junkChapters.isNotEmpty) {
           AppLogger.warning(
             'Update check: dropped ${junkChapters.length} regressed-number '
@@ -301,7 +302,10 @@ class ChapterUpdateService {
             admissibleList,
             startIndex: localRows.isEmpty
                 ? 0
-                : localRows.map((c) => c.index).reduce((a, b) => a > b ? a : b) + 1,
+                : localRows
+                          .map((c) => c.index)
+                          .reduce((a, b) => a > b ? a : b) +
+                      1,
             expectedDbCount: newTotal,
             localRowCount: localRows.length,
           );
@@ -319,11 +323,11 @@ class ChapterUpdateService {
           newChapters: inserted,
         );
       } catch (e, st) {
-        final title = (await (db.select(db.books)
-                  ..where((b) => b.id.equals(bookId)))
-                .getSingleOrNull())
-              ?.title ??
-              '';
+        final title =
+            (await (db.select(
+              db.books,
+            )..where((b) => b.id.equals(bookId))).getSingleOrNull())?.title ??
+            '';
         AppLogger.error('Update check failed for "$title"', e, st);
         return BookRefreshOutcome(
           bookId: bookId,
@@ -331,6 +335,8 @@ class ChapterUpdateService {
           newChapters: 0,
           error: describeFailure(e),
         );
+      } finally {
+        permit.release();
       }
     } finally {
       _inFlight.remove(bookId);
@@ -607,12 +613,11 @@ class ChapterUpdateService {
     }
   }
 
-  String _normalizeTitle(String title) =>
-      title
-          .replaceAll(_invisibleChars, '')
-          .trim()
-          .toLowerCase()
-          .replaceAll(RegExp(r'\s+'), ' ');
+  String _normalizeTitle(String title) => title
+      .replaceAll(_invisibleChars, '')
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'\s+'), ' ');
 
   /// UTF-8 zero-width / formatting characters that sources intermittently
   /// inject into titles (U+200B ZWSP, U+200C ZWNJ, U+200D ZWJ, U+200E/200F
@@ -705,16 +710,16 @@ class ChapterUpdateService {
     ];
     try {
       final file = File(p.join(book.filePath, '.chapter_index.json'));
-      final existing = await file.exists()
-          ? await file.readAsString()
-          : null;
+      final existing = await file.exists() ? await file.readAsString() : null;
       final encoded = jsonEncode(entries);
-      final idsMatch = existing != null &&
+      final idsMatch =
+          existing != null &&
           jsonDecode(existing) is List &&
-          (jsonDecode(existing) as List).whereType<Map>().map(
-            (m) => m['id'],
-          ).join('|') ==
-          entries.map((e) => e['id']).join('|');
+          (jsonDecode(existing) as List)
+                  .whereType<Map>()
+                  .map((m) => m['id'])
+                  .join('|') ==
+              entries.map((e) => e['id']).join('|');
       if (idsMatch) return false;
       final tmp = File('${file.path}.tmp');
       await tmp.writeAsString(encoded);
@@ -738,14 +743,14 @@ class ChapterUpdateService {
   /// on, (2) the row whose title number fits the surrounding sequence, (3)
   /// the deterministic `_ch<index>` id, (4) the smallest id.
   Future<int> _removeDuplicateRows(Book book) async {
-    final rows = (await (db.select(
-      db.chapters,
-    )..where((c) => c.bookId.equals(book.id))).get())
-      ..sort(
-        (a, b) => (a.index.compareTo(b.index) != 0)
-            ? a.index.compareTo(b.index)
-            : a.id.compareTo(b.id),
-      );
+    final rows =
+        (await (db.select(
+          db.chapters,
+        )..where((c) => c.bookId.equals(book.id))).get())..sort(
+          (a, b) => (a.index.compareTo(b.index) != 0)
+              ? a.index.compareTo(b.index)
+              : a.id.compareTo(b.id),
+        );
     if (rows.isEmpty) return 0;
 
     final delete = <String>{};
@@ -767,9 +772,7 @@ class ChapterUpdateService {
     }
 
     if (delete.isEmpty) return 0;
-    await (db.delete(
-      db.chapters,
-    )..where((c) => c.id.isIn(delete))).go();
+    await (db.delete(db.chapters)..where((c) => c.id.isIn(delete))).go();
 
     final remaining = rows.length - delete.length;
     await (db.update(db.books)..where((b) => b.id.equals(book.id))).write(
@@ -785,11 +788,7 @@ class ChapterUpdateService {
       if (await file.exists()) {
         final list = jsonDecode(await file.readAsString()) as List<dynamic>;
         final cleaned = list
-            .where(
-              (e) =>
-                  e is! Map ||
-                  !delete.contains(e['id']?.toString()),
-            )
+            .where((e) => e is! Map || !delete.contains(e['id']?.toString()))
             .toList();
         if (cleaned.length != list.length) {
           final tmp = File('${file.path}.tmp');

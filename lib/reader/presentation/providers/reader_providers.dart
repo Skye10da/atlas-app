@@ -468,18 +468,17 @@ String _sourceLanguageOf(BookEntity book) {
 /// Bounded: the glossary load is capped by
 /// [ReaderLoadFailSafes.glossary] (fail-soft: empty glossary → unchanged
 /// content), so a wedged SharedPreferences-backed load can never hang the
-/// chapter between "preparing" and display. An already-resolved value (warm
-/// session) skips the await entirely.
+/// chapter between "preparing" and display. Awaiting the provider future also
+/// ensures an invalidated provider supplies its refreshed value instead of
+/// stale data retained while the refresh is in progress.
 Future<String> _applyAtlasGlossary(Ref ref, String bookId, String content) async {
   try {
-    final glossary =
-        ref.read(atlasGlossaryProvider(bookId)).valueOrNull ??
-        await ref
-            .read(atlasGlossaryProvider(bookId).future)
-            .timeout(
-              ReaderLoadFailSafes.glossary,
-              onTimeout: () => const <AtlasGlossaryEntry>[],
-            );
+    final glossary = await ref
+        .read(atlasGlossaryProvider(bookId).future)
+        .timeout(
+          ReaderLoadFailSafes.glossary,
+          onTimeout: () => const <AtlasGlossaryEntry>[],
+        );
     if (glossary.isEmpty) return content;
     final applied = AtlasGlossaryApplier.apply(content, glossary);
     return applied;
@@ -774,6 +773,5 @@ Future<String?> _cachedChapterText(List<ChapterEntity> chapters, int index) asyn
     return null;
   }
 }
-
 
 

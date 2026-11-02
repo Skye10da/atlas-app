@@ -28,9 +28,9 @@
       "checksums": {
         "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
         "permissions.json": "3e34f32f8ac84fcddb1f979c614d04a768b9d048e468541c73fec3870f702ae9",
-        "plugin.json": "a30c7994a43e09c35ebc3321ee0c1e68f2c96af22a30a1e5c058c21c267880dc",
+        "plugin.json": "b9cc81ce6be2cfd097f3fe50a96a97a72857145e2fc004be31928becfddd5b45",
         "README.md": "86807dabfa01e9b981db174e94400622fc95c2d88b371c5fbda3cba08e73cb10",
-        "selectors.json": "9e90da450025cd8b5b334a18a571268e236e19ea97f11ea066ad99f93078bdc7"
+        "selectors.json": "dd0b5cd69f40b156140fe80f2779689727eb5369dcee239eb2d14e9014d840ba"
       }
     },
     {
@@ -94,9 +94,9 @@
       "checksums": {
         "filters.json": "4fb7e3c81cc539a64e933c4146a50e5cdd7092216346b6ec330725b9c20d982a",
         "permissions.json": "fd44a88bf39ce07216b8152cad3723c3a3b15331f998f987852e7bede7051116",
-        "plugin.json": "c5219677c62d26e9e87f9c14a77b95fad25dffc3dc3e7b070532e303311b69ce",
+        "plugin.json": "28bd332fec2474cf1627e1adba86713dc64f36c8af9bca416ca71d89a8e19b21",
         "README.md": "6636b8671ce97c2195f6aa959b1bd671d17a3279713cb18371457ccdb80c6131",
-        "selectors.json": "08a3f59fdf317bba6f760e0cc6810ff11b136c8533aa3d69f555f73226d47c2e"
+        "selectors.json": "13c2773088a73f7e416fbbf5eccf74dabe193136ba7b6d79eb4300801c158fe0"
       }
     }
   ]

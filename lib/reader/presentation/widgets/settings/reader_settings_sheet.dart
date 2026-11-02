@@ -387,25 +387,30 @@ class _TranslationToggle extends ConsumerWidget {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      decoration: BoxDecoration(
+      child: Material(
         color: colors.surfaceContainerLow.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: SwitchListTile(
-        value: enabled,
-        title: const Text('Translate this novel'),
-        subtitle: const Text(
-          'Translate the source text on-device into the target language.',
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
-        secondary: const Icon(Icons.translate),
-        onChanged: (value) async {
-          await ref
-              .read(translationControllerProvider)
-              .setEnabled(bookId, value);
-          ref.invalidate(translationEnabledProvider(bookId));
-          ref.invalidate(readerChapterContentProvider);
-        },
+        clipBehavior: Clip.antiAlias,
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+          ),
+          value: enabled,
+          title: const Text('Translate this novel'),
+          subtitle: const Text(
+            'Translate the source text on-device into the target language.',
+          ),
+          secondary: const Icon(Icons.translate),
+          onChanged: (value) async {
+            await ref
+                .read(translationControllerProvider)
+                .setEnabled(bookId, value);
+            ref.invalidate(translationEnabledProvider(bookId));
+            ref.invalidate(readerChapterContentProvider);
+          },
+        ),
       ),
     );
   }

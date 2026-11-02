@@ -64,14 +64,19 @@ class HtmlTemplate implements Template {
     );
     final doc = parser.parse(html);
     final raw = selectors.applySearch(doc, baseUrl: context.plugin.baseUrl);
-    return [
-      for (final r in raw)
+    final seen = <String>{};
+    final results = <SearchResult>[];
+    for (final result in raw) {
+      if (!seen.add(result.url)) continue;
+      results.add(
         SearchResult(
-          title: _cleanTitle(r.title, context),
-          url: r.url,
-          coverUrl: r.coverUrl,
+          title: _cleanTitle(result.title, context),
+          url: result.url,
+          coverUrl: result.coverUrl,
         ),
-    ];
+      );
+    }
+    return results;
   }
 
   @override
@@ -426,7 +431,7 @@ class HtmlTemplate implements Template {
     final author = _firstNonEmpty(
       _fieldValue(doc, metadata?.author, selectors),
       metaTag('og:novel:author'),
-    );
+    ) ?? 'Unknown';
 
     final description = _firstNonEmpty(
       _fieldValue(doc, metadata?.description, selectors),
