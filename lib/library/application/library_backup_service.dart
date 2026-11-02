@@ -102,7 +102,17 @@ class LibraryBackupService {
     final chapters = await _db.select(_db.chapters).get();
     final progressList = await _db.select(_db.readingProgress).get();
     final bookmarks = await _db.select(_db.bookmarks).get();
-    final characters = await _db.select(_db.characters).get();
+    // Legacy field: schema 14 replaced the characters table with the
+    // Story Memory (story_entities) layer and dropped it on upgraded installs,
+    // so reads here are best-effort and degrade to an empty list.
+    var characters = <Character>[];
+    try {
+      characters = await _db.select(_db.characters).get();
+    } catch (e, st) {
+      AppLogger.warning(
+        'Backup: characters table unavailable (dropped since schema 14): $e | $st',
+      );
+    }
     final dictionaryWords = await _db.select(_db.dictionaryWords).get();
     final webBookmarks = await _db.select(_db.webBookmarks).get();
 
@@ -111,12 +121,16 @@ class LibraryBackupService {
     List<Map<String, dynamic>> readingGoalsJson = [];
     if (includeAnalytics) {
       try {
-        final sessions = await _db.customSelect('SELECT * FROM reading_sessions').get();
+        final sessions = await _db
+            .customSelect('SELECT * FROM reading_sessions')
+            .get();
         readingSessionsJson = sessions.map((row) => row.data).toList();
       } catch (_) {}
 
       try {
-        final goals = await _db.customSelect('SELECT * FROM reading_goals').get();
+        final goals = await _db
+            .customSelect('SELECT * FROM reading_goals')
+            .get();
         readingGoalsJson = goals.map((row) => row.data).toList();
       } catch (_) {}
     }
@@ -127,7 +141,8 @@ class LibraryBackupService {
       for (final book in books) {
         try {
           final state = await annotationsStorage.loadAnnotations(book.id);
-          if (state != null && (state.highlights.isNotEmpty || state.notes.isNotEmpty)) {
+          if (state != null &&
+              (state.highlights.isNotEmpty || state.notes.isNotEmpty)) {
             annotationsJson[book.id] = {
               'highlights': {
                 for (final e in state.highlights.entries)
@@ -148,104 +163,132 @@ class LibraryBackupService {
       'version': 2,
       'exportedAt': DateTime.now().toIso8601String(),
       'app': 'Atlas',
-      'books': books.map((b) => {
-        'id': b.id,
-        'title': b.title,
-        'author': b.author,
-        'coverPath': b.coverPath,
-        'format': b.format,
-        'itemType': b.itemType,
-        'fileSize': b.fileSize,
-        'totalChapters': b.totalChapters,
-        'description': b.description,
-        'language': b.language,
-        'tags': b.tags,
-        'rating': b.rating,
-        'status': b.status,
-        'sourceUrl': b.sourceUrl,
-        'sourceName': b.sourceName,
-        'sourceId': b.sourceId,
-        'filePath': b.filePath,
-        'updateTrackingEnabled': b.updateTrackingEnabled,
-        'lastCheckedAt': b.lastCheckedAt?.toIso8601String(),
-        'newChapterCount': b.newChapterCount,
-        'hasUpdate': b.hasUpdate,
-        'createdAt': b.createdAt.toIso8601String(),
-        'updatedAt': b.updatedAt.toIso8601String(),
-        'lastOpenedAt': b.lastOpenedAt?.toIso8601String(),
-      }).toList(),
-      'chapters': chapters.map((c) => {
-        'id': c.id,
-        'bookId': c.bookId,
-        'index': c.index,
-        'title': c.title,
-        'contentPath': c.contentPath,
-        'wordCount': c.wordCount,
-        'contentState': c.contentState,
-        'pageCount': c.pageCount,
-        'version': c.version,
-        'checksum': c.checksum,
-        'previousVersionRef': c.previousVersionRef,
-        'createdAt': c.createdAt.toIso8601String(),
-      }).toList(),
-      'readingProgress': progressList.map((p) => {
-        'id': p.id,
-        'bookId': p.bookId,
-        'chapterId': p.chapterId,
-        'percentage': p.percentage,
-        'position': p.position,
-        'totalPositions': p.totalPositions,
-        'readingTimeSeconds': p.readingTimeSeconds,
-        'isCompleted': p.isCompleted,
-        'lastReadAt': p.lastReadAt.toIso8601String(),
-      }).toList(),
-      'bookmarks': bookmarks.map((bm) => {
-        'id': bm.id,
-        'bookId': bm.bookId,
-        'chapterId': bm.chapterId,
-        'position': bm.position,
-        'note': bm.note,
-        'color': bm.color,
-        'createdAt': bm.createdAt.toIso8601String(),
-        'updatedAt': bm.updatedAt.toIso8601String(),
-      }).toList(),
-      'characters': characters.map((c) => {
-        'id': c.id,
-        'bookId': c.bookId,
-        'name': c.name,
-        'aliases': c.aliases,
-        'description': c.description,
-        'role': c.role,
-        'firstAppearance': c.firstAppearance,
-        'notes': c.notes,
-        'createdAt': c.createdAt.toIso8601String(),
-        'updatedAt': c.updatedAt.toIso8601String(),
-      }).toList(),
-      'dictionaryWords': dictionaryWords.map((dw) => {
-        'id': dw.id,
-        'word': dw.word,
-        'definition': dw.definition,
-        'language': dw.language,
-        'languageLabel': dw.languageLabel,
-        'source': dw.source,
-        'sourceLabel': dw.sourceLabel,
-        'phonetic': dw.phonetic,
-        'partOfSpeech': dw.partOfSpeech,
-        'fullJson': dw.fullJson,
-        'sourceSentence': dw.sourceSentence,
-        'sourceTitle': dw.sourceTitle,
-        'reviewLevel': dw.reviewLevel,
-        'reviewCount': dw.reviewCount,
-        'lastReviewedAt': dw.lastReviewedAt?.toIso8601String(),
-        'nextReviewAt': dw.nextReviewAt?.toIso8601String(),
-        'savedAt': dw.savedAt.toIso8601String(),
-      }).toList(),
-      'webBookmarks': webBookmarks.map((wb) => {
-        'id': wb.id,
-        'url': wb.url,
-        'title': wb.title,
-        'createdAt': wb.createdAt.toIso8601String(),
-      }).toList(),
+      'books': books
+          .map(
+            (b) => {
+              'id': b.id,
+              'title': b.title,
+              'author': b.author,
+              'coverPath': b.coverPath,
+              'format': b.format,
+              'itemType': b.itemType,
+              'fileSize': b.fileSize,
+              'totalChapters': b.totalChapters,
+              'description': b.description,
+              'language': b.language,
+              'tags': b.tags,
+              'rating': b.rating,
+              'status': b.status,
+              'sourceUrl': b.sourceUrl,
+              'sourceName': b.sourceName,
+              'sourceId': b.sourceId,
+              'filePath': b.filePath,
+              'updateTrackingEnabled': b.updateTrackingEnabled,
+              'lastCheckedAt': b.lastCheckedAt?.toIso8601String(),
+              'newChapterCount': b.newChapterCount,
+              'hasUpdate': b.hasUpdate,
+              'createdAt': b.createdAt.toIso8601String(),
+              'updatedAt': b.updatedAt.toIso8601String(),
+              'lastOpenedAt': b.lastOpenedAt?.toIso8601String(),
+            },
+          )
+          .toList(),
+      'chapters': chapters
+          .map(
+            (c) => {
+              'id': c.id,
+              'bookId': c.bookId,
+              'index': c.index,
+              'title': c.title,
+              'contentPath': c.contentPath,
+              'wordCount': c.wordCount,
+              'contentState': c.contentState,
+              'pageCount': c.pageCount,
+              'version': c.version,
+              'checksum': c.checksum,
+              'previousVersionRef': c.previousVersionRef,
+              'createdAt': c.createdAt.toIso8601String(),
+            },
+          )
+          .toList(),
+      'readingProgress': progressList
+          .map(
+            (p) => {
+              'id': p.id,
+              'bookId': p.bookId,
+              'chapterId': p.chapterId,
+              'percentage': p.percentage,
+              'position': p.position,
+              'totalPositions': p.totalPositions,
+              'readingTimeSeconds': p.readingTimeSeconds,
+              'isCompleted': p.isCompleted,
+              'lastReadAt': p.lastReadAt.toIso8601String(),
+            },
+          )
+          .toList(),
+      'bookmarks': bookmarks
+          .map(
+            (bm) => {
+              'id': bm.id,
+              'bookId': bm.bookId,
+              'chapterId': bm.chapterId,
+              'position': bm.position,
+              'note': bm.note,
+              'color': bm.color,
+              'createdAt': bm.createdAt.toIso8601String(),
+              'updatedAt': bm.updatedAt.toIso8601String(),
+            },
+          )
+          .toList(),
+      'characters': characters
+          .map(
+            (c) => {
+              'id': c.id,
+              'bookId': c.bookId,
+              'name': c.name,
+              'aliases': c.aliases,
+              'description': c.description,
+              'role': c.role,
+              'firstAppearance': c.firstAppearance,
+              'notes': c.notes,
+              'createdAt': c.createdAt.toIso8601String(),
+              'updatedAt': c.updatedAt.toIso8601String(),
+            },
+          )
+          .toList(),
+      'dictionaryWords': dictionaryWords
+          .map(
+            (dw) => {
+              'id': dw.id,
+              'word': dw.word,
+              'definition': dw.definition,
+              'language': dw.language,
+              'languageLabel': dw.languageLabel,
+              'source': dw.source,
+              'sourceLabel': dw.sourceLabel,
+              'phonetic': dw.phonetic,
+              'partOfSpeech': dw.partOfSpeech,
+              'fullJson': dw.fullJson,
+              'sourceSentence': dw.sourceSentence,
+              'sourceTitle': dw.sourceTitle,
+              'reviewLevel': dw.reviewLevel,
+              'reviewCount': dw.reviewCount,
+              'lastReviewedAt': dw.lastReviewedAt?.toIso8601String(),
+              'nextReviewAt': dw.nextReviewAt?.toIso8601String(),
+              'savedAt': dw.savedAt.toIso8601String(),
+            },
+          )
+          .toList(),
+      'webBookmarks': webBookmarks
+          .map(
+            (wb) => {
+              'id': wb.id,
+              'url': wb.url,
+              'title': wb.title,
+              'createdAt': wb.createdAt.toIso8601String(),
+            },
+          )
+          .toList(),
       'readingSessions': readingSessionsJson,
       'readingGoals': readingGoalsJson,
       'annotations': annotationsJson,
@@ -316,11 +359,7 @@ class LibraryBackupService {
               final fileName = p.basename(book.filePath);
               final bytes = await file.readAsBytes();
               archive.addFile(
-                ArchiveFile(
-                  'books/${book.id}/$fileName',
-                  bytes.length,
-                  bytes,
-                ),
+                ArchiveFile('books/${book.id}/$fileName', bytes.length, bytes),
               );
             }
           } else if (entity == FileSystemEntityType.directory) {
@@ -332,7 +371,9 @@ class LibraryBackupService {
                   final isChapterTxt = child.path.endsWith('.txt');
                   if (isChapterTxt && !includeOfflineChapters) continue;
 
-                  final relPath = p.relative(child.path, from: dir.path).replaceAll('\\', '/');
+                  final relPath = p
+                      .relative(child.path, from: dir.path)
+                      .replaceAll('\\', '/');
                   final bytes = await child.readAsBytes();
                   archive.addFile(
                     ArchiveFile(
@@ -358,16 +399,11 @@ class LibraryBackupService {
           try {
             final file = File(ch.contentPath);
             if (await file.exists() && await file.length() > 0) {
-              final archivePath = 'chapters/${ch.bookId}/${p.basename(ch.contentPath)}';
+              final archivePath =
+                  'chapters/${ch.bookId}/${p.basename(ch.contentPath)}';
               if (archive.findFile(archivePath) == null) {
                 final bytes = await file.readAsBytes();
-                archive.addFile(
-                  ArchiveFile(
-                    archivePath,
-                    bytes.length,
-                    bytes,
-                  ),
-                );
+                archive.addFile(ArchiveFile(archivePath, bytes.length, bytes));
               }
             }
           } catch (_) {}
@@ -381,7 +417,9 @@ class LibraryBackupService {
         try {
           final safeName = book.id.replaceAll(RegExp(r'[^\w\.-]'), '_');
           final dir = await getDocumentsDirectory();
-          final annotFile = File(p.join(dir.path, 'annotations', 'annotations_$safeName.json'));
+          final annotFile = File(
+            p.join(dir.path, 'annotations', 'annotations_$safeName.json'),
+          );
           if (await annotFile.exists()) {
             final bytes = await annotFile.readAsBytes();
             archive.addFile(
@@ -451,7 +489,8 @@ class LibraryBackupService {
       // bytes are already written via SAF but File.write is safe to retry.
       try {
         final file = File(outputPath);
-        final shouldWrite = !await file.exists() || await file.length() != data.length;
+        final shouldWrite =
+            !await file.exists() || await file.length() != data.length;
         if (shouldWrite) {
           await file.writeAsBytes(data);
         }
@@ -472,7 +511,8 @@ class LibraryBackupService {
     String? fileName,
   }) async {
     try {
-      final isZip = bytes.length >= 4 &&
+      final isZip =
+          bytes.length >= 4 &&
           bytes[0] == 0x50 &&
           bytes[1] == 0x4B &&
           (bytes[2] == 0x03 || bytes[2] == 0x05 || bytes[2] == 0x07);
@@ -484,31 +524,59 @@ class LibraryBackupService {
         final archive = ZipDecoder().decodeBytes(bytes);
         final manifestFile = archive.findFile('backup.json');
         if (manifestFile == null) {
-          return const Failure(DatabaseException('Invalid Atlas archive: missing backup.json.'));
+          return const Failure(
+            DatabaseException('Invalid Atlas archive: missing backup.json.'),
+          );
         }
         final rawContent = utf8.decode(manifestFile.content as List<int>);
         decoded = jsonDecode(rawContent) as Map<String, dynamic>;
-        hasBundledFiles = archive.files.any((f) => f.name.startsWith('covers/') || f.name.startsWith('books/'));
+        hasBundledFiles = archive.files.any(
+          (f) => f.name.startsWith('covers/') || f.name.startsWith('books/'),
+        );
       } else {
         final rawContent = utf8.decode(bytes);
         decoded = jsonDecode(rawContent) as Map<String, dynamic>;
       }
 
       if (decoded['format'] != 'atlas_backup') {
-        return const Failure(DatabaseException('Unrecognized Atlas backup format.'));
+        return const Failure(
+          DatabaseException('Unrecognized Atlas backup format.'),
+        );
       }
 
-      final booksList = (decoded['books'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [];
-      final chaptersList = (decoded['chapters'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [];
-      final progressList = (decoded['readingProgress'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [];
-      final bookmarksList = (decoded['bookmarks'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [];
-      final wordsList = (decoded['dictionaryWords'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [];
-      final annotationsMap = decoded['annotations'] as Map<String, dynamic>? ?? {};
+      final booksList =
+          (decoded['books'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .toList() ??
+          [];
+      final chaptersList =
+          (decoded['chapters'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .toList() ??
+          [];
+      final progressList =
+          (decoded['readingProgress'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .toList() ??
+          [];
+      final bookmarksList =
+          (decoded['bookmarks'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .toList() ??
+          [];
+      final wordsList =
+          (decoded['dictionaryWords'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .toList() ??
+          [];
+      final annotationsMap =
+          decoded['annotations'] as Map<String, dynamic>? ?? {};
 
       int novelsCount = 0;
       int booksCount = 0;
       for (final b in booksList) {
-        final itemType = b['itemType'] as String? ?? b['format'] as String? ?? 'book';
+        final itemType =
+            b['itemType'] as String? ?? b['format'] as String? ?? 'book';
         if (itemType == 'novel' || b['format'] == 'novel') {
           novelsCount++;
         } else {
@@ -550,7 +618,10 @@ class LibraryBackupService {
       final bytes = await file.readAsBytes();
       return await inspectBackupBytes(bytes, fileName: file.path);
     } catch (e, st) {
-      return Failure(DatabaseException('Failed to read backup file: $e', e), st);
+      return Failure(
+        DatabaseException('Failed to read backup file: $e', e),
+        st,
+      );
     }
   }
 
@@ -563,7 +634,8 @@ class LibraryBackupService {
     bool cleanRestore = false,
   }) async {
     try {
-      final isZip = bytes.length >= 4 &&
+      final isZip =
+          bytes.length >= 4 &&
           bytes[0] == 0x50 &&
           bytes[1] == 0x4B &&
           (bytes[2] == 0x03 || bytes[2] == 0x05 || bytes[2] == 0x07);
@@ -590,13 +662,18 @@ class LibraryBackupService {
       final archive = ZipDecoder().decodeBytes(bytes);
       final manifestFile = archive.findFile('backup.json');
       if (manifestFile == null) {
-        return const Failure(DatabaseException('Invalid Atlas archive: missing backup.json.'));
+        return const Failure(
+          DatabaseException('Invalid Atlas archive: missing backup.json.'),
+        );
       }
 
       final jsonString = utf8.decode(manifestFile.content as List<int>);
       final decoded = jsonDecode(jsonString);
-      if (decoded is! Map<String, dynamic> || decoded['format'] != 'atlas_backup') {
-        return const Failure(DatabaseException('Invalid Atlas backup format inside archive.'));
+      if (decoded is! Map<String, dynamic> ||
+          decoded['format'] != 'atlas_backup') {
+        return const Failure(
+          DatabaseException('Invalid Atlas backup format inside archive.'),
+        );
       }
 
       final docsDir = await getDocumentsDirectory();
@@ -615,7 +692,9 @@ class LibraryBackupService {
           // covers/<bookId>.<ext>
           final coverBase = p.basename(name);
           final dotIdx = coverBase.indexOf('.');
-          final bookId = dotIdx > 0 ? coverBase.substring(0, dotIdx) : coverBase;
+          final bookId = dotIdx > 0
+              ? coverBase.substring(0, dotIdx)
+              : coverBase;
           final targetPath = p.join(docsDir.path, 'books', bookId, coverBase);
           final targetFile = File(targetPath);
           await targetFile.parent.create(recursive: true);
@@ -638,7 +717,11 @@ class LibraryBackupService {
         } else if (name.startsWith('chapters/')) {
           // chapters/<bookId>/<fileName>
           final pathWithoutPrefix = name.substring('chapters/'.length);
-          final targetPath = p.join(docsDir.path, 'chapters', pathWithoutPrefix);
+          final targetPath = p.join(
+            docsDir.path,
+            'chapters',
+            pathWithoutPrefix,
+          );
           final targetFile = File(targetPath);
           await targetFile.parent.create(recursive: true);
           await targetFile.writeAsBytes(content);
@@ -678,8 +761,11 @@ class LibraryBackupService {
   }) async {
     try {
       final decoded = jsonDecode(jsonString);
-      if (decoded is! Map<String, dynamic> || decoded['format'] != 'atlas_backup') {
-        return const Failure(DatabaseException('Invalid Atlas backup file format.'));
+      if (decoded is! Map<String, dynamic> ||
+          decoded['format'] != 'atlas_backup') {
+        return const Failure(
+          DatabaseException('Invalid Atlas backup file format.'),
+        );
       }
 
       return await _restoreDatabase(decoded, cleanRestore: cleanRestore);
@@ -716,7 +802,10 @@ class LibraryBackupService {
         await _db.delete(_db.readingProgress).go();
         await _db.delete(_db.chapters).go();
         await _db.delete(_db.bookmarks).go();
-        await _db.delete(_db.characters).go();
+        // Legacy optional table — absent on devices upgraded past schema 13.
+        try {
+          await _db.delete(_db.characters).go();
+        } catch (_) {}
         await _db.delete(_db.books).go();
         try {
           await _db.customStatement('DELETE FROM reading_sessions');
@@ -726,7 +815,8 @@ class LibraryBackupService {
 
       // 1. Restore Books & Novels
       if (decoded['books'] is List) {
-        for (final raw in (decoded['books'] as List).whereType<Map<String, dynamic>>()) {
+        for (final raw
+            in (decoded['books'] as List).whereType<Map<String, dynamic>>()) {
           final id = raw['id'] as String?;
           final title = raw['title'] as String?;
           if (id == null || title == null) continue;
@@ -744,12 +834,15 @@ class LibraryBackupService {
               ? DateTime.tryParse(raw['lastCheckedAt'] as String)
               : null;
 
-          final itemTypeRaw = raw['itemType'] as String? ?? raw['format'] as String? ?? 'book';
-          final isNovel = itemTypeRaw == 'novel' || (raw['format'] as String?) == 'novel';
+          final itemTypeRaw =
+              raw['itemType'] as String? ?? raw['format'] as String? ?? 'book';
+          final isNovel =
+              itemTypeRaw == 'novel' || (raw['format'] as String?) == 'novel';
           final itemType = isNovel ? 'novel' : 'book';
 
           // Resolve coverPath: prioritize extracted archive cover, then fallback to local path
-          String? coverPath = reanchoredCovers?[id] ?? raw['coverPath'] as String?;
+          String? coverPath =
+              reanchoredCovers?[id] ?? raw['coverPath'] as String?;
           if (coverPath != null && !File(coverPath).existsSync()) {
             final defaultCover = p.join(docsDir.path, 'books', id, 'cover.jpg');
             if (File(defaultCover).existsSync()) {
@@ -758,7 +851,8 @@ class LibraryBackupService {
           }
 
           // Resolve filePath: prioritize extracted archive book dir, then fallback to local path
-          String filePath = reanchoredBookDirs?[id] ?? raw['filePath'] as String? ?? '';
+          String filePath =
+              reanchoredBookDirs?[id] ?? raw['filePath'] as String? ?? '';
           if (filePath.isEmpty || !Directory(filePath).existsSync()) {
             final defaultBookDir = p.join(docsDir.path, 'books', id);
             if (Directory(defaultBookDir).existsSync()) {
@@ -769,38 +863,43 @@ class LibraryBackupService {
           final totalChapters = (raw['totalChapters'] as num?)?.toInt() ?? 0;
           final fileSize = (raw['fileSize'] as num?)?.toInt();
           final rating = (raw['rating'] as num?)?.toDouble();
-          final newChapterCount = (raw['newChapterCount'] as num?)?.toInt() ?? 0;
+          final newChapterCount =
+              (raw['newChapterCount'] as num?)?.toInt() ?? 0;
           final hasUpdate = raw['hasUpdate'] as bool? ?? false;
           final updateTracking = raw['updateTrackingEnabled'] as bool? ?? true;
 
-          await _db.into(_db.books).insertOnConflictUpdate(
-            BooksCompanion(
-              id: Value(id),
-              title: Value(title),
-              format: Value(raw['format'] as String? ?? (isNovel ? 'novel' : 'epub')),
-              itemType: Value(itemType),
-              filePath: Value(filePath),
-              totalChapters: Value(totalChapters),
-              fileSize: Value(fileSize),
-              author: Value(raw['author'] as String?),
-              coverPath: Value(coverPath),
-              description: Value(raw['description'] as String?),
-              language: Value(raw['language'] as String?),
-              tags: Value(raw['tags'] as String?),
-              rating: Value(rating),
-              status: Value(raw['status'] as String?),
-              sourceName: Value(raw['sourceName'] as String?),
-              sourceId: Value(raw['sourceId'] as String?),
-              sourceUrl: Value(raw['sourceUrl'] as String?),
-              updateTrackingEnabled: Value(updateTracking),
-              lastCheckedAt: Value(lastCheckedAt),
-              newChapterCount: Value(newChapterCount),
-              hasUpdate: Value(hasUpdate),
-              createdAt: Value(createdAt),
-              updatedAt: Value(updatedAt),
-              lastOpenedAt: Value(lastOpenedAt),
-            ),
-          );
+          await _db
+              .into(_db.books)
+              .insertOnConflictUpdate(
+                BooksCompanion(
+                  id: Value(id),
+                  title: Value(title),
+                  format: Value(
+                    raw['format'] as String? ?? (isNovel ? 'novel' : 'epub'),
+                  ),
+                  itemType: Value(itemType),
+                  filePath: Value(filePath),
+                  totalChapters: Value(totalChapters),
+                  fileSize: Value(fileSize),
+                  author: Value(raw['author'] as String?),
+                  coverPath: Value(coverPath),
+                  description: Value(raw['description'] as String?),
+                  language: Value(raw['language'] as String?),
+                  tags: Value(raw['tags'] as String?),
+                  rating: Value(rating),
+                  status: Value(raw['status'] as String?),
+                  sourceName: Value(raw['sourceName'] as String?),
+                  sourceId: Value(raw['sourceId'] as String?),
+                  sourceUrl: Value(raw['sourceUrl'] as String?),
+                  updateTrackingEnabled: Value(updateTracking),
+                  lastCheckedAt: Value(lastCheckedAt),
+                  newChapterCount: Value(newChapterCount),
+                  hasUpdate: Value(hasUpdate),
+                  createdAt: Value(createdAt),
+                  updatedAt: Value(updatedAt),
+                  lastOpenedAt: Value(lastOpenedAt),
+                ),
+              );
 
           if (isNovel) {
             restoredNovels++;
@@ -812,7 +911,9 @@ class LibraryBackupService {
 
       // 2. Restore Chapters
       if (decoded['chapters'] is List) {
-        for (final raw in (decoded['chapters'] as List).whereType<Map<String, dynamic>>()) {
+        for (final raw
+            in (decoded['chapters'] as List)
+                .whereType<Map<String, dynamic>>()) {
           final id = raw['id'] as String?;
           final bookId = raw['bookId'] as String?;
           if (id == null || bookId == null) continue;
@@ -832,12 +933,23 @@ class LibraryBackupService {
           // Re-anchor contentPath
           String contentPath = raw['contentPath'] as String? ?? '';
           final baseName = p.basename(contentPath);
-          if (reanchoredChapters != null && reanchoredChapters.containsKey(baseName)) {
+          if (reanchoredChapters != null &&
+              reanchoredChapters.containsKey(baseName)) {
             contentPath = reanchoredChapters[baseName]!;
           } else {
             // Check if file exists in the standard docs book directory
-            final standardPath = p.join(docsDir.path, 'books', bookId, '$index.txt');
-            final idNamedPath = p.join(docsDir.path, 'books', bookId, '$id.txt');
+            final standardPath = p.join(
+              docsDir.path,
+              'books',
+              bookId,
+              '$index.txt',
+            );
+            final idNamedPath = p.join(
+              docsDir.path,
+              'books',
+              bookId,
+              '$id.txt',
+            );
             if (File(standardPath).existsSync()) {
               contentPath = standardPath;
             } else if (File(idNamedPath).existsSync()) {
@@ -847,22 +959,24 @@ class LibraryBackupService {
             }
           }
 
-          await _db.into(_db.chapters).insertOnConflictUpdate(
-            ChaptersCompanion(
-              id: Value(id),
-              bookId: Value(bookId),
-              index: Value(index),
-              title: Value(title),
-              contentPath: Value(contentPath),
-              wordCount: Value(wordCount),
-              pageCount: Value(pageCount),
-              contentState: Value(contentState),
-              version: Value(version),
-              checksum: Value(checksum),
-              previousVersionRef: Value(previousVersionRef),
-              createdAt: Value(createdAt),
-            ),
-          );
+          await _db
+              .into(_db.chapters)
+              .insertOnConflictUpdate(
+                ChaptersCompanion(
+                  id: Value(id),
+                  bookId: Value(bookId),
+                  index: Value(index),
+                  title: Value(title),
+                  contentPath: Value(contentPath),
+                  wordCount: Value(wordCount),
+                  pageCount: Value(pageCount),
+                  contentState: Value(contentState),
+                  version: Value(version),
+                  checksum: Value(checksum),
+                  previousVersionRef: Value(previousVersionRef),
+                  createdAt: Value(createdAt),
+                ),
+              );
           restoredChapters++;
         }
       }
@@ -871,42 +985,52 @@ class LibraryBackupService {
       // Ensure primary key `id` matches `bookId` so DriftReaderRepository and AppDatabase
       // queries (which query by id == bookId) immediately discover the exact reading state.
       if (decoded['readingProgress'] is List) {
-        for (final raw in (decoded['readingProgress'] as List).whereType<Map<String, dynamic>>()) {
+        for (final raw
+            in (decoded['readingProgress'] as List)
+                .whereType<Map<String, dynamic>>()) {
           final bookId = raw['bookId'] as String?;
           if (bookId == null) continue;
 
           final chapterId = raw['chapterId'] as String? ?? '';
           final rawPercentage = (raw['percentage'] as num?)?.toDouble() ?? 0.0;
           // Normalize legacy 0..100 percentage if encountered
-          final percentage = (rawPercentage > 1.0 ? rawPercentage / 100.0 : rawPercentage).clamp(0.0, 1.0);
+          final percentage =
+              (rawPercentage > 1.0 ? rawPercentage / 100.0 : rawPercentage)
+                  .clamp(0.0, 1.0);
           final position = (raw['position'] as num?)?.toInt() ?? 0;
           final totalPositions = (raw['totalPositions'] as num?)?.toInt() ?? 1;
-          final readingTimeSeconds = (raw['readingTimeSeconds'] as num?)?.toInt() ?? 0;
-          final isCompleted = raw['isCompleted'] as bool? ?? (percentage >= 0.95);
+          final readingTimeSeconds =
+              (raw['readingTimeSeconds'] as num?)?.toInt() ?? 0;
+          final isCompleted =
+              raw['isCompleted'] as bool? ?? (percentage >= 0.95);
           final lastReadAt = raw['lastReadAt'] != null
               ? DateTime.tryParse(raw['lastReadAt'] as String) ?? DateTime.now()
               : DateTime.now();
 
-          await _db.into(_db.readingProgress).insertOnConflictUpdate(
-            ReadingProgressCompanion(
-              id: Value(bookId),
-              bookId: Value(bookId),
-              chapterId: Value(chapterId),
-              percentage: Value(percentage),
-              position: Value(position),
-              totalPositions: Value(totalPositions),
-              lastReadAt: Value(lastReadAt),
-              readingTimeSeconds: Value(readingTimeSeconds),
-              isCompleted: Value(isCompleted),
-            ),
-          );
+          await _db
+              .into(_db.readingProgress)
+              .insertOnConflictUpdate(
+                ReadingProgressCompanion(
+                  id: Value(bookId),
+                  bookId: Value(bookId),
+                  chapterId: Value(chapterId),
+                  percentage: Value(percentage),
+                  position: Value(position),
+                  totalPositions: Value(totalPositions),
+                  lastReadAt: Value(lastReadAt),
+                  readingTimeSeconds: Value(readingTimeSeconds),
+                  isCompleted: Value(isCompleted),
+                ),
+              );
           restoredProgress++;
         }
       }
 
       // 4. Restore Bookmarks
       if (decoded['bookmarks'] is List) {
-        for (final raw in (decoded['bookmarks'] as List).whereType<Map<String, dynamic>>()) {
+        for (final raw
+            in (decoded['bookmarks'] as List)
+                .whereType<Map<String, dynamic>>()) {
           final id = raw['id'] as String?;
           final bookId = raw['bookId'] as String?;
           final chapterId = raw['chapterId'] as String?;
@@ -920,58 +1044,76 @@ class LibraryBackupService {
               ? DateTime.tryParse(raw['updatedAt'] as String) ?? createdAt
               : createdAt;
 
-          await _db.into(_db.bookmarks).insertOnConflictUpdate(
-            BookmarksCompanion(
-              id: Value(id),
-              bookId: Value(bookId),
-              chapterId: Value(chapterId),
-              position: Value(position),
-              note: Value(raw['note'] as String?),
-              color: Value(raw['color'] as String?),
-              createdAt: Value(createdAt),
-              updatedAt: Value(updatedAt),
-            ),
-          );
+          await _db
+              .into(_db.bookmarks)
+              .insertOnConflictUpdate(
+                BookmarksCompanion(
+                  id: Value(id),
+                  bookId: Value(bookId),
+                  chapterId: Value(chapterId),
+                  position: Value(position),
+                  note: Value(raw['note'] as String?),
+                  color: Value(raw['color'] as String?),
+                  createdAt: Value(createdAt),
+                  updatedAt: Value(updatedAt),
+                ),
+              );
           restoredBookmarks++;
         }
       }
 
-      // 5. Restore Characters
+      // 5. Restore Characters — legacy v2 field; the backing table was
+      // dropped from upgraded installs in schema 14, so a restore of an old
+      // backup must not abort the whole transaction over it.
       if (decoded['characters'] is List) {
-        for (final raw in (decoded['characters'] as List).whereType<Map<String, dynamic>>()) {
-          final id = raw['id'] as String?;
-          final bookId = raw['bookId'] as String?;
-          final name = raw['name'] as String?;
-          if (id == null || bookId == null || name == null) continue;
+        try {
+          for (final raw
+              in (decoded['characters'] as List)
+                  .whereType<Map<String, dynamic>>()) {
+            final id = raw['id'] as String?;
+            final bookId = raw['bookId'] as String?;
+            final name = raw['name'] as String?;
+            if (id == null || bookId == null || name == null) continue;
 
-          final createdAt = raw['createdAt'] != null
-              ? DateTime.tryParse(raw['createdAt'] as String) ?? DateTime.now()
-              : DateTime.now();
-          final updatedAt = raw['updatedAt'] != null
-              ? DateTime.tryParse(raw['updatedAt'] as String) ?? createdAt
-              : createdAt;
+            final createdAt = raw['createdAt'] != null
+                ? DateTime.tryParse(raw['createdAt'] as String) ??
+                      DateTime.now()
+                : DateTime.now();
+            final updatedAt = raw['updatedAt'] != null
+                ? DateTime.tryParse(raw['updatedAt'] as String) ?? createdAt
+                : createdAt;
 
-          await _db.into(_db.characters).insertOnConflictUpdate(
-            CharactersCompanion(
-              id: Value(id),
-              bookId: Value(bookId),
-              name: Value(name),
-              aliases: Value(raw['aliases'] as String?),
-              description: Value(raw['description'] as String?),
-              role: Value(raw['role'] as String?),
-              firstAppearance: Value(raw['firstAppearance'] as String?),
-              notes: Value(raw['notes'] as String?),
-              createdAt: Value(createdAt),
-              updatedAt: Value(updatedAt),
-            ),
+            await _db
+                .into(_db.characters)
+                .insertOnConflictUpdate(
+                  CharactersCompanion(
+                    id: Value(id),
+                    bookId: Value(bookId),
+                    name: Value(name),
+                    aliases: Value(raw['aliases'] as String?),
+                    description: Value(raw['description'] as String?),
+                    role: Value(raw['role'] as String?),
+                    firstAppearance: Value(raw['firstAppearance'] as String?),
+                    notes: Value(raw['notes'] as String?),
+                    createdAt: Value(createdAt),
+                    updatedAt: Value(updatedAt),
+                  ),
+                );
+            restoredCharacters++;
+          }
+        } catch (e, st) {
+          AppLogger.warning(
+            'Backup restore: skipped legacy characters section '
+            '(table unavailable since schema 14): $e | $st',
           );
-          restoredCharacters++;
         }
       }
 
       // 6. Restore Dictionary Words
       if (decoded['dictionaryWords'] is List) {
-        for (final raw in (decoded['dictionaryWords'] as List).whereType<Map<String, dynamic>>()) {
+        for (final raw
+            in (decoded['dictionaryWords'] as List)
+                .whereType<Map<String, dynamic>>()) {
           final id = raw['id'] as String?;
           final word = raw['word'] as String?;
           final def = raw['definition'] as String?;
@@ -987,40 +1129,65 @@ class LibraryBackupService {
               ? DateTime.tryParse(raw['nextReviewAt'] as String)
               : null;
 
-          await _db.into(_db.dictionaryWords).insertOnConflictUpdate(
-            DictionaryWordsCompanion(
-              id: Value(id),
-              word: Value(word),
-              definition: Value(def),
-              language: Value(raw['language'] as String? ?? 'en'),
-              languageLabel: Value(raw['languageLabel'] as String? ?? 'English'),
-              source: Value(raw['source'] as String? ?? 'wiktionary'),
-              sourceLabel: Value(raw['sourceLabel'] as String? ?? 'Wiktionary'),
-              phonetic: Value(raw['phonetic'] as String?),
-              partOfSpeech: Value(raw['partOfSpeech'] as String? ?? 'n'),
-              fullJson: Value(raw['fullJson'] as String? ?? '{}'),
-              savedAt: Value(savedAt),
-              sourceSentence: Value(raw['sourceSentence'] as String?),
-              sourceTitle: Value(raw['sourceTitle'] as String?),
-              reviewLevel: Value((raw['reviewLevel'] as num?)?.toInt() ?? 0),
-              reviewCount: Value((raw['reviewCount'] as num?)?.toInt() ?? 0),
-              lastReviewedAt: Value(lastReviewedAt),
-              nextReviewAt: Value(nextReviewAt),
-            ),
-          );
+          await _db
+              .into(_db.dictionaryWords)
+              .insertOnConflictUpdate(
+                DictionaryWordsCompanion(
+                  id: Value(id),
+                  word: Value(word),
+                  definition: Value(def),
+                  language: Value(raw['language'] as String? ?? 'en'),
+                  languageLabel: Value(
+                    raw['languageLabel'] as String? ?? 'English',
+                  ),
+                  source: Value(raw['source'] as String? ?? 'wiktionary'),
+                  sourceLabel: Value(
+                    raw['sourceLabel'] as String? ?? 'Wiktionary',
+                  ),
+                  phonetic: Value(raw['phonetic'] as String?),
+                  partOfSpeech: Value(raw['partOfSpeech'] as String? ?? 'n'),
+                  fullJson: Value(raw['fullJson'] as String? ?? '{}'),
+                  savedAt: Value(savedAt),
+                  sourceSentence: Value(raw['sourceSentence'] as String?),
+                  sourceTitle: Value(raw['sourceTitle'] as String?),
+                  reviewLevel: Value(
+                    (raw['reviewLevel'] as num?)?.toInt() ?? 0,
+                  ),
+                  reviewCount: Value(
+                    (raw['reviewCount'] as num?)?.toInt() ?? 0,
+                  ),
+                  lastReviewedAt: Value(lastReviewedAt),
+                  nextReviewAt: Value(nextReviewAt),
+                ),
+              );
           restoredWords++;
         }
       }
 
       // 7. Restore Reading Analytics
       if (decoded['readingSessions'] is List) {
-        for (final row in (decoded['readingSessions'] as List).whereType<Map<String, dynamic>>()) {
+        for (final row
+            in (decoded['readingSessions'] as List)
+                .whereType<Map<String, dynamic>>()) {
           final id = row['id']?.toString();
-          final bookId = row['book_id']?.toString() ?? row['bookId']?.toString();
-          final duration = (row['duration_seconds'] as num?)?.toInt() ?? (row['durationSeconds'] as num?)?.toInt() ?? 0;
-          final chaptersRead = (row['chapters_read'] as num?)?.toInt() ?? (row['chaptersRead'] as num?)?.toInt() ?? 1;
-          final createdAt = (row['created_at'] as num?)?.toInt() ?? (row['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
-          final sessionDate = (row['session_date'] as num?)?.toInt() ?? (row['sessionDate'] as num?)?.toInt() ?? createdAt;
+          final bookId =
+              row['book_id']?.toString() ?? row['bookId']?.toString();
+          final duration =
+              (row['duration_seconds'] as num?)?.toInt() ??
+              (row['durationSeconds'] as num?)?.toInt() ??
+              0;
+          final chaptersRead =
+              (row['chapters_read'] as num?)?.toInt() ??
+              (row['chaptersRead'] as num?)?.toInt() ??
+              1;
+          final createdAt =
+              (row['created_at'] as num?)?.toInt() ??
+              (row['createdAt'] as num?)?.toInt() ??
+              DateTime.now().millisecondsSinceEpoch;
+          final sessionDate =
+              (row['session_date'] as num?)?.toInt() ??
+              (row['sessionDate'] as num?)?.toInt() ??
+              createdAt;
           if (id != null && bookId != null) {
             try {
               await _db.customStatement(
@@ -1037,11 +1204,22 @@ class LibraryBackupService {
       }
 
       if (decoded['readingGoals'] is List) {
-        for (final row in (decoded['readingGoals'] as List).whereType<Map<String, dynamic>>()) {
+        for (final row
+            in (decoded['readingGoals'] as List)
+                .whereType<Map<String, dynamic>>()) {
           final id = row['id']?.toString();
-          final weeklyTarget = (row['weekly_chapter_target'] as num?)?.toInt() ?? (row['weeklyChapterTarget'] as num?)?.toInt() ?? 20;
-          final dailyTarget = (row['daily_minute_target'] as num?)?.toInt() ?? (row['dailyMinuteTarget'] as num?)?.toInt() ?? 30;
-          final updatedAt = (row['updated_at'] as num?)?.toInt() ?? (row['updatedAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
+          final weeklyTarget =
+              (row['weekly_chapter_target'] as num?)?.toInt() ??
+              (row['weeklyChapterTarget'] as num?)?.toInt() ??
+              20;
+          final dailyTarget =
+              (row['daily_minute_target'] as num?)?.toInt() ??
+              (row['dailyMinuteTarget'] as num?)?.toInt() ??
+              30;
+          final updatedAt =
+              (row['updated_at'] as num?)?.toInt() ??
+              (row['updatedAt'] as num?)?.toInt() ??
+              DateTime.now().millisecondsSinceEpoch;
           if (id != null) {
             try {
               await _db.customStatement(
@@ -1064,11 +1242,15 @@ class LibraryBackupService {
           final bookData = entry.value as Map<String, dynamic>?;
           if (bookData == null) continue;
 
-          final rawHighlights = bookData['highlights'] as Map<String, dynamic>? ?? {};
+          final rawHighlights =
+              bookData['highlights'] as Map<String, dynamic>? ?? {};
           final highlights = <String, List<HighlightEntry>>{};
           for (final hEntry in rawHighlights.entries) {
-            final list = (hEntry.value as List<dynamic>?)
-                    ?.map((e) => HighlightEntry.fromJson(e as Map<String, dynamic>))
+            final list =
+                (hEntry.value as List<dynamic>?)
+                    ?.map(
+                      (e) => HighlightEntry.fromJson(e as Map<String, dynamic>),
+                    )
                     .toList() ??
                 const [];
             if (list.isNotEmpty) highlights[hEntry.key] = list;
@@ -1077,7 +1259,8 @@ class LibraryBackupService {
           final rawNotes = bookData['notes'] as Map<String, dynamic>? ?? {};
           final notes = <String, List<NoteEntry>>{};
           for (final nEntry in rawNotes.entries) {
-            final list = (nEntry.value as List<dynamic>?)
+            final list =
+                (nEntry.value as List<dynamic>?)
                     ?.map((e) => NoteEntry.fromJson(e as Map<String, dynamic>))
                     .toList() ??
                 const [];
@@ -1142,13 +1325,22 @@ class LibraryBackupService {
         bytes = await file.readAsBytes();
         resolvedPath = file.path;
       } else {
-        return const Failure(DatabaseException('Unable to access selected file.'));
+        return const Failure(
+          DatabaseException('Unable to access selected file.'),
+        );
       }
 
-      return await restoreBackupBytes(bytes, fileName: resolvedPath, cleanRestore: cleanRestore);
+      return await restoreBackupBytes(
+        bytes,
+        fileName: resolvedPath,
+        cleanRestore: cleanRestore,
+      );
     } catch (e, st) {
       AppLogger.error('Restore from file failed', e, st);
-      return Failure(DatabaseException('Failed to import backup file: $e', e), st);
+      return Failure(
+        DatabaseException('Failed to import backup file: $e', e),
+        st,
+      );
     }
   }
 }
