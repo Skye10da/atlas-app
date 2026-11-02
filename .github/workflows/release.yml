@@ -81,6 +81,12 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
+      # Workaround carried from build.yml: real_page_flip-2.2.9 declares
+      # desktop plugin platforms with no usable native implementation, which
+      # corrupts the Android gradle build; the patch strips them.
+      - name: Patch real_page_flip
+        run: dart run tool/patch_real_page_flip.dart
+
       - name: Analyze (zero-warning gate)
         run: flutter analyze --no-fatal-infos
 
@@ -144,6 +150,12 @@ jobs:
 
       - name: Pub get
         run: flutter pub get
+
+      # Workaround carried from build.yml: real_page_flip-2.2.9 declares a
+      # Windows plugin platform with no package-shipped CMake implementation,
+      # which breaks generated_plugins.cmake add_subdirectory during build.
+      - name: Patch real_page_flip
+        run: dart run tool/patch_real_page_flip.dart
 
       - name: Build
         run: flutter build windows --release
