@@ -51,3 +51,4 @@ web/build/
 opencode.json
 eval/
 .vercel
+log.txt
