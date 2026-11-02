@@ -71,6 +71,9 @@ void main() {
         probe(userAgent: androidChromeUA, platform: 'Linux armv8l'),
       );
       expect(profile.os, DeviceOs.android);
+      // UA carries no arch (reduced); navigator.platform is the only signal.
+      expect(profile.arch, DeviceArch.arm64);
+      expect(profile.summary, 'Android (ARM64)');
     });
 
     test('iPhone Safari', () {
@@ -109,6 +112,88 @@ void main() {
         ),
       );
       expect(profile.os, DeviceOs.linux);
+    });
+  });
+
+  group('Android architecture — navigator.platform tokens', () {
+    const anyAndroidUA =
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
+
+    test('armv8l platform → arm64 (64-bit Android Chrome)', () {
+      final profile = DeviceProfileService.classify(
+        probe(userAgent: anyAndroidUA, platform: 'Linux armv8l'),
+      );
+      expect(profile.arch, DeviceArch.arm64);
+    });
+
+    test('aarch64 platform → arm64', () {
+      final profile = DeviceProfileService.classify(
+        probe(userAgent: anyAndroidUA, platform: 'Linux aarch64'),
+      );
+      expect(profile.arch, DeviceArch.arm64);
+    });
+
+    test('armv7l platform → armv7 (genuine 32-bit device)', () {
+      final profile = DeviceProfileService.classify(
+        probe(userAgent: anyAndroidUA, platform: 'Linux armv7l'),
+      );
+      expect(profile.os, DeviceOs.android);
+      expect(profile.arch, DeviceArch.armv7);
+      expect(profile.summary, 'Android (ARMv7)');
+    });
+
+    test(
+      'UA-CH arch is empty on Android but the platform token still wins',
+      () {
+        final profile = DeviceProfileService.classify(
+          probe(
+            userAgent: anyAndroidUA,
+            platform: 'Linux armv8l',
+            // What Android Chromium actually returns from
+            // getHighEntropyValues: empty architecture/bitness strings.
+            uaPlatform: 'Android',
+            uaArchitecture: '',
+            uaBitness: '',
+          ),
+        );
+        expect(profile.arch, DeviceArch.arm64);
+      },
+    );
+
+    test('legacy arm64 UA token still resolves arm64', () {
+      final profile = DeviceProfileService.classify(
+        probe(
+          userAgent:
+              'Mozilla/5.0 (Linux; Android 12; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Mobile arm64 Safari/537.36',
+          platform: 'Linux armv8l',
+        ),
+      );
+      expect(profile.arch, DeviceArch.arm64);
+    });
+
+    test('plain arm token without a profile version degrades to unknown', () {
+      final profile = DeviceProfileService.classify(
+        probe(
+          userAgent:
+              'Mozilla/5.0 (Linux; Android 9; arm) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90 Mobile Safari/537.36',
+          platform: 'Linux',
+        ),
+      );
+      expect(profile.arch, DeviceArch.unknown);
+      // Unknown arch never claims a wrong build to the visitor.
+      expect(profile.summary, 'Android');
+    });
+
+    test('aarch64 UA on Linux desktop maps to arm64 too', () {
+      final profile = DeviceProfileService.classify(
+        probe(
+          userAgent:
+              'Mozilla/5.0 (X11; Linux aarch64; rv:132.0) Gecko/20100101 Firefox/132.0',
+          platform: 'Linux aarch64',
+        ),
+      );
+      expect(profile.os, DeviceOs.linux);
+      expect(profile.arch, DeviceArch.arm64);
     });
   });
 

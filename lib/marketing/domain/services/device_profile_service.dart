@@ -8,8 +8,12 @@ import 'package:atlas_app/marketing/domain/services/web_interop.dart';
 /// 1. **UA Client Hints** (Chromium) — `navigator.userAgentData
 ///    .getHighEntropyValues([...])` gives an authoritative `platform`,
 ///    `architecture` and `bitness` (the only reliable way to see Windows-ARM).
+///    NB: Android phones return empty architecture/bitness there, so Android
+///    falls through to the platform-string tokens below.
 /// 2. **UA-string heuristics** (Safari/Firefox/others) — pattern matching on
-///    `navigator.userAgent` / `navigator.platform` / touch points.
+///    `navigator.userAgent` / `navigator.platform` / touch points. On Android
+///    the frozen UA carries no arch at all; `navigator.platform` is the only
+///    signal ("Linux armv8l"/"Linux aarch64" = 64-bit, "Linux armv7l" = 32-bit).
 /// 3. Fallback — every failure degrades to `DeviceProfile.fallback` so
 ///    callers always receive a valid value (never a thrown error).
 class DeviceProfileService {
@@ -36,6 +40,9 @@ class DeviceProfileService {
   /// * UA-CH `platform` beats UA-string sniffing when present.
   /// * UA-CH `architecture` + `bitness` beat any UA-string arch token —
   ///   the only signal that reliably separates Windows-ARM from Windows-x64.
+  /// * On Android UA-CH carries no arch at all (Chromium returns empty
+  ///   strings); `navigator.platform`'s `armv8l`/`aarch64`/`armv7l` token is
+  ///   what decides arm64 vs a genuine 32-bit ARMv7 device.
   /// * Apple-Silicon Safari/Chrome both print a compat "Intel Mac OS X" UA —
   ///   that string is useless on macOS; UA-CH is the only honest source, and
   ///   Safari defaults to arm64 (Apple's modern baseline).
@@ -118,7 +125,30 @@ class DeviceProfileService {
     }
 
     final ua = probe.userAgent.toLowerCase();
-    if (ua.contains('arm64') || ua.contains('aarch64')) return DeviceArch.arm64;
+    final navPlatform = probe.platform.toLowerCase();
+
+    // 64-bit ARM tokens first: UA-CH returns *empty* architecture/bitness on
+    // Android phones (Chromium's user_agent_utils.cc), and the reduced Android
+    // UA carries no arch — so navigator.platform is the only signal there.
+    // Chrome on 64-bit Android reports "Linux armv8l" or "Linux aarch64";
+    // 32-bit builds report "Linux armv7l".
+    if (ua.contains('aarch64') || navPlatform.contains('aarch64')) {
+      return DeviceArch.arm64;
+    }
+    if (ua.contains('armv8') || navPlatform.contains('armv8')) {
+      return DeviceArch.arm64;
+    }
+    if (ua.contains('armv7') || navPlatform.contains('armv7')) {
+      return DeviceArch.armv7;
+    }
+    if (ua.contains('arm64')) return DeviceArch.arm64;
+    // Legacy 32-bit ARM without a distinguishing token (plain "arm" in a UA
+    // string): honest unknown — the resolver falls back to a universal APK
+    // rather than promising a v7a build we can't verify.
+    if (os == DeviceOs.android &&
+        (ua.contains('arm') || navPlatform.contains('arm'))) {
+      return DeviceArch.unknown;
+    }
 
     // x64 hints that are meaningful *per platform* — 'Intel Mac OS X' appears
     // in the UA of Apple-Silicon Macs too (Safari compat), so 'intel' never

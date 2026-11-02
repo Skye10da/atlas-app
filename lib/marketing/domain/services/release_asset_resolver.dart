@@ -77,12 +77,17 @@ class ReleaseAssetResolver {
 
   static const Map<DeviceArch, List<String>> _archTokens = {
     DeviceArch.x64: ['x64', 'x86_64', 'amd64', 'win64', 'intel'],
-    DeviceArch.arm64: ['arm64', 'aarch64', 'arm64-v8a'],
+    DeviceArch.arm64: ['arm64', 'aarch64', 'arm64-v8a', 'armv8a'],
+    DeviceArch.armv7: ['armeabi', 'armv7'],
   };
 
   /// Every arch token merged — plain literal because const spreads over
   /// map entries aren't const-evaluable (and the strings must stay in sync
   /// with the table above; the resolver tests pin that).
+  ///
+  /// `armeabi` must be here: an `armeabi-v7a` APK carries no arm64-style
+  /// token, and anything missing from this list is treated as a universal
+  /// asset — which historically served the armv7 build to arm64 visitors.
   static const List<String> _allArchTokens = [
     'x64',
     'x86_64',
@@ -92,6 +97,9 @@ class ReleaseAssetResolver {
     'arm64',
     'aarch64',
     'arm64-v8a',
+    'armv8a',
+    'armeabi',
+    'armv7',
   ];
 
   /// Resolves the download for [profile]; never returns null. On no match the
@@ -153,18 +161,34 @@ class ReleaseAssetResolver {
       }
     }
 
-    final pick = exact ?? universal ?? otherArch;
+    // An ABI-mismatched APK does not run/emulate anywhere on Android the way
+    // a Windows arm64 client tolerates an x64 zip, so when the arch is
+    // unknown Android must be fed a universal APK or honestly pointed at the
+    // release page — never a guessed-ABI build. Known arches still win via
+    // the exact slot above.
+    final pick =
+        exact ??
+        universal ??
+        (profile.os == DeviceOs.android ? null : otherArch);
     if (pick == null) return _fallback(versionLabel: version, url: releasesUrl);
 
     final lower = pick.name.toLowerCase();
     final archLabel = nameHas(lower, _archTokens[DeviceArch.arm64]!)
         ? 'arm64'
+        : nameHas(lower, _archTokens[DeviceArch.armv7]!)
+        ? 'ARMv7'
         : nameHas(lower, _archTokens[DeviceArch.x64]!)
         ? 'x64'
-        : wantedArch == DeviceArch.arm64
-        ? 'arm64'
-        : wantedArch == DeviceArch.x64
-        ? 'x64'
+        // Only a matched-arch exact pick may borrow the profile's arch for
+        // naming; a universal fallback must not claim an ABI it doesn't ship.
+        : exact != null
+        ? wantedArch == DeviceArch.arm64
+              ? 'arm64'
+              : wantedArch == DeviceArch.armv7
+              ? 'ARMv7'
+              : wantedArch == DeviceArch.x64
+              ? 'x64'
+              : null
         : null;
     final osLabel = _osDisplay(profile.os);
     final qualifier = archLabel != null ? ' ($archLabel)' : '';
@@ -205,6 +229,8 @@ class ReleaseAssetResolver {
         ? 'arm64'
         : nameContains(lower, _archTokens[DeviceArch.arm64]!)
         ? 'arm64'
+        : nameContains(lower, _archTokens[DeviceArch.armv7]!)
+        ? 'ARMv7'
         : nameContains(lower, _archTokens[DeviceArch.x64]!)
         ? 'x64'
         : null;

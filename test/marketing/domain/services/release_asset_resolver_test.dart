@@ -91,6 +91,90 @@ void main() {
       expect(resolved.isExactMatch, isTrue);
     });
 
+    test('armv7 device gets the armeabi-v7a apk, labeled ARMv7', () {
+      final release = releaseWith([
+        asset('atlas-v1.0.8-android.apk'),
+        asset('atlas-v1.0.8-android-arm64-v8a.apk'),
+        asset('atlas-v1.0.8-android-armeabi-v7a.apk'),
+      ]);
+      const profile = DeviceProfile(
+        os: DeviceOs.android,
+        arch: DeviceArch.armv7,
+        osVersion: '',
+      );
+
+      final resolved = resolver.resolve(release: release, profile: profile);
+
+      expect(resolved.downloadUrl, contains('android-armeabi-v7a'));
+      expect(resolved.isExactMatch, isTrue);
+      expect(resolved.label, 'Atlas 1.0.8 for Android (ARMv7)');
+    });
+
+    test('armv8a-named assets match an arm64 profile', () {
+      final release = releaseWith([asset('atlas-v1.0.8-android-armv8a.apk')]);
+      const profile = DeviceProfile(
+        os: DeviceOs.android,
+        arch: DeviceArch.arm64,
+        osVersion: '',
+      );
+
+      final resolved = resolver.resolve(release: release, profile: profile);
+
+      expect(resolved.downloadUrl, contains('android-armv8a'));
+      expect(resolved.isExactMatch, isTrue);
+      expect(resolved.label, 'Atlas 1.0.8 for Android (arm64)');
+    });
+
+    test(
+      'unknown-arch android without a universal apk falls back honestly',
+      () {
+        final release = releaseWith([
+          asset('atlas-v1.0.8-android-arm64-v8a.apk'),
+          asset('atlas-v1.0.8-android-armeabi-v7a.apk'),
+        ]);
+        const profile = DeviceProfile(
+          os: DeviceOs.android,
+          arch: DeviceArch.unknown,
+          osVersion: '',
+        );
+
+        final resolved = resolver.resolve(release: release, profile: profile);
+
+        // Never a guessed ABI: arm64-v8a refuses to install on 32-bit-only
+        // phones, so the release page is the only safe answer.
+        expect(resolved.isExactMatch, isFalse);
+        expect(resolved.downloadUrl, release.releasePageUrl);
+      },
+    );
+
+    test('armv7 device without a v7a artifact gets the universal apk', () {
+      final release = releaseWith([
+        asset('atlas-v1.0.8-android.apk'),
+        asset('atlas-v1.0.8-android-arm64-v8a.apk'),
+      ]);
+      const profile = DeviceProfile(
+        os: DeviceOs.android,
+        arch: DeviceArch.armv7,
+        osVersion: '',
+      );
+
+      final resolved = resolver.resolve(release: release, profile: profile);
+
+      expect(resolved.downloadUrl, contains('v1.0.8-android.apk'));
+      expect(resolved.isExactMatch, isTrue);
+      expect(resolved.label, 'Atlas 1.0.8 for Android');
+    });
+
+    test('armeabi-v7a asset is arch-tagged in the manual chooser grid', () {
+      final release = releaseWith([
+        asset('atlas-v1.0.8-android-armeabi-v7a.apk'),
+      ]);
+
+      final downloads = resolver.allDownloads(release);
+
+      expect(downloads.map((d) => d.label), ['Android (ARMv7)']);
+    });
+
     test('legacy android names still match on arch tokens', () {
       final release = releaseWith([
         asset('atlas-android-arm64-v1.0.7.apk', size: 48213),

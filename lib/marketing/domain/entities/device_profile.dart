@@ -7,8 +7,9 @@ enum DeviceOs { windows, macos, linux, android, ios, other }
 
 /// CPU architecture as *reported by the browser*. This describes the client
 /// device, not the build we might download for it — the resolver decides
-/// which artifact fits.
-enum DeviceArch { x64, arm64, unknown }
+/// which artifact fits. [armv7] is a genuine 32-bit ARM device (Android
+/// `navigator.platform` "Linux armv7l"); [arm64] covers aarch64/armv8.
+enum DeviceArch { x64, arm64, armv7, unknown }
 
 /// Immutable input collected from the browser before classification.
 ///
@@ -115,6 +116,7 @@ class DeviceProfile {
     final archLabel = switch (arch) {
       DeviceArch.x64 => ' (x64)',
       DeviceArch.arm64 => ' (ARM64)',
+      DeviceArch.armv7 => ' (ARMv7)',
       DeviceArch.unknown => '',
     };
     return '$osLabel$archLabel';
