@@ -10,18 +10,23 @@ import 'package:atlas_app/marketing/presentation/content/landing_content.dart';
 /// device detector; when present the primary CTA names the resolved download
 /// and a micro-line explains the auto-matching. When detection degraded, the
 /// hero shows the neutral "Download the app" rather than a pretend match.
+///
+/// [onTryDemo] opens the in-app demo flow (landing → splash → library) for
+/// visitors who want to sample reading without an install.
 class LandingHero extends StatelessWidget {
   const LandingHero({
     super.key,
     required this.versionLabel,
     required this.onDownload,
     required this.onSeeHow,
+    required this.onTryDemo,
     this.deviceSummary,
   });
 
   final String versionLabel;
   final VoidCallback onDownload;
   final VoidCallback onSeeHow;
+  final VoidCallback onTryDemo;
   final String? deviceSummary;
 
   @override
@@ -105,6 +110,11 @@ class LandingHero extends StatelessWidget {
                   _HeroSecondaryCta(
                     accent: colorScheme.primary,
                     onPressed: onSeeHow,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  _HeroTryDemoCta(
+                    accent: colorScheme.secondary,
+                    onPressed: onTryDemo,
                   ),
                 ],
               ),
@@ -247,6 +257,47 @@ class _HeroSecondaryCta extends StatelessWidget {
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroTryDemoCta extends StatelessWidget {
+  const _HeroTryDemoCta({required this.accent, required this.onPressed});
+
+  final Color accent;
+  final VoidCallback onPressed;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(AppSpacing.borderRadiusFull),
+      child: GlassCapsule(
+        borderRadius: AppSpacing.borderRadiusFull,
+        blur: 24,
+        strong: true,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.xl,
+            vertical: AppSpacing.md,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.play_arrow, size: 18, color: accent),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'Try the demo',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],

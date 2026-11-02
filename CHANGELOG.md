@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Web landing-page default + "Try the demo" entry** — the web app now opens on the marketing landing page (`/`) instead of the splash gate; the landing hero gains a "Try the demo" CTA that opens the in-app flow (`/splash` → library) so first-time web visitors can sample reading without installing. The splash now continues into the library on web (the demo path); native onboarding behavior is unchanged.
 - **Round-eight reader revamp** — melted-in dock (chapter strip + capsule row), full-screen title bar redesign, new `ReaderContentsSheet` / `ReaderQuickSettingsSheet`, and reworked panels (`reader_bottom_nav.dart`, `reader_chrome_bar.dart`, `continuous_reader_layout.dart`). Story Intelligence widgets unified under `lib/intelligence/presentation/widgets/`.
 - **Customizable reader dock** — `ReaderDockPrefs` + `dock_prefs_provider.dart` persist an ordered capsule action list (promote Search / Atlas / Auto-scroll / Redownload out of the More menu; hide defaults; More always last), chapter-strip visibility toggles (Chapter·% / clock / battery), and the auto-scroll start speed. `ReaderDockCustomizeSheet` edits them; opens from the More menu or a long-press on the chapter strip.
 - **Auto-scroll dock strip** — pause/resume + speed (px/s label) + stop pinned under the chrome; keeps controls reachable with the chrome hidden. Start speed comes from dock prefs (`AutoScrollStrip`).

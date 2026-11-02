@@ -108,15 +108,16 @@ class SplashScreen extends HookConsumerWidget {
           }
           final start = await ref.read(startLocationProvider.future);
           if (!context.mounted) return;
-          if (start == OnboardingRoutes.onboarding) {
-            context.go(OnboardingRoutes.onboarding);
+          // Flutter Web is the public face of Atlas — first-time visitors land
+          // on the marketing landing page (the router's web default), never on
+          // the splash gate. The in-app demo entry lands here and continues
+          // into the library; deep-linked paths still resolve untouched.
+          if (kIsWeb) {
+            context.go('/library');
             return;
           }
-          // Flutter Web is the public face of Atlas — first-time visitors
-          // land on the marketing page, not inside the reader. Deep-linked
-          // paths still resolve through the router untouched.
-          if (kIsWeb) {
-            context.go('/');
+          if (start == OnboardingRoutes.onboarding) {
+            context.go(OnboardingRoutes.onboarding);
             return;
           }
           context.go('/library');

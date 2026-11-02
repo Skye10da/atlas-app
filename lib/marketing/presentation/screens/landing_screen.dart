@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/marketing/presentation/content/landing_content.dart';
 import 'package:atlas_app/marketing/presentation/providers/landing_providers.dart';
@@ -56,6 +57,12 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
     );
   }
 
+  /// Demo entry: the landing page → splash → app start (library). Only the
+  /// web landing page offers this; native installs go straight to onboarding.
+  void _openDemo() {
+    context.go('/splash');
+  }
+
   @override
   Widget build(BuildContext context) {
     final release =
@@ -95,6 +102,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                         : null,
                     onDownload: () => _handleNavigate('#download'),
                     onSeeHow: () => _handleNavigate('#features'),
+                    onTryDemo: _openDemo,
                   ),
                   const LandingSocialProof(),
                   const LandingHowItWorks(),

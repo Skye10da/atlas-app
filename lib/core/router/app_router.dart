@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -109,9 +110,13 @@ abstract final class AppRouter {
     router.push('/whats-new');
   }
 
+  /// The web app opens on the marketing landing page; native builds open at
+  /// the splash gate (onboarding → library).
+  static const String initialLocation = kIsWeb ? '/' : '/splash';
+
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/splash',
+    initialLocation: initialLocation,
     redirect: (context, state) {
       // Discover was folded into the Library home and the "Find new" tab.
       if (state.uri.path == '/discover') return '/library';

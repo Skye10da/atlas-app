@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/marketing/domain/entities/device_profile.dart';
 import 'package:atlas_app/marketing/presentation/content/landing_content.dart';
@@ -39,6 +40,7 @@ void main() {
       expect(find.text('Read widely. Know deeply.'), findsOneWidget);
       expect(find.text('Download the app'), findsWidgets);
       expect(find.text('See how it works'), findsOneWidget);
+      expect(find.text('Try the demo'), findsOneWidget);
       expect(find.text('v1.0.7 · Latest release'), findsOneWidget);
       expect(find.text('Detected: this device · release 1.0.7'), findsNothing);
       expect(
@@ -153,5 +155,50 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(LandingDownloadCta), findsOneWidget);
+  });
+
+  testWidgets('landing hero try-the-demo entry opens the app flow', (
+    tester,
+  ) async {
+    final splashPaths = <String>[];
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const LandingScreen(),
+        ),
+        GoRoute(
+          path: '/splash',
+          builder: (context, state) {
+            splashPaths.add(state.uri.path);
+            return const Scaffold(body: SizedBox());
+          },
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          latestReleaseProvider.overrideWith(
+            (ref) async => fallbackGitHubRelease,
+          ),
+          deviceProfileProvider.overrideWith(
+            (ref) async => DeviceProfile.fallback,
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The demo entry exists on the hero and is discoverable without scrolling.
+    expect(find.text('Try the demo'), findsOneWidget);
+    await tester.tap(find.text('Try the demo'));
+    await tester.pumpAndSettle();
+
+    // Tapping it opens the splash screen, which continues into the library.
+    expect(splashPaths, ['/splash']);
   });
 }
