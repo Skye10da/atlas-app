@@ -79,7 +79,7 @@ dependencies:
   scrollable_positioned_list: ^0.3.8
 
   # PDF rendering/viewer (pdfrx, on top of PDFium)
-  pdfrx: ^2.4.7
+  pdfrx: ^2.11.0
 
   # Realistic 3D-like physical page flip engine
   real_page_flip: ^2.2.9
@@ -110,7 +110,7 @@ dependency_overrides:
   permission_handler_android: 13.0.1
   # pdfrx_engine 0.4.5 ships a nullable-cache null-safety bug that breaks
   # Windows x64 compilation of pdf_file_cache.dart (fixed upstream in 0.4.6).
-  pdfrx_engine: ^0.4.6
+  pdfrx_engine: ^0.9.0
 
 dev_dependencies:
   flutter_test:
