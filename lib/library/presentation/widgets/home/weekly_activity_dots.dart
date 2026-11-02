@@ -104,15 +104,19 @@ class WeeklyActivityDots extends StatelessWidget {
                 const SizedBox(height: AppSpacing.smMd),
                 Row(
                   children: [
-                    _StatNumber(
-                      value: '$today',
-                      label: today == 1 ? 'chapter today' : 'chapters today',
-                      accent: true,
+                    Flexible(
+                      child: _StatNumber(
+                        value: '$today',
+                        label: today == 1 ? 'chapter today' : 'chapters today',
+                        accent: true,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.lg),
-                    _StatNumber(
-                      value: '$totalChapters',
-                      label: 'this week',
+                    Flexible(
+                      child: _StatNumber(
+                        value: '$totalChapters',
+                        label: 'this week',
+                      ),
                     ),
                   ],
                 ),
