@@ -934,8 +934,8 @@ class _LibraryHomeSection extends ConsumerWidget {
                   children: [
                     Expanded(child: hero),
                     const SizedBox(width: AppSpacing.md),
-                    SizedBox(
-                      width: 280,
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 280),
                       child: WeeklyActivityDots(
                         weeklyActivity: weekly,
                         totalChapters: weekChapters,

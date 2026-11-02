@@ -164,7 +164,7 @@ void main() {
       expect(resolveCountryCodeForLanguage('ig'), 'NG');
       expect(resolveCountryCodeForLanguage('zu'), 'ZA');
       expect(resolveCountryCodeForLanguage('af'), 'ZA');
-      expect(resolveCountryCodeForLanguage('ig'), 'ZA');
+      expect(resolveCountryCodeForLanguage('xh'), 'ZA');
       expect(resolveCountryCodeForLanguage('zh-TW'), 'TW');
       expect(resolveCountryCodeForLanguage('zh-CN'), 'CN');
       expect(resolveCountryCodeForLanguage('fr-CA'), 'CA');

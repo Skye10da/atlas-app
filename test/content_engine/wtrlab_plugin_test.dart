@@ -159,6 +159,7 @@ void main() {
         PluginCapability.chapterList,
         PluginCapability.chapterContent,
         PluginCapability.cover,
+        PluginCapability.trending,
       });
       expect(
         TemplateRegistry.defaults.resolve('wtrlab'),

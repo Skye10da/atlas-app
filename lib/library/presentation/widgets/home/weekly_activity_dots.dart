@@ -176,11 +176,13 @@ class WeeklyActivityStrip extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
-              _StatNumber(
-                value: '$today',
-                label: today == 1 ? 'chapter today' : 'chapters today',
-                accent: true,
-                alignEnd: true,
+              Flexible(
+                child: _StatNumber(
+                  value: '$today',
+                  label: today == 1 ? 'chapter today' : 'chapters today',
+                  accent: true,
+                  alignEnd: true,
+                ),
               ),
               Icon(
                 Icons.chevron_right_rounded,

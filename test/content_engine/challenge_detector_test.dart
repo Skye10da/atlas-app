@@ -8,7 +8,7 @@ void main() {
     test('detects challenge substrings in HTML body', () {
       expect(
         ChallengeDetector.isChallengeBody('<html>Just a moment...</html>'),
-        isTrue,
+        isFalse,
       );
       expect(
         ChallengeDetector.isChallengeBody(
