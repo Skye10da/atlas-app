@@ -105,8 +105,13 @@ class UniversalOriginRuleStore {
 
   Future<Map<String, UniversalOriginRule>> _loadAll() async {
     if (_cache != null) return _cache!;
+    final file = File(filePath);
+    // First run: nothing persisted yet. An empty store is the normal state,
+    // not a failure — don't log it (a missing file used to surface as a
+    // PathNotFoundException warning on every fresh install).
+    if (!await file.exists()) return _cache = {};
     try {
-      final raw = await File(filePath).readAsString();
+      final raw = await file.readAsString();
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic> || decoded.isEmpty) {
         _cache = {};
