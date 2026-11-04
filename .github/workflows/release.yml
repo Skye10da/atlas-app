@@ -187,6 +187,10 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Full history + tags so tool/build_release_notes.py can fall back to
+          # the commit messages between the previous tag and this one.
+          fetch-depth: 0
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -205,6 +209,14 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: python3 tool/generate_manifest.py "${TAG#v}" dist manifest.json
 
+      # GitHub's --generate-notes only yields PR titles plus a
+      # "Full Changelog: .../compare/..." link. Release bodies must be the
+      # real changelog (CHANGELOG.md, falling back to commit messages).
+      - name: Build release notes from the changelog
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python3 tool/build_release_notes.py "$TAG" CHANGELOG.md release-notes.md
+
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -218,4 +230,4 @@ jobs:
           fi
           if grep -q -- '-' <<<"${TAG#v}"; then FLAGS="$FLAGS --prerelease"; fi
           if [ "$DRY_RUN" = "true" ]; then FLAGS="$FLAGS --draft"; fi
-          gh release create "$TAG" --generate-notes $FLAGS dist/*
+          gh release create "$TAG" --notes-file release-notes.md $FLAGS dist/*

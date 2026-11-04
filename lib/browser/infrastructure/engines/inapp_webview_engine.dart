@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -72,6 +73,12 @@ class InappWebviewEngine implements BrowserWebEngine {
   /// loop, which pegs the renderer and freezes the whole window. This backs a
   /// `shouldOverrideUrlLoading` burst guard that cancels those reloads.
   final Map<String, List<int>> _recentLoadAttempts = {};
+
+  /// Native pull-to-refresh (swipe-down) controller, created lazily and owned
+  /// for the engine's lifetime so re-creating the widget on every build never
+  /// re-binds the native SwipeRefreshLayout. Android/iOS only — desktop
+  /// engines (WebView2) simply ignore it.
+  PullToRefreshController? _pullToRefreshController;
 
   @override
   ValueNotifier<String?> get currentUrl => _currentUrl;
@@ -265,7 +272,7 @@ class InappWebviewEngine implements BrowserWebEngine {
   void _registerSelectionHandler(InAppWebViewController controller) {
     controller.addJavaScriptHandler(
       handlerName: _kSelectionHandlerName,
-      callback: (arguments) {
+      callback: (List<dynamic> arguments) {
         final raw = arguments.isNotEmpty ? arguments.first : null;
         final selection = _selectionFromPayload(raw);
         if (selection != null && !selection.isEmpty) {
@@ -456,6 +463,17 @@ class InappWebviewEngine implements BrowserWebEngine {
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
         ),
       ]),
+      // Pull-to-refresh is native only: the in-app-webview platform contracts
+      // implement the refresh controller for mobile shells, while desktop
+      // (WebView2) and other hosts leave it unimplemented and crash on
+      // construction — so only create it where the host supports it.
+      pullToRefreshController: _pullToRefreshController ??=
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS)
+          ? PullToRefreshController(
+              onRefresh: () => reload(),
+            )
+          : null,
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         domStorageEnabled: true,
@@ -514,6 +532,12 @@ class InappWebviewEngine implements BrowserWebEngine {
         _lastError.value = null;
         _refreshNavState();
         _injectSelectionBridge();
+        // Release the pull-to-refresh spinner once the refreshed page is in.
+        try {
+          _pullToRefreshController?.endRefreshing();
+        } on Object {
+          // Platforms without native pull-to-refresh (desktop) throw; ignore.
+        }
       },
       onProgressChanged: (controller, progress) {
         if (_disposed) return;

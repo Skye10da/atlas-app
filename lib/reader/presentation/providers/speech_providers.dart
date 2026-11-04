@@ -172,16 +172,23 @@ final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
       session.becomingNoisyEventStream.listen((_) {
         controller.pause();
       });
+      var pausedForInterruption = false;
       session.interruptionEventStream.listen((event) {
         if (event.begin) {
           if (event.type == AudioInterruptionType.duck) {
             // Ducking handled by OS; keep playing at lower volume.
           } else {
+            // Interrupted (phone call / assistant / focus loss) — pause and
+            // remember so we can resume automatically when it ends.
+            pausedForInterruption = true;
             controller.pause();
           }
         } else {
-          if (event.type != AudioInterruptionType.duck) {
-            // Resume after call/assistant ends if needed - leave manual.
+          if (event.type != AudioInterruptionType.duck && pausedForInterruption) {
+            // Interruption ended — resume narration automatically instead of
+            // leaving the driver paused indefinitely (playback gets stuck).
+            pausedForInterruption = false;
+            controller.resumeSpeech();
           }
         }
       });

@@ -5,14 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'package:atlas_app/core/content_acquisition/adapters/searchable_source.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
+import 'package:atlas_app/core/design_system/atoms/source_visuals.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/library/presentation/providers/source_browser_provider.dart';
 
 /// Native start page shown for blank browser tabs.
 ///
 /// Surfaces the app's content sources as "Open site" tiles — the browsery
-/// stand-in for the old /sources screen. Searchable sources also offer a
-/// secondary "Search" chip that drops into the existing search workflow.
+/// stand-in for the old /sources screen. Tiles open the source's own web home
+/// in the immersive browser; a secondary "Search" chip is only offered when
+/// no home page is known for a source.
 class BrowserStartPage extends ConsumerWidget {
   const BrowserStartPage({super.key, required this.onOpenSite});
 
@@ -86,8 +88,10 @@ class BrowserStartPage extends ConsumerWidget {
       title: source.sourceName,
       meta: meta,
       onOpen: homeUrl == null ? null : () => onOpenSite(homeUrl),
-      onSearch: () =>
-          context.push('/sources/${Uri.encodeComponent(source.sourceName)}'),
+      onSearch: homeUrl == null
+          ? () =>
+              context.push('/sources/${Uri.encodeComponent(source.sourceName)}')
+          : null,
     );
   }
 
@@ -98,7 +102,10 @@ class BrowserStartPage extends ConsumerWidget {
     return _StartSiteMeta(
       icon: isNovel ? Icons.menu_book_rounded : Icons.public_rounded,
       description: isNovel ? 'Web novel source' : 'Explore new books',
-      homeUrl: source is PluginSource ? source.manifest.baseUrl : null,
+      homeUrl: sourceHomeUrl(
+        source.sourceName,
+        declaredHomeUrl: source is PluginSource ? source.manifest.baseUrl : null,
+      ),
     );
   }
 }
@@ -120,13 +127,13 @@ class _StartSiteTile extends StatelessWidget {
     required this.title,
     required this.meta,
     required this.onOpen,
-    required this.onSearch,
+    this.onSearch,
   });
 
   final String title;
   final _StartSiteMeta meta;
   final VoidCallback? onOpen;
-  final VoidCallback onSearch;
+  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -160,15 +167,16 @@ class _StartSiteTile extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: ActionChip(
-                        avatar: const Icon(Icons.search, size: 16),
-                        label: const Text('Search'),
-                        visualDensity: VisualDensity.compact,
-                        onPressed: onSearch,
+                    if (onSearch != null)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: ActionChip(
+                          avatar: const Icon(Icons.search, size: 16),
+                          label: const Text('Search'),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: onSearch,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

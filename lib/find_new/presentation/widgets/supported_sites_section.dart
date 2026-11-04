@@ -12,8 +12,9 @@ import 'package:atlas_app/core/design_system/atoms/source_visuals.dart';
 import 'package:atlas_app/library/presentation/providers/source_browser_provider.dart';
 
 /// The hub's live directory of every supported website (built-in catalogs
-/// + installed plugins). Each card deep-links into its per-site search
-/// (`/sources/<name>`) or the site's web home in the immersive reader.
+/// + installed plugins). Each card opens the site itself — its web home in
+/// the immersive reader — never the per-site search page. An unknown home
+/// disables the card instead of falling through to search.
 class SupportedSitesSection extends ConsumerWidget {
   const SupportedSitesSection({
     this.totalSupportedSourcesCount,
@@ -148,11 +149,11 @@ class _SiteCard extends StatelessWidget {
       brightness: theme.brightness,
     );
 
-    String? homeUrl;
-    if (source is PluginSource) {
-      homeUrl = (source as PluginSource).manifest.baseUrl;
-    }
-    homeUrl ??= knownSourceHomeUrls[source.sourceName];
+    final homeUrl = sourceHomeUrl(
+      source.sourceName,
+      declaredHomeUrl:
+          source is PluginSource ? (source as PluginSource).manifest.baseUrl : null,
+    );
     final validHome = homeUrl != null &&
         Uri.tryParse(homeUrl)?.hasScheme == true;
 
@@ -203,11 +204,22 @@ class _SiteCard extends StatelessWidget {
             children: [
               Expanded(
                 child: FilledButton.tonalIcon(
-                  onPressed: () => context.push(
-                    '/sources/${Uri.encodeComponent(source.sourceName)}',
-                  ),
-                  icon: const Icon(Icons.manage_search_rounded, size: 16),
-                  label: const Text('Search'),
+                  // Never drops into the per-site search page — the card
+                  // always aims at the source's own home in the browser.
+                  onPressed: validHome
+                      ? () {
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute(
+                              builder: (_) => SourceImmersiveScreen(
+                                initialUrl: homeUrl,
+                                sourceTitle: source.sourceName,
+                              ),
+                            ),
+                          );
+                        }
+                      : null,
+                  icon: const Icon(Icons.public_rounded, size: 16),
+                  label: const Text('Open site'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     textStyle: const TextStyle(
@@ -217,28 +229,6 @@ class _SiteCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              if (validHome)
-                IconButton(
-                  tooltip: 'Open site in web reader',
-                  style: IconButton.styleFrom(
-                    backgroundColor: cs.surfaceContainerHighest.withValues(alpha: 0.5),
-                  ),
-                  onPressed: () {
-                    Navigator.of(context, rootNavigator: true).push(
-                      MaterialPageRoute(
-                        builder: (_) => SourceImmersiveScreen(
-                          initialUrl: homeUrl!,
-                          sourceTitle: source.sourceName,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.public_rounded,
-                    size: 18,
-                  ),
-                ),
             ],
           ),
         ],

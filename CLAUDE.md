@@ -27,6 +27,22 @@ Before ANY `git commit`, you MUST:
 NEVER commit with `--no-verify` or any flag that bypasses checks.
 NEVER commit if `analyze_files` reports even a single warning.
 
+## Changelog Rule (Commit & Release)
+
+Full policy: `.agents/rules/commit-changelog.md`. Enforced for every commit and
+every release:
+
+1. **Every commit updates `CHANGELOG.md`** under `## [Unreleased]` with the
+   full changelog of the change (what changed, why, user-visible effect) and
+   repeats it in the commit body. Never commit with only a subject.
+2. **Every release publishes that changelog, not a commit link.** Release
+   bodies come from `tool/build_release_notes.py` (CHANGELOG.md version
+   section, else `[Unreleased]`, else commit messages). `--generate-notes` and
+   "Full Changelog: .../compare/..." links are forbidden.
+3. Before tagging, promote `## [Unreleased]` to
+   `## [<version>] - <YYYY-MM-DD>` in the same commit as the version bump.
+
+
 ## Temp File Cleanup Rule
 
 At the end of EVERY operation/task, you MUST clean up all temporary files and folders created during that operation:

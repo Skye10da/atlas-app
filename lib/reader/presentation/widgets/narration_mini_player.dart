@@ -241,9 +241,13 @@ class NarrationMiniPlayer extends ConsumerWidget {
     switch (status) {
       case NarrationStatus.playing:
         await engine.pause();
+        break;
       case NarrationStatus.paused:
-      case NarrationStatus.idle:
         await engine.resume();
+        break;
+      case NarrationStatus.idle:
+        await engine.start();
+        break;
     }
   }
 }

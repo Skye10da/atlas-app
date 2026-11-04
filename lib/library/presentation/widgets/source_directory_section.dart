@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import 'package:atlas_app/browser/presentation/screens/source_immersive_screen.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/atoms/source_visuals.dart';
@@ -9,7 +9,8 @@ import 'package:atlas_app/library/presentation/providers/source_browser_provider
 
 /// The saved supported-sites directory, deliberately minimal: one small list
 /// of rows arranged like bookmarks — icon dot, name, chevron. Tapping a row
-/// opens that site's search screen. Lives on the Find new screen.
+/// opens that site's own web home in the immersive browser. Lives on the
+/// Find new screen.
 class SourceListSection extends ConsumerWidget {
   const SourceListSection({super.key});
 
@@ -65,9 +66,20 @@ class _SourceRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
-        onTap: () => context.push(
-          '/sources/${Uri.encodeComponent(sourceName)}',
-        ),
+        // Open the source's own web home in the immersive browser — never the
+        // per-site search page.
+        onTap: () {
+          final homeUrl = sourceHomeUrl(sourceName);
+          if (homeUrl == null) return;
+          Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute(
+              builder: (_) => SourceImmersiveScreen(
+                initialUrl: homeUrl,
+                sourceTitle: sourceName,
+              ),
+            ),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.xs,

@@ -23,6 +23,14 @@ class FlutterTtsDriver implements SpeechDriver {
   final _events = StreamController<SpeechDriverEvent>.broadcast();
   final _stateController = StreamController<DriverState>.broadcast();
 
+  /// Upper bound on a single utterance. flutter_tts's Android side re-queues
+  /// `speak` whenever the OS TextToSpeech connection is dead ("not bound to
+  /// TTS engine") and only resolves the future after a successful re-init —
+  /// so when the engine keeps failing, `await speak()` hangs forever and no
+  /// DriverError is ever emitted. The timeout converts that silent hang into
+  /// a DriverError so SpeechEngine's retry/restart recovery can run.
+  static const _speakTimeout = Duration(seconds: 60);
+
   @override
   Stream<SpeechDriverEvent> get events => _events.stream;
 
@@ -177,8 +185,10 @@ class FlutterTtsDriver implements SpeechDriver {
     }
     try {
       final cleanText = _cleanTtsText(item.text);
-      final result = await _tts.speak(cleanText);
-      // flutter_tts returns 1 on success, 0/null on failure (common on Windows SAPI with empty voice)
+      final result =
+          await _tts.speak(cleanText).timeout(_speakTimeout, onTimeout: () => 0);
+      // flutter_tts returns 1 on success, 0/null on failure (common on Windows
+      // SAPI with empty voice, or an unbound Android TTS connection).
       if (result == 0 || result == null) {
         _addEvent(DriverError('TTS speak returned $result for ${item.language} voice=$_selectedVoiceId'));
       }
@@ -198,7 +208,7 @@ class FlutterTtsDriver implements SpeechDriver {
   Future<void> resume(SpeechItem item) async {
     try {
       final cleanText = _cleanTtsText(item.text);
-      await _tts.speak(cleanText);
+      await _tts.speak(cleanText).timeout(_speakTimeout, onTimeout: () => 0);
     } catch (e) {
       _addEvent(DriverError(e.toString()));
     }
@@ -235,6 +245,23 @@ class FlutterTtsDriver implements SpeechDriver {
     try {
       await _tts.stop();
     } catch (_) {}
+    // On Android, re-instantiating the Dart wrapper does NOT rebind the
+    // native engine — the plugin owns a single TextToSpeech per FlutterEngine
+    // and `_tts = FlutterTts()` only swaps the callback wiring. When the OS
+    // connection is dead ("not bound to TTS engine"), force a fresh bind via
+    // setEngine(getDefaultEngine): the plugin sets ttsStatus back to null and
+    // constructs a new TextToSpeech, completing the future on init success
+    // or failure. Falls back to the plain re-wrap if that path fails.
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        final engine = await _tts.getDefaultEngine;
+        if (engine is String && engine.isNotEmpty) {
+          await _tts
+              .setEngine(engine)
+              .timeout(const Duration(seconds: 15), onTimeout: () => null);
+        }
+      } catch (_) {}
+    }
     _tts = FlutterTts();
     _wireCallbacks();
     _setState(DriverState.ready);

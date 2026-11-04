@@ -1,5 +1,6 @@
 package com.atlasapp.sk.atlas_app
 
+import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -172,21 +173,31 @@ class MainActivity : AudioServiceActivity() {
     private fun installApk(apkFile: File): String {
         if (!apkFile.exists() || apkFile.length() == 0L) return "missing"
         if (!canRequestInstall()) return "permission_needed"
-        val uri: Uri = FileProvider.getUriForFile(
-            this,
-            "$packageName.fileprovider",
-            apkFile,
-        )
-        val install = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
-            data = uri
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
         return try {
+            val uri: Uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                apkFile,
+            )
+            // ACTION_VIEW + the APK MIME type is the current sideload intent;
+            // ACTION_INSTALL_PACKAGE is deprecated (API 29) and several OEM
+            // installers ignore it, which made the Install button look dead.
+            val install = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, APK_MIME)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // Explicit grant as well: Android 11+ requires the receiver to
+                // be able to read the content:// APK.
+                clipData = ClipData.newRawUri(null, uri)
+            }
             startActivity(install)
             "launched"
         } catch (e: Exception) {
-            Toast.makeText(applicationContext, "No installer available", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                applicationContext,
+                "Could not open the installer: ${e.message}",
+                Toast.LENGTH_LONG,
+            ).show()
             "error:${e.message}"
         }
     }

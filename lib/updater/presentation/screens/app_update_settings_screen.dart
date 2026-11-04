@@ -145,6 +145,7 @@ class _StatusCard extends StatelessWidget {
     required this.color,
     required this.title,
     required this.message,
+    this.error,
     this.trailing,
     this.onPrimary,
     this.primaryLabel,
@@ -210,6 +211,7 @@ class _StatusCard extends StatelessWidget {
           color: Colors.green,
           title: 'Atlas ${state.release?.version ?? "update"} downloaded',
           message: 'Everything verified — install when you are ready.',
+          error: state.error,
           primaryLabel: 'Install now',
           onPrimary: state.installAvailable
               ? () => ref.read(updaterControllerProvider.notifier).install()
@@ -222,13 +224,16 @@ class _StatusCard extends StatelessWidget {
               ? null
               : () => _showReleaseNotesDialog(context, state.release!),
         ),
-      UpdaterPhase.installing => const _StatusCard(
+      UpdaterPhase.installing => _StatusCard(
           icon: Icons.autorenew_rounded,
           color: Colors.orange,
           title: 'Handing off to the installer…',
           message:
               'Windows: Atlas restarts when the swap finishes. Android: accept '
               'the system prompt.',
+          secondaryLabel: 'Installer did not open? Try again',
+          onSecondary: () =>
+              ref.read(updaterControllerProvider.notifier).retryInstall(),
         ),
       UpdaterPhase.error => _StatusCard(
           icon: Icons.error_outline_rounded,
@@ -311,6 +316,10 @@ class _StatusCard extends StatelessWidget {
   final Color color;
   final String title;
   final String message;
+
+  /// Non-fatal action feedback (e.g. the missing "install unknown apps"
+  /// opt-in). Rendered in-place so a failed tap is never silent.
+  final String? error;
   final Widget? trailing;
   final String? primaryLabel;
   final VoidCallback? onPrimary;
@@ -356,6 +365,28 @@ class _StatusCard extends StatelessWidget {
                 color: colors.onSurfaceVariant,
               ),
             ),
+            if (error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: AppSpacing.iconSm,
+                    color: colors.error,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      error!,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colors.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             ?trailing,
             if (primaryLabel != null ||
                 secondaryLabel != null ||

@@ -10,6 +10,7 @@ import 'package:atlas_app/updater/domain/entities/changelog_entry.dart';
 import 'package:atlas_app/updater/infrastructure/github_release_repository.dart';
 import 'package:atlas_app/updater/infrastructure/installers/android_apk_installer.dart';
 import 'package:atlas_app/updater/infrastructure/installers/windows_updater.dart';
+import 'package:atlas_app/updater/infrastructure/platform_target.dart';
 import 'package:atlas_app/updater/infrastructure/release_downloader.dart';
 
 /// Raw SharedPreferences for the updater feature; main.dart pre-warms this
@@ -37,6 +38,12 @@ final appUpdateRepositoryProvider = Provider<GithubReleaseRepository>((ref) {
 final releaseDownloaderProvider = Provider<ReleaseDownloader>((ref) {
   return ReleaseDownloader(client: ref.watch(httpClientProvider));
 });
+
+/// Artifact key for the device Atlas is running on. Indirected through a
+/// provider so tests can exercise the Android install branch on any host.
+final updaterPlatformTargetProvider = Provider<String>(
+  (ref) => platformTargetForCurrentDevice(),
+);
 
 final androidApkInstallerProvider = Provider<AndroidApkInstaller>(
   (ref) => AndroidApkInstaller(),

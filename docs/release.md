@@ -55,7 +55,12 @@ instead (`ANDROID_KEYSTORE_B64` secret is required).
 ## 2. Cut a release
 
 1. Bump `version:` in `pubspec.yaml` (e.g. `1.0.8+8`).
-2. Commit, then tag **with the identical version** and push:
+2. Promote the changelog: move everything under `## [Unreleased]` in
+   `CHANGELOG.md` to `## [1.0.8] - <today>` (version without the `+build`
+   suffix). The GitHub Release body is generated from that section — see
+   `.agents/rules/commit-changelog.md`.
+3. Commit both files with the full changelog in the commit body, then tag
+   **with the identical version** and push:
 
    ```bash
    git tag v1.0.8+8
@@ -66,12 +71,15 @@ instead (`ANDROID_KEYSTORE_B64` secret is required).
    must always increase. Tags containing `-` (e.g. `v1.0.9-rc.1+9`) publish as
    prereleases — visible only on the beta channel.
 
-3. The workflow (`.github/workflows/release.yml`) builds the Android APK and
+4. The workflow (`.github/workflows/release.yml`) builds the Android APK and
    Windows zip, hashes every artifact, and publishes a GitHub Release with a
-   generated `manifest.json` — the feed the app consumes. It also runs
+   generated `manifest.json` — the feed the app consumes. The release body is
+   produced by `tool/build_release_notes.py` from `CHANGELOG.md` (falling back
+   to commit messages between releases); it never uses GitHub's
+   `--generate-notes` compare link. The workflow also runs
    `flutter analyze`/`flutter test` as a zero-warning gate before building.
 
-4. Dry-running: start the workflow manually from the **Actions** tab
+5. Dry-running: start the workflow manually from the **Actions** tab
    (`workflow_dispatch`, `dry_run: true`) — everything builds but the release
    stays a draft.
 
@@ -104,4 +112,7 @@ pushing the tag.
 
 * Draft release has `atlas-v…-android.apk`, `atlas-v…-windows.zip` and
   `manifest.json`.
+* The release body is the promoted `CHANGELOG.md` section (real Added/Changed/
+  Fixed entries). It must not be empty and must not consist of a
+  `Full Changelog: .../compare/...` link.
 * Install old APK → receive new tag → app shows the update → install works.

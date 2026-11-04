@@ -267,6 +267,27 @@ void main() {
       expect(find.text('novel:lib-1'), findsOneWidget);
     });
 
+    testWidgets('"More from site" opens the site itself in the browser, '
+        'not a search page', (tester) async {
+      tester.view.physicalSize = const Size(1000, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await pumpHub(tester, withLibraryBook: false);
+
+      await tester.enterText(find.byType(TextField), 'cultivation');
+      await tester.pumpAndSettle();
+
+      // The button carries the offering's site origin (its scheme+host),
+      // never a per-site search route.
+      expect(find.text('More from site'), findsOneWidget);
+      expect(find.textContaining('/sources/'), findsNothing);
+      await tester.tap(find.text('More from site'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('web:https://a.example'), findsOneWidget);
+    });
+
     testWidgets('clearing the query returns to the dashboard',
         (tester) async {
       tester.view.physicalSize = const Size(1000, 4000);

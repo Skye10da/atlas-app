@@ -133,7 +133,7 @@ class UpdaterController extends AsyncNotifier<UpdaterState> {
     _prefs = store;
 
     final packageInfo = await PackageInfo.fromPlatform();
-    final platformTarget = _platformTarget();
+    final platformTarget = ref.read(updaterPlatformTargetProvider);
     final installAvailable =
         platformTarget == 'android' || platformTarget == 'windows';
 
@@ -258,10 +258,11 @@ class UpdaterController extends AsyncNotifier<UpdaterState> {
     final release = current?.release;
     if (current == null || release == null || !current.canAct) return;
 
-    final artifact = release.artifactFor(_platformTarget());
+    final platform = ref.read(updaterPlatformTargetProvider);
+    final artifact = release.artifactFor(platform);
     if (artifact == null) {
       throw AppUpdateException(
-        'No ${_platformTarget()} artifact was attached to this release.',
+        'No $platform artifact was attached to this release.',
       ); // surfaced by the caller as a snackbar; state stays available
     }
 
@@ -301,8 +302,9 @@ class UpdaterController extends AsyncNotifier<UpdaterState> {
   }
 
   /// Hands the verified file to the platform installer. On Android 8+ the OS
-  /// may bounce the user to "install unknown apps"; the native side guides
-  /// that flow and the state machine re-arms for a second tap.
+  /// requires an explicit per-app "install unknown apps" opt-in before any
+  /// installer dialog can appear; when it is missing we jump straight to that
+  /// system screen and re-arm the button instead of leaving the tap inert.
   Future<void> install() async {
     final current = state.valueOrNull;
     final path = _prefs.downloadedPath;
@@ -312,22 +314,47 @@ class UpdaterController extends AsyncNotifier<UpdaterState> {
       return;
     }
 
-    state = AsyncData(current.copyWith(phase: UpdaterPhase.installing));
+    state = AsyncData(
+      current.copyWith(phase: UpdaterPhase.installing, error: null),
+    );
 
-    final target = _platformTarget();
-    String result;
-    switch (target) {
-      case 'android':
-        result = await ref.read(androidApkInstallerProvider).requestInstall(path);
-      case 'windows':
+    final target = ref.read(updaterPlatformTargetProvider);
+    if (target == 'windows') {
+      try {
         // swap-on-restart: spawn the swap script, then let the process exit so
         // it can replace files while no Atlas process holds them.
         await ref.read(windowsUpdaterProvider).apply(path);
-        state = AsyncData(current.copyWith(phase: UpdaterPhase.installing));
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-        exit(0); // Never returns — the swap script takes over.
-      default:
-        result = 'unsupported';
+      } catch (e, st) {
+        AppLogger.error('Updater: Windows swap script failed', e, st);
+        state = AsyncData(
+          current.copyWith(
+            phase: UpdaterPhase.error,
+            error: 'Could not prepare the Windows update — download it again.',
+          ),
+        );
+        return;
+      }
+      state = AsyncData(current.copyWith(phase: UpdaterPhase.installing));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      exit(0); // Never returns — the swap script takes over.
+    }
+
+    var result = 'unsupported';
+    if (target == 'android') {
+      final installer = ref.read(androidApkInstallerProvider);
+      try {
+        result = await installer.requestInstall(path);
+      } catch (e, st) {
+        // A channel-level surprise must never strand the UI in `installing`.
+        AppLogger.error('Updater: install hand-off failed', e, st);
+        result = 'error:exception';
+      }
+      if (result == 'permission_needed') {
+        // No installer dialog can appear until the user opts in. Opening the
+        // toggle is the whole point of returning this token — without it the
+        // Install button looks dead.
+        await installer.openInstallPermissionSettings();
+      }
     }
 
     state = AsyncData(
@@ -349,6 +376,18 @@ class UpdaterController extends AsyncNotifier<UpdaterState> {
           ),
       },
     );
+  }
+
+  /// Re-arms the Android install button after the system installer was
+  /// dismissed without installing (the phase would otherwise be stuck on
+  /// `installing` for the life of the process).
+  Future<void> retryInstall() async {
+    final current = state.valueOrNull;
+    if (current == null || current.phase != UpdaterPhase.installing) return;
+    state = AsyncData(
+      current.copyWith(phase: UpdaterPhase.readyToInstall, error: null),
+    );
+    await install();
   }
 
   /// Discards a downloaded file (user changed mind or the file aged out).
@@ -382,16 +421,4 @@ class UpdaterController extends AsyncNotifier<UpdaterState> {
       ),
     );
   }
-}
-
-/// `android` / `windows` / `macos` / `linux` / `ios` / `web` — matches the
-/// artifact keys produced by tool/generate_manifest.py.
-String _platformTarget() {
-  if (kIsWeb) return 'web';
-  if (Platform.isAndroid) return 'android';
-  if (Platform.isIOS) return 'ios';
-  if (Platform.isMacOS) return 'macos';
-  if (Platform.isWindows) return 'windows';
-  if (Platform.isLinux) return 'linux';
-  return 'unknown';
 }

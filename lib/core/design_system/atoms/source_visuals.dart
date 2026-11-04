@@ -17,6 +17,68 @@ const Map<String, String> knownSourceHomeUrls = {
   'Royal Road': 'https://www.royalroad.com',
 };
 
+/// Canonical home pages for the shipped plugin catalog sites, mirroring each
+/// plugin's `baseUrl`. The manifest base is authoritative because it can
+/// carry a real path — Novel Hub's site home is
+/// `https://live.mangabooth.com/novelreader`, so deriving the home from a
+/// novel page's scheme+host origin opens a broken bare-domain page instead.
+/// Keep in sync with `atlas-plugins/*/plugin.json`.
+const Map<String, String> pluginSiteHomeUrls = {
+  'AllNovelFull': 'https://novgo.net',
+  'FreeWebNovel': 'https://freewebnovel.com',
+  'MVLEMPYR': 'https://www.mvlempyr.io',
+  'Novel Hub': 'https://live.mangabooth.com/novelreader',
+  'NovelDrama': 'https://noveldrama.org',
+  'NovelFull': 'https://novelfull.net',
+  'ReadNovelFull': 'https://readnovelfull.com',
+  'WTR-LAB': 'https://wtr-lab.com',
+};
+
+/// The home page a supported source should open in the immersive browser.
+///
+/// Resolution order:
+/// 1. an explicitly declared home URL ([declaredHomeUrl]) — the live plugin
+///    manifest's base when one is at hand;
+/// 2. the plugin catalog's declared base URL ([pluginSiteHomeUrls]) —
+///    authoritative, path-bearing bases survive intact;
+/// 3. the curated registry of built-in sources ([knownSourceHomeUrls]);
+/// 4. the scheme+host origin of [sitePageUrl], when it is an http(s) address
+///    from that same site (mirror domains keep working).
+///
+/// Returns null when the source has no known web home.
+String? sourceHomeUrl(
+  String sourceName, {
+  String? sitePageUrl,
+  String? declaredHomeUrl,
+}) {
+  final declared = declaredHomeUrl ??
+      pluginSiteHomeUrls[sourceName] ??
+      knownSourceHomeUrls[sourceName];
+  if (declared != null && Uri.tryParse(declared)?.hasScheme == true) {
+    return declared;
+  }
+  final origin = homeOriginUrl(sitePageUrl);
+  if (origin != null) return origin;
+  // Learned-origin sources are keyed by bare origin host (e.g.
+  // "novelfiction.net"), so treat dotted, single-token names as hosts too.
+  if (sourceName.trim() == sourceName && sourceName.contains('.')) {
+    return 'https://$sourceName';
+  }
+  return null;
+}
+
+/// Reduces a page URL to its site origin (`scheme://host`) — the address that
+/// opens the site's home page. Returns null for non-http(s) URLs.
+String? homeOriginUrl(String? pageUrl) {
+  if (pageUrl == null) return null;
+  final uri = Uri.tryParse(pageUrl);
+  if (uri == null) return null;
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme != 'http' && scheme != 'https') return null;
+  if (uri.host.isEmpty) return null;
+  return '${uri.scheme}://${uri.host}';
+}
+
 /// Picks (icon, light background color, icon color) for a source.
 /// `isNovel` drives the fallback for unbranded web-novel plugin sites.
 (IconData, Color, Color) sourceVisuals(String sourceName, {required bool isNovel}) {

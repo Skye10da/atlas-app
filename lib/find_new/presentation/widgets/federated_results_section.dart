@@ -161,6 +161,16 @@ class _ResultCard extends ConsumerWidget {
     context.push('/web?url=${Uri.encodeComponent(url)}');
   }
 
+  /// The site's own home page, resolved through the canonical registry: the
+  /// plugin's declared base URL first (which can carry a path — Novel Hub's
+  /// site home IS `https://live.mangabooth.com/novelreader`), then the
+  /// offered page's site origin as a fallback. Never a search page.
+  String? _siteHomePageUrl() {
+    final offering = book.primaryOffering;
+    if (offering == null) return null;
+    return sourceHomeUrl(offering.sourceName, sitePageUrl: offering.importUrl);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -324,19 +334,23 @@ class _ResultCard extends ConsumerWidget {
                           ),
                         ),
                       const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: () => context.push(
-                          '/sources/${Uri.encodeComponent(primary?.sourceName ?? '')}',
-                        ),
-                        icon: const Icon(Icons.manage_search_rounded, size: 18),
-                        label: const Text('More from site'),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 10,
+                      // "More from site": the site itself, straight into the
+                      // immersive source browser (never the per-site search
+                      // page).
+                      if (_siteHomePageUrl() case final homeUrl?)
+                        TextButton.icon(
+                          onPressed: () => context.push(
+                            '/web?url=${Uri.encodeComponent(homeUrl)}',
+                          ),
+                          icon: const Icon(Icons.public_rounded, size: 18),
+                          label: const Text('More from site'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 10,
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ],
