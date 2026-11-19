@@ -120,9 +120,13 @@ class HtmlTemplate implements Template {
   /// and key on `?novelId=<id>`; `POST` archives (Madara/WordPress-manga) send
   /// a form body whose `{novelId}` placeholder is filled from the novel page,
   /// resolving the path against the base URL or the novel page per
-  /// `ajaxArchive.ajaxBase`. Returns null when the archive isn't configured,
-  /// the novel id is missing, the request fails, or nothing usable is parsed —
-  /// so the caller falls back to walking the paginated index.
+  /// `ajaxArchive.ajaxBase`. Novel-relative archives (`ajaxBase: "novel"`,
+  /// e.g. the Madara `<novel>/ajax/chapters` endpoint) are POST archives keyed
+  /// by the manga id (`action=manga_get_chapters`, `manga=<novelId>`); pages are
+  /// fetched by bumping the `page` query parameter until a page adds no new
+  /// chapters (bounded by `_maxPages`). Returns null when the archive isn't
+  /// configured, the novel id is missing, the request fails, or nothing usable is
+  /// parsed — so the caller falls back to walking the paginated index.
   Future<List<ChapterRef>?> _fetchAjaxArchive(
     PluginContext context,
     SelectorSet selectors,
@@ -147,51 +151,85 @@ class HtmlTemplate implements Template {
 
     final path = ajaxPath.startsWith('/') ? ajaxPath : '/$ajaxPath';
     final isPost = (archive?.method ?? 'GET') == 'POST';
-    final String html;
-    try {
-      if (isPost) {
-        final form = {
-          for (final entry in (archive?.form ?? const {}).entries)
-            entry.key: entry.value.replaceAll('{novelId}', novelId),
-        };
-        final target = (archive?.ajaxBase == 'novel')
-            ? Uri.parse(
-                novelUrl,
-              ).replace(path: _appendPath(Uri.parse(novelUrl).path, path))
-            : base.replace(path: _appendPath(base.path, path));
-        html = await context.transport.fetchHtmlPost(
-          target,
-          headers: headers,
-          form: form,
-        );
-      } else {
-        final uri = base.replace(
-          path: _appendPath(base.path, path),
-          queryParameters: {'novelId': novelId},
-        );
-        html = await context.transport.fetchHtml(uri, headers: headers);
-      }
-    } on Object {
-      return null;
-    }
+    final paginate = archive?.ajaxBase == 'novel';
 
     final refs = <ChapterRef>[];
     final seen = <String>{};
-    final itemSelector = archive?.item ?? chapterList.item;
-    final titleSpec = archive?.title ?? chapterList.title;
-    final urlSpec = archive?.url ?? chapterList.url;
-    for (final item
-        in parser
-            .parse(_archiveHtml(html, archive?.responseField))
-            .querySelectorAll(itemSelector)) {
-      final title = selectors.extract(item, titleSpec);
-      final rawUrl = selectors.extract(item, urlSpec);
-      if (title == null || title.isEmpty || rawUrl == null || rawUrl.isEmpty) {
-        continue;
+    var page = 1;
+    while (true) {
+      final String html;
+      try {
+        if (paginate) {
+          // Novel-relative archives (`ajaxBase: "novel"`, Madara's
+          // `<novel>/ajax/chapters` endpoint) are POST endpoints: the manga id
+          // travels in the form (`action=manga_get_chapters`, `manga=<novelId>`)
+          // and pages are selected with a `page` query parameter — verified
+          // live against Madara sources (e.g. sleepytranslations), where the
+          // `page` form field is ignored.
+          final form = <String, String>{
+            for (final entry in (archive?.form ?? const {}).entries)
+              entry.key: entry.value.replaceAll('{novelId}', novelId),
+          };
+          var target = Uri.parse(novelUrl).replace(
+            path: _appendPath(Uri.parse(novelUrl).path, path),
+          );
+          if (page > 1) {
+            target = target.replace(queryParameters: {'page': '$page'});
+          }
+          html = await context.transport.fetchHtmlPost(
+            target,
+            headers: headers,
+            form: form.isNotEmpty
+                ? form
+                : <String, String>{'action': 'manga_get_chapters', 'manga': novelId},
+          );
+        } else if (isPost) {
+          final form = <String, String>{
+            for (final entry in (archive?.form ?? const {}).entries)
+              entry.key: entry.value.replaceAll('{novelId}', novelId),
+          };
+          final target = base.replace(path: _appendPath(base.path, path));
+          html = await context.transport.fetchHtmlPost(
+            target,
+            headers: headers,
+            form: form,
+          );
+        } else {
+          final uri = base.replace(
+            path: _appendPath(base.path, path),
+            queryParameters: {'novelId': novelId},
+          );
+          html = await context.transport.fetchHtml(uri, headers: headers);
+        }
+      } on Object {
+        // Keep chapters already collected; only fall back to the index walk
+        // when the archive yielded nothing.
+        return refs.isEmpty ? null : refs;
       }
-      final url = base.resolve(rawUrl).toString();
-      if (!seen.add(url)) continue;
-      refs.add(ChapterRef(title: title, url: url));
+
+      final pageRefs = <ChapterRef>[];
+      final itemSelector = archive?.item ?? chapterList.item;
+      final titleSpec = archive?.title ?? chapterList.title;
+      final urlSpec = archive?.url ?? chapterList.url;
+      for (final item
+          in parser
+              .parse(_archiveHtml(html, archive?.responseField))
+              .querySelectorAll(itemSelector)) {
+        final title = selectors.extract(item, titleSpec);
+        final rawUrl = selectors.extract(item, urlSpec);
+        if (title == null || title.isEmpty || rawUrl == null || rawUrl.isEmpty) {
+          continue;
+        }
+        final url = base.resolve(rawUrl).toString();
+        if (seen.contains(url)) continue;
+        seen.add(url);
+        pageRefs.add(ChapterRef(title: title, url: url));
+      }
+      if (pageRefs.isEmpty) break;
+      refs.addAll(pageRefs);
+      if (!paginate) break;
+      if (page >= _maxPages) break;
+      page++;
     }
     return refs.isEmpty ? null : refs;
   }

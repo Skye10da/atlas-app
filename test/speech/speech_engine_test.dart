@@ -17,8 +17,10 @@ class FakeDriver implements SpeechDriver {
   DriverState _driverState = DriverState.ready;
 
   final spoken = <SpeechItem>[];
+  final resumed = <SpeechItem>[];
   int configureCount = 0;
   int restartCount = 0;
+  int stopCount = 0;
 
   @override
   Stream<SpeechDriverEvent> get events => _events.stream;
@@ -48,11 +50,16 @@ class FakeDriver implements SpeechDriver {
   Future<void> pause() async => _driverState = DriverState.paused;
 
   @override
-  Future<void> resume(SpeechItem item) async =>
-      _driverState = DriverState.speaking;
+  Future<void> resume(SpeechItem item) async {
+    resumed.add(item);
+    _driverState = DriverState.speaking;
+  }
 
   @override
-  Future<void> stop() async => _driverState = DriverState.stopped;
+  Future<void> stop() async {
+    stopCount++;
+    _driverState = DriverState.stopped;
+  }
 
   @override
   Future<List<VoiceDescriptor>> listVoices() async => const [];
@@ -233,4 +240,77 @@ void main() {
       expect(seen.whereType<SpeechError>().length, 1);
     },
   );
+
+  group('swapDriver', () {
+    test('stops the old driver, routes playback to the new one, and '
+        're-configures from the session settings', () async {
+      await engine.loadSession(_session());
+      await engine.start();
+      await _flush();
+      expect(driver.spoken, hasLength(1));
+
+      final next = FakeDriver();
+      await engine.swapDriver(next);
+
+      expect(identical(engine.driver, next), isTrue);
+      expect(driver.stopCount, 1, reason: 'old driver is stopped');
+      expect(
+        next.configureCount,
+        1,
+        reason: 'new driver inherits the session settings',
+      );
+
+      // Playback goes to the new driver, and its events drive the queue:
+      // DriverCompleted emitted by `next` must advance the session.
+      await engine.start();
+      await _flush();
+      expect(next.spoken.map((i) => i.text), ['sentence 0/0']);
+      next.complete();
+      await _flush();
+      expect(next.spoken.map((i) => i.text).toList(), [
+        'sentence 0/0',
+        'sentence 0/1',
+      ]);
+      expect(
+        seen.whereType<SpeechStopped>().length,
+        greaterThanOrEqualTo(1),
+        reason: 'swap emits SpeechStopped so the transport resets',
+      );
+    });
+
+    test(
+      'resumes narration on the new driver when swapping mid-play',
+      () async {
+        await engine.loadSession(_session());
+        await engine.start();
+        await _flush();
+
+        final next = FakeDriver();
+        await engine.swapDriver(next);
+
+        expect(
+          next.resumed.map((i) => i.text),
+          ['sentence 0/0'],
+          reason:
+              'a mid-playback swap continues the current sentence '
+              'on the new driver (e.g. pack finished installing)',
+        );
+        expect(next.spoken, isEmpty, reason: 'resume, not a re-start');
+      },
+    );
+
+    test('swapping to the same driver is a no-op', () async {
+      await engine.loadSession(_session());
+      await engine.start();
+      await _flush();
+      final eventsBefore = seen.length;
+
+      await engine.swapDriver(driver);
+
+      expect(identical(engine.driver, driver), isTrue);
+      expect(driver.stopCount, 0);
+      expect(driver.configureCount, 1, reason: 'only the loadSession one');
+      expect(seen.length, eventsBefore);
+    });
+  });
 }

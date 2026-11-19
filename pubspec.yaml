@@ -75,6 +75,10 @@ dependencies:
   just_audio: ^0.10.4
   audio_session: ^0.2.1
 
+  # In-app neural TTS core (vendored FFI plugin; see NTD design doc).
+  atlas_tts:
+    path: atlas_tts
+
   # Indexed chapter navigation (replaces pixel-offset jump estimation)
   scrollable_positioned_list: ^0.3.8
 

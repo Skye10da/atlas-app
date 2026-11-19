@@ -1,16 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/design_system/molecules/glass_surfaces.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/providers/pronunciation_providers.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/views/pronunciation_sheet_view.dart';
+import 'package:atlas_app/reader/presentation/widgets/narration_speed_control.dart';
+import 'package:atlas_app/reader/presentation/widgets/settings/voice_gallery_sheet.dart';
+import 'package:atlas_app/reader/speech/packs/voice_pack_providers.dart';
 import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
-import 'package:atlas_app/reader/speech/speech_models.dart';
 
-/// Narration settings panel: voice, speed/pitch, sleep timer and profiles.
-/// Reads and writes through [narrationSettingsProvider], live-applying to the
-/// engine so an active session picks changes up immediately.
+/// Narration settings panel, revamped around the M5 voice gallery: a voice
+/// hero card opening the bottom-sheet gallery, an everyday row (speed pill +
+/// sleep timer), and a collapsed "Behavior & storage" group. Reads and
+/// writes through [narrationSettingsProvider], live-applying to the engine
+/// so an active session picks changes up immediately.
 class NarrationTab extends ConsumerWidget {
   const NarrationTab({super.key});
 
@@ -20,129 +27,63 @@ class NarrationTab extends ConsumerWidget {
     final settings = async.value;
     if (settings == null) return const SizedBox.shrink();
 
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final entries = ref.watch(voiceGalleryEntriesProvider);
 
     void apply(NarrationSettings next) {
       ref.read(narrationSettingsProvider.notifier).apply(next);
     }
+
+    final voiceLabel = resolveVoiceLabel(entries, settings.selectedVoiceId);
+    // Pitch is a platform-TTS axis only; VITS packs have no pitch control
+    // (NTD §3.3), so the slider hides whenever a neural pack is selected.
+    final isPlatformVoice = isPlatformVoiceSelected(
+      entries,
+      settings.selectedVoiceId,
+    );
 
     return ListView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       children: [
-        Text('Narration', style: textTheme.titleSmall),
+        Text('Narration', style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.md),
 
-        _VoicePicker(
-          voices: ref.watch(speechVoicesProvider).valueOrNull ?? const [],
+        _VoiceCard(
+          label: voiceLabel,
           selectedVoiceId: settings.selectedVoiceId,
-          onSelected: (id) => apply(
-            settings.copyWith(selectedVoiceId: id, clearActiveProfile: true),
-          ),
         ),
-        const Divider(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
 
-        _profileSection(context, settings, apply),
-        const Divider(height: AppSpacing.lg),
-
-        _labeledSlider(
-          context,
-          'Speech rate',
-          settings.speechRate,
-          0.4,
-          2.0,
-          (v) =>
-              apply(settings.copyWith(speechRate: v, clearActiveProfile: true)),
-        ),
-        _labeledSlider(
-          context,
-          'Pitch',
-          settings.speechPitch,
-          0.4,
-          2.0,
-          (v) => apply(
-            settings.copyWith(speechPitch: v, clearActiveProfile: true),
-          ),
-        ),
-        const Divider(height: AppSpacing.lg),
-
-        _sleepTimerSection(context, settings, apply),
-        const Divider(height: AppSpacing.lg),
-
-        SwitchListTile(
-          title: const Text('Auto-advance chapters'),
-          subtitle: const Text('Continuously play across all chapters'),
-          value: settings.autoAdvanceChapter,
-          onChanged: (v) => apply(settings.copyWith(autoAdvanceChapter: v)),
-        ),
-        SwitchListTile(
-          title: const Text('Announce chapter title'),
-          subtitle: const Text('Speak chapter title before each chapter'),
-          value: settings.announceChapterTitle,
-          onChanged: (v) => apply(settings.copyWith(announceChapterTitle: v)),
-        ),
-        SwitchListTile(
-          title: const Text('Sync scroll to narration'),
-          value: settings.syncScrollToNarration,
-          onChanged: (v) => apply(settings.copyWith(syncScrollToNarration: v)),
-        ),
-        const Divider(height: AppSpacing.lg),
-        SwitchListTile(
-          title: const Text('Offline TTS cache'),
-          subtitle: const Text(
-            'Cache synthesis for faster gapless playback (currently-reading only)',
-          ),
-          value: settings.ttsCacheEnabled,
-          onChanged: (v) => apply(settings.copyWith(ttsCacheEnabled: v)),
-        ),
-        if (settings.ttsCacheEnabled) ...[
-          const SizedBox(height: AppSpacing.sm),
-          _CacheSizePicker(
-            value: settings.ttsCacheMaxMb,
-            onChanged: (v) => apply(settings.copyWith(ttsCacheMaxMb: v)),
-          ),
-        ],
-        const Divider(height: AppSpacing.lg),
-        SwitchListTile(
-          title: const Text('Pronunciation'),
-          subtitle: const Text('Apply ...  --  """  and custom rules'),
-          value: settings.pronunciationEnabled,
-          onChanged: (v) => apply(settings.copyWith(pronunciationEnabled: v)),
-        ),
-        if (settings.pronunciationEnabled) ...[
-          const SizedBox(height: AppSpacing.xs),
-          const _PronunciationSection(),
-        ],
-      ],
-    );
-  }
-
-  Widget _profileSection(
-    BuildContext context,
-    NarrationSettings settings,
-    void Function(NarrationSettings) apply,
-  ) {
-    final textTheme = Theme.of(context).textTheme;
-    final colors = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Profiles', style: textTheme.bodyMedium),
-        const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
+        // Everyday row: speed presets (glass chip-pill) and the sleep timer.
+        Row(
           children: [
-            for (final profile in NarrationProfile.defaults)
-              ChoiceChip(
-                label: Text(profile.name),
-                selected: settings.activeProfile == profile.name,
-                selectedColor: colors.primary.withValues(alpha: 0.15),
-                onSelected: (_) => apply(profile.applyTo(settings)),
-              ),
+            Text('Speed', style: theme.textTheme.bodyMedium),
+            const Spacer(),
+            NarrationSpeedControl(
+              accent: theme.colorScheme.primary,
+              color: theme.colorScheme.onSurface,
+            ),
           ],
         ),
+        _sleepTimerSection(context, settings, apply),
+
+        if (isPlatformVoice) ...[
+          _labeledSlider(
+            context,
+            'Pitch',
+            settings.speechPitch,
+            0.4,
+            2.0,
+            (v) => apply(
+              settings.copyWith(speechPitch: v, clearActiveProfile: true),
+            ),
+          ),
+        ],
+        const Divider(height: AppSpacing.lg),
+
+        _behaviorSection(context, settings, apply),
       ],
     );
   }
@@ -157,6 +98,7 @@ class NarrationTab extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: AppSpacing.md),
         Text('Sleep timer', style: textTheme.bodyMedium),
         const SizedBox(height: AppSpacing.sm),
         Wrap(
@@ -231,6 +173,84 @@ class NarrationTab extends ConsumerWidget {
     );
   }
 
+  /// Collapsed secondary group: playback behavior switches, TTS cache and
+  /// pronunciation. Hidden behind an expansion tile so the everyday row
+  /// stays short.
+  Widget _behaviorSection(
+    BuildContext context,
+    NarrationSettings settings,
+    void Function(NarrationSettings) apply,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: colors.surfaceContainerHigh.withValues(alpha: 0.5),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          key: const ValueKey('behavior_storage'),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          shape: const Border(),
+          collapsedShape: const Border(),
+          title: const Text('Behavior & storage'),
+          initiallyExpanded: false,
+          children: [
+            SwitchListTile(
+              title: const Text('Auto-advance chapters'),
+              subtitle: const Text('Continuously play across all chapters'),
+              value: settings.autoAdvanceChapter,
+              onChanged: (v) => apply(settings.copyWith(autoAdvanceChapter: v)),
+            ),
+            SwitchListTile(
+              title: const Text('Announce chapter title'),
+              subtitle: const Text('Speak chapter title before each chapter'),
+              value: settings.announceChapterTitle,
+              onChanged: (v) =>
+                  apply(settings.copyWith(announceChapterTitle: v)),
+            ),
+            SwitchListTile(
+              title: const Text('Sync scroll to narration'),
+              value: settings.syncScrollToNarration,
+              onChanged: (v) =>
+                  apply(settings.copyWith(syncScrollToNarration: v)),
+            ),
+            SwitchListTile(
+              title: const Text('Offline TTS cache'),
+              subtitle: const Text(
+                'Cache synthesis for faster gapless playback '
+                '(currently-reading only)',
+              ),
+              value: settings.ttsCacheEnabled,
+              onChanged: (v) => apply(settings.copyWith(ttsCacheEnabled: v)),
+            ),
+            if (settings.ttsCacheEnabled) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _CacheSizePicker(
+                value: settings.ttsCacheMaxMb,
+                onChanged: (v) => apply(settings.copyWith(ttsCacheMaxMb: v)),
+              ),
+            ],
+            SwitchListTile(
+              title: const Text('Pronunciation'),
+              subtitle: const Text('Apply ...  --  """  and custom rules'),
+              value: settings.pronunciationEnabled,
+              onChanged: (v) =>
+                  apply(settings.copyWith(pronunciationEnabled: v)),
+            ),
+            if (settings.pronunciationEnabled) ...[
+              const SizedBox(height: AppSpacing.xs),
+              const _PronunciationSection(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _labeledSlider(
     BuildContext context,
     String label,
@@ -264,61 +284,90 @@ class NarrationTab extends ConsumerWidget {
   }
 }
 
-class _VoicePicker extends StatelessWidget {
-  const _VoicePicker({
-    required this.voices,
-    required this.selectedVoiceId,
-    required this.onSelected,
-  });
+/// Hero card for the current voice: label + source tag, tap opens the
+/// [VoiceGallerySheet]. Expressive shape: large-radius tonal card with the
+/// source icon riding a [GlassLens] droplet, matching the glass pills the
+/// rest of the narration UI speaks.
+class _VoiceCard extends StatelessWidget {
+  const _VoiceCard({required this.label, required this.selectedVoiceId});
 
-  final List<VoiceDescriptor> voices;
+  final String label;
   final String? selectedVoiceId;
-  final ValueChanged<String?> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Voice', style: textTheme.bodyMedium),
-        const SizedBox(height: AppSpacing.xs),
-        DropdownButtonFormField<String?>(
-          initialValue: selectedVoiceId != null && _hasVoice(selectedVoiceId!)
-              ? selectedVoiceId
-              : null,
-          isExpanded: true,
-          decoration: const InputDecoration(
-            isDense: true,
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.xs,
-            ),
-          ),
-          items: [
-            const DropdownMenuItem<String?>(
-              value: null,
-              child: Text('Platform default'),
-            ),
-            ...voices.map(
-              (v) => DropdownMenuItem<String?>(
-                value: v.id,
-                child: Text(
-                  '${v.locale} — ${v.id.split('@').first}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isNeural = _looksLikePackId(selectedVoiceId);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Material(
+      color: colors.surfaceContainerHigh.withValues(alpha: 0.7),
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const ValueKey('voice_card'),
+        onTap: () => unawaited(VoiceGallerySheet.show(context)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Positioned.fill(
+                      child: GlassLens(
+                        accent: colors.primary,
+                        isDark: isDark,
+                        radius: 13,
+                      ),
+                    ),
+                    Icon(
+                      isNeural ? Icons.auto_awesome : Icons.record_voice_over,
+                      size: 20,
+                      color: colors.primary,
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
-          onChanged: onSelected,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      isNeural
+                          ? 'On-device neural · offline'
+                          : 'Platform voice · tap to browse',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 
-  bool _hasVoice(String id) => voices.any((v) => v.id == id);
+  static bool _looksLikePackId(String? id) =>
+      id != null && (id.startsWith('vits-') || id.contains('piper-'));
 }
 
 class _CacheSizePicker extends StatelessWidget {
@@ -374,8 +423,14 @@ class _PronunciationSection extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Custom rules', style: Theme.of(context).textTheme.bodyMedium),
-                  Text('$active active / $count total', style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    'Custom rules',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Text(
+                    '$active active / $count total',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
               ),
             ),
@@ -416,12 +471,23 @@ class _PronunciationSection extends ConsumerWidget {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                ),
                 child: Row(
                   children: [
-                    Text('Pronunciations', style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      'Pronunciations',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                     const Spacer(),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                   ],
                 ),
               ),

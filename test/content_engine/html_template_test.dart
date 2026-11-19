@@ -352,7 +352,7 @@ void main() {
     );
 
     test(
-      'resolves a novel-relative POST archive against the novel page',
+      'resolves a novel-relative archive against the novel page',
       () async {
         final transport = FakeTransport()
           ..addHtml('https://example.com/series/x', '''
@@ -360,11 +360,8 @@ void main() {
         <div id="madara-chapters-holder" data-id="7"></div>
         <ul class="cl"><li><a href="/series/x/ch/2">Chapter 2</a></li></ul>
         </body></html>''')
-          ..addPostHtml(
-            'https://example.com/series/x/ajax/chapters',
-            '''
-        <html><body><li><a href="/series/x/ch/1">Chapter 1</a></li></body></html>''',
-          );
+          ..addPostHtml('https://example.com/series/x/ajax/chapters', '''
+        <html><body><li><a href="/series/x/ch/1">Chapter 1</a></li></body></html>''');
         const selectors = SelectorSet(
           chapterList: ChapterListSelectors(
             item: 'ul.cl li',
@@ -377,7 +374,7 @@ void main() {
               url: 'a@href',
               novelIdSelector: '#madara-chapters-holder@data-id',
               method: 'POST',
-              form: {'novelId': '{novelId}'},
+              form: {'action': 'manga_get_chapters', 'manga': '{novelId}'},
               ajaxBase: 'novel',
             ),
           ),
@@ -395,6 +392,51 @@ void main() {
         expect(refs.map((r) => r.title).toList(), ['Chapter 1']);
       },
     );
+
+    test('walks paginated ajax archives via the page parameter', () async {
+      final transport = FakeTransport()
+        ..addHtml('https://example.com/series/x', '''
+        <html><body>
+        <div id="madara-chapters-holder" data-id="7"></div>
+        </body></html>''')
+        ..addPostHtml('https://example.com/series/x/ajax/chapters', '''
+        <html><body><ul><li><a href="/series/x/ch/1">Chapter 1</a></li><li><a href="/series/x/ch/2">Chapter 2</a></li></ul></body></html>''')
+        ..addPostHtml('https://example.com/series/x/ajax/chapters?page=2', '''
+        <html><body><ul><li><a href="/series/x/ch/3">Chapter 3</a></li></ul></body></html>''');
+      const selectors = SelectorSet(
+        chapterList: ChapterListSelectors(
+          item: 'li',
+          title: 'a@text',
+          url: 'a@href',
+          ajaxPath: '/ajax/chapters',
+          ajaxArchive: AjaxArchiveSelectors(
+            item: 'li',
+            title: 'a@text',
+            url: 'a@href',
+            novelIdSelector: '#madara-chapters-holder@data-id',
+            method: 'POST',
+            form: {'novelId': '{novelId}'},
+            ajaxBase: 'novel',
+          ),
+        ),
+      );
+      final context = buildContext(
+        transport: transport,
+        selectors: selectors,
+      );
+
+      final refs = await const HtmlTemplate().chapterList(
+        context,
+        'https://example.com/series/x',
+      );
+
+      expect(refs.map((r) => r.title).toList(), ['Chapter 1', 'Chapter 2', 'Chapter 3']);
+      expect(refs.map((r) => r.url).toList(), [
+        'https://example.com/series/x/ch/1',
+        'https://example.com/series/x/ch/2',
+        'https://example.com/series/x/ch/3',
+      ]);
+    });
 
     test(
       'falls back to the paginated walk on a POST archive failure',

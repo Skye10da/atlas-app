@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/design_system/atoms/app_divider.dart';
+import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
+import 'package:atlas_app/core/design_system/molecules/icon_controls.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
@@ -9,6 +12,10 @@ import 'package:atlas_app/settings/presentation/providers/font_download_provider
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 import 'package:atlas_app/settings/presentation/widgets/settings_widgets.dart';
 
+/// Reading preferences — icon-first: a live text preview followed by
+/// self-explaining controls (size stepper, spacing glyphs, theme swatches,
+/// layout glyphs, keep-awake bead); the rare typography knobs (typeface,
+/// weight, letter tracking) sink behind an [AdvancedDisclosure].
 class ReadingSettingsScreen extends ConsumerWidget {
   const ReadingSettingsScreen({super.key});
 
@@ -22,10 +29,7 @@ class ReadingSettingsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(
           'Reading Preferences',
-          style: TextStyle(
-            fontFamily: 'Fraunces',
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(fontFamily: 'Fraunces', fontWeight: FontWeight.w700),
         ),
       ),
       body: settingsAsync.when(
@@ -36,6 +40,18 @@ class ReadingSettingsScreen extends ConsumerWidget {
           final fontFamilies = fontFamiliesAsync.valueOrNull ?? [];
 
           final resolvedTheme = settings.theme.resolve(colors);
+
+          // Highlight the spacing preset closest to the current line height.
+          var nearestSpacing = 1.3;
+          for (final preset in const [1.3, 1.6, 1.9]) {
+            if ((preset - settings.lineHeight).abs() <
+                (nearestSpacing - settings.lineHeight).abs()) {
+              nearestSpacing = preset;
+            }
+          }
+
+          SpacedLinesGlyph spacingGlyph(double gap) =>
+              SpacedLinesGlyph(gap: gap, color: colors.onSurfaceVariant);
 
           return Center(
             child: ConstrainedBox(
@@ -53,7 +69,9 @@ class ReadingSettingsScreen extends ConsumerWidget {
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     decoration: BoxDecoration(
                       color: resolvedTheme.background,
-                      borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.borderRadiusLg,
+                      ),
                       border: Border.all(
                         color: resolvedTheme.text.withValues(alpha: 0.18),
                         width: 1.5,
@@ -71,7 +89,11 @@ class ReadingSettingsScreen extends ConsumerWidget {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.menu_book_rounded, size: 16, color: resolvedTheme.text.withValues(alpha: 0.6)),
+                            Icon(
+                              Icons.menu_book_rounded,
+                              size: 16,
+                              color: resolvedTheme.text.withValues(alpha: 0.6),
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'LIVE TEXT PREVIEW',
@@ -79,7 +101,9 @@ class ReadingSettingsScreen extends ConsumerWidget {
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 1.2,
-                                color: resolvedTheme.text.withValues(alpha: 0.7),
+                                color: resolvedTheme.text.withValues(
+                                  alpha: 0.7,
+                                ),
                               ),
                             ),
                           ],
@@ -89,7 +113,10 @@ class ReadingSettingsScreen extends ConsumerWidget {
                           'Chapter 1 · The Beginning',
                           style: TextStyle(
                             fontFamily: settings.fontFamily,
-                            fontSize: (settings.fontSize * 1.15).clamp(14.0, 32.0),
+                            fontSize: (settings.fontSize * 1.15).clamp(
+                              14.0,
+                              32.0,
+                            ),
                             fontWeight: FontWeight.bold,
                             color: resolvedTheme.text,
                           ),
@@ -121,129 +148,222 @@ class ReadingSettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // 2. Typography Sliders Card
-                  _SettingsContainer(
-                    title: 'Typography',
-                    child: Column(
-                      children: [
-                        SliderTile(
-                          title: 'Font Size',
-                          subtitle: '${settings.fontSize.round()}px',
-                          value: settings.fontSize,
-                          min: 12,
-                          max: 28,
-                          divisions: 16,
-                          onChanged: notifier.setFontSize,
-                        ),
-                        const Divider(),
-                        SliderTile(
-                          title: 'Line Height',
-                          subtitle: settings.lineHeight.toStringAsFixed(1),
-                          value: settings.lineHeight,
-                          min: 1.0,
-                          max: 2.0,
-                          divisions: 10,
-                          onChanged: notifier.setLineHeight,
-                        ),
-                        const Divider(),
-                        SliderTile(
-                          title: 'Letter Spacing',
-                          subtitle: settings.letterSpacing.toStringAsFixed(1),
-                          value: settings.letterSpacing,
-                          min: 0.0,
-                          max: 5.0,
-                          divisions: 20,
-                          onChanged: notifier.setLetterSpacing,
-                        ),
-                        const Divider(),
-                        ChoiceTile<String?>(
-                          title: 'Reader Font',
-                          value: settings.fontFamily,
-                          options: [
-                            (null, 'System Default'),
-                            for (final family in fontFamilies) (family, family),
-                          ],
-                          onChanged: notifier.setFontFamily,
-                        ),
-                        const Divider(),
-                        ChoiceTile<int?>(
-                          title: 'Font Weight',
-                          value: settings.fontWeight,
-                          options: const [
-                            (null, 'Regular'),
-                            (400, 'Normal (400)'),
-                            (500, 'Medium (500)'),
-                            (600, 'SemiBold (600)'),
-                            (700, 'Bold (700)'),
-                          ],
-                          onChanged: notifier.setFontWeight,
-                        ),
-                        const Divider(),
-                        ChoiceTile<TextAlignment>(
-                          title: 'Text Alignment',
-                          value: settings.textAlignment,
-                          options: TextAlignment.values
-                              .map((a) => (a, a.label))
-                              .toList(),
-                          onChanged: notifier.setTextAlignment,
-                        ),
-                      ],
+                  // 2. Text size — live preview between the beads.
+                  IconStepper(
+                    value: settings.fontSize.clamp(12.0, 32.0),
+                    min: 12,
+                    max: 32,
+                    step: 1,
+                    onChanged: notifier.setFontSize,
+                    semanticLabel: 'Text size',
+                    valueLabel: '${settings.fontSize.round()} pt',
+                    preview: Text(
+                      'Aa',
+                      style: TextStyle(
+                        fontSize: (settings.fontSize * 0.9).clamp(14.0, 28.0),
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
 
-                  // 3. Reader Theme Swatches Card
-                  _SettingsContainer(
-                    title: 'Reader Theme',
-                    child: ChoiceTile<ReadingViewTheme>(
-                      title: 'Color Palette',
-                      value: settings.theme,
-                      options: ReadingViewTheme.values
-                          .map((t) => (t, t.label))
-                          .toList(),
-                      onChanged: notifier.setTheme,
-                      isSelected: (t) => t == settings.theme,
-                      builder: (t) {
-                        final colorScheme = Theme.of(context).colorScheme;
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 18,
-                              height: 18,
-                              decoration: BoxDecoration(
-                                color: t.resolve(colorScheme).background,
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: t
-                                      .resolve(colorScheme)
-                                      .text
-                                      .withValues(alpha: 0.3),
+                  // 3. Line spacing glyphs.
+                  IconSegment<double>(
+                    options: [
+                      IconSegmentOption(
+                        1.3,
+                        label: 'Tight',
+                        glyph: spacingGlyph(2),
+                      ),
+                      IconSegmentOption(
+                        1.6,
+                        label: 'Normal',
+                        glyph: spacingGlyph(4),
+                      ),
+                      IconSegmentOption(
+                        1.9,
+                        label: 'Roomy',
+                        glyph: spacingGlyph(6),
+                      ),
+                    ],
+                    selected: nearestSpacing,
+                    onSelected: notifier.setLineHeight,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // 4. Layout glyphs.
+                  IconSegment<ReadingMode>(
+                    options: [
+                      for (final mode in ReadingMode.values)
+                        IconSegmentOption(
+                          mode,
+                          label: switch (mode) {
+                            ReadingMode.page => 'Pages',
+                            ReadingMode.continuous => 'Scroll',
+                            ReadingMode.realFlip => 'Flip',
+                          },
+                          icon: switch (mode) {
+                            ReadingMode.page => Icons.menu_book_rounded,
+                            ReadingMode.continuous => Icons.view_day_rounded,
+                            ReadingMode.realFlip => Icons.auto_stories_rounded,
+                          },
+                        ),
+                    ],
+                    selected: settings.readingMode,
+                    onSelected: notifier.setReadingMode,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // 5. Reader theme — "Aa" swatches in the theme's colors.
+                  SizedBox(
+                    height: 64,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: ReadingViewTheme.values.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 12),
+                      itemBuilder: (context, i) {
+                        final option = ReadingViewTheme.values[i];
+                        final themeColors = option.resolve(colors);
+                        final selected = settings.theme == option;
+                        return Semantics(
+                          button: true,
+                          selected: selected,
+                          label: '${option.label} theme',
+                          child: Tooltip(
+                            message: option.label,
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => notifier.setTheme(option),
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: themeColors.background,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: selected
+                                        ? colors.primary
+                                        : colors.outlineVariant,
+                                    width: selected ? 3 : 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  'Aa',
+                                  style: TextStyle(
+                                    color: themeColors.text,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                  ),
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Text(t.label, style: const TextStyle(fontSize: 12)),
-                          ],
+                          ),
                         );
                       },
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
 
-                  // 4. Layout & Behavior
-                  _SettingsContainer(
-                    title: 'Behavior & Screen',
-                    child: Column(
+                  // 6. Keep awake bead + brightness slider on one row.
+                  Row(
+                    children: [
+                      IconToggleBead(
+                        active: settings.keepScreenAwake,
+                        label: 'Keep screen awake',
+                        activeIcon: Icons.lightbulb_rounded,
+                        inactiveIcon: Icons.lightbulb_outline_rounded,
+                        onChanged: notifier.setKeepScreenAwake,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Keep screen awake',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const Spacer(),
+                    ],
+                  ),
+                  if (!settings.followSystemBrightness) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
                       children: [
-                        SwitchListTile(
-                          title: const Text('Keep Screen Awake'),
-                          subtitle: const Text('Prevent display from sleeping while reading'),
-                          value: settings.keepScreenAwake,
-                          onChanged: notifier.setKeepScreenAwake,
+                        Icon(
+                          Icons.brightness_low_rounded,
+                          size: 20,
+                          color: colors.onSurfaceVariant,
+                        ),
+                        Expanded(
+                          child: Slider(
+                            value: settings.brightness.clamp(0.0, 1.0),
+                            onChanged: notifier.setBrightness,
+                          ),
+                        ),
+                        Icon(
+                          Icons.brightness_high_rounded,
+                          size: 20,
+                          color: colors.onSurfaceVariant,
                         ),
                       ],
                     ),
+                  ],
+                  const SizedBox(height: AppSpacing.md),
+
+                  // 7. Advanced typography — typeface, weight, tracking,
+                  // alignment.
+                  AdvancedDisclosure(
+                    label: 'Advanced typography',
+                    hint: settings.fontFamily ?? 'System',
+                    children: [
+                      const AppDivider(),
+                      const SizedBox(height: AppSpacing.sm),
+                      const AppSectionHeader(title: 'Typeface', padding: 0),
+                      const SizedBox(height: AppSpacing.sm),
+                      ChoiceTile<String?>(
+                        title: 'Reader Font',
+                        value: settings.fontFamily,
+                        options: [
+                          (null, 'System Default'),
+                          for (final family in fontFamilies) (family, family),
+                        ],
+                        onChanged: notifier.setFontFamily,
+                      ),
+                      const Divider(),
+                      ChoiceTile<int?>(
+                        title: 'Font Weight',
+                        value: settings.fontWeight,
+                        options: const [
+                          (null, 'Regular'),
+                          (400, 'Normal (400)'),
+                          (500, 'Medium (500)'),
+                          (600, 'SemiBold (600)'),
+                          (700, 'Bold (700)'),
+                        ],
+                        onChanged: notifier.setFontWeight,
+                      ),
+                      const Divider(),
+                      ChoiceTile<TextAlignment>(
+                        title: 'Text Alignment',
+                        value: settings.textAlignment,
+                        options: TextAlignment.values
+                            .map((a) => (a, a.label))
+                            .toList(),
+                        onChanged: notifier.setTextAlignment,
+                      ),
+                      const Divider(),
+                      SliderTile(
+                        title: 'Letter Spacing',
+                        subtitle: settings.letterSpacing.toStringAsFixed(1),
+                        value: settings.letterSpacing,
+                        min: -1.0,
+                        max: 3.0,
+                        divisions: 20,
+                        onChanged: notifier.setLetterSpacing,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: AppSpacing.xxl),
                 ],
@@ -251,43 +371,6 @@ class ReadingSettingsScreen extends ConsumerWidget {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _SettingsContainer extends StatelessWidget {
-  const _SettingsContainer({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: 0.35),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.smMd),
-          child,
-        ],
       ),
     );
   }

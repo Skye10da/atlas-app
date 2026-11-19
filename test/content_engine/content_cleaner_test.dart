@@ -128,5 +128,46 @@ void main() {
 
       expect(body.querySelector('div'), isNull);
     });
+
+    test('keeps reading-content wrappers whose name contains an ad token mid-word', () {
+      // Regression: substring ad selectors (e.g. `[class*="ad-container"]`)
+      // mid-word matched content wrappers like `read-container` and stripped
+      // real chapter prose.
+      final body = bodyOf('''
+        <html><body>
+          <div class="c-blog-post">
+            <div class="entry-content">
+              <div class="read-container">
+                <div class="entry-content_wrap">
+                  <p>Real chapter prose.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </body></html>
+      ''');
+
+      cleaner.clean(body);
+
+      expect(body.querySelector('.entry-content_wrap'), isNotNull);
+      expect(body.querySelector('.read-container'), isNotNull);
+      expect(body.querySelector('p')?.text, 'Real chapter prose.');
+    });
+
+    test('still strips genuine ad containers', () {
+      final body = bodyOf('''
+        <html><body>
+          <div class="ad-container"><p>Buy now!</p></div>
+          <div class="ads">Advertisement</div>
+          <p>Real chapter prose.</p>
+        </body></html>
+      ''');
+
+      cleaner.clean(body);
+
+      expect(body.querySelector('.ad-container'), isNull);
+      expect(body.querySelector('.ads'), isNull);
+      expect(body.querySelector('p')?.text, 'Real chapter prose.');
+    });
   });
 }

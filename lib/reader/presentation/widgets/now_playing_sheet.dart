@@ -7,19 +7,24 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:atlas_app/core/design_system/molecules/glass_surfaces.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
+import 'package:atlas_app/core/services/cover_palette_service.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_speed_control.dart';
 import 'package:atlas_app/reader/presentation/widgets/settings/narration_tab.dart';
+import 'package:atlas_app/reader/presentation/widgets/settings/voice_gallery_sheet.dart';
 import 'package:atlas_app/reader/speech/speech_engine.dart';
 import 'package:atlas_app/reader/speech/speech_events.dart';
 import 'package:atlas_app/reader/speech/speech_models.dart';
 import 'package:atlas_app/reader/speech/speech_queue.dart';
 
-/// Apple-Music-style "Now Playing" narration card. Shows the book cover with
-/// the current sentence rendered as a karaoke lyric line beneath it — the
-/// word currently being spoken is highlighted — plus the transport controls.
+/// "Now Playing" narration stage, Apple-Music-style but built on the app's
+/// liquid-glass language with Material 3 Expressive motifs: a large
+/// palette-tinted cover hero, an oversized karaoke lyric line, a two-tier
+/// transport (big expressive play/pause disc + a glass strip of speed / voice /
+/// settings pills), and an animated settings reveal.
 ///
 /// Opened from the reader bottom nav's Listen button (see
 /// [NowPlayingSheet.show]).
@@ -41,10 +46,11 @@ class NowPlayingSheet extends HookConsumerWidget {
     String? bookTitle,
     String? coverPath,
   }) {
+    // No [title]: the stage itself owns the identity (overline + cover hero),
+    // and a header bar would steal vertical space from the lyrics.
     return AppSheet.show(
       context: context,
       id: 'reader_now_playing',
-      title: 'Now Playing',
       initialHeight: 0.9,
       snapPoints: const [0.55, 0.9],
       maxHeightFactor: 0.95,
@@ -72,16 +78,24 @@ class NowPlayingSheet extends HookConsumerWidget {
 
     final effectiveCoverPath = coverPath ?? session?.coverPath;
     final effectiveBookTitle = bookTitle ?? session?.bookTitle;
-    final effectiveChapterTitle = chapterTitle ??
+    final effectiveChapterTitle =
+        chapterTitle ??
         (session != null && session.chapterId.startsWith('pdf_page_')
             ? 'Page ${session.chapterId.replaceFirst('pdf_page_', '')}'
             : null);
 
     final title = effectiveChapterTitle ?? effectiveBookTitle ?? 'Listen';
-    final subtitle =
-        effectiveBookTitle != null && effectiveBookTitle != effectiveChapterTitle
-            ? effectiveBookTitle
-            : null;
+    // Subtitle carries the book title only when the headline doesn't already
+    // show it (chapter headline + book subtitle), never a duplicate.
+    final subtitle = effectiveBookTitle != null && effectiveBookTitle != title
+        ? effectiveBookTitle
+        : null;
+
+    // Ambient tint from the cover art, shared with the mini player.
+    final paletteAsync = ref.watch(coverPaletteProvider(effectiveCoverPath));
+    final tint = effectiveCoverPath != null
+        ? (paletteAsync.valueOrNull ?? CoverPalette.fallback).accent
+        : colorScheme.primary;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -92,11 +106,11 @@ class NowPlayingSheet extends HookConsumerWidget {
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
 
-        // Size the cover efficiently so all elements (cover, title, lyrics,
-        // progress, controls) fit without forcing scrollbars when settings are collapsed.
-        final availableForCover = maxHeight - 280.0;
+        // Size the cover so hero + lyrics + two transport tiers fit without
+        // scrollbars while settings are collapsed.
+        final availableForCover = maxHeight - 340.0;
         final coverCap = math.min(
-          math.min(maxWidth * 0.42, 180.0),
+          math.min(maxWidth * 0.42, 190.0),
           math.max(80.0, availableForCover / 1.4),
         );
 
@@ -111,13 +125,26 @@ class NowPlayingSheet extends HookConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Text(
+                'NOW PLAYING',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 2.2,
+                  color: colorScheme.onSurface.withValues(alpha: 0.45),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
               GestureDetector(
                 onTap: session != null
                     ? () {
                         Navigator.of(context).maybePop();
                         if (session.chapterId.startsWith('pdf_page_')) {
-                          final page =
-                              session.chapterId.replaceFirst('pdf_page_', '');
+                          final page = session.chapterId.replaceFirst(
+                            'pdf_page_',
+                            '',
+                          );
                           context.push('/reader/${session.bookId}?page=$page');
                         } else {
                           context.push(
@@ -128,23 +155,25 @@ class NowPlayingSheet extends HookConsumerWidget {
                     : null,
                 child: _CoverArt(
                   coverPath: effectiveCoverPath,
+                  tint: tint,
                   maxSize: coverCap,
                 ),
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.md),
               Text(
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
                   color: colorScheme.onSurface,
                 ),
               ),
               if (subtitle != null) ...[
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   subtitle,
                   maxLines: 1,
@@ -168,44 +197,68 @@ class NowPlayingSheet extends HookConsumerWidget {
                 _QueueProgress(
                   cursor: queue.cursor,
                   length: queue.length,
+                  tint: tint,
                   color: colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
               ],
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.lg),
               _TransportControls(
                 status: status,
                 queue: queue,
-                accent: colorScheme.primary,
+                tint: tint,
                 color: colorScheme.onSurface,
-                settingsExpanded: showSettings.value,
-                onToggleSettings: () =>
-                    showSettings.value = !showSettings.value,
               ),
-              if (showSettings.value) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Divider(color: colorScheme.onSurface.withValues(alpha: 0.12)),
-                const SizedBox(height: AppSpacing.sm),
-                Row(
-                  children: [
-                    Text(
-                      'Narration',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
+              const SizedBox(height: AppSpacing.sm),
+              // Glass strip: settings chip + speed dial + voice pill. A Wrap
+              // (not a Row) so narrow phones fold to two centered lines
+              // instead of shrinking every control.
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
+                children: [
+                  _SettingsChip(
+                    expanded: showSettings.value,
+                    tint: tint,
+                    color: colorScheme.onSurface,
+                    onTap: () => showSettings.value = !showSettings.value,
+                  ),
+                  NarrationSpeedControl(
+                    accent: tint,
+                    color: colorScheme.onSurface,
+                  ),
+                  VoicePill(accent: tint, color: colorScheme.onSurface),
+                ],
+              ),
+              // Expressive settings reveal: size-animated tonal capsule
+              // instead of a hard Divider.
+              AnimatedSize(
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 280),
+                curve: Curves.easeInOutCubic,
+                alignment: Alignment.topCenter,
+                child: !showSettings.value
+                    ? const SizedBox.shrink()
+                    : Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(top: AppSpacing.md),
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.md,
+                          AppSpacing.md,
+                          AppSpacing.md,
+                          0,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          color: colorScheme.surfaceContainerHighest.withValues(
+                            alpha: 0.45,
+                          ),
+                        ),
+                        child: const NarrationTab(),
                       ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Icon(
-                      Icons.tune,
-                      size: 18,
-                      color: colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                const NarrationTab(),
-              ],
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
           ),
@@ -215,54 +268,54 @@ class NowPlayingSheet extends HookConsumerWidget {
   }
 }
 
-/// Large rounded cover art with a soft Apple-style shadow. Falls back to a
-/// stylized placeholder when the book has no cover.
+/// Large rounded cover art over an ambient tint glow derived from the cover
+/// palette. Falls back to a stylized placeholder when the book has no cover.
 class _CoverArt extends StatelessWidget {
-  const _CoverArt({this.coverPath, required this.maxSize});
+  const _CoverArt({this.coverPath, required this.tint, required this.maxSize});
 
   final String? coverPath;
+  final Color tint;
   final double maxSize;
 
   @override
   Widget build(BuildContext context) {
     final size = maxSize.isFinite && maxSize > 0 ? maxSize : 160.0;
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Stack(
       alignment: Alignment.center,
       children: [
-        // Ambient soft blur glow behind cover
+        // Ambient glow tinted by the cover palette (expressive hero halo).
         Container(
           width: size * 0.9,
           height: size * 1.3,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: colorScheme.primary.withValues(alpha: 0.28),
-                blurRadius: 36,
-                spreadRadius: 4,
-                offset: const Offset(0, 8),
+                color: tint.withValues(alpha: 0.30),
+                blurRadius: 40,
+                spreadRadius: 6,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
         ),
-        // Primary Cover Image Card
+        // Primary cover card: big expressive radius, deep grounded shadow.
         Container(
           width: size,
           height: size * 1.4,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+            borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.28),
-                blurRadius: 28,
-                offset: const Offset(0, 12),
+                color: Colors.black.withValues(alpha: 0.30),
+                blurRadius: 30,
+                offset: const Offset(0, 14),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
+            borderRadius: BorderRadius.circular(24),
             child: coverPath != null
                 ? Image.file(
                     File(coverPath!),
@@ -298,6 +351,7 @@ class _CoverPlaceholder extends StatelessWidget {
 
 /// The karaoke lyric line with ShaderMask top/bottom fade: the current sentence
 /// with the currently-spoken word emphasized, exactly as Apple Music highlights.
+/// Expressive typography: larger, heavier highlight.
 class _Lyrics extends StatelessWidget {
   const _Lyrics({
     required this.item,
@@ -335,13 +389,13 @@ class _Lyrics extends StatelessWidget {
     }
 
     final dim = TextStyle(
-      fontSize: 14,
-      height: 1.5,
+      fontSize: 16,
+      height: 1.45,
       fontWeight: FontWeight.w500,
       color: colorScheme.onSurface.withValues(alpha: 0.55),
     );
     final highlight = TextStyle(
-      fontSize: 15,
+      fontSize: 17,
       fontWeight: FontWeight.w800,
       color: colorScheme.primary,
     );
@@ -367,7 +421,12 @@ class _Lyrics extends StatelessWidget {
         return const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent],
+          colors: [
+            Colors.transparent,
+            Colors.black,
+            Colors.black,
+            Colors.transparent,
+          ],
           stops: [0.0, 0.08, 0.92, 1.0],
         ).createShader(bounds);
       },
@@ -389,56 +448,56 @@ class _QueueProgress extends StatelessWidget {
   const _QueueProgress({
     required this.cursor,
     required this.length,
+    required this.tint,
     required this.color,
   });
 
   final int cursor;
   final int length;
+  final Color tint;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     final progress = length > 1 ? cursor / (length - 1) : 0.0;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(999),
           child: LinearProgressIndicator(
             value: progress,
-            minHeight: 3,
-            color: color,
-            backgroundColor: color.withValues(alpha: 0.2),
+            minHeight: 4,
+            color: tint,
+            backgroundColor: tint.withValues(alpha: 0.18),
           ),
         ),
         const SizedBox(height: 6),
         Text(
           'Sentence ${cursor + 1} of $length',
-          style: TextStyle(fontSize: 14, color: color),
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: color),
         ),
       ],
     );
   }
 }
 
-/// Transport controls for the narration session: restart/skip paragraph,
-/// sentence skip, play/pause, plus a speed selector pinned to the right edge
-/// and a toggle that reveals the narration settings panel.
+/// Main transport tier: paragraph restart / sentence skip flanking a big
+/// expressive play-pause disc (a [GlassLens] droplet behind a 64dp target, so
+/// the primary action reads at arm's length instead of competing with pills).
 class _TransportControls extends ConsumerWidget {
   const _TransportControls({
     required this.status,
     required this.queue,
-    required this.accent,
+    required this.tint,
     required this.color,
-    required this.settingsExpanded,
-    required this.onToggleSettings,
   });
 
   final NarrationStatus status;
   final SpeechQueue? queue;
-  final Color accent;
+  final Color tint;
   final Color color;
-  final bool settingsExpanded;
-  final VoidCallback onToggleSettings;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -448,94 +507,59 @@ class _TransportControls extends ConsumerWidget {
     final atEnd = q == null || q.cursor >= q.length - 1;
     final restartIndex = _paragraphStartIndex(q);
     final nextIndex = _nextParagraphIndex(q);
+    final playing = status == NarrationStatus.playing;
 
-    return SizedBox(
-      height: 76,
-      child: Row(
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _SettingsToggleButton(
-                expanded: settingsExpanded,
-                accent: accent,
+              _TransportButton(
+                icon: Icons.replay,
+                size: 22,
+                tooltip: 'Restart paragraph',
                 color: color,
-                onTap: onToggleSettings,
+                enabled: restartIndex != null,
+                onTap: () => unawaited(_restartParagraph(engine, restartIndex)),
               ),
-              const SizedBox(width: AppSpacing.xs),
+              const SizedBox(width: AppSpacing.lg),
+              _TransportButton(
+                icon: Icons.skip_previous_rounded,
+                size: 28,
+                tooltip: 'Previous sentence',
+                color: color,
+                enabled: !atStart,
+                onTap: () => unawaited(engine.skipPrevious()),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              _PlayDisc(
+                playing: playing,
+                tint: tint,
+                onTap: () => unawaited(_toggle(engine, status)),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              _TransportButton(
+                icon: Icons.skip_next_rounded,
+                size: 28,
+                tooltip: 'Next sentence',
+                color: color,
+                enabled: !atEnd,
+                onTap: () => unawaited(engine.skipNext()),
+              ),
+              const SizedBox(width: AppSpacing.lg),
+              _TransportButton(
+                icon: Icons.double_arrow,
+                size: 22,
+                tooltip: 'Next paragraph',
+                color: color,
+                enabled: nextIndex != null,
+                onTap: () => unawaited(_skipToParagraph(engine, nextIndex)),
+              ),
             ],
           ),
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _TransportButton(
-                    icon: Icons.replay,
-                    size: 22,
-                    tooltip: 'Restart paragraph',
-                    color: color,
-                    enabled: restartIndex != null,
-                    onTap: () =>
-                        unawaited(_restartParagraph(engine, restartIndex)),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  _TransportButton(
-                    icon: Icons.skip_previous_rounded,
-                    size: 26,
-                    tooltip: 'Previous sentence',
-                    color: color,
-                    enabled: !atStart,
-                    onTap: () => unawaited(engine.skipPrevious()),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
-                    child: _TransportButton(
-                      key: ValueKey(status == NarrationStatus.playing),
-                      icon: status == NarrationStatus.playing
-                          ? Icons.pause_circle_filled
-                          : Icons.play_circle_filled,
-                      size: 58,
-                      iconColor: accent,
-                      tooltip: status == NarrationStatus.playing ? 'Pause' : 'Play',
-                      color: color,
-                      onTap: () => unawaited(_toggle(engine, status)),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  _TransportButton(
-                    icon: Icons.skip_next_rounded,
-                    size: 26,
-                    tooltip: 'Next sentence',
-                    color: color,
-                    enabled: !atEnd,
-                    onTap: () => unawaited(engine.skipNext()),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  _TransportButton(
-                    icon: Icons.double_arrow,
-                    size: 22,
-                    tooltip: 'Next paragraph',
-                    color: color,
-                    enabled: nextIndex != null,
-                    onTap: () => unawaited(_skipToParagraph(engine, nextIndex)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(width: AppSpacing.xs),
-              NarrationSpeedControl(accent: accent, color: color),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -596,16 +620,79 @@ class _TransportControls extends ConsumerWidget {
   }
 }
 
-class _SettingsToggleButton extends StatelessWidget {
-  const _SettingsToggleButton({
+/// The expressive play/pause disc: a [GlassLens] droplet backing a 64dp
+/// hit target, with a springy scale-in on the icon swap (Material 3
+/// Expressive motion; the spring curve keeps the morph lively without a
+/// controller). Honors [MediaQuery.disableAnimationsOf].
+class _PlayDisc extends StatelessWidget {
+  const _PlayDisc({
+    required this.playing,
+    required this.tint,
+    required this.onTap,
+  });
+
+  final bool playing;
+  final Color tint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onDisc = Theme.of(context).colorScheme.onSurface;
+    final motionOff = MediaQuery.disableAnimationsOf(context);
+
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          key: const ValueKey('play_disc'),
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: GlassLens(accent: tint, isDark: isDark, radius: 32),
+                ),
+              ),
+              AnimatedSwitcher(
+                duration: motionOff
+                    ? Duration.zero
+                    : const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOutBack,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) =>
+                    ScaleTransition(scale: animation, child: child),
+                child: Icon(
+                  key: ValueKey(playing),
+                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  size: 38,
+                  color: onDisc,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small glass chip that reveals the narration settings panel. Matches the
+/// speed / voice pills it sits beside in the glass strip.
+class _SettingsChip extends StatelessWidget {
+  const _SettingsChip({
     required this.expanded,
-    required this.accent,
+    required this.tint,
     required this.color,
     required this.onTap,
   });
 
   final bool expanded;
-  final Color accent;
+  final Color tint;
   final Color color;
   final VoidCallback onTap;
 
@@ -613,12 +700,25 @@ class _SettingsToggleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: expanded ? 'Hide narration settings' : 'Narration settings',
-      child: IconButton(
-        onPressed: onTap,
-        icon: const Icon(Icons.tune),
-        iconSize: 20,
-        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-        color: expanded ? accent : color.withValues(alpha: 0.75),
+      child: GlassCapsule(
+        pill: true,
+        blur: 18,
+        strong: false,
+        skipDropShadow: true,
+        child: InkWell(
+          key: const ValueKey('settings_chip'),
+          borderRadius: BorderRadius.circular(999),
+          onTap: onTap,
+          child: SizedBox(
+            height: 30,
+            width: 36,
+            child: Icon(
+              Icons.tune,
+              size: 16,
+              color: expanded ? tint : color.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -626,11 +726,9 @@ class _SettingsToggleButton extends StatelessWidget {
 
 class _TransportButton extends StatelessWidget {
   const _TransportButton({
-    super.key,
     required this.icon,
     required this.color,
     required this.onTap,
-    this.iconColor,
     this.size = 28,
     this.enabled = true,
     this.tooltip,
@@ -638,7 +736,6 @@ class _TransportButton extends StatelessWidget {
 
   final IconData icon;
   final Color color;
-  final Color? iconColor;
   final VoidCallback onTap;
   final double size;
   final bool enabled;
@@ -649,10 +746,10 @@ class _TransportButton extends StatelessWidget {
     final button = IconButton(
       onPressed: enabled ? onTap : null,
       iconSize: size,
-      color: enabled ? (iconColor ?? color) : color.withValues(alpha: 0.3),
+      color: enabled ? color : color.withValues(alpha: 0.3),
       icon: Icon(icon),
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(),
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
     );
     final label = tooltip;
     if (label == null) return button;

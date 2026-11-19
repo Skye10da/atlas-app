@@ -15,6 +15,7 @@ class FakeTransport implements Transport {
   final Map<String, Object?> jsonByUrl = {};
   final Map<String, String> postHtmlByUrl = {};
   final Map<String, Object?> postJsonByUrl = {};
+  final Map<String, List<String>> postHtmlSeqByUrl = {};
   final List<Object?> jsonPostBodies = [];
   int htmlCalls = 0;
   int jsonCalls = 0;
@@ -33,6 +34,11 @@ class FakeTransport implements Transport {
   /// exact form payload is whatever the template under test is configured to
   /// send.
   void addPostHtml(String url, String body) => postHtmlByUrl[url] = body;
+
+  /// Registers the bodies a form POST to [url] returns, in order (for
+  /// paginated endpoints that return different content per page).
+  void addPostHtmlSeq(String url, List<String> bodies) =>
+      postHtmlSeqByUrl[url] = bodies;
 
   /// Registers the body a JSON POST to [url] returns. Keyed by URL only; the
   /// exact JSON payload is whatever the template under test sends.
@@ -53,7 +59,13 @@ class FakeTransport implements Transport {
     Map<String, String>? form,
   }) async {
     htmlCalls++;
-    final body = postHtmlByUrl[url.toString()];
+    final seq = postHtmlSeqByUrl[url.toString()];
+    String? body;
+    if (seq != null && seq.isNotEmpty) {
+      body = seq.removeAt(0);
+    } else {
+      body = postHtmlByUrl[url.toString()];
+    }
     if (body == null) throw TransportException('No fixture for POST $url');
     return body;
   }

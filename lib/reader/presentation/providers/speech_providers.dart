@@ -1,5 +1,7 @@
 import 'dart:io' show Platform;
 
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -8,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:atlas_app/reader/speech/cache/tts_file_cache.dart';
 
 import 'package:atlas_app/reader/speech/drivers/flutter_tts_driver.dart';
+import 'package:atlas_app/reader/speech/drivers/neural_tts_driver.dart';
 import 'package:atlas_app/reader/speech/playback_controller.dart';
 import 'package:atlas_app/reader/speech/persistence/recovery_store.dart';
 import 'package:atlas_app/reader/speech/persistence/shared_prefs_recovery_store.dart';
@@ -36,10 +39,30 @@ class SpeechStartupResult {
 final speechDriverNoticeProvider = StateProvider<String?>((ref) => null);
 
 final speechDriverProvider = Provider<SpeechDriver>((ref) {
+  // Neural path first (NTD M4): the driver self-gates on platform
+  // (Android/iOS) + native core + playback-device capability, and returns
+  // null otherwise — including today, until the M3 mobile device backends
+  // (Oboe/AVAudioEngine) land. Until then (and on desktop), platform TTS
+  // drives narration exactly as before.
+  final neural = NeuralTtsDriver.tryCreate();
+  if (neural != null) {
+    ref.onDispose(() {
+      unawaited(neural.dispose());
+    });
+    return neural;
+  }
   // Windows SAPI now wrapped in try/catch in FlutterTtsDriver; Noop only as fallback if SAPI throws.
   // Keeping FlutterTtsDriver on Windows restores TTS playback (was silent with Noop).
   return FlutterTtsDriver();
 });
+
+/// Bumped whenever [SpeechEngine.swapDriver] installs a new driver after
+/// this provider graph was first built (voice pack installed/deleted).
+/// Providers that read the engine's *current* driver watch this epoch so
+/// they re-resolve from `engine.driver` instead of the stale
+/// [speechDriverProvider] captured at app start — that stale capture is
+/// what pinned flutter_tts forever when no pack existed at boot.
+final speechDriverEpochProvider = StateProvider<int>((ref) => 0);
 
 final speechRecoveryStoreProvider = Provider<RecoveryStore>(
   (ref) => SharedPrefsRecoveryStore(),
@@ -74,9 +97,13 @@ final speechEventsProvider = StreamProvider<SpeechEvent>((ref) {
 });
 
 /// Current narration transport status, derived from the driver state stream.
+/// Watches [speechDriverEpochProvider] so a mid-session driver swap
+/// (voice pack installed/deleted) re-subscribes to the *current* driver.
 final narrationStatusProvider = StreamProvider<NarrationStatus>((ref) {
+  ref.watch(speechDriverEpochProvider);
   return ref
-      .watch(speechDriverProvider)
+      .watch(speechEngineProvider)
+      .driver
       .stateStream
       .map(
         (s) => switch (s) {
@@ -97,12 +124,15 @@ final activeSpeechItemProvider = StateProvider<SpeechItem?>((ref) => null);
 final activeWordBoundaryProvider = StateProvider<WordBoundary?>((ref) => null);
 
 /// Available platform voices, served from the disk/memory cache when present
-/// (ASA §9) and refreshed from the driver otherwise.
+/// (ASA §9) and refreshed from the driver otherwise. Watches
+/// [speechDriverEpochProvider] so a driver swap re-lists voices from the
+/// *current* driver (the controller clears the voice cache on pack changes).
 final speechVoicesProvider = FutureProvider<List<VoiceDescriptor>>((ref) async {
+  ref.watch(speechDriverEpochProvider);
   final cache = ref.watch(voiceCacheProvider);
   final cached = cache.cached;
   if (cached != null) return cached;
-  final voices = await _safeListVoices(ref.watch(speechDriverProvider));
+  final voices = await _safeListVoices(ref.watch(speechEngineProvider).driver);
   if (voices.isNotEmpty) await cache.persist(voices);
   return voices;
 });
@@ -184,7 +214,8 @@ final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
             controller.pause();
           }
         } else {
-          if (event.type != AudioInterruptionType.duck && pausedForInterruption) {
+          if (event.type != AudioInterruptionType.duck &&
+              pausedForInterruption) {
             // Interruption ended — resume narration automatically instead of
             // leaving the driver paused indefinitely (playback gets stuck).
             pausedForInterruption = false;
@@ -199,7 +230,7 @@ final speechStartupProvider = FutureProvider<SpeechStartupResult>((ref) async {
   await cache.init();
 
   String? notice;
-  final driver = ref.watch(speechDriverProvider);
+  final driver = ref.watch(speechEngineProvider).driver;
   final voices = await _safeListVoices(driver);
   if (voices.isNotEmpty) {
     await cache.persist(voices);

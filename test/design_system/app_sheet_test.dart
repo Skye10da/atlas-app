@@ -199,7 +199,130 @@ void main() {
     expect(reopened, closeTo(grown, 2));
   });
 
-  testWidgets('fitToContent auto-sizes to compact child content', (tester) async {
+  group('content-aware opening height', () {
+    Future<void> pumpAutoSheet(
+      WidgetTester tester, {
+      required Widget child,
+      String id = 'auto_sheet',
+    }) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(800, 600);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => AppSheet.show<void>(
+                    context: context,
+                    id: id,
+                    initialHeight: 0.5,
+                    snapPoints: const [0.4, 0.8],
+                    title: 'Auto sheet',
+                    child: child,
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets(
+      'compact content opens at its own height, not a screen fraction',
+      (tester) async {
+        await pumpAutoSheet(tester, child: const SizedBox(height: 180));
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+
+        final rect = tester.getRect(sheetSurface);
+        // 180px content + handle/header — nowhere near the 300px (0.5 × 600)
+        // fraction the sheet used to open at.
+        expect(rect.height, lessThan(300));
+        expect(rect.height, greaterThan(180));
+      },
+    );
+
+    testWidgets('compact content opens compact on a large viewport too', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1000, 1400);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await pumpAutoSheet(
+        tester,
+        id: 'auto_large',
+        child: const SizedBox(height: 200),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      final rect = tester.getRect(sheetSurface);
+      // On a 1400px-tall device the old 0.5 fraction was 700px of mostly
+      // empty sheet; content-aware sizing stays near the content height.
+      expect(rect.height, lessThan(320));
+    });
+
+    testWidgets('long scrollable content still opens at the fraction height', (
+      tester,
+    ) async {
+      await pumpAutoSheet(
+        tester,
+        id: 'auto_scroll',
+        child: ListView.builder(
+          itemCount: 100,
+          itemBuilder: (_, i) => ListTile(title: Text('row $i')),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      final rect = tester.getRect(sheetSurface);
+      // Fills the measure cap → falls back to the fraction logic, which
+      // opens at the nearest configured snap (0.4 × 600 = 240px), exactly
+      // as sheets sized before content-awareness.
+      expect(rect.height, closeTo(240, 6));
+    });
+
+    testWidgets('a user drag still pins a remembered height over measurement', (
+      tester,
+    ) async {
+      await pumpAutoSheet(
+        tester,
+        id: 'auto_drag',
+        child: ListView.builder(
+          itemCount: 100,
+          itemBuilder: (_, i) => ListTile(title: Text('row $i')),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      final handle = tester.getCenter(sheetHandle);
+      await tester.flingFrom(handle, const Offset(0, -400), 2000);
+      await tester.pumpAndSettle();
+      final grown = tester.getRect(sheetSurface).height;
+      expect(grown, greaterThan(400));
+
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(tester.getRect(sheetSurface).height, closeTo(grown, 2));
+    });
+  });
+
+  testWidgets('fitToContent auto-sizes to compact child content', (
+    tester,
+  ) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(800, 600);
     addTearDown(tester.view.resetPhysicalSize);
@@ -281,9 +404,9 @@ void main() {
           body: SheetNavigator(
             initialPage: Builder(
               builder: (context) => TextButton(
-                onPressed: () => SheetNavigator.of(context).push(
-                  const Text('Sub Page Content'),
-                ),
+                onPressed: () => SheetNavigator.of(
+                  context,
+                ).push(const Text('Sub Page Content')),
                 child: const Text('Go to Sub Page'),
               ),
             ),

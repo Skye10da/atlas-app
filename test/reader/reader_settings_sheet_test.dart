@@ -41,8 +41,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 1. Theme Mode Switch (replaced preview card)
-      expect(find.text('Theme Mode'), findsOneWidget);
+      // 1. Theme Mode segments (icon-first)
       expect(find.text('System'), findsWidgets);
       expect(find.text('Light'), findsWidgets);
       expect(find.text('Dark'), findsWidgets);
@@ -67,23 +66,39 @@ void main() {
       expect(find.text('Comfortable'), findsOneWidget);
       expect(find.text('Relaxed'), findsOneWidget);
 
-      // 4. Switch to Typography Tab
+      // 4. Switch to Typography Tab — icon-first controls + Advanced.
       await tester.tap(find.text('Typography'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Left'), findsOneWidget);
+      expect(find.text('Justify'), findsOneWidget);
+      expect(find.text('Center'), findsOneWidget);
+      expect(find.text('Compact'), findsOneWidget);
+      expect(find.text('Standard'), findsOneWidget);
+      expect(find.text('Spacious'), findsOneWidget);
+      // Rare typography knobs live behind the Advanced disclosure.
+      expect(find.text('Typeface'), findsNothing);
+      await tester.ensureVisible(find.text('Advanced typography'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Advanced typography'));
+      await tester.pumpAndSettle();
       expect(find.text('Typeface'), findsOneWidget);
       expect(find.text('Font Weight'), findsOneWidget);
-      expect(find.text('Text Alignment'), findsOneWidget);
-      expect(find.text('Page Margins'), findsOneWidget);
       expect(find.text('Letter Spacing'), findsOneWidget);
 
-      // 5. Switch to Display Tab
+      // 5. Switch to Display Tab — beads + Advanced.
       await tester.tap(find.text('Display'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Keep screen awake'), findsOneWidget);
+      expect(find.text('System brightness'), findsOneWidget);
+      // Toolbar style sits behind the Advanced disclosure.
+      expect(find.text('Toolbars & Controls Style'), findsNothing);
+      await tester.ensureVisible(find.text('Advanced display'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Advanced display'));
+      await tester.pumpAndSettle();
       expect(find.text('Toolbars & Controls Style'), findsOneWidget);
-      expect(find.text('Keep Screen Awake'), findsOneWidget);
-      expect(find.text('Follow System Brightness'), findsOneWidget);
     });
 
     testWidgets(

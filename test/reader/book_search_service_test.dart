@@ -115,7 +115,10 @@ void main() {
       fakeRepo.contents['virtual/ch2.txt'] =
           'The brave warrior approached the dragon with a glowing sword of fire.';
 
-      final result = await searchService.searchBook(bookId: 'b1', query: 'dragon');
+      final result = await searchService.searchBook(
+        bookId: 'b1',
+        query: 'dragon',
+      );
       expect(result, isA<Success<List<BookSearchResult>>>());
       final matches = (result as Success<List<BookSearchResult>>).value;
       expect(matches.length, 2);

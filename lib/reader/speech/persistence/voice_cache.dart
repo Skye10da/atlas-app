@@ -18,6 +18,11 @@ class VoiceCache {
   /// Voices currently cached in memory, if any have been loaded/persisted.
   List<VoiceDescriptor>? get cached => _memory;
 
+  /// Drops the in-memory cache so the next [VoiceCache] consumer re-queries
+  /// the driver (M5: a freshly installed pack must appear in the voice list
+  /// without an app restart). Disk cache is overwritten on the next persist.
+  void clearMemory() => _memory = null;
+
   Future<SharedPreferences> _ensurePrefs() async =>
       _prefs ??= await SharedPreferences.getInstance();
 

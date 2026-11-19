@@ -90,7 +90,9 @@ class PdfBottomNav extends ConsumerWidget {
                   ),
                   _NavIconButton(
                     icon: Icons.format_list_numbered_rounded,
-                    label: totalPages > 0 ? '$currentPage / $totalPages' : 'Pages',
+                    label: totalPages > 0
+                        ? '$currentPage / $totalPages'
+                        : 'Pages',
                     textColor: textColor,
                     onTap: onOutlineTap,
                   ),

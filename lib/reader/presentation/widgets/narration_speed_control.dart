@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +22,7 @@ class NarrationSpeedControl extends ConsumerWidget {
     required this.color,
     this.rateOverride,
     this.onRateChanged,
+    this.compact = false,
   });
 
   static const presets = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
@@ -35,14 +38,54 @@ class NarrationSpeedControl extends ConsumerWidget {
   /// the narration settings provider. Defaults to null (live apply).
   final ValueChanged<double>? onRateChanged;
 
+  /// Compact layout for narrow hosts (the mini player's transport row at
+  /// phone widths can't fit the six-chip dial): renders icon + current rate
+  /// as a single tappable chip that opens the preset menu instead.
+  final bool compact;
+
   static const _chipWidth = 30.0;
   static const _chipHeight = 26.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final rate = rateOverride ??
+    final rate =
+        rateOverride ??
         ref.watch(narrationSettingsProvider).valueOrNull?.speechRate ??
         1.0;
+
+    if (compact) {
+      return Tooltip(
+        message: 'Playback speed',
+        child: GlassCapsule(
+          pill: true,
+          blur: 18,
+          strong: false,
+          skipDropShadow: true,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => unawaited(_showRateMenu(context, rate)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.speed, size: 14, color: accent),
+                  const SizedBox(width: 2),
+                  Text(
+                    NarrationSpeedControl.formatRate(rate),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: accent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Tooltip(
       message: 'Playback speed',
@@ -88,6 +131,61 @@ class NarrationSpeedControl extends ConsumerWidget {
         .read(narrationSettingsProvider.notifier)
         .apply(settings.copyWith(speechRate: rate, clearActiveProfile: true));
   }
+
+  /// Compact-mode picker: a small popup menu listing every preset.
+  Future<void> _showRateMenu(BuildContext context, double current) async {
+    final box = context.findRenderObject()! as RenderBox;
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset.zero, ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+    unawaited(HapticFeedback.selectionClick());
+    final selected = await showMenu<double>(
+      context: context,
+      position: position,
+      items: [
+        for (final preset in presets)
+          PopupMenuItem(
+            value: preset,
+            child: Text(
+              '${formatRate(preset)}'
+              '${(preset - current).abs() < 0.001 ? '   ✓' : ''}',
+            ),
+          ),
+      ],
+    );
+    if (selected == null) return;
+    final callback = onRateChanged;
+    if (callback != null) {
+      callback(selected);
+      return;
+    }
+    if (!context.mounted) return;
+    // ignore: use_build_context_synchronously
+    readRate(context, selected);
+  }
+
+  /// Applies [rate] via the ambient [narrationSettingsProvider] (compact
+  /// mode without a test callback — reads the container from [context]).
+  void readRate(BuildContext context, double rate) {
+    final container = ProviderScope.containerOf(context);
+    final settings = container.read(narrationSettingsProvider).value;
+    if (settings == null) return;
+    container
+        .read(narrationSettingsProvider.notifier)
+        .apply(settings.copyWith(speechRate: rate, clearActiveProfile: true));
+  }
+
+  /// Formats a rate as a compact label, e.g. `1×`, `0.75×`.
+  static String formatRate(double r) {
+    final trimmed = r.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+    return '${trimmed.isEmpty ? '0' : trimmed}×';
+  }
 }
 
 /// The six-chip strip with the droplet on the active rate.
@@ -106,12 +204,11 @@ class _RateDial extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final idx = NarrationSpeedControl.presets
-        .indexWhere((p) => (p - rate).abs() < 0.001);
+    final idx = NarrationSpeedControl.presets.indexWhere(
+      (p) => (p - rate).abs() < 0.001,
+    );
     // Unknown rates highlight the neutral 1.0 chip rather than nothing.
-    final selected = idx < 0
-        ? NarrationSpeedControl.presets.indexOf(1.0)
-        : idx;
+    final selected = idx < 0 ? NarrationSpeedControl.presets.indexOf(1.0) : idx;
     const chipWidth = NarrationSpeedControl._chipWidth;
     const chipHeight = NarrationSpeedControl._chipHeight;
     final disabled = MediaQuery.disableAnimationsOf(context);
@@ -123,13 +220,19 @@ class _RateDial extends StatelessWidget {
       child: Stack(
         children: [
           AnimatedPositioned(
-            duration: disabled ? Duration.zero : const Duration(milliseconds: 220),
+            duration: disabled
+                ? Duration.zero
+                : const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
             left: selected * chipWidth,
             top: 0,
             width: chipWidth,
             height: chipHeight,
-            child: GlassLens(accent: accent, isDark: isDark, radius: chipHeight / 2),
+            child: GlassLens(
+              accent: accent,
+              isDark: isDark,
+              radius: chipHeight / 2,
+            ),
           ),
           Row(
             children: [
@@ -163,9 +266,5 @@ class _RateDial extends StatelessWidget {
     );
   }
 
-  String _formatRate(double r) {
-    final trimmed =
-        r.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
-    return '${trimmed.isEmpty ? '0' : trimmed}×';
-  }
+  String _formatRate(double r) => NarrationSpeedControl.formatRate(r);
 }

@@ -8,6 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:atlas_app/core/design_system/atoms/book_cover.dart';
+import 'package:atlas_app/core/design_system/molecules/glass_surfaces.dart';
+import 'package:atlas_app/core/design_system/organisms/atlas_glass_nav_bar.dart'
+    show AtlasNavItem;
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/services/cover_palette_service.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
@@ -32,6 +35,10 @@ class NarrationMiniPlayer extends ConsumerWidget {
     this.chapterTitle,
     this.accent,
     this.onExpand,
+    this.docked = false,
+    this.navDestinations = const <AtlasNavItem>[],
+    this.currentNavIndex,
+    this.onNavSelect,
   });
 
   final String? bookTitle;
@@ -43,6 +50,22 @@ class NarrationMiniPlayer extends ConsumerWidget {
   /// reopens the narration panel instead of the bottom sheet). Falls back
   /// to [NowPlayingSheet.show].
   final VoidCallback? onExpand;
+
+  /// Docked mode: the player has slid down into the nav pill's resting spot
+  /// (the pill auto-hid because narration is active), so it grows a compact
+  /// icon strip of the shell's nav destinations along its bottom edge —
+  /// navigation stays reachable without the hidden bar.
+  final bool docked;
+
+  /// Destinations for the docked nav strip ([AtlasNavItem]s shared with the
+  /// shell's pill). Rendered only when [docked] is true.
+  final List<AtlasNavItem> navDestinations;
+
+  /// Currently selected branch index, for the strip's active highlight.
+  final int? currentNavIndex;
+
+  /// Called with the tapped destination index.
+  final ValueChanged<int>? onNavSelect;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,7 +81,8 @@ class NarrationMiniPlayer extends ConsumerWidget {
 
     final effectiveCoverPath = coverPath ?? session.coverPath;
     final effectiveBookTitle = bookTitle ?? session.bookTitle;
-    final effectiveChapterTitle = chapterTitle ??
+    final effectiveChapterTitle =
+        chapterTitle ??
         (session.chapterId.startsWith('pdf_page_')
             ? 'Page ${session.chapterId.replaceFirst('pdf_page_', '')}'
             : null);
@@ -66,7 +90,8 @@ class NarrationMiniPlayer extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final paletteAsync = ref.watch(coverPaletteProvider(effectiveCoverPath));
     final palette = paletteAsync.valueOrNull ?? CoverPalette.fallback;
-    final tint = accent ??
+    final tint =
+        accent ??
         (effectiveCoverPath != null ? palette.accent : colorScheme.primary);
     final queue = session.queue;
     final activeItem = ref.watch(activeSpeechItemProvider);
@@ -80,23 +105,15 @@ class NarrationMiniPlayer extends ConsumerWidget {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 0, AppSpacing.sm, 6),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-            boxShadow: [
-              BoxShadow(
-                color: tint.withValues(alpha: 0.2),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+        child: GlassCapsule(
+          borderRadius: 24,
+          // Pills/strips over live reader text stay at blur 16-20 (skill
+          // convention); this is a full card, so 18 keeps it legible cheaply.
+          blur: 18,
           child: Material(
-            elevation: 4,
-            borderRadius: BorderRadius.circular(AppSpacing.borderRadiusLg),
-            color: colorScheme.surfaceContainerHigh,
-            clipBehavior: Clip.antiAlias,
+            type: MaterialType.transparency,
             child: InkWell(
+              borderRadius: BorderRadius.circular(24),
               onTap: () {
                 final expand = onExpand;
                 if (expand != null) {
@@ -113,112 +130,168 @@ class NarrationMiniPlayer extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  LinearProgressIndicator(
-                    minHeight: 2,
-                    value: sentenceProgress,
-                    color: tint,
-                    backgroundColor: tint.withValues(alpha: 0.15),
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                    child: LinearProgressIndicator(
+                      minHeight: 2,
+                      value: sentenceProgress,
+                      color: tint,
+                      backgroundColor: tint.withValues(alpha: 0.15),
+                    ),
                   ),
                   SizedBox(
                     height: 52,
-                    child: Row(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8, right: 4),
-                          child: Tooltip(
-                            message: 'Go to ${effectiveBookTitle ?? 'reader'}',
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(6),
-                                onTap: () => _navigateToReader(context, session),
-                                child: Container(
-                                  width: 32,
-                                  height: 38,
-                                  decoration: BoxDecoration(
+                    // Phone-width hosts can't fit the six-chip rate dial
+                    // (~210px) alongside cover + transport + lyric — switch
+                    // to the compact chip that opens the preset menu.
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final compactSpeed = constraints.maxWidth < 380;
+                        return Row(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8, right: 4),
+                              child: Tooltip(
+                                message:
+                                    'Go to ${effectiveBookTitle ?? 'reader'}',
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: colorScheme.outlineVariant
-                                          .withValues(alpha: 0.3),
-                                      width: 0.5,
+                                    onTap: () =>
+                                        _navigateToReader(context, session),
+                                    child: Container(
+                                      width: 32,
+                                      height: 38,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: colorScheme.outlineVariant
+                                              .withValues(alpha: 0.3),
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: BookCover(
+                                        coverPath: effectiveCoverPath,
+                                        width: 32,
+                                        height: 38,
+                                      ),
                                     ),
-                                  ),
-                                  clipBehavior: Clip.antiAlias,
-                                  child: BookCover(
-                                    coverPath: effectiveCoverPath,
-                                    width: 32,
-                                    height: 38,
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => unawaited(_toggle(engine, status)),
-                          icon: Icon(
-                            switch (status) {
-                              NarrationStatus.playing =>
-                                Icons.pause_circle_filled,
-                              NarrationStatus.paused =>
-                                Icons.play_circle_filled,
-                              NarrationStatus.idle => Icons.play_circle_filled,
-                            },
-                            size: 28,
-                            color: tint,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 36,
-                            minHeight: 36,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: _MiniLyric(
-                            item: activeItem,
-                            boundary: boundary,
-                            playing: status == NarrationStatus.playing,
-                            fallback: effectiveChapterTitle ??
-                                effectiveBookTitle ??
-                                'Narrating',
-                            dimColor: colorScheme.onSurface.withValues(
-                              alpha: 0.65,
+                            IconButton(
+                              onPressed: () =>
+                                  unawaited(_toggle(engine, status)),
+                              icon: Icon(
+                                switch (status) {
+                                  NarrationStatus.playing =>
+                                    Icons.pause_circle_filled,
+                                  NarrationStatus.paused =>
+                                    Icons.play_circle_filled,
+                                  NarrationStatus.idle =>
+                                    Icons.play_circle_filled,
+                                },
+                                size: 28,
+                                color: tint,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
                             ),
-                            accent: tint,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        NarrationSpeedControl(
-                          accent: tint,
-                          color: colorScheme.onSurface,
-                        ),
-                        IconButton(
-                          onPressed: () => unawaited(engine.skipNext()),
-                          icon: const Icon(Icons.skip_next_rounded),
-                          iconSize: 22,
-                          color: colorScheme.onSurface.withValues(alpha: 0.75),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 36,
-                            minHeight: 36,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => unawaited(engine.stop()),
-                          icon: const Icon(Icons.close),
-                          iconSize: 18,
-                          color: colorScheme.onSurface.withValues(alpha: 0.55),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 36,
-                            minHeight: 36,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                      ],
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: _MiniLyric(
+                                item: activeItem,
+                                boundary: boundary,
+                                playing: status == NarrationStatus.playing,
+                                fallback:
+                                    effectiveChapterTitle ??
+                                    effectiveBookTitle ??
+                                    'Narrating',
+                                dimColor: colorScheme.onSurface.withValues(
+                                  alpha: 0.65,
+                                ),
+                                accent: tint,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            NarrationSpeedControl(
+                              accent: tint,
+                              color: colorScheme.onSurface,
+                              compact: compactSpeed,
+                            ),
+                            IconButton(
+                              onPressed: () => unawaited(engine.skipNext()),
+                              icon: const Icon(Icons.skip_next_rounded),
+                              iconSize: 22,
+                              color: colorScheme.onSurface.withValues(
+                                alpha: 0.75,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => unawaited(engine.stop()),
+                              icon: const Icon(Icons.close),
+                              iconSize: 18,
+                              color: colorScheme.onSurface.withValues(
+                                alpha: 0.55,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                        );
+                      },
                     ),
                   ),
+                  if (docked &&
+                      navDestinations.isNotEmpty &&
+                      onNavSelect != null) ...[
+                    Divider(
+                      height: 1,
+                      thickness: 0.5,
+                      indent: 12,
+                      endIndent: 12,
+                      color: colorScheme.onSurface.withValues(alpha: 0.12),
+                    ),
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(24),
+                      ),
+                      child: SizedBox(
+                        height: 44,
+                        child: Row(
+                          children: [
+                            for (var i = 0; i < navDestinations.length; i++)
+                              Expanded(
+                                child: _MiniNavButton(
+                                  item: navDestinations[i],
+                                  selected: i == currentNavIndex,
+                                  tint: tint,
+                                  dim: colorScheme.onSurfaceVariant,
+                                  onTap: () => onNavSelect!(i),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -249,6 +322,62 @@ class NarrationMiniPlayer extends ConsumerWidget {
         await engine.start();
         break;
     }
+  }
+}
+
+/// One icon+label destination in the docked mini player's nav strip. Icon
+/// only would be ambiguous at this size, so a 9px label rides under it.
+class _MiniNavButton extends StatelessWidget {
+  const _MiniNavButton({
+    required this.item,
+    required this.selected,
+    required this.tint,
+    required this.dim,
+    required this.onTap,
+  });
+
+  final AtlasNavItem item;
+  final bool selected;
+  final Color tint;
+  final Color dim;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: item.label,
+      child: Tooltip(
+        message: item.label,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected ? item.activeIcon : item.icon,
+                size: 20,
+                color: selected ? tint : dim,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: TextStyle(
+                  fontSize: 9,
+                  height: 1,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? tint : dim,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -446,7 +575,11 @@ class _MiniLyric extends HookWidget {
       return null;
     }, [boundary]);
 
-    final text = Text.rich(buildSpan(), maxLines: 1, overflow: TextOverflow.clip);
+    final text = Text.rich(
+      buildSpan(),
+      maxLines: 1,
+      overflow: TextOverflow.clip,
+    );
 
     return ClipRect(
       child: AnimatedBuilder(

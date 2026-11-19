@@ -1,0 +1,14 @@
+# Run with `dart run ffigen --config ffigen.yaml` (requires libclang — see
+# lib/atlas_tts_bindings.dart, currently hand-maintained).
+name: AtlasTtsBindings
+description: |
+  Bindings for `src/atlas_tts.h`.
+output: 'lib/atlas_tts_bindings.dart'
+headers:
+  entry-points:
+    - 'src/atlas_tts.h'
+  include-directives:
+    - 'src/atlas_tts.h'
+comments:
+  style: any
+  length: full

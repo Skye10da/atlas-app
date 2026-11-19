@@ -4,7 +4,7 @@
       "id": "allnovelfull",
       "name": "AllNovelFull",
       "sourceName": "AllNovelFull",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "templateId": "html",
       "transport": "http",
       "baseUrl": "https://novgo.net",
@@ -19,10 +19,775 @@
       "id": "freewebnovel",
       "name": "FreeWebNovel",
       "sourceName": "FreeWebNovel",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "templateId": "html",
       "transport": "http",
       "baseUrl": "https://freewebnovel.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-1stkissnovel",
+      "name": "FirstKissNovel",
+      "sourceName": "FirstKissNovel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://1stkissnovel.org",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-allnovel",
+      "name": "AllNovel",
+      "sourceName": "AllNovel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://novelfull.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-anslid",
+      "name": "Anslid",
+      "sourceName": "Anslid",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://anslid.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-arnovel",
+      "name": "ArNovel",
+      "sourceName": "ArNovel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://ar-no.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-asuralightnovel",
+      "name": "Srank Manga",
+      "sourceName": "Srank Manga",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://srankmanga.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-azraznovel",
+      "name": "Araz Novel",
+      "sourceName": "Araz Novel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://araznovel.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-bellereservoir",
+      "name": "Belle Repository",
+      "sourceName": "Belle Repository",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://bellerepository.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-boxnovel",
+      "name": "BoxNovel",
+      "sourceName": "BoxNovel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://novelnice.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-citrusaurora",
+      "name": "Citrus Aurora",
+      "sourceName": "Citrus Aurora",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://citrusaurora.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-dragontea",
+      "name": "Dragon Tea",
+      "sourceName": "Dragon Tea",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://dragontea.ink",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-duskblossoms",
+      "name": "Dusk Blossoms",
+      "sourceName": "Dusk Blossoms",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://duskblossoms.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-ekitaplar",
+      "name": "E-KİTAPLAR",
+      "sourceName": "E-KİTAPLAR",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://e-kitaplar.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-eternalune",
+      "name": "Eternalune",
+      "sourceName": "Eternalune",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://eternalune.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-etudetranslations",
+      "name": "Etude Translations",
+      "sourceName": "Etude Translations",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://etudetranslations.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-fanstranslations",
+      "name": "Fans Translations",
+      "sourceName": "Fans Translations",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://fanstranslations.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-fortuneeternal",
+      "name": "Fortune Eternal",
+      "sourceName": "Fortune Eternal",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://www.fortuneeternal.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-hiraethtranslation",
+      "name": "Hiraeth Translation",
+      "sourceName": "Hiraeth Translation",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://hiraethtranslation.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-hizomanga",
+      "name": "HizoManga",
+      "sourceName": "HizoManga",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://hizomanga.net",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-kakikata",
+      "name": "kakikata",
+      "sourceName": "kakikata",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://kakikata.com.tr",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-lnheaven",
+      "name": "LightNovelHeaven",
+      "sourceName": "LightNovelHeaven",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://lightnovelheaven.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-lullobox",
+      "name": "LulloBox",
+      "sourceName": "LulloBox",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://lullobox.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-lunarletters",
+      "name": "LunarLetters",
+      "sourceName": "LunarLetters",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://lunarletters.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-massnovel",
+      "name": "MassNovel",
+      "sourceName": "MassNovel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://massnovel.fr",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-morenovel",
+      "name": "Vanovel",
+      "sourceName": "Vanovel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://vanovel.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-mostnovel",
+      "name": "MostNovel",
+      "sourceName": "MostNovel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://mostnovel.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-mysticalmerries",
+      "name": "MysticalSeries",
+      "sourceName": "MysticalSeries",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://mysticalmerries.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-neosekaitls",
+      "name": "NeoSekai Translations",
+      "sourceName": "NeoSekai Translations",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://www.neosekaitranslations.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-nitromanga",
+      "name": "Nitro Manga",
+      "sourceName": "Nitro Manga",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://nitromanga.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-noicetranslations",
+      "name": "Noice Translations",
+      "sourceName": "Noice Translations",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://noicetranslations.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-novel-lucky",
+      "name": "Novel Lucky",
+      "sourceName": "Novel Lucky",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://novel-lucky.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-novelbookid",
+      "name": "NovelBookID",
+      "sourceName": "NovelBookID",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://www.novelbook.id",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-novelmultiverse",
+      "name": "NovelMultiverse",
+      "sourceName": "NovelMultiverse",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://www.novelmultiverse.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-novelninja",
+      "name": "Novel Ninja",
+      "sourceName": "Novel Ninja",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://novelninja.xyz",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-novelpdf",
+      "name": "Novel PDF",
+      "sourceName": "Novel PDF",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://novelpdf.xyz",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-novelshort",
+      "name": "Novel Short",
+      "sourceName": "Novel Short",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://novel-short.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-panchotranslations",
+      "name": "Pancho Translations",
+      "sourceName": "Pancho Translations",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://panchotranslations.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-pasteltales",
+      "name": "Pastel Tales",
+      "sourceName": "Pastel Tales",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://pasteltales.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-ragnarscans",
+      "name": "Ragnar Scans",
+      "sourceName": "Ragnar Scans",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://ragnarscans.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-readfanfic",
+      "name": "Read Fanfic",
+      "sourceName": "Read Fanfic",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://readfanfic.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-salmonlatte",
+      "name": "Salmon Latte",
+      "sourceName": "Salmon Latte",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://salmonlatte.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-sleepttls",
+      "name": "SleepyTranslations",
+      "sourceName": "SleepyTranslations",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://sleepytranslations.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-sonicmtl",
+      "name": "SonicMTL",
+      "sourceName": "SonicMTL",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://www.sonicmtl.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-tangerinearchive",
+      "name": "Tangerine Archive",
+      "sourceName": "Tangerine Archive",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://tangerinearchive.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-traducciones",
+      "name": "Traducciones Amistosas",
+      "sourceName": "Traducciones Amistosas",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://traduccionesamistosas.topmanhuas.org",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-translatinotaku",
+      "name": "TranslatinOtaku",
+      "sourceName": "TranslatinOtaku",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://translatinotaku.net",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-turkcelightnovels",
+      "name": "TurkceLightNovels",
+      "sourceName": "TurkceLightNovels",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://turkcelightnovels.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-wbnovel",
+      "name": "WBNovel",
+      "sourceName": "WBNovel",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://wbnovel.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-webnoveloku",
+      "name": "WebNovelOku",
+      "sourceName": "WebNovelOku",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://www.webnoveloku.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-wooksteahouse",
+      "name": "Wook's Teahouse",
+      "sourceName": "Wook's Teahouse",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://wooksteahouse.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-wordexcerpt",
+      "name": "WordExcerpt",
+      "sourceName": "WordExcerpt",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://wordexcerpt.com",
+      "capabilities": [
+        "search",
+        "chapterList",
+        "chapterContent",
+        "cover"
+      ]
+    },
+    {
+      "id": "lnr-wuxiaworld-site",
+      "name": "WuxiaWorld.Site",
+      "sourceName": "WuxiaWorld.Site",
+      "version": "1.0.0",
+      "templateId": "html",
+      "transport": "http",
+      "baseUrl": "https://wuxiaworld.site",
       "capabilities": [
         "search",
         "chapterList",
@@ -41,7 +806,8 @@
       "capabilities": [
         "chapterList",
         "chapterContent",
-        "cover"
+        "cover",
+        "trending"
       ]
     },
     {
@@ -56,14 +822,15 @@
         "search",
         "chapterList",
         "chapterContent",
-        "cover"
+        "cover",
+        "trending"
       ]
     },
     {
       "id": "noveldrama",
       "name": "NovelDrama",
       "sourceName": "NovelDrama",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "templateId": "html",
       "transport": "http",
       "baseUrl": "https://noveldrama.org",
@@ -71,14 +838,15 @@
         "search",
         "chapterList",
         "chapterContent",
-        "cover"
+        "cover",
+        "trending"
       ]
     },
     {
       "id": "novelfull",
       "name": "NovelFull",
       "sourceName": "NovelFull",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "templateId": "html",
       "transport": "http",
       "baseUrl": "https://novelfull.net",
@@ -93,7 +861,7 @@
       "id": "readnovelfull",
       "name": "ReadNovelFull",
       "sourceName": "ReadNovelFull",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "templateId": "html",
       "transport": "http",
       "baseUrl": "https://readnovelfull.com",
@@ -101,7 +869,8 @@
         "search",
         "chapterList",
         "chapterContent",
-        "cover"
+        "cover",
+        "trending"
       ]
     },
     {
@@ -116,7 +885,8 @@
         "search",
         "chapterList",
         "chapterContent",
-        "cover"
+        "cover",
+        "trending"
       ]
     },
     {
@@ -131,7 +901,8 @@
         "search",
         "chapterList",
         "chapterContent",
-        "cover"
+        "cover",
+        "trending"
       ]
     }
   ]

@@ -68,7 +68,7 @@ class SelectionSpeaker {
     final settings =
         ref.read(narrationSettingsProvider).value ?? _defaultSettings;
 
-    final driver = ref.read(speechDriverProvider);
+    final driver = ref.read(speechEngineProvider).driver;
     try {
       await driver.configure(
         rate: settings.speechRate,
@@ -91,5 +91,6 @@ class SelectionSpeaker {
     } catch (_) {}
   }
 
-  Future<void> stop(WidgetRef ref) => ref.read(speechDriverProvider).stop();
+  Future<void> stop(WidgetRef ref) =>
+      ref.read(speechEngineProvider).driver.stop();
 }

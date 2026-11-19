@@ -31,10 +31,8 @@ class ReaderImageWidget extends StatelessWidget {
     showDialog<void>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.85),
-      builder: (ctx) => _ImageViewerDialog(
-        imageProvider: imageProvider,
-        caption: alt,
-      ),
+      builder: (ctx) =>
+          _ImageViewerDialog(imageProvider: imageProvider, caption: alt),
     );
   }
 
@@ -75,14 +73,17 @@ class ReaderImageWidget extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8.0),
                       border: Border.all(
-                        color: Theme.of(context).dividerColor.withValues(alpha: 0.15),
+                        color: Theme.of(
+                          context,
+                        ).dividerColor.withValues(alpha: 0.15),
                         width: 1.0,
                       ),
                     ),
                     child: Image(
                       image: provider,
                       fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox.shrink(),
                     ),
                   ),
                 ),
@@ -95,7 +96,9 @@ class ReaderImageWidget extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12.0,
                   fontStyle: FontStyle.italic,
-                  color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                  color: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.color?.withValues(alpha: 0.7),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -108,10 +111,7 @@ class ReaderImageWidget extends StatelessWidget {
 }
 
 class _ImageViewerDialog extends HookWidget {
-  const _ImageViewerDialog({
-    required this.imageProvider,
-    this.caption,
-  });
+  const _ImageViewerDialog({required this.imageProvider, this.caption});
 
   final ImageProvider imageProvider;
   final String? caption;
@@ -136,10 +136,7 @@ class _ImageViewerDialog extends HookWidget {
               transformationController: controller,
               minScale: 0.8,
               maxScale: 5.0,
-              child: Image(
-                image: imageProvider,
-                fit: BoxFit.contain,
-              ),
+              child: Image(image: imageProvider, fit: BoxFit.contain),
             ),
           ),
           // Top close button
@@ -158,7 +155,10 @@ class _ImageViewerDialog extends HookWidget {
               left: 24,
               right: 24,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(6),

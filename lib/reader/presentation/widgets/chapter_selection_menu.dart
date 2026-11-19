@@ -15,15 +15,33 @@ class ChapterSelectionMenuBuilder {
   const ChapterSelectionMenuBuilder();
 
   static const List<AppContextMenuHighlightOption> highlightPalette = [
-    AppContextMenuHighlightOption(color: Color(0xFFFFD54F), label: 'Sunset Gold'),
-    AppContextMenuHighlightOption(color: Color(0xFF69F0AE), label: 'Emerald Mint'),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFFFD54F),
+      label: 'Sunset Gold',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFF69F0AE),
+      label: 'Emerald Mint',
+    ),
     AppContextMenuHighlightOption(color: Color(0xFF40C4FF), label: 'Sky Blue'),
-    AppContextMenuHighlightOption(color: Color(0xFFFF8A80), label: 'Coral Orange'),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFFF8A80),
+      label: 'Coral Orange',
+    ),
     AppContextMenuHighlightOption(color: Color(0xFFFF80AB), label: 'Rose Pink'),
-    AppContextMenuHighlightOption(color: Color(0xFFB388FF), label: 'Electric Violet'),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFB388FF),
+      label: 'Electric Violet',
+    ),
     AppContextMenuHighlightOption(color: Color(0xFFEEFF41), label: 'Neon Lime'),
-    AppContextMenuHighlightOption(color: Color(0xFFFFA726), label: 'Warm Amber'),
-    AppContextMenuHighlightOption(color: Color(0xFF90A4AE), label: 'Slate Graphite'),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFFFA726),
+      label: 'Warm Amber',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFF90A4AE),
+      label: 'Slate Graphite',
+    ),
   ];
 
   /// Converts an offset from [SelectionHandler.getSelection] (relative to
@@ -120,17 +138,15 @@ class ChapterSelectionMenuBuilder {
           startRender,
           renderContentMap,
         );
-        globalEnd = contentOffsetFromRenderOffset(
-          endRender,
-          renderContentMap,
-        );
+        globalEnd = contentOffsetFromRenderOffset(endRender, renderContentMap);
       } else {
         try {
           final anchors = selectableRegionState.contextMenuAnchors;
           final p1 = renderParagraph.globalToLocal(anchors.primaryAnchor);
           final pos1 = renderParagraph.getPositionForOffset(p1).offset;
-          final wordRange =
-              renderParagraph.getWordBoundary(TextPosition(offset: pos1));
+          final wordRange = renderParagraph.getWordBoundary(
+            TextPosition(offset: pos1),
+          );
           if (wordRange.isValid && !wordRange.isCollapsed) {
             globalStart = contentOffsetFromRenderOffset(
               wordRange.start,
@@ -145,7 +161,8 @@ class ChapterSelectionMenuBuilder {
       }
     }
 
-    final hasOffsets = globalStart != null &&
+    final hasOffsets =
+        globalStart != null &&
         globalEnd != null &&
         globalStart >= 0 &&
         globalEnd <= content.length &&
@@ -162,7 +179,9 @@ class ChapterSelectionMenuBuilder {
           )
         : null;
     final overlappingHighlight = hasOffsets
-        ? highlights.where((h) => h.overlaps(globalStart!, globalEnd!)).firstOrNull
+        ? highlights
+              .where((h) => h.overlaps(globalStart!, globalEnd!))
+              .firstOrNull
         : null;
     final hasOverlappingHighlight = overlappingHighlight != null;
     final eraseEnabled =
@@ -201,8 +220,7 @@ class ChapterSelectionMenuBuilder {
           AppContextMenuAction(
             label: 'Listen',
             icon: Icons.play_circle_outline_rounded,
-            onPressed: () =>
-                onListen(word, sentence, globalStart!, globalEnd!),
+            onPressed: () => onListen(word, sentence, globalStart!, globalEnd!),
           ),
         if (showSelectionActions && onShare != null)
           AppContextMenuAction(

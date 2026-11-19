@@ -23,6 +23,567 @@
       }
     },
     {
+      "id": "lnr-1stkissnovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "068f635d58a14c21b20c979c1ce13f8faf6a72b3d0b992cdb75df0f1d4d8a1b8",
+        "README.md": "fb92b214f1d736162119fa19be803827a915a5d880c4d3ae6b8a6ca3702231af",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-allnovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "fc5a86a600abf43aad81a88b5bccb1b59be59e0be9cb958bc71392b4c650300b",
+        "README.md": "56d5f190f8726831d573fe3abeee81f7e23b44992356a6331e70e9828a8497a3",
+        "selectors.json": "cda2d0fd6dbb92d96d6258f6accb1f157830ac782460e8b95f82c6174f65546e"
+      }
+    },
+    {
+      "id": "lnr-anslid",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "5df3cfd929bdfa2b5da0b208b995582d7d20b16b431c5eac3f689b4a9aea0533",
+        "README.md": "a6292b212fa29a66ef105c535a44349b09355b6ba57c370e3e96580325716281",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-arnovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "b55e76ee6d20b93940c607b7f252efbf39b137e26ef80cab2f895f6a85f528b6",
+        "README.md": "11017f37047df977d05331c5168e27cb48d596ecbceb0f942e585d4b8f288a82",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-asuralightnovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "9591542e3bf1f3a6bc149081913cefe9ae317eaef0006560d73c389073f608f2",
+        "README.md": "a7d35a5390449e44ff96128083df948b7e69438499d42291a91f818e2ffe50df",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-azraznovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "637c5f237ee4c1d25227affa899d788f28bc9e77858c39327d815a3a9bc7dba2",
+        "README.md": "cfaf08b537791439fd316407bc14dfebd55d0bc0b3f48b95c9109afb3f965014",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-bellereservoir",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "8b7bbe5a45af38200b0eb3d1190de1ba944b808635d761d278fc80ba3e244200",
+        "README.md": "a412ee3fbc530f90329c722368ad1a312b699dfe7db0dbf0b20a36020de4577b",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-boxnovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "a2ab9a1f63b7c6f97b96c82d28b9758ba77d167582140d023602d2be2477a655",
+        "README.md": "e06018582279abcf547f97ae05ba415afef5dc79c6dcd96c05b4631cac396975",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-citrusaurora",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "185a4d75c8e28a7798fd9dc441a76a055a4a5ce5b4ec88efbeffbed975664a02",
+        "README.md": "5b9c5e734678d19960193c3eb438b62dfbeb136f407bad2187ee0c21ac4142f5",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-dragontea",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "39b539d873533f71024a2b8df669cba34048fa976063724ed6f576735bc9b7d2",
+        "README.md": "38287cb047a90c1acee93538baedcf59312e0597089663ee840c1f895a9e3cc7",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-duskblossoms",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "e46e785fe07a1722e350bd754686c37dc24e3d66acbb8cef415339ae8099fe79",
+        "README.md": "2828deffe1435b936cbdf0fcc62447fc72766ea1244f45178ee6e286b4649161",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-ekitaplar",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "75c88612e0b30a40a2653c02246ef48a160abe1c373989d128e7eb5b0990c59e",
+        "README.md": "3461716f8a4df5d7eeed9c39925f7f3b3034ac1017a2fc2b7a8632621fbfeb0d",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-eternalune",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "043821d00b23ae532aefe486248e4a28eede918fcee1dde30c7fa82c70d51beb",
+        "README.md": "d6bf1074583eb8b22514e3620ac15d7bc00e3e8817306ddfd7fbdd4f30129436",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-etudetranslations",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "33ac2b5760d8135c1476c7b5eefbd15f1a004443e3b4c4343a16198fd5e24821",
+        "README.md": "063dcdce4e55961cd7a14541cbb5b773f69dba4ebb7e00ac560a19aef41397fc",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-fanstranslations",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "4e2d3b64d1d81ee9f4a4fa2d0604970fc5fdb7611d508f18883af39c8ad9981c",
+        "README.md": "48362611a5d4c16fa61835452b79bad0d8cde98e69387d55b631f3f19168a587",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-fortuneeternal",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "8d914734b56543bae442051f5703e614243eb7cff682d444395896d2fbd418a0",
+        "README.md": "14ef2bc17b4b92a0a97f0ff37731982947438f15dfeea71f6f87f15e3597bd50",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-hiraethtranslation",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "bb0f04cfce092c4c5c93dd097b208f170502d2256dec1c5780e96c05f3af1361",
+        "README.md": "d232d4e45524590712454fa962bdc5c1dad1100bef4e3dd6e13edbcfa399e362",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-hizomanga",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "d7da3760367b0c94c07d7e2d2e7f45f826eda90172c06ccde41fc30f2270d23e",
+        "README.md": "d0ac46b218a5bf13466d74f9e9422bcd749d222d856f159e1d69f053392c34ef",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-kakikata",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "03bf389bcf114d11c65b44d0ae965614e5b0f7b16ffb7dadcd204d5b6b45126a",
+        "README.md": "dc0404e4136ef4f07d4ab851a85efb26f01cfb5ae2b65b1813c51ffdb7caac99",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-lnheaven",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "094b2dc03de204b8dad6a52c70f56d9afbecb4c2f125e69f49360f9dc68efe3b",
+        "README.md": "ce3c4115c9e41c9b5767da189c3ea56881a362f1996b2f743cf42e18a1cec6b5",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-lullobox",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "faf81aa827fe686441063248fa3228f1164309c18ea19de4d94cb7e68bb8102f",
+        "README.md": "fa931c23e0ecaa9e8714dee1f3794cf89183f78dcb41d5b2e7fa6afe00bc8aff",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-lunarletters",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "16317ebc3be004918c79ecce0e754884cb216a999bf120528cd477f80ec45e3e",
+        "README.md": "43534f508da5d550f9f1b782bc6f21cf6fbfbb840c674d89d56762f43eafea06",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-massnovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "8ec9809aa8db550bbb48f26ccd9c3cc3a812d01ccb00219b04cb605e9509798c",
+        "README.md": "9ae530cad867fe8b97ef6ff5ea73e14d7200c522e06ea601b7760683659db7b4",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-morenovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "d41b83748c1e8815d693cc7d555018c7efb7ed005e4cd12989cc6d33f47b12bc",
+        "README.md": "176901d59ea467282557f9e89bd455318e0fe86fabc09c2d1c02303c7c5f984b",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-mostnovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "0c14ef5906bc33514c9e9576ad714bfa3edc03d108973fd6a57293539c8b511e",
+        "README.md": "9db2d45730ca6bdc181f436021205f439e2a777bc9233237cf6f7805169b91db",
+        "selectors.json": "a40a155ce30a8138789a45dc715e091cba1b8683c70e952dd9941cc73816ce09"
+      }
+    },
+    {
+      "id": "lnr-mysticalmerries",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "a79c6d81f31ea81714cf1fd486ff840b5c3767dec0064b6c78a8ffda2a344b92",
+        "README.md": "ec2f92e2e893c5e80b84b1c5c01d735ecb210de5f3231cc6d001414319dd97c8",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-neosekaitls",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "8610e1d98a22c5da53b7cf178901d5a94d3152b35f24e6056269b6ad47359f92",
+        "README.md": "f4b0647e025a0b025394a00af348b940a2be42c86e9f2c168ea034c990354432",
+        "selectors.json": "a40a155ce30a8138789a45dc715e091cba1b8683c70e952dd9941cc73816ce09"
+      }
+    },
+    {
+      "id": "lnr-nitromanga",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "19317452e4aa87941fd84f84ebfc8f05a3b9016022ce86f67d89a82569ab3274",
+        "README.md": "4fc91b1174bac31aa254325d40b8f777da6daf1cdc02e1502c137c9a6511a530",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-noicetranslations",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "9941cba0243040705e112a6737907520d590ecd006f1e8292ed68de6a4727e62",
+        "README.md": "9b7e5a6f714a4d26aecb507a2f6b1d172bfd99c6c903f97168c7996203aacf01",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-novel-lucky",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "d31aa8698f273921921efa251762387f29cd90a8c44dcc8b4567e2476b992ee2",
+        "README.md": "c615f570f656475e8c6c7d9ce30585994086560ca72d0679d15a84ed358a9f25",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-novelbookid",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "01b30cb5e03ef164b2dfc6bc4a8695071f0f2edd0607bd60a635f23b4332d2e0",
+        "README.md": "ad6d2fc61e49585bd0ca27d07e76520a5fff93c7cf73bcfb9e763f541866f96f",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-novelmultiverse",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "a3b796917de622fe078097ff8b5d0e43a8af4ef58d6aca77538e6ca57330c36e",
+        "README.md": "b452639794420b6c6a1a037727910b8c888ddbd077411ff7d43f9e50b65a5bb0",
+        "selectors.json": "a40a155ce30a8138789a45dc715e091cba1b8683c70e952dd9941cc73816ce09"
+      }
+    },
+    {
+      "id": "lnr-novelninja",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "fa0ef347f2c082ed4b2538dacca78defc6b057b8184570e58f6b244779ab546d",
+        "README.md": "9cf2810b320ddbecac0ecf768fdb1e0b975fbb862e456eb3e992f71780549241",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-novelpdf",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "a85e1397e68871e3e51d59ebab71cbe6ed842c64ca8b3d5c488a87ad30de9492",
+        "README.md": "531a1c7397733a12f7abf5317a0978a40f5426dd36b431358dc21c28bc48232b",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-novelshort",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "ac78de380b8467d11e29ade027af65480cb00d7660114e94ff273ccf186421aa",
+        "README.md": "3c865c3cb2ff46e352df8dac3408dc6660ba40486e9b65e45ecc4b486febe9fa",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-panchotranslations",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "8c74510df6d1fe0923380edc49a2c8cbaa4dec4836ca46c91d36ac6d4d7e3cbe",
+        "README.md": "b6b0a8d40235a5ca9234cf81e7435f722c8e3316019105655bfbb7ca260b465b",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-pasteltales",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "2af5a9a7e8fc2edc48e2d299e1af86d02771649621476fa666159a484129c5f7",
+        "README.md": "d03c6e830a74f7e60c1a9acb0c6a351f53d73ecbf473996b85ce4105376269c3",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-ragnarscans",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "7a3243c44c18b8a49ce0eb758a729047eb1b70fb6a353260f9ddd80df1a2575f",
+        "README.md": "d18f9a8843aa3d9dca8771c0d1e1bd9dc8c7ae8f90c851cf993159b31de3a078",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-readfanfic",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "f4365a060e69472d06ee0e6a61926bfa1d69ab8610334f9c9005457bdf2fb670",
+        "README.md": "0f5ff532b199eb5c84b0c4a81698a96bf8782ce1530c2634dcad363ba7ac1dde",
+        "selectors.json": "a40a155ce30a8138789a45dc715e091cba1b8683c70e952dd9941cc73816ce09"
+      }
+    },
+    {
+      "id": "lnr-salmonlatte",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "a39c204e66310b4143490314f9d3a6b5fe357a80a46d2452a64d0967db885f3c",
+        "README.md": "dece415e36a358acd3c56e4fcfdad1631ae7707788304dd7a2a77975f3d904fc",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-sleepttls",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "d1d9d7acfdcc5581a720c0add12095823d2ec4792e52fb7501b85d620d68e0ca",
+        "README.md": "6be883e815acc4e2a9ce3ff3ce085245e691068d291433d0fe8e35cfafe37f5e",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-sonicmtl",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "e4f4c8a42ba1ffefe309559d6ac50970fc722adfd1645ec7e7eb0a0742bdd99b",
+        "README.md": "222b2973c730d8e99d18d685d888c3fa6c44e380639fd5cf515db50958a03f4c",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-tangerinearchive",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "d6df9b05c1922f7e848650824b6389f819e879c6e0fcd6eef762b7ad1fa714d2",
+        "README.md": "1ff31ec98f877efdacb526ce7198e2ce6f228eb7fd637c40e63ae565df5eb522",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-traducciones",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "3ad59c1712b69e02ec620d696ddb0101505a205c391dcfac259dc49632ac8c16",
+        "README.md": "7d2d1c30756880d08973bc900e170d1c137607cd58d5991dc1e838f5785b6a9b",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-translatinotaku",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "f9c41492cf09f9836b5bcdb4246ad76b009c0964e89f1b43d9eace45160d3c75",
+        "README.md": "781de0ae9c5791bba88ac3c17defabe9a1ab24548c1f04bc39b63414b2535672",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-turkcelightnovels",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "c339d31a8aa5a8f4e386604b0deb902c1a9a9494dd2829db124b9819886c1dbf",
+        "README.md": "bb52869e4fa8c2fee8ae3f8b274c31bfd1f34e8e03549ecf92740fef03faf471",
+        "selectors.json": "a40a155ce30a8138789a45dc715e091cba1b8683c70e952dd9941cc73816ce09"
+      }
+    },
+    {
+      "id": "lnr-wbnovel",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "cfcdd14e82096954c469f0c70a38b940d12a81996f0ec98398f83c081a7d7e48",
+        "README.md": "ba39f3a57a43747262b2361d981b42a62888f4377322e655e50d23d9d746612c",
+        "selectors.json": "a40a155ce30a8138789a45dc715e091cba1b8683c70e952dd9941cc73816ce09"
+      }
+    },
+    {
+      "id": "lnr-webnoveloku",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "6220f930f72f6dae3630eee23b4fae98ba2b022b579aa4352fdbb433e151751d",
+        "README.md": "2aafe0012a9f4afe46492fa473548aad5e0df5f25f84ceb915d3562bbb2a3c58",
+        "selectors.json": "a40a155ce30a8138789a45dc715e091cba1b8683c70e952dd9941cc73816ce09"
+      }
+    },
+    {
+      "id": "lnr-wooksteahouse",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "3f5feb0d233dd57437450fb751351ecf296a689b4c2a8ad296f6cd3222e76c77",
+        "README.md": "8745b2737e14322e4252e2a02837c7c2ed3f4a8f2a267161746826af821536b5",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
+      "id": "lnr-wordexcerpt",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "e446eae41d3fe11fdc59f8427cb0dcdc25239c4cd1cd8c7379294267ef5d2915",
+        "README.md": "30d5877549cf185c85f79026d6b62b84ad7539663b50d4694fae10aab5ed4cf8",
+        "selectors.json": "a40a155ce30a8138789a45dc715e091cba1b8683c70e952dd9941cc73816ce09"
+      }
+    },
+    {
+      "id": "lnr-wuxiaworld-site",
+      "version": "1.0.0",
+      "checksums": {
+        "filters.json": "60b6731039ff6a9bbdbf193fd5d94635cdd5b5f2f123b5442cc634f1981f0744",
+        "permissions.json": "9a6ee10da867ce0aaa7d5751181f15cfc8baf9f3c698679caa4fb60bfd5577ad",
+        "plugin.json": "0c0ab7a4908762db14fe44660b027f4f34b793109a6399d70b6477024cc90531",
+        "README.md": "9672865bbb4016679b4b8a00b837ca3af1773b41c1fc7f889f47654f958aff03",
+        "selectors.json": "42b9aebfe6cd02a0ccbcdcd9797ded8968fdcc30e5c932d30bd5c6aa648e6396"
+      }
+    },
+    {
       "id": "mvlempyr",
       "version": "1.0.0",
       "checksums": {

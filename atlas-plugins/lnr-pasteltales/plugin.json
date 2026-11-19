@@ -1,0 +1,23 @@
+{
+  "id": "lnr-pasteltales",
+  "name": "Pastel Tales",
+  "sourceName": "Pastel Tales",
+  "version": "1.0.0",
+  "templateId": "html",
+  "transport": "http",
+  "baseUrl": "https://pasteltales.com",
+  "language": "en",
+  "customUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "capabilities": [
+    "search",
+    "chapterList",
+    "chapterContent",
+    "cover"
+  ],
+  "origin": {
+    "type": "lnreader-multisrc",
+    "family": "madara",
+    "upstreamId": "pasteltales",
+    "upstreamCommit": "8efb28b14b036f96b9f5886537b05a8e0c98cd2d"
+  }
+}

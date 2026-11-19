@@ -134,7 +134,6 @@ class RealFlipReaderLayout extends HookConsumerWidget {
     void markRemoteAttempt(int index) =>
         remoteAttemptAtRef.value[index] = DateTime.now();
 
-
     final flipController = useMemoized(() => PageFlipController());
     final pageCache = useRef<Map<int, List<String>>>({});
     final contentCache = useRef<Map<int, String>>({});
@@ -161,7 +160,8 @@ class RealFlipReaderLayout extends HookConsumerWidget {
       updateTrigger.value++;
     }
 
-    final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
     final useSpread = isDesktop && settings.useBookSpread;
     final isDarkTheme =
         Theme.of(context).colorScheme.brightness == Brightness.dark;
@@ -470,14 +470,20 @@ class RealFlipReaderLayout extends HookConsumerWidget {
       // through the provider (it owns network + fallbacks) and feed the
       // result into the normal pagination flow when it lands.
       unawaited(
-        ref.read(readerChapterContentProvider(ch).future).then((content) {
-          if (content.isNotEmpty && contentCache.value[index] != content) {
-            contentCache.value[index] = content;
-            schedulePagination(index, content);
-          }
-        }, onError: (Object _) {
-          failedChapters.value = {...failedChapters.value, index};
-        }),
+        ref
+            .read(readerChapterContentProvider(ch).future)
+            .then(
+              (content) {
+                if (content.isNotEmpty &&
+                    contentCache.value[index] != content) {
+                  contentCache.value[index] = content;
+                  schedulePagination(index, content);
+                }
+              },
+              onError: (Object _) {
+                failedChapters.value = {...failedChapters.value, index};
+              },
+            ),
       );
     }
 
@@ -885,27 +891,27 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                   right: false,
                   child: totalPanels <= 0
                       ? (failedChapters.value.contains(currentIndex)
-                          ? AppErrorState(
-                              message:
-                                  'Could not load this chapter. Check your connection and try again.',
-                              onRetry: () => retryChapter(currentIndex),
-                            )
-                          : Stack(
-                              children: [
-                                Positioned.fill(
-                                  child: ChapterShimmer(
-                                    vt: vt,
-                                    showHeaders: true,
-                                    fontSize: settings.fontSize,
-                                    lineHeight: settings.lineHeight,
+                            ? AppErrorState(
+                                message:
+                                    'Could not load this chapter. Check your connection and try again.',
+                                onRetry: () => retryChapter(currentIndex),
+                              )
+                            : Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: ChapterShimmer(
+                                      vt: vt,
+                                      showHeaders: true,
+                                      fontSize: settings.fontSize,
+                                      lineHeight: settings.lineHeight,
+                                    ),
                                   ),
-                                ),
-                                ReaderLoadingOverlay(
-                                  chapter: chapters[currentIndex],
-                                  vt: vt,
-                                ),
-                              ],
-                            ))
+                                  ReaderLoadingOverlay(
+                                    chapter: chapters[currentIndex],
+                                    vt: vt,
+                                  ),
+                                ],
+                              ))
                       : Builder(
                           builder: (context) {
                             final rawIndex = useSpread
@@ -1053,7 +1059,8 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                           settings: settings,
                         ),
                 ),
-              if (!chromeState.narrationPanelVisible && !chromeState.chromeVisible)
+              if (!chromeState.narrationPanelVisible &&
+                  !chromeState.chromeVisible)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -1101,7 +1108,8 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                     onBookmarkTap: onBookmarkToggle,
                     isBookmarked: isBookmarked,
                     chromeStyle: settings.chromeStyle,
-                    onAnnotationsTap: () => showChapterIndex(context, initialTab: 2),
+                    onAnnotationsTap: () =>
+                        showChapterIndex(context, initialTab: 2),
                     currentChapterTitle: chapters[currentIndex].title,
                     currentChapterNumber: currentIndex,
                     totalChapters: chapters.length,
@@ -1113,14 +1121,19 @@ class RealFlipReaderLayout extends HookConsumerWidget {
                     onIntelligenceTap: onIntelligenceTap,
                     onRedownload: onRedownload,
                     isRedownloading: isRedownloading,
-                    onScrubToChapter: (idx) => navigateToChapter(idx, startAtTop: true),
+                    onScrubToChapter: (idx) =>
+                        navigateToChapter(idx, startAtTop: true),
                     onPrevChapter: currentIndex > 0
-                        ? () =>
-                              navigateToChapter(currentIndex - 1, startAtTop: true)
+                        ? () => navigateToChapter(
+                            currentIndex - 1,
+                            startAtTop: true,
+                          )
                         : null,
                     onNextChapter: currentIndex < chapters.length - 1
-                        ? () =>
-                              navigateToChapter(currentIndex + 1, startAtTop: true)
+                        ? () => navigateToChapter(
+                            currentIndex + 1,
+                            startAtTop: true,
+                          )
                         : null,
                     onListenTap: useSidePanels
                         ? chromeNotifier.toggleNarrationPanel

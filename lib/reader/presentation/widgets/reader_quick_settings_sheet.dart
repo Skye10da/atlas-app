@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:atlas_app/core/design_system/molecules/icon_controls.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/reading_colors.dart';
@@ -8,10 +9,11 @@ import 'package:atlas_app/settings/domain/entities/reading_settings_entity.dart'
 import 'package:atlas_app/settings/domain/value_objects/reading_preferences.dart';
 import 'package:atlas_app/settings/presentation/providers/settings_provider.dart';
 
-/// "Aa" quick sheet: the things people change mid-chapter (text size, line
-/// spacing, reading layout, theme, brightness) without opening the full
-/// settings sheet. Uses the same [readingSettingsProvider] as the full sheet,
-/// so both stay in sync.
+/// "Aa" quick sheet — icon-first and self-explaining: every control shows
+/// its effect (live "Aa" preview, spacing glyphs, layout glyphs, theme
+/// swatches) instead of relying on text titles. Uses the same
+/// [readingSettingsProvider] as the full settings screen, so both stay in
+/// sync.
 class ReaderQuickSettingsSheet extends ConsumerWidget {
   const ReaderQuickSettingsSheet({super.key, required this.onAllSettings});
 
@@ -32,18 +34,6 @@ class ReaderQuickSettingsSheet extends ConsumerWidget {
     );
   }
 
-  static const _spacing = <(String, double)>[
-    ('Tight', 1.3),
-    ('Normal', 1.6),
-    ('Roomy', 1.9),
-  ];
-
-  static String _modeLabel(ReadingMode mode) => switch (mode) {
-    ReadingMode.page => 'Pages',
-    ReadingMode.continuous => 'Scroll',
-    ReadingMode.realFlip => 'Flip',
-  };
-
   static IconData _modeIcon(ReadingMode mode) => switch (mode) {
     ReadingMode.page => Icons.menu_book_rounded,
     ReadingMode.continuous => Icons.view_day_rounded,
@@ -60,24 +50,16 @@ class ReaderQuickSettingsSheet extends ConsumerWidget {
     final notifier = ref.read(readingSettingsProvider.notifier);
 
     // Highlight the preset closest to the current line height.
-    var nearest = _spacing.first.$2;
-    for (final preset in _spacing) {
-      if ((preset.$2 - settings.lineHeight).abs() <
+    var nearest = 1.3;
+    for (final preset in const [1.3, 1.6, 1.9]) {
+      if ((preset - settings.lineHeight).abs() <
           (nearest - settings.lineHeight).abs()) {
-        nearest = preset.$2;
+        nearest = preset;
       }
     }
 
-    Widget label(String text) => Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-      child: Text(
-        text,
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: cs.onSurfaceVariant,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
+    SpacedLinesGlyph spacingGlyph(double gap) =>
+        SpacedLinesGlyph(gap: gap, color: cs.onSurfaceVariant);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -90,57 +72,55 @@ class ReaderQuickSettingsSheet extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          label('Text size'),
-          Row(
-            children: [
-              Text('A', style: theme.textTheme.bodySmall),
-              Expanded(
-                child: Slider(
-                  min: 12,
-                  max: 32,
-                  divisions: 20,
-                  value: settings.fontSize.clamp(12.0, 32.0),
-                  label: settings.fontSize.round().toString(),
-                  onChanged: notifier.setFontSize,
-                ),
+          // Text size — live "Aa" preview between the stepper beads.
+          IconStepper(
+            value: settings.fontSize.clamp(12.0, 32.0),
+            min: 12,
+            max: 32,
+            step: 1,
+            onChanged: notifier.setFontSize,
+            semanticLabel: 'Text size',
+            valueLabel: '${settings.fontSize.round()} pt',
+            preview: Text(
+              'Aa',
+              style: TextStyle(
+                fontSize: (settings.fontSize * 0.9).clamp(14.0, 28.0),
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
               ),
-              Text('A', style: theme.textTheme.headlineSmall),
-            ],
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          label('Line spacing'),
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<double>(
-              showSelectedIcon: false,
-              segments: [
-                for (final preset in _spacing)
-                  ButtonSegment(value: preset.$2, label: Text(preset.$1)),
-              ],
-              selected: {nearest},
-              onSelectionChanged: (s) => notifier.setLineHeight(s.first),
-            ),
+          // Line spacing — the gaps in the glyphs ARE the setting.
+          IconSegment<double>(
+            options: [
+              IconSegmentOption(1.3, label: 'Tight', glyph: spacingGlyph(2)),
+              IconSegmentOption(1.6, label: 'Normal', glyph: spacingGlyph(4)),
+              IconSegmentOption(1.9, label: 'Roomy', glyph: spacingGlyph(6)),
+            ],
+            selected: nearest,
+            onSelected: notifier.setLineHeight,
           ),
-          const SizedBox(height: AppSpacing.md),
-          label('Layout'),
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<ReadingMode>(
-              showSelectedIcon: false,
-              segments: [
-                for (final mode in ReadingMode.values)
-                  ButtonSegment(
-                    value: mode,
-                    label: Text(_modeLabel(mode)),
-                    icon: Icon(_modeIcon(mode), size: 18),
-                  ),
-              ],
-              selected: {settings.readingMode},
-              onSelectionChanged: (s) => notifier.setReadingMode(s.first),
-            ),
+          const SizedBox(height: AppSpacing.sm),
+          // Layout — page / scroll / flip glyphs.
+          IconSegment<ReadingMode>(
+            options: [
+              for (final mode in ReadingMode.values)
+                IconSegmentOption(
+                  mode,
+                  label: switch (mode) {
+                    ReadingMode.page => 'Pages',
+                    ReadingMode.continuous => 'Scroll',
+                    ReadingMode.realFlip => 'Flip',
+                  },
+                  icon: _modeIcon(mode),
+                ),
+            ],
+            selected: settings.readingMode,
+            onSelected: notifier.setReadingMode,
           ),
-          const SizedBox(height: AppSpacing.md),
-          label('Theme'),
+          const SizedBox(height: AppSpacing.sm),
+          // Theme — "Aa" swatches in the theme's own colors.
           SizedBox(
             height: 64,
             child: ListView.separated(
@@ -187,15 +167,16 @@ class ReaderQuickSettingsSheet extends ConsumerWidget {
               },
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          label(
-            settings.followSystemBrightness
-                ? 'Brightness (following system)'
-                : 'Brightness',
-          ),
+          const SizedBox(height: AppSpacing.sm),
+          // Brightness + keep-awake on one row: the sun glyphs explain the
+          // slider, the bead is lit while the screen stays awake.
           Row(
             children: [
-              Icon(Icons.brightness_low_rounded, size: 20, color: cs.onSurfaceVariant),
+              Icon(
+                Icons.brightness_low_rounded,
+                size: 20,
+                color: cs.onSurfaceVariant,
+              ),
               Expanded(
                 child: Slider(
                   value: settings.brightness.clamp(0.0, 1.0),
@@ -204,7 +185,19 @@ class ReaderQuickSettingsSheet extends ConsumerWidget {
                       : notifier.setBrightness,
                 ),
               ),
-              Icon(Icons.brightness_high_rounded, size: 20, color: cs.onSurfaceVariant),
+              Icon(
+                Icons.brightness_high_rounded,
+                size: 20,
+                color: cs.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              IconToggleBead(
+                active: settings.keepScreenAwake,
+                label: 'Keep screen awake',
+                activeIcon: Icons.lightbulb_rounded,
+                inactiveIcon: Icons.lightbulb_outline_rounded,
+                onChanged: notifier.setKeepScreenAwake,
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),

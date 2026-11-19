@@ -3,10 +3,15 @@ import 'package:flutter/services.dart';
 
 import 'package:atlas_app/core/design_system/atoms/app_divider.dart';
 import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
+import 'package:atlas_app/core/design_system/molecules/icon_controls.dart';
 import 'package:atlas_app/core/design_system/organisms/app_sheet.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
 
+/// Reader "Display" tab — icon-first: page-turn style, gesture zones,
+/// sensory feedback, scroll feel and screen controls are all glyph-driven;
+/// the power-user knobs (toolbar style, padding, content cards, book
+/// spread, desktop sheet style) sink behind an [AdvancedDisclosure].
 class LayoutTab extends StatelessWidget {
   const LayoutTab({
     super.key,
@@ -79,6 +84,21 @@ class LayoutTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Bead + micro-label: the glyph explains, the label confirms.
+    Widget beadRow({required IconToggleBead bead, required String label}) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          bead,
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+        ],
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
@@ -87,120 +107,94 @@ class LayoutTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Page Turn / Scroll Animation
-          if (readingMode == ReadingMode.page || readingMode == ReadingMode.realFlip) ...[
+          // 1. Page Turn / Scroll Animation + gesture zones (paged modes).
+          if (readingMode == ReadingMode.page ||
+              readingMode == ReadingMode.realFlip) ...[
             if (readingMode == ReadingMode.page) ...[
               const AppSectionHeader(title: 'Page Turn Animation'),
-              const SizedBox(height: 4),
-              Text(
-                'Visual transition effect when flipping between pages',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
               const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  (PageTurnAnimation.realFlip, 'Page Flip', Icons.auto_stories, 'Physics-based 3D paper fold with sound & haptics'),
-                  (PageTurnAnimation.slide, 'Slide', Icons.swap_horiz, 'Smooth horizontal transition'),
-                  (PageTurnAnimation.fade, 'Fade', Icons.blur_on, 'Soft dissolve between pages'),
-                  (PageTurnAnimation.reveal, 'Reveal', Icons.layers, 'Page slides over background'),
-                  (PageTurnAnimation.cube, 'Cube', Icons.view_in_ar, '3D cube rotation'),
-                ].map((entry) {
-                  final isSelected = pageTurnAnimation == entry.$1;
-                  return _AnimationCard(
-                    title: entry.$2,
-                    subtitle: entry.$4,
-                    icon: entry.$3,
-                    isSelected: isSelected,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      onPageTurnAnimationChanged?.call(entry.$1);
-                    },
-                  );
-                }).toList(),
+              IconSegment<PageTurnAnimation>(
+                options: const [
+                  IconSegmentOption(
+                    PageTurnAnimation.realFlip,
+                    label: 'Page Flip',
+                    icon: Icons.auto_stories,
+                  ),
+                  IconSegmentOption(
+                    PageTurnAnimation.slide,
+                    label: 'Slide',
+                    icon: Icons.swap_horiz,
+                  ),
+                  IconSegmentOption(
+                    PageTurnAnimation.fade,
+                    label: 'Fade',
+                    icon: Icons.blur_on,
+                  ),
+                  IconSegmentOption(
+                    PageTurnAnimation.reveal,
+                    label: 'Reveal',
+                    icon: Icons.layers,
+                  ),
+                  IconSegmentOption(
+                    PageTurnAnimation.cube,
+                    label: 'Cube',
+                    icon: Icons.view_in_ar,
+                  ),
+                ],
+                selected: pageTurnAnimation ?? PageTurnAnimation.realFlip,
+                onSelected: (a) => onPageTurnAnimationChanged?.call(a),
               ),
               const SizedBox(height: AppSpacing.md),
             ],
-            // Edge Drag / Turn Zones
             const AppSectionHeader(title: 'Edge Drag / Turn Zones'),
-            const SizedBox(height: 4),
-            Text(
-              'Configure swipe active zones to prevent accidental turns while selecting text',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
             const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                (
+            IconSegment<PageFlipGestureZone>(
+              options: [
+                IconSegmentOption(
                   PageFlipGestureZone.fullScreen,
-                  PageFlipGestureZone.fullScreen.label,
-                  PageFlipGestureZone.fullScreen.icon,
-                  PageFlipGestureZone.fullScreen.description,
+                  label: PageFlipGestureZone.fullScreen.label,
+                  icon: PageFlipGestureZone.fullScreen.icon,
                 ),
-                (
+                IconSegmentOption(
                   PageFlipGestureZone.edgesOnly,
-                  PageFlipGestureZone.edgesOnly.label,
-                  PageFlipGestureZone.edgesOnly.icon,
-                  PageFlipGestureZone.edgesOnly.description,
+                  label: PageFlipGestureZone.edgesOnly.label,
+                  icon: PageFlipGestureZone.edgesOnly.icon,
                 ),
-              ].map((entry) {
-                final isSelected = pageFlipGestureZone == entry.$1;
-                return _AnimationCard(
-                  title: entry.$2,
-                  subtitle: entry.$4,
-                  icon: entry.$3,
-                  isSelected: isSelected,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onPageFlipGestureZoneChanged?.call(entry.$1);
-                  },
-                );
-              }).toList(),
+              ],
+              selected: pageFlipGestureZone,
+              onSelected: (z) => onPageFlipGestureZoneChanged?.call(z),
             ),
             const SizedBox(height: AppSpacing.md),
             const AppDivider(),
             const SizedBox(height: AppSpacing.sm),
 
-            // Sensory Controls (Sound & Haptics)
+            // Sensory controls: sound & haptics beads.
             const AppSectionHeader(title: 'Sensory Controls'),
-            const SizedBox(height: 4),
-            Text(
-              'Physical page-turn sound effects and tactile feedback',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-            SwitchListTile(
-              title: const Text('Page Turn Sound', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              subtitle: const Text('Play authentic paper rustle sound matching swipe speed', style: TextStyle(fontSize: 11)),
-              secondary: const Icon(Icons.volume_up_outlined),
-              value: enablePageFlipSound,
-              contentPadding: EdgeInsets.zero,
-              onChanged: (v) {
-                HapticFeedback.selectionClick();
-                onEnablePageFlipSoundChanged?.call(v);
-              },
-            ),
-            SwitchListTile(
-              title: const Text('Haptic Feedback', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              subtitle: const Text('Tactile paper fold feedback during page drag', style: TextStyle(fontSize: 11)),
-              secondary: const Icon(Icons.vibration),
-              value: enablePageFlipHaptics,
-              contentPadding: EdgeInsets.zero,
-              onChanged: (v) {
-                HapticFeedback.selectionClick();
-                onEnablePageFlipHapticsChanged?.call(v);
-              },
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.sm,
+              children: [
+                beadRow(
+                  label: 'Page turn sound',
+                  bead: IconToggleBead(
+                    active: enablePageFlipSound,
+                    label: 'Page turn sound',
+                    activeIcon: Icons.volume_up_rounded,
+                    inactiveIcon: Icons.volume_off_rounded,
+                    onChanged: (v) => onEnablePageFlipSoundChanged?.call(v),
+                  ),
+                ),
+                beadRow(
+                  label: 'Haptics feedback',
+                  bead: IconToggleBead(
+                    active: enablePageFlipHaptics,
+                    label: 'Haptics feedback',
+                    activeIcon: Icons.vibration_rounded,
+                    onChanged: (v) => onEnablePageFlipHapticsChanged?.call(v),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: AppSpacing.md),
             const AppDivider(),
@@ -209,465 +203,228 @@ class LayoutTab extends StatelessWidget {
 
           if (readingMode == ReadingMode.continuous) ...[
             const AppSectionHeader(title: 'Scroll Animation'),
-            const SizedBox(height: 4),
-            Text(
-              'Physics and visual effects for vertical text scrolling',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
             const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                (ScrollAnimation.smooth, 'Smooth', Icons.swap_vert, 'Natural inertial momentum'),
-                (ScrollAnimation.snap, 'Snap', Icons.vertical_align_center, 'Snaps to paragraph bounds'),
-                (ScrollAnimation.fadeEdges, 'Fade Edges', Icons.blur_linear, 'Soft gradient at viewport edges'),
-                (ScrollAnimation.parallax, 'Parallax', Icons.view_carousel, 'Subtle layered depth'),
-                (ScrollAnimation.glow, 'Glow', Icons.touch_app, 'Overscroll edge illumination'),
-              ].map((entry) {
-                final isSelected = scrollAnimation == entry.$1;
-                return _AnimationCard(
-                  title: entry.$2,
-                  subtitle: entry.$4,
-                  icon: entry.$3,
-                  isSelected: isSelected,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onScrollAnimationChanged?.call(entry.$1);
-                  },
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const AppDivider(),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-
-          // 2. Reader Chrome Style
-          const AppSectionHeader(title: 'Toolbars & Controls Style'),
-          const SizedBox(height: 4),
-          Text(
-            'Visual appearance of top and bottom reading toolbars',
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              (ReaderChromeStyle.translucent, 'Translucent', Icons.blur_on, 'Subtle tint overlay'),
-              (ReaderChromeStyle.frosted, 'Frosted Glass', Icons.grain, 'Blur backdrop filter'),
-              (
-                ReaderChromeStyle.glass,
-                'Liquid Glass',
-                Icons.auto_awesome,
-                'Vibrancy + specular rim',
-              ),
-            ].map((entry) {
-              final isSelected = chromeStyle == entry.$1;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      onChromeStyleChanged?.call(entry.$1);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? colorScheme.primaryContainer
-                            : colorScheme.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? colorScheme.primary
-                              : colorScheme.outlineVariant.withValues(alpha: 0.4),
-                          width: isSelected ? 1.8 : 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                entry.$3,
-                                size: 18,
-                                color: isSelected
-                                    ? colorScheme.primary
-                                    : colorScheme.onSurfaceVariant,
-                              ),
-                              const Spacer(),
-                              if (isSelected)
-                                Icon(Icons.check, size: 16, color: colorScheme.primary),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            entry.$2,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                              color: isSelected
-                                  ? colorScheme.onPrimaryContainer
-                                  : colorScheme.onSurface,
-                            ),
-                          ),
-                          Text(
-                            entry.$4,
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: isSelected
-                                  ? colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
-                                  : colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+            IconSegment<ScrollAnimation>(
+              options: const [
+                IconSegmentOption(
+                  ScrollAnimation.smooth,
+                  label: 'Smooth',
+                  icon: Icons.swap_vert,
                 ),
-              );
-            }).toList(),
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-          const AppDivider(),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Reading Width & Margins
-          const AppSectionHeader(title: 'Reading Width & Margins'),
-          const SizedBox(height: 4),
-          Text(
-            'Control the horizontal padding around your text content',
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Horizontal Padding', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-              Text(
-                '${horizontalPadding.round()} dp',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.primary,
+                IconSegmentOption(
+                  ScrollAnimation.snap,
+                  label: 'Snap',
+                  icon: Icons.vertical_align_center,
                 ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              Icon(Icons.format_indent_decrease, size: 18, color: colorScheme.onSurfaceVariant),
-              Expanded(
-                child: Slider(
-                  value: horizontalPadding.clamp(0.0, 80.0),
-                  min: 0.0,
-                  max: 80.0,
-                  divisions: 16,
-                  onChanged: (v) {
-                    HapticFeedback.selectionClick();
-                    onHorizontalPaddingChanged(v);
-                  },
+                IconSegmentOption(
+                  ScrollAnimation.fadeEdges,
+                  label: 'Fade Edges',
+                  icon: Icons.blur_linear,
                 ),
-              ),
-              Icon(Icons.format_indent_increase, size: 18, color: colorScheme.onSurfaceVariant),
-            ],
-          ),
-          // Content Cards (BlockCard)
-          const AppSectionHeader(title: 'Content Cards'),
-          const SizedBox(height: 4),
-          Text(
-            'Themed status cards (System, Cultivation, Scout Report, Talent Panel) overlaid on chapter text',
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          SwitchListTile(
-            title: const Text('Block Cards', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            subtitle: const Text('Show themed stat cards inline with chapter prose', style: TextStyle(fontSize: 11)),
-            secondary: const Icon(Icons.dashboard_customize_outlined),
-            value: enableBlockCards,
-            contentPadding: EdgeInsets.zero,
-            onChanged: (v) {
-              HapticFeedback.selectionClick();
-              onEnableBlockCardsChanged?.call(v);
-            },
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const AppDivider(),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Two-Page Book Spread (Page & Real Flip mode, desktop)
-          if (readingMode == ReadingMode.page || readingMode == ReadingMode.realFlip) ...[
-            const AppSectionHeader(title: 'Two-Page Spread'),
-            const SizedBox(height: 4),
-            Text(
-              'Show side-by-side pages on wide desktop screens (≥ 1200dp)',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-            SwitchListTile(
-              title: const Text('Book Spread View', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              subtitle: const Text('Display two pages side by side like an open book on wide screens', style: TextStyle(fontSize: 11)),
-              secondary: const Icon(Icons.menu_book),
-              value: useBookSpread,
-              contentPadding: EdgeInsets.zero,
-              onChanged: (v) {
-                HapticFeedback.selectionClick();
-                onUseBookSpreadChanged(v);
-              },
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const AppDivider(),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-
-          // 3. Screen & Brightness
-          const AppSectionHeader(title: 'Display & Battery'),
-          const SizedBox(height: AppSpacing.xs),
-          SwitchListTile(
-            title: const Text('Keep Screen Awake', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            subtitle: const Text('Prevent display from timing out or dimming while reading', style: TextStyle(fontSize: 11)),
-            secondary: const Icon(Icons.screen_lock_portrait),
-            value: keepScreenAwake,
-            contentPadding: EdgeInsets.zero,
-            onChanged: (v) {
-              HapticFeedback.selectionClick();
-              onKeepScreenAwakeChanged(v);
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Follow System Brightness', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            subtitle: const Text('Use your device system brightness setting', style: TextStyle(fontSize: 11)),
-            secondary: const Icon(Icons.brightness_auto),
-            value: followSystemBrightness,
-            contentPadding: EdgeInsets.zero,
-            onChanged: (v) {
-              HapticFeedback.selectionClick();
-              onFollowSystemBrightnessChanged(v);
-            },
-          ),
-
-          if (!followSystemBrightness) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('In-App Brightness', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                Text(
-                  '${(brightness * 100).round()}%',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
-                  ),
+                IconSegmentOption(
+                  ScrollAnimation.parallax,
+                  label: 'Parallax',
+                  icon: Icons.view_carousel,
+                ),
+                IconSegmentOption(
+                  ScrollAnimation.glow,
+                  label: 'Glow',
+                  icon: Icons.touch_app,
                 ),
               ],
+              selected: scrollAnimation ?? ScrollAnimation.smooth,
+              onSelected: (a) => onScrollAnimationChanged?.call(a),
             ),
+            const SizedBox(height: AppSpacing.md),
+            const AppDivider(),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+
+          // 2. Screen & brightness: keep-awake + system-brightness beads and
+          // an icon-flanked slider.
+          const AppSectionHeader(title: 'Display & Battery'),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
+            children: [
+              beadRow(
+                label: 'Keep screen awake',
+                bead: IconToggleBead(
+                  active: keepScreenAwake,
+                  label: 'Keep screen awake',
+                  activeIcon: Icons.lightbulb_rounded,
+                  inactiveIcon: Icons.lightbulb_outline_rounded,
+                  onChanged: onKeepScreenAwakeChanged,
+                ),
+              ),
+              beadRow(
+                label: 'System brightness',
+                bead: IconToggleBead(
+                  active: followSystemBrightness,
+                  label: 'Follow system brightness',
+                  activeIcon: Icons.brightness_auto_rounded,
+                  inactiveIcon: Icons.brightness_medium_rounded,
+                  onChanged: onFollowSystemBrightnessChanged,
+                ),
+              ),
+            ],
+          ),
+          if (!followSystemBrightness) ...[
+            const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
-                const Icon(Icons.brightness_low, size: 18),
+                Icon(
+                  Icons.brightness_low_rounded,
+                  size: 18,
+                  color: colorScheme.onSurfaceVariant,
+                ),
                 Expanded(
                   child: Slider(
                     value: brightness.clamp(0.0, 1.0),
                     min: 0.0,
                     max: 1.0,
                     divisions: 20,
-                    onChanged: (v) {
-                      onBrightnessChanged(v);
-                    },
+                    onChanged: onBrightnessChanged,
                   ),
                 ),
-                const Icon(Icons.brightness_high, size: 18),
+                Icon(
+                  Icons.brightness_high_rounded,
+                  size: 18,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ],
             ),
           ],
 
-          // 4. Desktop Presentation (Desktop only)
-          if (MediaQuery.sizeOf(context).width >=
-              AppSheet.desktopBreakpoint) ...[
-            const SizedBox(height: AppSpacing.md),
-            const AppDivider(),
-            const SizedBox(height: AppSpacing.sm),
-            const AppSectionHeader(title: 'Desktop Sheet Style'),
-            const SizedBox(height: 4),
-            Text(
-              'Choose how settings sheets and tools appear on large displays',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurface.withValues(alpha: 0.6),
+          const SizedBox(height: AppSpacing.md),
+
+          // 3. Advanced — power-user knobs.
+          AdvancedDisclosure(
+            label: 'Advanced display',
+            children: [
+              const AppDivider(),
+              const SizedBox(height: AppSpacing.sm),
+              const AppSectionHeader(title: 'Toolbars & Controls Style'),
+              const SizedBox(height: AppSpacing.sm),
+              IconSegment<ReaderChromeStyle>(
+                options: const [
+                  IconSegmentOption(
+                    ReaderChromeStyle.translucent,
+                    label: 'Translucent',
+                    icon: Icons.blur_on,
+                  ),
+                  IconSegmentOption(
+                    ReaderChromeStyle.frosted,
+                    label: 'Frosted',
+                    icon: Icons.grain,
+                  ),
+                  IconSegmentOption(
+                    ReaderChromeStyle.glass,
+                    label: 'Liquid',
+                    icon: Icons.auto_awesome,
+                  ),
+                ],
+                selected: chromeStyle,
+                onSelected: (s) => onChromeStyleChanged?.call(s),
               ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                (DesktopSheetPresentation.dialog, 'Floating Dialogs', 'Centered overlay modal', Icons.picture_in_picture_alt),
-                (DesktopSheetPresentation.sidePanel, 'Side Panels', 'Docked right sidebar', Icons.dock),
-              ].map((entry) {
-                final isSelected = desktopSheetPresentation == entry.$1;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: GestureDetector(
-                      onTap: () {
+
+              const SizedBox(height: AppSpacing.md),
+              const AppDivider(),
+              const SizedBox(height: AppSpacing.sm),
+
+              const AppSectionHeader(title: 'Reading Width & Margins'),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Icon(
+                    Icons.format_indent_decrease,
+                    size: 18,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  Expanded(
+                    child: Slider(
+                      value: horizontalPadding.clamp(0.0, 80.0),
+                      min: 0.0,
+                      max: 80.0,
+                      divisions: 16,
+                      onChanged: (v) {
                         HapticFeedback.selectionClick();
-                        onDesktopSheetPresentationChanged?.call(entry.$1);
+                        onHorizontalPaddingChanged(v);
                       },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? colorScheme.primaryContainer
-                              : colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected
-                                ? colorScheme.primary
-                                : colorScheme.outlineVariant.withValues(alpha: 0.4),
-                            width: isSelected ? 1.8 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              entry.$4,
-                              size: 18,
-                              color: isSelected
-                                  ? colorScheme.primary
-                                  : colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              entry.$2,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                color: isSelected
-                                  ? colorScheme.onPrimaryContainer
-                                  : colorScheme.onSurface,
-                              ),
-                            ),
-                            Text(
-                              entry.$3,
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: isSelected
-                                  ? colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
-                                  : colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ),
-                );
-              }).toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
+                  Icon(
+                    Icons.format_indent_increase,
+                    size: 18,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
 
-class _AnimationCard extends StatelessWidget {
-  const _AnimationCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
+              const SizedBox(height: AppSpacing.md),
+              const AppDivider(),
+              const SizedBox(height: AppSpacing.sm),
 
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: 155,
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colorScheme.primaryContainer
-              : colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.outlineVariant.withValues(alpha: 0.4),
-            width: isSelected ? 1.8 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 18,
-                  color: isSelected
-                      ? colorScheme.primary
-                      : colorScheme.onSurfaceVariant,
+              const AppSectionHeader(title: 'Content Cards'),
+              const SizedBox(height: AppSpacing.xs),
+              beadRow(
+                label: 'Block cards',
+                bead: IconToggleBead(
+                  active: enableBlockCards,
+                  label: 'Block cards',
+                  activeIcon: Icons.dashboard_customize_rounded,
+                  onChanged: (v) => onEnableBlockCardsChanged?.call(v),
                 ),
-                const Spacer(),
-                if (isSelected)
-                  Icon(Icons.check, size: 16, color: colorScheme.primary),
+              ),
+
+              // Two-Page Book Spread (Page & Real Flip mode, desktop).
+              if (readingMode == ReadingMode.page ||
+                  readingMode == ReadingMode.realFlip) ...[
+                const SizedBox(height: AppSpacing.md),
+                const AppDivider(),
+                const SizedBox(height: AppSpacing.sm),
+                const AppSectionHeader(title: 'Two-Page Spread'),
+                const SizedBox(height: AppSpacing.xs),
+                beadRow(
+                  label: 'Book spread view',
+                  bead: IconToggleBead(
+                    active: useBookSpread,
+                    label: 'Book spread view',
+                    activeIcon: Icons.menu_book_rounded,
+                    onChanged: onUseBookSpreadChanged,
+                  ),
+                ),
               ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                color: isSelected
-                    ? colorScheme.onPrimaryContainer
-                    : colorScheme.onSurface,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 9,
-                color: isSelected
-                    ? colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
-                    : colorScheme.onSurfaceVariant,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+
+              // Desktop Presentation (Desktop only).
+              if (MediaQuery.sizeOf(context).width >=
+                  AppSheet.desktopBreakpoint) ...[
+                const SizedBox(height: AppSpacing.md),
+                const AppDivider(),
+                const SizedBox(height: AppSpacing.sm),
+                const AppSectionHeader(title: 'Desktop Sheet Style'),
+                const SizedBox(height: AppSpacing.sm),
+                IconSegment<DesktopSheetPresentation>(
+                  options: const [
+                    IconSegmentOption(
+                      DesktopSheetPresentation.dialog,
+                      label: 'Dialogs',
+                      icon: Icons.picture_in_picture_alt,
+                    ),
+                    IconSegmentOption(
+                      DesktopSheetPresentation.sidePanel,
+                      label: 'Side Panels',
+                      icon: Icons.dock,
+                    ),
+                  ],
+                  selected: desktopSheetPresentation,
+                  onSelected: (p) => onDesktopSheetPresentationChanged?.call(p),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -9,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'package:atlas_app/reader/domain/entities/chapter_entity.dart';
 import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
+import 'package:atlas_app/core/design_system/organisms/atlas_glass_nav_bar.dart'
+    show AtlasNavItem;
 import 'package:atlas_app/reader/speech/persistence/recovery_store.dart';
 import 'package:atlas_app/reader/speech/settings/narration_settings.dart';
 import 'package:atlas_app/reader/speech/speech_driver.dart';
@@ -100,91 +102,191 @@ class _NoopRecoveryStore implements RecoveryStore {
 }
 
 void main() {
-  testWidgets('NarrationMiniPlayer renders cover thumbnail and navigates back to reader on cover tap', (tester) async {
-    const builder = SpeechSessionBuilder();
-    const bookId = 'test_book_123';
-    const chapterId = 'chapter_456';
-    const content = 'First sentence of novel narration. Second sentence of narration.';
+  testWidgets(
+    'NarrationMiniPlayer renders cover thumbnail and navigates back to reader on cover tap',
+    (tester) async {
+      const builder = SpeechSessionBuilder();
+      const bookId = 'test_book_123';
+      const chapterId = 'chapter_456';
+      const content =
+          'First sentence of novel narration. Second sentence of narration.';
 
-    const chapter = ChapterEntity(
-      id: chapterId,
-      bookId: bookId,
-      title: 'Chapter 10: The Beginning',
-      index: 9,
-      contentPath: '',
-    );
+      const chapter = ChapterEntity(
+        id: chapterId,
+        bookId: bookId,
+        title: 'Chapter 10: The Beginning',
+        index: 9,
+        contentPath: '',
+      );
 
-    final session = builder.build(
-      bookId: bookId,
-      chapter: chapter,
-      content: content,
-      language: 'en',
-      settings: const NarrationSettings(),
-      coverPath: '/test/cover.png',
-      bookTitle: 'The Great Tale',
-      author: 'Author Name',
-    );
+      final session = builder.build(
+        bookId: bookId,
+        chapter: chapter,
+        content: content,
+        language: 'en',
+        settings: const NarrationSettings(),
+        coverPath: '/test/cover.png',
+        bookTitle: 'The Great Tale',
+        author: 'Author Name',
+      );
 
-    String? navigatedRoute;
-    final router = GoRouter(
-      initialLocation: '/library',
-      routes: [
-        GoRoute(
-          path: '/library',
-          builder: (context, state) => const Scaffold(
-            body: Center(child: Text('Library Screen')),
-            bottomNavigationBar: NarrationMiniPlayer(),
+      String? navigatedRoute;
+      final router = GoRouter(
+        initialLocation: '/library',
+        routes: [
+          GoRoute(
+            path: '/library',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Library Screen')),
+              bottomNavigationBar: NarrationMiniPlayer(),
+            ),
           ),
+          GoRoute(
+            path: '/reader/:bookId',
+            builder: (context, state) {
+              navigatedRoute = state.uri.toString();
+              return Scaffold(
+                body: Center(
+                  child: Text('Reader: ${state.pathParameters['bookId']}'),
+                ),
+              );
+            },
+          ),
+        ],
+      );
+
+      final fakeDriver = _FakeDriver();
+      final recoveryStore = _NoopRecoveryStore();
+      final testEngine = SpeechEngine(fakeDriver, recoveryStore);
+      await testEngine.loadSession(session);
+
+      final container = ProviderContainer(
+        overrides: [
+          speechDriverProvider.overrideWithValue(fakeDriver),
+          speechRecoveryStoreProvider.overrideWithValue(recoveryStore),
+          speechEngineProvider.overrideWithValue(testEngine),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
         ),
-        GoRoute(
-          path: '/reader/:bookId',
-          builder: (context, state) {
-            navigatedRoute = state.uri.toString();
-            return Scaffold(
-              body: Center(child: Text('Reader: ${state.pathParameters['bookId']}')),
-            );
-          },
+      );
+      await tester.pump();
+
+      // Start playback
+      await testEngine.start();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Mini player should now be visible with tooltip and lyrics
+      expect(find.byTooltip('Go to The Great Tale'), findsOneWidget);
+
+      // Tap the cover thumbnail
+      await tester.tap(find.byTooltip('Go to The Great Tale'));
+      await tester.pumpAndSettle();
+
+      // Verify navigation occurred to the exact chapter
+      expect(
+        navigatedRoute,
+        equals('/reader/test_book_123?chapterId=chapter_456'),
+      );
+      expect(find.text('Reader: test_book_123'), findsOneWidget);
+
+      await testEngine.stop();
+    },
+  );
+
+  testWidgets(
+    'docked mode renders the nav destination strip and taps through',
+    (tester) async {
+      const builder = SpeechSessionBuilder();
+      final session = builder.build(
+        bookId: 'test_book_123',
+        chapter: const ChapterEntity(
+          id: 'chapter_456',
+          bookId: 'test_book_123',
+          title: 'Chapter 10: The Beginning',
+          index: 9,
+          contentPath: '',
         ),
-      ],
-    );
+        content:
+            'First sentence of novel narration. Second sentence of narration.',
+        language: 'en',
+        settings: const NarrationSettings(),
+        bookTitle: 'The Great Tale',
+      );
 
-    final fakeDriver = _FakeDriver();
-    final recoveryStore = _NoopRecoveryStore();
-    final testEngine = SpeechEngine(fakeDriver, recoveryStore);
-    await testEngine.loadSession(session);
+      final fakeDriver = _FakeDriver();
+      final recoveryStore = _NoopRecoveryStore();
+      final testEngine = SpeechEngine(fakeDriver, recoveryStore);
+      await testEngine.loadSession(session);
 
-    final container = ProviderContainer(
-      overrides: [
-        speechDriverProvider.overrideWithValue(fakeDriver),
-        speechRecoveryStoreProvider.overrideWithValue(recoveryStore),
-        speechEngineProvider.overrideWithValue(testEngine),
-      ],
-    );
+      final container = ProviderContainer(
+        overrides: [
+          speechDriverProvider.overrideWithValue(fakeDriver),
+          speechRecoveryStoreProvider.overrideWithValue(recoveryStore),
+          speechEngineProvider.overrideWithValue(testEngine),
+        ],
+      );
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(routerConfig: router),
-      ),
-    );
-    await tester.pump();
+      final selected = <int>[];
+      final router = GoRouter(
+        initialLocation: '/home',
+        routes: [
+          GoRoute(
+            path: '/home',
+            builder: (context, state) => Scaffold(
+              body: const SizedBox.shrink(),
+              bottomNavigationBar: NarrationMiniPlayer(
+                docked: true,
+                navDestinations: const [
+                  AtlasNavItem(
+                    icon: Icons.auto_stories_outlined,
+                    activeIcon: Icons.auto_stories_rounded,
+                    label: 'Library',
+                  ),
+                  AtlasNavItem(
+                    icon: Icons.tune_outlined,
+                    activeIcon: Icons.tune_rounded,
+                    label: 'Settings',
+                  ),
+                ],
+                currentNavIndex: 0,
+                onNavSelect: selected.add,
+              ),
+            ),
+          ),
+        ],
+      );
 
-    // Start playback
-    await testEngine.start();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pump();
+      await testEngine.start();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
 
-    // Mini player should now be visible with tooltip and lyrics
-    expect(find.byTooltip('Go to The Great Tale'), findsOneWidget);
+      expect(
+        find.byTooltip('Settings'),
+        findsOneWidget,
+        reason: 'docked mode renders the nav destination strip',
+      );
+      expect(find.text('Settings'), findsOneWidget);
 
-    // Tap the cover thumbnail
-    await tester.tap(find.byTooltip('Go to The Great Tale'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Settings'));
+      await tester.pump();
+      expect(selected, [
+        1,
+      ], reason: 'docked nav strip forwards the tapped destination index');
 
-    // Verify navigation occurred to the exact chapter
-    expect(navigatedRoute, equals('/reader/test_book_123?chapterId=chapter_456'));
-    expect(find.text('Reader: test_book_123'), findsOneWidget);
-
-    await testEngine.stop();
-  });
+      await testEngine.stop();
+    },
+  );
 }

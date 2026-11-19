@@ -20,11 +20,21 @@ import 'package:atlas_app/reader/speech/speech_session.dart';
 class SpeechEngine {
   SpeechEngine(this._driver, this._recoveryStore) {
     _lastCheckpointFlush = DateTime.now();
-    _driver.events.listen(_onDriverEvent);
+    _listenDriver(_driver);
   }
 
-  final SpeechDriver _driver;
+  SpeechDriver _driver;
+  StreamSubscription<SpeechDriverEvent>? _driverSub;
   final RecoveryStore _recoveryStore;
+
+  /// The active driver. Never stored directly elsewhere — everything that
+  /// needs a driver for one-off use reads this getter so a mid-session
+  /// hot-swap ([swapDriver]) is picked up on the next call.
+  SpeechDriver get driver => _driver;
+
+  void _listenDriver(SpeechDriver driver) {
+    _driverSub = driver.events.listen(_onDriverEvent);
+  }
 
   SpeechSession? _session;
   SleepTimerBoundary? _stopAtBoundary;
@@ -318,9 +328,53 @@ class SpeechEngine {
     await _recoveryStore.save(session.toCheckpoint());
   }
 
+  /// Hot-swaps the underlying [SpeechDriver] (ASA §13): platform TTS →
+  /// neural after a voice pack finishes installing, or neural → platform
+  /// TTS when the last pack is deleted. The engine instance — and the
+  /// audio_service handler bound to it — stays stable; only the driver
+  /// behind it changes, so OS media controls never lose their binding.
+  ///
+  /// The old driver is stopped (best-effort) but deliberately **not**
+  /// disposed: the platform `FlutterTtsDriver` wraps an OS TTS engine that
+  /// is cheap to leave idle and expensive to rebuild, and the neural
+  /// driver may be swapped back in later.
+  ///
+  /// Applies the session's current settings to the new driver and, if
+  /// narration was playing, resumes it from the current sentence so a pack
+  /// finishing mid-playback seamlessly upgrades the voice.
+  Future<void> swapDriver(SpeechDriver next) async {
+    if (identical(next, _driver)) return;
+    final wasPlaying = _isPlaying;
+    try {
+      await _driver.stop();
+    } catch (_) {}
+    await _driverSub?.cancel();
+    _driver = next;
+    _listenDriver(next);
+    _isPlaying = false;
+    _eventsController.add(const SpeechStopped());
+    final settings = _session?.settings;
+    if (settings != null) {
+      await _driver.configure(
+        rate: settings.speechRate,
+        pitch: settings.speechPitch,
+        volume: 1.0,
+        voiceId: settings.selectedVoiceId,
+      );
+    }
+    if (wasPlaying) {
+      try {
+        await resume();
+      } catch (_) {
+        _isPlaying = false;
+      }
+    }
+  }
+
   Future<void> dispose() async {
     hasUserInitiatedPlayback = false;
     _sleepTimer?.cancel();
+    await _driverSub?.cancel();
     await _eventsController.close();
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:atlas_app/core/design_system/atoms/app_divider.dart';
 import 'package:atlas_app/core/design_system/atoms/app_section_header.dart';
+import 'package:atlas_app/core/design_system/molecules/icon_controls.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/reader/domain/entities/reading_preset.dart';
 import 'package:atlas_app/reader/presentation/widgets/chapter_view.dart';
@@ -73,6 +74,14 @@ class ThemeTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Highlight the density preset closest to the current line height.
+    var nearestDensity = 1.3;
+    for (final preset in const [1.3, 1.6, 1.9]) {
+      if ((preset - lineHeight).abs() < (nearestDensity - lineHeight).abs()) {
+        nearestDensity = preset;
+      }
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: AppSpacing.xl),
       child: Column(
@@ -123,49 +132,23 @@ class ThemeTab extends StatelessWidget {
           const AppDivider(),
           const SizedBox(height: AppSpacing.sm),
 
-          // 2. Font Size Stepper & Slider
-          AppSectionHeader(
-            title: 'Font Size',
-            padding: 0,
-            actionLabel: '${fontSize.round()} pt',
-            action: () {},
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              IconButton.filledTonal(
-                icon: const Icon(Icons.remove, size: 18),
-                tooltip: 'Decrease text size',
-                onPressed: fontSize > 12
-                    ? () {
-                        HapticFeedback.selectionClick();
-                        onFontSizeChanged((fontSize - 1).clamp(12.0, 32.0));
-                      }
-                    : null,
+          // 2. Font Size — live preview between the beads.
+          IconStepper(
+            value: fontSize.clamp(12.0, 32.0),
+            min: 12,
+            max: 32,
+            step: 1,
+            onChanged: onFontSizeChanged,
+            semanticLabel: 'Text size',
+            valueLabel: '${fontSize.round()} pt',
+            preview: Text(
+              'Aa',
+              style: TextStyle(
+                fontSize: (fontSize * 0.9).clamp(14.0, 28.0),
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
               ),
-              Expanded(
-                child: Slider(
-                  value: fontSize.clamp(12.0, 32.0),
-                  min: 12,
-                  max: 32,
-                  divisions: 20,
-                  label: '${fontSize.round()} pt',
-                  onChanged: (v) {
-                    onFontSizeChanged(v);
-                  },
-                ),
-              ),
-              IconButton.filledTonal(
-                icon: const Icon(Icons.add, size: 18),
-                tooltip: 'Increase text size',
-                onPressed: fontSize < 32
-                    ? () {
-                        HapticFeedback.selectionClick();
-                        onFontSizeChanged((fontSize + 1).clamp(12.0, 32.0));
-                      }
-                    : null,
-              ),
-            ],
+            ),
           ),
 
           const SizedBox(height: AppSpacing.md),
@@ -203,45 +186,118 @@ class ThemeTab extends StatelessWidget {
             }).toList(),
           ),
           const SizedBox(height: AppSpacing.sm),
-          // Theme Mode — integrated into Color Theme with matching language
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.sm,
-            ),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerLow.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+          // Theme Mode — auto / light / dark glyphs.
+          IconSegment<ThemeMode>(
+            options: const [
+              IconSegmentOption(
+                ThemeMode.system,
+                label: 'System',
+                icon: Icons.brightness_auto_rounded,
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.brightness_6_rounded,
-                      size: 14,
-                      color: colorScheme.primary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Theme Mode',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
+              IconSegmentOption(
+                ThemeMode.light,
+                label: 'Light',
+                icon: Icons.light_mode_rounded,
+              ),
+              IconSegmentOption(
+                ThemeMode.dark,
+                label: 'Dark',
+                icon: Icons.dark_mode_rounded,
+              ),
+            ],
+            selected: themeMode,
+            onSelected: (m) => onThemeModeChanged(m),
+          ),
+
+          const SizedBox(height: AppSpacing.sm),
+          // Pattern & custom background — reader-only niche knobs.
+          AdvancedDisclosure(
+            label: 'Pattern & background',
+            hint: pattern.label,
+            children: [
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: ReaderPattern.values.map((p) {
+                  final isSelected = pattern == p;
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onPatternChanged(p);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primaryContainer
+                            : colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outlineVariant.withValues(
+                                  alpha: 0.4,
+                                ),
+                          width: isSelected ? 1.8 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            p.icon,
+                            size: 14,
+                            color: isSelected
+                                ? colorScheme.onPrimaryContainer
+                                : colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            p.label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                              color: isSelected
+                                  ? colorScheme.onPrimaryContainer
+                                  : colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(),
+                  );
+                }).toList(),
+              ),
+              if (pattern != ReaderPattern.none) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
                     Text(
-                      switch (themeMode) {
-                        ThemeMode.system => 'System',
-                        ThemeMode.light => 'Light',
-                        ThemeMode.dark => 'Dark',
-                      },
+                      'Opacity',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Expanded(
+                      child: Slider(
+                        value: patternOpacity.clamp(0.0, 0.20),
+                        min: 0.0,
+                        max: 0.20,
+                        divisions: 10,
+                        label: '${(patternOpacity * 100).round()}%',
+                        onChanged: (v) => onPatternOpacityChanged(v),
+                      ),
+                    ),
+                    Text(
+                      '${(patternOpacity * 100).round()}%',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -250,208 +306,26 @@ class ThemeTab extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                SizedBox(
-                  width: double.infinity,
-                  child: SegmentedButton<ThemeMode>(
-                    segments: const [
-                      ButtonSegment(
-                        value: ThemeMode.system,
-                        label: Text('System'),
-                        icon: Icon(Icons.brightness_auto_rounded, size: 16),
-                      ),
-                      ButtonSegment(
-                        value: ThemeMode.light,
-                        label: Text('Light'),
-                        icon: Icon(Icons.light_mode_rounded, size: 16),
-                      ),
-                      ButtonSegment(
-                        value: ThemeMode.dark,
-                        label: Text('Dark'),
-                        icon: Icon(Icons.dark_mode_rounded, size: 16),
-                      ),
-                    ],
-                    selected: {themeMode},
-                    onSelectionChanged: (selected) {
-                      HapticFeedback.selectionClick();
-                      onThemeModeChanged(selected.first);
-                    },
-                    style: ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      shape: WidgetStatePropertyAll(
-                        RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                    ),
-                    showSelectedIcon: false,
-                  ),
-                ),
               ],
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.sm),
-          // Pattern picker — reader-only overlay
-          Row(
-            children: [
-              Icon(Icons.texture_rounded, size: 14, color: colorScheme.primary),
-              const SizedBox(width: 6),
-              Text(
-                'Pattern',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
+              const SizedBox(height: AppSpacing.sm),
+              _CustomBackgroundPicker(
+                selected: customBackgroundColor,
+                onSelected: (c) {
+                  HapticFeedback.selectionClick();
+                  onCustomBackgroundChanged(c);
+                },
               ),
-              const Spacer(),
+              const SizedBox(height: 4),
               Text(
-                pattern.label,
+                customBackgroundColor == null
+                    ? 'Uses theme default'
+                    : 'Overrides theme — reader only',
                 style: TextStyle(
                   fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.primary,
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: ReaderPattern.values.map((p) {
-              final isSelected = pattern == p;
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onPatternChanged(p);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? colorScheme.primaryContainer
-                        : colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isSelected
-                          ? colorScheme.primary
-                          : colorScheme.outlineVariant.withValues(alpha: 0.4),
-                      width: isSelected ? 1.8 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        p.icon,
-                        size: 14,
-                        color: isSelected
-                            ? colorScheme.onPrimaryContainer
-                            : colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        p.label,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.w500,
-                          color: isSelected
-                              ? colorScheme.onPrimaryContainer
-                              : colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          if (pattern != ReaderPattern.none) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              children: [
-                Text(
-                  'Opacity',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                Expanded(
-                  child: Slider(
-                    value: patternOpacity.clamp(0.0, 0.20),
-                    min: 0.0,
-                    max: 0.20,
-                    divisions: 10,
-                    label: '${(patternOpacity * 100).round()}%',
-                    onChanged: (v) => onPatternOpacityChanged(v),
-                  ),
-                ),
-                Text(
-                  '${(patternOpacity * 100).round()}%',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: AppSpacing.sm),
-          // Custom background — reader-only color override
-          Row(
-            children: [
-              Icon(
-                Icons.format_paint_rounded,
-                size: 14,
-                color: colorScheme.primary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Custom Background',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const Spacer(),
-              if (customBackgroundColor != null)
-                TextButton(
-                  onPressed: () {
-                    HapticFeedback.selectionClick();
-                    onCustomBackgroundChanged(null);
-                  },
-                  child: const Text('Clear', style: TextStyle(fontSize: 11)),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          _CustomBackgroundPicker(
-            selected: customBackgroundColor,
-            onSelected: (c) {
-              HapticFeedback.selectionClick();
-              onCustomBackgroundChanged(c);
-            },
-          ),
-          const SizedBox(height: 4),
-          Text(
-            customBackgroundColor == null
-                ? 'Uses theme default'
-                : 'Overrides theme — reader only',
-            style: TextStyle(
-              fontSize: 11,
-              color: colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
           ),
 
           const SizedBox(height: AppSpacing.md),
@@ -460,48 +334,27 @@ class ThemeTab extends StatelessWidget {
 
           // 4. Reading Mode Selector (Paged vs Real Flip vs Continuous)
           const AppSectionHeader(title: 'Reading Flow', padding: 0),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              Expanded(
-                child: _ModeSelectionCard(
-                  title: 'Page Flip',
-                  subtitle: 'Fast animated book pages',
-                  icon: Icons.auto_stories,
-                  isSelected: readingMode == ReadingMode.page,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onReadingModeChanged(ReadingMode.page);
-                  },
-                ),
+          const SizedBox(height: AppSpacing.sm),
+          IconSegment<ReadingMode>(
+            options: const [
+              IconSegmentOption(
+                ReadingMode.page,
+                label: 'Page Flip',
+                icon: Icons.auto_stories,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ModeSelectionCard(
-                  title: 'Real Flip',
-                  subtitle: 'Physical 3D curl physics & mesh',
-                  icon: Icons.menu_book,
-                  isSelected: readingMode == ReadingMode.realFlip,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onReadingModeChanged(ReadingMode.realFlip);
-                  },
-                ),
+              IconSegmentOption(
+                ReadingMode.realFlip,
+                label: 'Real Flip',
+                icon: Icons.menu_book,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ModeSelectionCard(
-                  title: 'Continuous',
-                  subtitle: 'Smooth vertical scroll',
-                  icon: Icons.view_day,
-                  isSelected: readingMode == ReadingMode.continuous,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onReadingModeChanged(ReadingMode.continuous);
-                  },
-                ),
+              IconSegmentOption(
+                ReadingMode.continuous,
+                label: 'Continuous',
+                icon: Icons.view_day,
               ),
             ],
+            selected: readingMode,
+            onSelected: (m) => onReadingModeChanged(m),
           ),
 
           const SizedBox(height: AppSpacing.md),
@@ -510,62 +363,36 @@ class ThemeTab extends StatelessWidget {
 
           // 5. Line Spacing Density Presets
           const AppSectionHeader(title: 'Line Spacing', padding: 0),
-          const SizedBox(height: 4),
-          Text(
-            'Choose your preferred reading line density',
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: _DensityPill(
-                  label: 'Compact',
-                  valueLabel: '1.3x',
-                  icon: Icons.format_line_spacing,
-                  isSelected: (lineHeight - 1.3).abs() < 0.1,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onLineHeightChanged(1.3);
-                  },
+          IconSegment<double>(
+            options: [
+              IconSegmentOption(
+                1.3,
+                label: 'Compact',
+                glyph: SpacedLinesGlyph(
+                  gap: 2,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _DensityPill(
-                  label: 'Comfortable',
-                  valueLabel: '1.6x',
-                  icon: Icons.format_line_spacing,
-                  isSelected:
-                      (lineHeight - 1.6).abs() < 0.1 ||
-                      (lineHeight >= 1.4 &&
-                          lineHeight <= 1.7 &&
-                          (lineHeight - 1.3).abs() >= 0.1 &&
-                          (lineHeight - 1.9).abs() >= 0.1),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onLineHeightChanged(1.6);
-                  },
+              IconSegmentOption(
+                1.6,
+                label: 'Comfortable',
+                glyph: SpacedLinesGlyph(
+                  gap: 4,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _DensityPill(
-                  label: 'Relaxed',
-                  valueLabel: '1.9x',
-                  icon: Icons.format_line_spacing,
-                  isSelected:
-                      (lineHeight - 1.9).abs() < 0.1 || lineHeight > 1.75,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onLineHeightChanged(1.9);
-                  },
+              IconSegmentOption(
+                1.9,
+                label: 'Relaxed',
+                glyph: SpacedLinesGlyph(
+                  gap: 6,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
+            selected: nearestDensity,
+            onSelected: (v) => onLineHeightChanged(v),
           ),
         ],
       ),
@@ -738,157 +565,6 @@ class _ThemeSwatch extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ModeSelectionCard extends StatelessWidget {
-  const _ModeSelectionCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colorScheme.primaryContainer.withValues(alpha: 0.4)
-              : colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.outlineVariant.withValues(alpha: 0.5),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  color: isSelected
-                      ? colorScheme.primary
-                      : colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected
-                          ? colorScheme.primary
-                          : colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-                if (isSelected)
-                  Icon(
-                    Icons.check_circle,
-                    size: 16,
-                    color: colorScheme.primary,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 11,
-                color: colorScheme.onSurfaceVariant,
-                height: 1.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DensityPill extends StatelessWidget {
-  const _DensityPill({
-    required this.label,
-    required this.valueLabel,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final String valueLabel;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colorScheme.primaryContainer
-              : colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.outlineVariant.withValues(alpha: 0.4),
-            width: isSelected ? 1.8 : 1,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected
-                    ? colorScheme.onPrimaryContainer
-                    : colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              valueLabel,
-              style: TextStyle(
-                fontSize: 10,
-                color: isSelected
-                    ? colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
-                    : colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -168,8 +168,11 @@ class PagedReaderLayout extends HookConsumerWidget {
       updateTrigger.value++;
     }
 
-    final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
-    final isWideDesktop = isDesktop && MediaQuery.sizeOf(context).width >= AppBreakpoints.largeDesktop;
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
+    final isWideDesktop =
+        isDesktop &&
+        MediaQuery.sizeOf(context).width >= AppBreakpoints.largeDesktop;
     final isDarkTheme =
         Theme.of(context).colorScheme.brightness == Brightness.dark;
     // Whether to render a two-page book spread (requires wide desktop AND user preference)
@@ -1703,7 +1706,8 @@ class PagedReaderLayout extends HookConsumerWidget {
                   },
                   onClose: () => chromeNotifier.setCommandPaletteVisible(false),
                 ),
-              if (!chromeState.narrationPanelVisible && !chromeState.chromeVisible)
+              if (!chromeState.narrationPanelVisible &&
+                  !chromeState.chromeVisible)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -1751,7 +1755,8 @@ class PagedReaderLayout extends HookConsumerWidget {
                     onBookmarkTap: onBookmarkToggle,
                     isBookmarked: isBookmarked,
                     chromeStyle: settings.chromeStyle,
-                    onAnnotationsTap: () => showChapterIndex(context, initialTab: 2),
+                    onAnnotationsTap: () =>
+                        showChapterIndex(context, initialTab: 2),
                     currentChapterTitle: chapters[currentIndex].title,
                     currentChapterNumber: currentIndex,
                     totalChapters: chapters.length,

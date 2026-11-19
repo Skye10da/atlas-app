@@ -200,10 +200,7 @@ class ReaderBottomNav extends HookConsumerWidget {
       ReaderDockAction.listen: () => _openNowPlaying(context),
       ReaderDockAction.aa: () {
         HapticFeedback.selectionClick();
-        ReaderQuickSettingsSheet.show(
-          context,
-          onAllSettings: onSettingsTap,
-        );
+        ReaderQuickSettingsSheet.show(context, onAllSettings: onSettingsTap);
       },
       ReaderDockAction.flow: () => onAutoScrollToggle?.call(),
       ReaderDockAction.search: () => onSearchTap?.call(),
@@ -211,11 +208,10 @@ class ReaderBottomNav extends HookConsumerWidget {
       ReaderDockAction.redownload: () => onRedownload?.call(),
     };
 
-    void showCustomizeSheet(BuildContext ctx) =>
-        ReaderDockCustomizeSheet.show(
-          ctx,
-          availablePromotable: registry.keys.toList(),
-        );
+    void showCustomizeSheet(BuildContext ctx) => ReaderDockCustomizeSheet.show(
+      ctx,
+      availablePromotable: registry.keys.toList(),
+    );
 
     void openCustomize() {
       final override = onCustomize;
@@ -232,7 +228,8 @@ class ReaderBottomNav extends HookConsumerWidget {
     final session = engine.session;
     final narrStatus =
         ref.watch(narrationStatusProvider).valueOrNull ?? NarrationStatus.idle;
-    final narrating = session != null &&
+    final narrating =
+        session != null &&
         session.queue.isNotEmpty &&
         narrStatus != NarrationStatus.idle;
 
@@ -250,7 +247,8 @@ class ReaderBottomNav extends HookConsumerWidget {
         (onNextChapter != null ? 1 : 0) +
         visibleActionCount +
         1; // + More
-    final capsuleRowWidth = 20.0 +
+    final capsuleRowWidth =
+        20.0 +
         (onPrevChapter != null ? _NavIconButton.edgeSize.toDouble() : 0.0) +
         (onNextChapter != null ? _NavIconButton.edgeSize.toDouble() : 0.0) +
         _NavIconButton.size * (visibleActionCount + 1) + // + More
@@ -821,7 +819,9 @@ class _ChapterStrip extends HookWidget {
                         onScrubToChapter!(target);
                       }
                     : null,
-                onHorizontalDragCancel: canScrub ? () => drag.value = null : null,
+                onHorizontalDragCancel: canScrub
+                    ? () => drag.value = null
+                    : null,
                 child: SizedBox(
                   height: 28,
                   // All rules are Positioned so the Stack's *intrinsic*
@@ -866,7 +866,10 @@ class _ChapterStrip extends HookWidget {
                               color: accent,
                               shape: BoxShape.circle,
                               boxShadow: const [
-                                BoxShadow(color: Color(0x33000000), blurRadius: 4),
+                                BoxShadow(
+                                  color: Color(0x33000000),
+                                  blurRadius: 4,
+                                ),
                               ],
                             ),
                           ),
@@ -1026,4 +1029,3 @@ class _BatteryIndicator extends StatelessWidget {
     );
   }
 }
-

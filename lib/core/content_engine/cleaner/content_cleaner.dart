@@ -20,15 +20,24 @@ const defaultStripSelectors = <String>[
 
 /// Selectors for content that is not part of a chapter's reading text but is
 /// frequently injected by web novel sites.
+///
+/// Ad selectors are token-anchored (`[class^="ad"]`, `.ad-container`, ...) rather
+/// than loose substring attribute selectors: a substring like `[class*="ad"]`
+/// would also match reading-content wrappers whose names merely contain the
+/// token mid-word (e.g. `read-container`), silently stripping real prose.
 const defaultAdSelectors = <String>[
   'ins.adsbygoogle',
   'div.ad',
   'div.ads',
   'div.advertisement',
   '.adsbygoogle',
-  '[class*="ad-container"]',
-  '[class*="advert"]',
-  '[id*="advert"]',
+  '.ad',
+  '.ads',
+  '.advertisement',
+  '.advert',
+  '.ad-container',
+  '.ad_container',
+  '.adContainer',
   '.sponsored',
   '.promo',
   '.popup',

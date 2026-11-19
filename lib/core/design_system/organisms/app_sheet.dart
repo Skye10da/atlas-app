@@ -26,12 +26,7 @@ enum AppSheetMode {
 }
 
 /// Internal resolved surface presentation.
-enum _SurfacePresentation {
-  bottomSheet,
-  sideSheet,
-  dialog,
-  splitLandscape,
-}
+enum _SurfacePresentation { bottomSheet, sideSheet, dialog, splitLandscape }
 
 /// Modern adaptive modal sheet and side panel system (AppSheet 2.0).
 ///
@@ -108,7 +103,8 @@ class AppSheet {
         break;
       case AppSheetMode.auto:
         if (width >= desktopBreakpoint) {
-          presentation = desktopPresentation == DesktopSheetPresentation.sidePanel
+          presentation =
+              desktopPresentation == DesktopSheetPresentation.sidePanel
               ? _SurfacePresentation.sideSheet
               : _SurfacePresentation.dialog;
         } else if (isLandscape) {
@@ -181,7 +177,9 @@ class _Backdrop extends StatelessWidget {
         ).value;
 
         Widget scrim = GestureDetector(
-          onTap: dismissible ? () => Navigator.maybeOf(context)?.maybePop() : null,
+          onTap: dismissible
+              ? () => Navigator.maybeOf(context)?.maybePop()
+              : null,
           child: ColoredBox(color: Colors.black.withValues(alpha: 0.42 * t)),
         );
 
@@ -201,10 +199,16 @@ class _Backdrop extends StatelessWidget {
         switch (presentation) {
           case _SurfacePresentation.dialog:
             transitionedChild = FadeTransition(
-              opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              ),
               child: ScaleTransition(
                 scale: Tween<double>(begin: 0.94, end: 1).animate(
-                  CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
                 ),
                 child: child,
               ),
@@ -216,16 +220,17 @@ class _Backdrop extends StatelessWidget {
             transitionedChild = Align(
               alignment: Alignment.centerRight,
               child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(1, 0),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                    reverseCurve: Curves.easeInToLinear,
-                  ),
-                ),
+                position:
+                    Tween<Offset>(
+                      begin: const Offset(1, 0),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                        reverseCurve: Curves.easeInToLinear,
+                      ),
+                    ),
                 child: child,
               ),
             );
@@ -235,16 +240,17 @@ class _Backdrop extends StatelessWidget {
             transitionedChild = Align(
               alignment: Alignment.bottomCenter,
               child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                    reverseCurve: Curves.easeInToLinear,
-                  ),
-                ),
+                position:
+                    Tween<Offset>(
+                      begin: const Offset(0, 1),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                        reverseCurve: Curves.easeInToLinear,
+                      ),
+                    ),
                 child: child,
               ),
             );
@@ -319,6 +325,18 @@ class _AppSheetSurface extends HookWidget {
     final isDragging = useRef(false);
     final dragAccumulator = useRef(0.0);
     final screenHeightRef = useRef(0.0);
+    // Content-aware opening height: on a sheet's first open (and only when
+    // the user hasn't already pinned a remembered height by dragging), the
+    // sheet lays itself out at its content height for one or two invisible
+    // frames; the measured height then becomes the opening height (and a
+    // snap point). Compact content opens compact on every device instead of
+    // eating a fixed screen fraction; content that fills the cap (long
+    // scrollables) falls back to the fraction logic.
+    final contentPxRef = useRef<double?>(null);
+    final measureAttempted = useRef(false);
+    final sheetKey = useMemoized(() => GlobalKey(), []);
+    final canAutoHeight =
+        presentation == _SurfacePresentation.bottomSheet && !fitToContent;
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -328,17 +346,23 @@ class _AppSheetSurface extends HookWidget {
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
 
     final maxExtent = height * maxHeightFactor;
-    final minPx = math.max(
-      minHeight,
-      _handleHeight + kMinInteractiveDimension,
-    );
+    final minPx = math.max(minHeight, _handleHeight + kMinInteractiveDimension);
 
     final snapsPx = useMemoized(() {
-      return (snapPoints.isEmpty ? [initialHeight] : snapPoints)
-          .map((f) => f.clamp(minHeight / height, 1.0) * height)
-          .toList()
-        ..sort();
-    }, [snapPoints, initialHeight, minHeight, height]);
+      final list =
+          (snapPoints.isEmpty ? [initialHeight] : snapPoints)
+              .map((f) => f.clamp(minHeight / height, 1.0) * height)
+              .toList()
+            ..sort();
+      // The measured content height is itself a snap target, so overscroll
+      // settling and drags can always come back to the compact size.
+      final contentPx = contentPxRef.value;
+      if (contentPx != null) {
+        list.add(contentPx.clamp(minPx, maxExtent));
+        list.sort();
+      }
+      return list;
+    }, [snapPoints, initialHeight, minHeight, height, contentPxRef.value]);
 
     double nearestSnap(double px) {
       var best = snapsPx.first;
@@ -405,7 +429,7 @@ class _AppSheetSurface extends HookWidget {
       final minSnapPx = math.min(snapsPx.first * 0.55, minHeight);
       position.value =
           ((getHeightPx() - details.delta.dy).clamp(minSnapPx, maxExtent)) /
-              maxExtent;
+          maxExtent;
     }
 
     void onDragEnd(DragEndDetails details) {
@@ -413,12 +437,14 @@ class _AppSheetSurface extends HookWidget {
       final vy = -details.velocity.pixelsPerSecond.dy;
 
       if (presentation == _SurfacePresentation.dialog) {
-        if (!isDockedAtBottom.value && (vy < -350 || dragAccumulator.value > 30)) {
+        if (!isDockedAtBottom.value &&
+            (vy < -350 || dragAccumulator.value > 30)) {
           isDockedAtBottom.value = true;
           rememberedDockStates[id] = true;
           HapticFeedback.selectionClick();
           return;
-        } else if (isDockedAtBottom.value && (vy > 350 || dragAccumulator.value < -30)) {
+        } else if (isDockedAtBottom.value &&
+            (vy > 350 || dragAccumulator.value < -30)) {
           isDockedAtBottom.value = false;
           rememberedDockStates[id] = false;
           HapticFeedback.selectionClick();
@@ -448,7 +474,8 @@ class _AppSheetSurface extends HookWidget {
         return false;
       }
 
-      if (notification is OverscrollNotification && notification.overscroll < 0) {
+      if (notification is OverscrollNotification &&
+          notification.overscroll < 0) {
         final delta = notification.overscroll;
         position.value =
             ((getHeightPx() - delta).clamp(0.0, maxExtent)) / maxExtent;
@@ -467,15 +494,50 @@ class _AppSheetSurface extends HookWidget {
       screenHeightRef.value = height;
       if (firstInit) {
         final remembered = rememberedHeights[id];
-        final startPx = (remembered != null)
-            ? remembered * height
-            : nearestSnap(maxExtent * initialHeight);
-        position.value = (startPx.clamp(minPx, maxExtent)) / maxExtent;
+        if (remembered != null) {
+          // A previous drag pinned this sheet's size — that user choice
+          // wins over content measurement.
+          measureAttempted.value = true;
+          position.value =
+              ((remembered * height).clamp(minPx, maxExtent)) / maxExtent;
+        } else if (canAutoHeight) {
+          // First open: lay out at content height (invisible), measure,
+          // then open at the measured height. Content that fills the cap
+          // is a long scrollable — fall back to the fraction opening.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            measureAttempted.value = true;
+            final h = sheetKey.currentContext?.size?.height;
+            if (!context.mounted || h == null) {
+              position.value =
+                  (nearestSnap(
+                    maxExtent * initialHeight,
+                  ).clamp(minPx, maxExtent)) /
+                  maxExtent;
+              return;
+            }
+            if (h >= maxExtent - 0.5) {
+              position.value =
+                  (nearestSnap(
+                    maxExtent * initialHeight,
+                  ).clamp(minPx, maxExtent)) /
+                  maxExtent;
+              return;
+            }
+            contentPxRef.value = h;
+            position.value = (h.clamp(minPx, maxExtent)) / maxExtent;
+          });
+        } else {
+          measureAttempted.value = true;
+          position.value =
+              (nearestSnap(maxExtent * initialHeight).clamp(minPx, maxExtent)) /
+              maxExtent;
+        }
       }
       return null;
     }, [height]);
 
-    final isSide = presentation == _SurfacePresentation.sideSheet ||
+    final isSide =
+        presentation == _SurfacePresentation.sideSheet ||
         presentation == _SurfacePresentation.splitLandscape;
     final isDialog = presentation == _SurfacePresentation.dialog;
 
@@ -486,7 +548,9 @@ class _AppSheetSurface extends HookWidget {
     if (isDialog) {
       if (isDockedAtBottom.value) {
         outerPadding = EdgeInsets.only(
-          bottom: keyboard > 0 ? keyboard : MediaQuery.paddingOf(context).bottom,
+          bottom: keyboard > 0
+              ? keyboard
+              : MediaQuery.paddingOf(context).bottom,
         );
         radius = const BorderRadius.vertical(top: Radius.circular(28));
         alignment = Alignment.bottomCenter;
@@ -535,7 +599,9 @@ class _AppSheetSurface extends HookWidget {
                 : Icons.vertical_align_bottom_rounded,
             size: 18,
           ),
-          tooltip: isDockedAtBottom.value ? 'Float to center' : 'Dock at bottom',
+          tooltip: isDockedAtBottom.value
+              ? 'Float to center'
+              : 'Dock at bottom',
           onPressed: () {
             final next = !isDockedAtBottom.value;
             isDockedAtBottom.value = next;
@@ -559,19 +625,33 @@ class _AppSheetSurface extends HookWidget {
       child: AnimatedBuilder(
         animation: position,
         builder: (context, _) {
+          final measuring =
+              canAutoHeight &&
+              !measureAttempted.value &&
+              contentPxRef.value == null;
           final double hPx;
+          Widget contentFlex;
           if (fitToContent) {
             hPx = double.infinity;
+            contentFlex = Flexible(child: child);
+          } else if (measuring) {
+            // Self-sizing measure pass — the ConstrainedBox below clamps
+            // the result; the height is read post-frame.
+            hPx = 0;
+            contentFlex = Flexible(child: child);
           } else if (isSide) {
             hPx = height;
+            contentFlex = Expanded(child: child);
           } else if (isDialog) {
             hPx = math.min(maxExtent, height * initialHeight);
+            contentFlex = Expanded(child: child);
           } else {
             hPx = math.max(minHeight, getHeightPx());
+            contentFlex = Expanded(child: child);
           }
 
           Widget contentBody = Column(
-            mainAxisSize: fitToContent
+            mainAxisSize: (fitToContent || measuring)
                 ? MainAxisSize.min
                 : MainAxisSize.max,
             children: [
@@ -590,10 +670,7 @@ class _AppSheetSurface extends HookWidget {
                   trailing: effectiveTrailing,
                   onClose: dismiss,
                 ),
-              if (fitToContent)
-                Flexible(child: child)
-              else
-                Expanded(child: child),
+              contentFlex,
             ],
           );
 
@@ -606,6 +683,7 @@ class _AppSheetSurface extends HookWidget {
           }
 
           Widget sheet = Material(
+            key: canAutoHeight ? sheetKey : null,
             color: colorScheme.surfaceContainerLow,
             elevation: 16,
             shadowColor: Colors.black45,
@@ -622,11 +700,25 @@ class _AppSheetSurface extends HookWidget {
               ),
               child: sheet,
             );
+          } else if (measuring) {
+            // Invisible measure pass: laid out at content height (capped),
+            // painted as nothing. The GlobalKey on the Material keeps the
+            // subtree's state alive across the switch to fixed sizing.
+            sheet = Offstage(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: maxExtent,
+                  minHeight: minPx,
+                ),
+                child: sheet,
+              ),
+            );
           } else {
             sheet = SizedBox(height: hPx, child: sheet);
           }
 
-          if ((isDialog || width >= 600 || isSide) && width > effectiveMaxWidth) {
+          if ((isDialog || width >= 600 || isSide) &&
+              width > effectiveMaxWidth) {
             sheet = ConstrainedBox(
               constraints: BoxConstraints(maxWidth: effectiveMaxWidth),
               child: sheet,
@@ -720,10 +812,7 @@ class SheetHeader extends StatelessWidget {
               visualDensity: VisualDensity.compact,
             )
           else if (leading != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: leading!,
-            ),
+            Padding(padding: const EdgeInsets.only(right: 8), child: leading!),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -785,18 +874,17 @@ class SheetNavigatorController {
 
   bool pop() {
     if (!canPop) return false;
-    _stackNotifier.value =
-        _stackNotifier.value.sublist(0, _stackNotifier.value.length - 1);
+    _stackNotifier.value = _stackNotifier.value.sublist(
+      0,
+      _stackNotifier.value.length - 1,
+    );
     onPageChanged?.call(_stackNotifier.value.length);
     return true;
   }
 }
 
 class _SheetNavigatorScope extends InheritedWidget {
-  const _SheetNavigatorScope({
-    required this.controller,
-    required super.child,
-  });
+  const _SheetNavigatorScope({required this.controller, required super.child});
 
   final SheetNavigatorController controller;
 
@@ -818,16 +906,18 @@ class SheetNavigator extends HookWidget {
   final void Function(int depth)? onPageChanged;
 
   static SheetNavigatorController of(BuildContext context) {
-    final scope =
-        context.dependOnInheritedWidgetOfExactType<_SheetNavigatorScope>();
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<_SheetNavigatorScope>();
     assert(scope != null, 'No SheetNavigator found in context');
     return scope!.controller;
   }
 
   @override
   Widget build(BuildContext context) {
-    final stackNotifier =
-        useMemoized(() => ValueNotifier<List<Widget>>([initialPage]), []);
+    final stackNotifier = useMemoized(
+      () => ValueNotifier<List<Widget>>([initialPage]),
+      [],
+    );
 
     useEffect(() {
       return () => stackNotifier.dispose();
@@ -849,21 +939,22 @@ class SheetNavigator extends HookWidget {
           return AnimatedSwitcher(
             duration: const Duration(milliseconds: 240),
             transitionBuilder: (child, animation) {
-              final inAnimation = Tween<Offset>(
-                begin: const Offset(0.2, 0),
-                end: Offset.zero,
-              ).animate(
-                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-              );
+              final inAnimation =
+                  Tween<Offset>(
+                    begin: const Offset(0.2, 0),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                    ),
+                  );
               return SlideTransition(
                 position: inAnimation,
                 child: FadeTransition(opacity: animation, child: child),
               );
             },
-            child: KeyedSubtree(
-              key: ValueKey(stack.length),
-              child: stack.last,
-            ),
+            child: KeyedSubtree(key: ValueKey(stack.length), child: stack.last),
           );
         },
       ),

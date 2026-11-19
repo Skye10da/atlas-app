@@ -8,13 +8,16 @@ import 'package:go_router/go_router.dart';
 import 'package:atlas_app/core/account/domain/entities/local_account_entity.dart';
 import 'package:atlas_app/core/account/presentation/providers/local_account_providers.dart';
 import 'package:atlas_app/core/account/presentation/widgets/profile_edit_sheet.dart';
+import 'package:atlas_app/core/design_system/hooks/scroll_auto_hide.dart';
 import 'package:atlas_app/core/design_system/nav_chrome_providers.dart';
 import 'package:atlas_app/core/design_system/organisms/atlas_glass_nav_bar.dart';
+import 'package:atlas_app/core/design_system/organisms/nav_reveal_button.dart';
 import 'package:atlas_app/core/design_system/tokens/breakpoints.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/router/navigation.dart';
 import 'package:atlas_app/library/presentation/providers/library_actions.dart';
 import 'package:atlas_app/library/presentation/widgets/library_filter_panel.dart';
+import 'package:atlas_app/reader/presentation/providers/speech_providers.dart';
 import 'package:atlas_app/reader/presentation/widgets/narration_mini_player.dart';
 
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -27,6 +30,15 @@ class AppShell extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sidebarCollapsed = useState(false);
+    // A narration session pins the mobile chrome hidden — the docked mini
+    // player (with its nav strip) takes the pill's place meanwhile.
+    final narrationActive = _isNarrationActive(ref);
+    final scrollHide = useNavAutoHide();
+    // Switching tabs always reveals the chrome again.
+    useEffect(() {
+      scrollHide.reveal();
+      return null;
+    }, [navigationShell.currentIndex]);
     // The centre "+" / rail button / sidebar button all open the same
     // "Add to library" flow as the Library screen.
     void onAdd() => unawaited(addToLibrary(context, ref));
@@ -41,7 +53,8 @@ class AppShell extends HookConsumerWidget {
         // to support resizable Windows, multi-window, foldables.
         final isDesktop = width >= AppBreakpoints.desktop;
         final isBigDesktop = width >= AppBreakpoints.largeDesktop;
-        final isTablet = width >= AppBreakpoints.mobile && width < AppBreakpoints.desktop;
+        final isTablet =
+            width >= AppBreakpoints.mobile && width < AppBreakpoints.desktop;
 
         if (isDesktop) {
           return _buildDesktopLayout(
@@ -54,11 +67,34 @@ class AppShell extends HookConsumerWidget {
           );
         }
         if (isTablet) {
-          return _buildTabletLayout(context, ref, constraints, onAdd);
+          return _buildTabletLayout(
+            context,
+            ref,
+            constraints,
+            onAdd,
+            scrollHide,
+          );
         }
-        return _buildMobileLayout(context, ref, constraints, onAdd);
+        return _buildMobileLayout(
+          context,
+          ref,
+          constraints,
+          onAdd,
+          scrollHide,
+          narrationActive,
+        );
       },
     );
+  }
+
+  /// True when a narration session is live (playing or paused) — the same
+  /// gating the mini player itself uses to decide visibility.
+  bool _isNarrationActive(WidgetRef ref) {
+    final session = ref.watch(speechEngineProvider).session;
+    if (session == null || session.queue.isEmpty) return false;
+    final status =
+        ref.watch(narrationStatusProvider).valueOrNull ?? NarrationStatus.idle;
+    return status != NarrationStatus.idle;
   }
 
   Widget _buildDesktopLayout(
@@ -70,34 +106,33 @@ class AppShell extends HookConsumerWidget {
     VoidCallback onAdd,
   ) {
     final cs = Theme.of(context).colorScheme;
-    final glass =
-        ref.watch(navChromeProvider) == NavChromeStyle.glass;
+    final glass = ref.watch(navChromeProvider) == NavChromeStyle.glass;
     final sidebarWidth = isBigDesktop && !sidebarCollapsed.value ? 260.0 : 72.0;
 
     Widget shellContent(double leftInset) => Positioned.fill(
-          left: leftInset,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppBreakpoints.shellContentMaxWidth,
-              ),
-              child: glass
-                  ? _PageGlanceReveal(
-                      index: navigationShell.currentIndex,
-                      child: navigationShell,
-                    )
-                  : navigationShell,
-            ),
+      left: leftInset,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppBreakpoints.shellContentMaxWidth,
           ),
-        );
+          child: glass
+              ? _PageGlanceReveal(
+                  index: navigationShell.currentIndex,
+                  child: navigationShell,
+                )
+              : navigationShell,
+        ),
+      ),
+    );
 
     Widget miniPlayer(double left) => Positioned(
-          left: left,
-          right: AppSpacing.md,
-          bottom: AppSpacing.sm,
-          child: const NarrationMiniPlayer(),
-        );
+      left: left,
+      right: AppSpacing.md,
+      bottom: AppSpacing.sm,
+      child: const NarrationMiniPlayer(),
+    );
 
     if (glass) {
       // The sidebar becomes a floating frosted capsule docked at the left
@@ -205,10 +240,13 @@ class AppShell extends HookConsumerWidget {
     WidgetRef ref,
     BoxConstraints constraints,
     VoidCallback onAdd,
+    NavAutoHideState scrollHide,
   ) {
     final cs = Theme.of(context).colorScheme;
-    final glass =
-        ref.watch(navChromeProvider) == NavChromeStyle.glass;
+    final glass = ref.watch(navChromeProvider) == NavChromeStyle.glass;
+    final animDur = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 240);
     const items = [
       AtlasNavItem(
         icon: Icons.auto_stories_outlined,
@@ -232,55 +270,84 @@ class AppShell extends HookConsumerWidget {
       ),
     ];
 
-    Widget content(EdgeInsets padding) => Positioned.fill(
-          left: padding.left,
-          top: 0,
-          right: padding.right,
-          bottom: 0,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppBreakpoints.shellContentMaxWidth,
-              ),
-              child: glass
-                  ? _PageGlanceReveal(
-                      index: navigationShell.currentIndex,
-                      child: navigationShell,
-                    )
-                  : navigationShell,
-            ),
-          ),
-        );
-
     if (glass) {
       // Floating vertical capsule: rail (76 + 12 margins) sits OVER the shell
-      // which is inset on the left to stay clear of it.
-      const railInset = 96.0; // 12 margin + 76 capsule + 8 breathing room
+      // which is inset on the left to stay clear of it. Scrolling hides the
+      // rail (with the reveal bead standing in) and lets the content and the
+      // mini player breathe into the freed space.
+      final railHidden = scrollHide.hidden;
+      final railInset = railHidden ? 16.0 : 96.0;
       return Scaffold(
         backgroundColor: cs.surface,
         body: Stack(
           children: [
-            content(const EdgeInsets.only(left: railInset)),
-            const Positioned(
-              left: railInset + 12,
+            AnimatedPositioned(
+              duration: animDur,
+              curve: Curves.easeOutCubic,
+              left: railInset,
+              top: 0,
+              right: 0,
+              bottom: 0,
+              child: NotificationListener<ScrollNotification>(
+                onNotification: scrollHide.onScroll,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: AppBreakpoints.shellContentMaxWidth,
+                    ),
+                    child: _PageGlanceReveal(
+                      index: navigationShell.currentIndex,
+                      child: navigationShell,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            AnimatedPositioned(
+              duration: animDur,
+              curve: Curves.easeOutCubic,
+              left: railHidden ? 12.0 : railInset + 12,
               right: AppSpacing.md,
               bottom: AppSpacing.sm,
-              child: NarrationMiniPlayer(),
+              child: const NarrationMiniPlayer(),
+            ),
+            // Reveal bead stands in for the hidden rail.
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 56,
+              child: Center(
+                child: IgnorePointer(
+                  ignoring: !railHidden,
+                  child: AnimatedOpacity(
+                    opacity: railHidden ? 1.0 : 0.0,
+                    duration: animDur == Duration.zero
+                        ? Duration.zero
+                        : const Duration(milliseconds: 200),
+                    child: NavRevealButton(onTap: scrollHide.reveal),
+                  ),
+                ),
+              ),
             ),
             Positioned(
               left: 8,
               top: 8,
               bottom: 0, // bare-minimum bottom clearance (rail pads itself 4)
-              child: AtlasGlassRail(
-                items: items,
-                currentIndex: navigationShell.currentIndex,
-                onChanged: (index) => navigationShell.goBranch(
-                  index,
-                  initialLocation: index == navigationShell.currentIndex,
+              child: AnimatedSlide(
+                offset: railHidden ? const Offset(-1.4, 0) : Offset.zero,
+                duration: animDur,
+                curve: Curves.easeOutCubic,
+                child: AtlasGlassRail(
+                  items: items,
+                  currentIndex: navigationShell.currentIndex,
+                  onChanged: (index) => navigationShell.goBranch(
+                    index,
+                    initialLocation: index == navigationShell.currentIndex,
+                  ),
+                  action: AtlasNavAction(icon: Icons.add_rounded, onTap: onAdd),
                 ),
-                action:
-                    AtlasNavAction(icon: Icons.add_rounded, onTap: onAdd),
               ),
             ),
           ],
@@ -375,10 +442,14 @@ class AppShell extends HookConsumerWidget {
     WidgetRef ref,
     BoxConstraints constraints,
     VoidCallback onAdd,
+    NavAutoHideState scrollHide,
+    bool narrationActive,
   ) {
     final cs = Theme.of(context).colorScheme;
-    final glass =
-        ref.watch(navChromeProvider) == NavChromeStyle.glass;
+    final glass = ref.watch(navChromeProvider) == NavChromeStyle.glass;
+    final animDur = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 240);
     const items = [
       AtlasNavItem(
         icon: Icons.auto_stories_outlined,
@@ -402,60 +473,187 @@ class AppShell extends HookConsumerWidget {
       ),
     ];
 
-    // Glass mode floats the capsule over the content (extendBody), so the
-    // docked mini player must sit ABOVE it: bar = 68 capsule + 4 bottom pad
-    // (+ small buffer).
-    final miniPlayerBottom = glass ? 76.0 : AppSpacing.sm;
+    // The pill auto-hides while scrolling down; while narration is active it
+    // stays hidden and the docked mini player — which grows the nav
+    // destinations — takes its place. The docked player scroll-hides too:
+    // the reveal cluster then carries play/pause + stop so playback stays
+    // controllable without revealing the player. Classic chrome: scroll-hide
+    // only (its mini player lives above the reserved bar area, no docking).
+    final pillHidden = scrollHide.hidden || (glass && narrationActive);
+    final playerHidden = glass && narrationActive && scrollHide.hidden;
+    final mq = MediaQuery.of(context);
 
     Widget miniPlayer(double bottom) => Positioned(
-          left: AppSpacing.md,
-          right: AppSpacing.md,
-          bottom: bottom,
-          child: const NarrationMiniPlayer(),
-        );
+      left: AppSpacing.md,
+      right: AppSpacing.md,
+      bottom: bottom,
+      child: AnimatedSlide(
+        offset: playerHidden ? const Offset(0, 1.6) : Offset.zero,
+        duration: animDur,
+        curve: Curves.easeOutCubic,
+        child: NarrationMiniPlayer(
+          docked: glass && narrationActive,
+          navDestinations: items,
+          currentNavIndex: navigationShell.currentIndex,
+          onNavSelect: (index) => navigationShell.goBranch(
+            index,
+            initialLocation: index == navigationShell.currentIndex,
+          ),
+        ),
+      ),
+    );
+
+    // Scroll direction drives the hide state for every tab — notifications
+    // bubble up from the branch navigators.
+    final content = Positioned.fill(
+      child: NotificationListener<ScrollNotification>(
+        onNotification: scrollHide.onScroll,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppBreakpoints.formContentMaxWidth,
+            ),
+            child: glass
+                ? _PageGlanceReveal(
+                    index: navigationShell.currentIndex,
+                    child: navigationShell,
+                  )
+                : navigationShell,
+          ),
+        ),
+      ),
+    );
+
+    // Reveal bead: stands in for whatever chrome scroll-hid — the pill, or
+    // the docked player while narrating. While narrating it grows the
+    // transport cluster so a hidden player stays controllable.
+    final revealVisible = scrollHide.hidden;
+    final engine = ref.watch(speechEngineProvider);
+    final narrationStatus =
+        ref.watch(narrationStatusProvider).valueOrNull ?? NarrationStatus.idle;
+    final revealChrome = narrationActive
+        ? NavRevealCluster(
+            playing: narrationStatus == NarrationStatus.playing,
+            onReveal: scrollHide.reveal,
+            onToggle: () {
+              switch (narrationStatus) {
+                case NarrationStatus.playing:
+                  unawaited(engine.pause());
+                case NarrationStatus.paused:
+                  unawaited(engine.resume());
+                case NarrationStatus.idle:
+                  unawaited(engine.start());
+              }
+            },
+            onStop: () => unawaited(engine.stop()),
+          )
+        : NavRevealButton(onTap: scrollHide.reveal);
 
     return Scaffold(
       backgroundColor: cs.surface,
       extendBody: glass,
       body: Stack(
         children: [
-          Positioned.fill(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: AppBreakpoints.formContentMaxWidth,
+          content,
+          miniPlayer(
+            glass && narrationActive ? 8.0 : (glass ? 76.0 : AppSpacing.sm),
+          ),
+          Positioned(
+            right: AppSpacing.md,
+            bottom: AppSpacing.md,
+            child: IgnorePointer(
+              ignoring: !revealVisible,
+              child: AnimatedOpacity(
+                opacity: revealVisible ? 1.0 : 0.0,
+                duration: animDur == Duration.zero
+                    ? Duration.zero
+                    : const Duration(milliseconds: 200),
+                child: AnimatedScale(
+                  scale: revealVisible ? 1.0 : 0.6,
+                  duration: animDur,
+                  curve: Curves.easeOutBack,
+                  child: revealChrome,
                 ),
-                child: glass
-                    ? _PageGlanceReveal(
-                        index: navigationShell.currentIndex,
-                        child: navigationShell,
-                      )
-                    : navigationShell,
               ),
             ),
           ),
-          miniPlayer(miniPlayerBottom),
         ],
       ),
       bottomNavigationBar: glass
-          ? AtlasGlassNavBar(
-              items: items,
-              currentIndex: navigationShell.currentIndex,
-              onChanged: (index) => navigationShell.goBranch(
-                index,
-                initialLocation: index == navigationShell.currentIndex,
+          ? _CollapsibleChrome(
+              hidden: pillHidden,
+              height: 68.0 + 4.0 + mq.padding.bottom,
+              duration: animDur,
+              child: AtlasGlassNavBar(
+                items: items,
+                currentIndex: navigationShell.currentIndex,
+                onChanged: (index) => navigationShell.goBranch(
+                  index,
+                  initialLocation: index == navigationShell.currentIndex,
+                ),
+                action: AtlasNavAction(icon: Icons.add_rounded, onTap: onAdd),
               ),
-              action: AtlasNavAction(icon: Icons.add_rounded, onTap: onAdd),
             )
-          : _AtlasBottomBar(
-              selectedIndex: navigationShell.currentIndex,
-              onSelected: (index) => navigationShell.goBranch(
-                index,
-                initialLocation: index == navigationShell.currentIndex,
+          : _CollapsibleChrome(
+              hidden: pillHidden,
+              height: 72.0 + mq.padding.bottom,
+              duration: animDur,
+              child: _AtlasBottomBar(
+                selectedIndex: navigationShell.currentIndex,
+                onSelected: (index) => navigationShell.goBranch(
+                  index,
+                  initialLocation: index == navigationShell.currentIndex,
+                ),
+                onAdd: onAdd,
               ),
-              onAdd: onAdd,
             ),
+    );
+  }
+}
+
+/// Collapsible slot for floating chrome inside `Scaffold.bottomNavigationBar`.
+///
+/// Hiding collapses the slot's height to 0 (content reclaims the space) while
+/// the bar itself slides below the clip — the pill "sinks" off-screen. The
+/// child keeps its full height in an [OverflowBox] so shrinking the slot
+/// never overflows the bar's internals.
+class _CollapsibleChrome extends StatelessWidget {
+  const _CollapsibleChrome({
+    required this.hidden,
+    required this.height,
+    required this.duration,
+    required this.child,
+  });
+
+  final bool hidden;
+
+  /// Resting height of the chrome (bar + its own bottom padding +
+  /// safe-area gesture inset — measured by the caller).
+  final double height;
+  final Duration duration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      height: hidden ? 0.0 : height,
+      alignment: Alignment.bottomCenter,
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(),
+      child: OverflowBox(
+        alignment: Alignment.bottomCenter,
+        minHeight: height,
+        maxHeight: height,
+        child: AnimatedSlide(
+          offset: hidden ? const Offset(0, 1.2) : Offset.zero,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+          child: child,
+        ),
+      ),
     );
   }
 }
@@ -502,7 +700,9 @@ class _AtlasBottomBar extends StatelessWidget {
                 selected: selectedIndex == 1,
                 onTap: () => onSelected(1),
               ),
-              Expanded(child: Center(child: _BarAddButton(onTap: onAdd))),
+              Expanded(
+                child: Center(child: _BarAddButton(onTap: onAdd)),
+              ),
               _BarItem(
                 icon: Icons.bookmarks_outlined,
                 selectedIcon: Icons.bookmarks_rounded,
@@ -566,7 +766,11 @@ class _BarItem extends StatelessWidget {
                   color: selected ? cs.secondaryContainer : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(selected ? selectedIcon : icon, size: 24, color: color),
+                child: Icon(
+                  selected ? selectedIcon : icon,
+                  size: 24,
+                  color: color,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -716,86 +920,86 @@ class _DesktopSidebar extends StatelessWidget {
 
     final column = Column(
       children: [
-          if (isBigDesktop && !collapsed)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 16, 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: const BoxDecoration(shape: BoxShape.circle),
-                    child: Image.asset('assets/icon.png'),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Atlas',
-                    style: TextStyle(
-                      fontFamily: 'Fraunces',
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (onToggleCollapse != null)
-                    IconButton(
-                      icon: const Icon(Icons.menu_open, size: 18),
-                      onPressed: onToggleCollapse,
-                      tooltip: 'Collapse sidebar',
-                      visualDensity: VisualDensity.compact,
-                    ),
-                ],
-              ),
-            )
-          else if (onToggleCollapse != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              child: GestureDetector(
-                onTap: onToggleCollapse,
-                child: Image.asset('assets/icon.png', width: 32, height: 32),
-              ),
-            ),
-          const SizedBox(height: 8),
-          ...(glass
-              ? [
-                  _SidebarNavList(
-                    currentIndex: currentIndex,
-                    collapsed: collapsed,
-                    onDestinationSelected: onDestinationSelected,
-                    onAdd: onAdd,
-                    accent: cs.primary,
-                  ),
-                ]
-              : _buildNavItems(context)),
-          if (currentIndex == 0 && !collapsed) ...[
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Divider(color: cs.outlineVariant.withValues(alpha: 0.5)),
-            ),
-            const Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(12, 4, 12, 12),
-                child: LibraryFilterPanel(),
-              ),
-            ),
-          ] else ...[
-            const Spacer(),
-            if (currentIndex == 0 && onToggleCollapse != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: IconButton(
-                  icon: const Icon(Icons.tune, size: 20),
-                  onPressed: onToggleCollapse,
-                  tooltip: 'Show filters',
+        if (isBigDesktop && !collapsed)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: const BoxDecoration(shape: BoxShape.circle),
+                  child: Image.asset('assets/icon.png'),
                 ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Atlas',
+                  style: TextStyle(
+                    fontFamily: 'Fraunces',
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                if (onToggleCollapse != null)
+                  IconButton(
+                    icon: const Icon(Icons.menu_open, size: 18),
+                    onPressed: onToggleCollapse,
+                    tooltip: 'Collapse sidebar',
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          )
+        else if (onToggleCollapse != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: GestureDetector(
+              onTap: onToggleCollapse,
+              child: Image.asset('assets/icon.png', width: 32, height: 32),
+            ),
+          ),
+        const SizedBox(height: 8),
+        ...(glass
+            ? [
+                _SidebarNavList(
+                  currentIndex: currentIndex,
+                  collapsed: collapsed,
+                  onDestinationSelected: onDestinationSelected,
+                  onAdd: onAdd,
+                  accent: cs.primary,
+                ),
+              ]
+            : _buildNavItems(context)),
+        if (currentIndex == 0 && !collapsed) ...[
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Divider(color: cs.outlineVariant.withValues(alpha: 0.5)),
+          ),
+          const Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(12, 4, 12, 12),
+              child: LibraryFilterPanel(),
+            ),
+          ),
+        ] else ...[
+          const Spacer(),
+          if (currentIndex == 0 && onToggleCollapse != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: IconButton(
+                icon: const Icon(Icons.tune, size: 20),
+                onPressed: onToggleCollapse,
+                tooltip: 'Show filters',
               ),
-          ],
-          const SizedBox(height: AppSpacing.xs),
-          _SidebarAccountTile(collapsed: collapsed),
-          const SizedBox(height: AppSpacing.sm),
+            ),
         ],
-      );
+        const SizedBox(height: AppSpacing.xs),
+        _SidebarAccountTile(collapsed: collapsed),
+        const SizedBox(height: AppSpacing.sm),
+      ],
+    );
 
     if (glass) {
       // The frosted background comes from the hosting GlassCapsule — render
@@ -1004,12 +1208,17 @@ class _SidebarNavList extends StatefulWidget {
 class _SidebarNavListState extends State<_SidebarNavList>
     with SingleTickerProviderStateMixin {
   // Same metrology as _GlassNavCoreState's spring.
-  static const _spring = SpringDescription(mass: 1, stiffness: 220, damping: 18);
+  static const _spring = SpringDescription(
+    mass: 1,
+    stiffness: 220,
+    damping: 18,
+  );
   static const _actionSlot = 2;
   static const _sidePad = 8.0;
 
-  late final AnimationController _ctrl =
-      AnimationController.unbounded(vsync: this);
+  late final AnimationController _ctrl = AnimationController.unbounded(
+    vsync: this,
+  );
 
   final _stackKey = GlobalKey();
   final List<GlobalKey> _slotKeys = List.generate(5, (_) => GlobalKey());
@@ -1072,10 +1281,9 @@ class _SidebarNavListState extends State<_SidebarNavList>
   }
 
   void _measureTarget() {
-    final stackBox =
-        _stackKey.currentContext?.findRenderObject() as RenderBox?;
-    final slotBox = _slotKeys[_slotOf].currentContext?.findRenderObject()
-        as RenderBox?;
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    final slotBox =
+        _slotKeys[_slotOf].currentContext?.findRenderObject() as RenderBox?;
     if (stackBox == null || slotBox == null) return;
     final pos = slotBox.localToGlobal(Offset.zero, ancestor: stackBox);
     setState(() {
@@ -1132,8 +1340,7 @@ class _SidebarNavListState extends State<_SidebarNavList>
             builder: (context, _) {
               // Velocity stretch along the motion axis, squash across it:
               // px-velocity, so the factor is per-pixel.
-              final stretch =
-                  (_ctrl.velocity.abs() * 0.0012).clamp(0.0, 0.3);
+              final stretch = (_ctrl.velocity.abs() * 0.0012).clamp(0.0, 0.3);
               return Positioned(
                 left: _sidePad,
                 right: _sidePad,
@@ -1157,10 +1364,7 @@ class _SidebarNavListState extends State<_SidebarNavList>
         // Slots in a real column (the Stack is only the lens canvas) —
         // putting them directly in the Stack made every row overlap at the
         // top edge, hiding all but the last item and misfiring taps.
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: slots,
-        ),
+        Column(mainAxisSize: MainAxisSize.min, children: slots),
       ],
     );
   }

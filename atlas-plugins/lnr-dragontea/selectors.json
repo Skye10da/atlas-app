@@ -1,0 +1,19 @@
+{
+  "chapterList": {
+    "item": "ul.main li.wp-manga-chapter",
+    "title": "a@text",
+    "url": "a@href",
+    "ajaxPath": "/ajax/chapters",
+    "ajaxArchive": {
+      "method": "POST",
+      "ajaxBase": "novel",
+      "form": {
+        "action": "manga_get_chapters",
+        "manga": "{novelId}"
+      },
+      "responseField": null,
+      "novelIdSelector": "#manga-chapters-holder@data-id|#madara-chapters-holder@data-id"
+    },
+    "sortByChapterNumber": true
+  }
+}

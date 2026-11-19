@@ -50,10 +50,19 @@ class PdfFlipbookView extends StatefulWidget {
   final PageFlipController? controller;
   final void Function(PdfDocument document)? onDocumentReady;
 
-  final void Function(int pageNumber, String text, Color color, int start, int end, {HighlightStyleType styleType})? onHighlight;
+  final void Function(
+    int pageNumber,
+    String text,
+    Color color,
+    int start,
+    int end, {
+    HighlightStyleType styleType,
+  })?
+  onHighlight;
   final void Function(int pageNumber, String text, String? sentence)? onAddNote;
   final void Function(int pageNumber, String text)? onShare;
-  final void Function(int pageNumber, String text, int start, int end)? onListen;
+  final void Function(int pageNumber, String text, int start, int end)?
+  onListen;
   final void Function(int pageNumber, int start, int end)? onErase;
 
   @override
@@ -71,15 +80,33 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
   final Set<int> _renderingPages = {};
 
   static const List<AppContextMenuHighlightOption> _highlightPalette = [
-    AppContextMenuHighlightOption(color: Color(0xFFFFD54F), label: 'Sunset Gold'),
-    AppContextMenuHighlightOption(color: Color(0xFF81C784), label: 'Emerald Mint'),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFFFD54F),
+      label: 'Sunset Gold',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFF81C784),
+      label: 'Emerald Mint',
+    ),
     AppContextMenuHighlightOption(color: Color(0xFF64B5F6), label: 'Sky Blue'),
-    AppContextMenuHighlightOption(color: Color(0xFFFF8A65), label: 'Coral Orange'),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFFF8A65),
+      label: 'Coral Orange',
+    ),
     AppContextMenuHighlightOption(color: Color(0xFFF06292), label: 'Rose Pink'),
-    AppContextMenuHighlightOption(color: Color(0xFFBA68C8), label: 'Electric Violet'),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFBA68C8),
+      label: 'Electric Violet',
+    ),
     AppContextMenuHighlightOption(color: Color(0xFFAEEA00), label: 'Neon Lime'),
-    AppContextMenuHighlightOption(color: Color(0xFFFFB74D), label: 'Warm Amber'),
-    AppContextMenuHighlightOption(color: Color(0xFF90A4AE), label: 'Slate Graphite'),
+    AppContextMenuHighlightOption(
+      color: Color(0xFFFFB74D),
+      label: 'Warm Amber',
+    ),
+    AppContextMenuHighlightOption(
+      color: Color(0xFF90A4AE),
+      label: 'Slate Graphite',
+    ),
   ];
 
   @override
@@ -195,7 +222,8 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
     return AppContextMenu.builder(
       build: (ctx, editable, anchor) {
         final sel = editable.textEditingValue.selection;
-        final hasSelection = sel.isValid &&
+        final hasSelection =
+            sel.isValid &&
             !sel.isCollapsed &&
             sel.start >= 0 &&
             sel.end <= fullText.length &&
@@ -211,15 +239,16 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
           anchor: anchor,
           highlightColors: showSelectionActions ? _highlightPalette : const [],
           initialStyle: HighlightStyleType.solid,
-          onHighlightWithStyle: showSelectionActions && widget.onHighlight != null
+          onHighlightWithStyle:
+              showSelectionActions && widget.onHighlight != null
               ? (color, style) => widget.onHighlight!(
-                    pageNumber,
-                    word,
-                    color,
-                    start,
-                    end,
-                    styleType: style,
-                  )
+                  pageNumber,
+                  word,
+                  color,
+                  start,
+                  end,
+                  styleType: style,
+                )
               : null,
           quickActions: [
             AppContextMenuAction(
@@ -256,8 +285,7 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
               AppContextMenuAction(
                 label: 'Listen',
                 icon: Icons.play_circle_outline_rounded,
-                onPressed: () =>
-                    widget.onListen!(pageNumber, word, start, end),
+                onPressed: () => widget.onListen!(pageNumber, word, start, end),
               ),
           ],
           listActions: [
@@ -281,7 +309,8 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
             AppContextMenuAction(
               label: 'Select all',
               icon: Icons.select_all_rounded,
-              onPressed: () => editable.selectAll(SelectionChangedCause.toolbar),
+              onPressed: () =>
+                  editable.selectAll(SelectionChangedCause.toolbar),
             ),
           ],
         );
@@ -315,19 +344,19 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
       );
     }
 
-    final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.largeDesktop;
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= AppBreakpoints.largeDesktop;
     final useDoubleSpread = isDesktop && widget.settings.useBookSpread;
 
-    final count = useDoubleSpread
-        ? ((_totalPages + 1) ~/ 2)
-        : _totalPages;
+    final count = useDoubleSpread ? ((_totalPages + 1) ~/ 2) : _totalPages;
 
     final initialIdx = useDoubleSpread
         ? ((widget.initialPage - 1) ~/ 2).clamp(0, count - 1)
         : (widget.initialPage - 1).clamp(0, count - 1);
 
     final supportsSound = !kIsWeb && !Platform.isWindows;
-    final isEdgesOnly = widget.settings.pageFlipGestureZone == PageFlipGestureZone.edgesOnly;
+    final isEdgesOnly =
+        widget.settings.pageFlipGestureZone == PageFlipGestureZone.edgesOnly;
     final edgeRatio = isEdgesOnly ? 0.20 : 0.08;
     final sensitivity = isEdgesOnly ? 0.30 : 0.50;
 
@@ -335,7 +364,9 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
       behavior: HitTestBehavior.translucent,
       onTap: widget.onTap,
       child: PageFlipWidget(
-        key: ValueKey('pdf_flip_${useDoubleSpread ? "spread" : "single"}_$_totalPages'),
+        key: ValueKey(
+          'pdf_flip_${useDoubleSpread ? "spread" : "single"}_$_totalPages',
+        ),
         controller: _flipController,
         itemCount: count,
         initialIndex: initialIdx,
@@ -371,10 +402,7 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
                       ? _buildPageWidget(leftPageNum)
                       : const SizedBox(),
                 ),
-                Container(
-                  width: 1,
-                  color: Colors.black12,
-                ),
+                Container(width: 1, color: Colors.black12),
                 Expanded(
                   child: rightPageNum <= _totalPages
                       ? _buildPageWidget(rightPageNum)
@@ -399,17 +427,17 @@ class _PdfFlipbookViewState extends State<PdfFlipbookView> {
         fit: StackFit.expand,
         children: [
           Center(
-            child: RawImage(
-              image: cached,
-              fit: BoxFit.contain,
-            ),
+            child: RawImage(image: cached, fit: BoxFit.contain),
           ),
           if (text != null && text.isNotEmpty)
             Center(
               child: AspectRatio(
                 aspectRatio: cached.width / cached.height,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 24.0,
+                  ),
                   child: SelectableText(
                     text,
                     style: const TextStyle(
