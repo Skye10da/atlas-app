@@ -94,6 +94,7 @@ void main() {
     setUp(() {
       if (dylib == null) {
         markTestSkipped('atlas_tts native test library not built on this host');
+        return;
       }
       // Fresh driver per test: enablePlayback on (the winmm device pulls
       // the FIFO). Pack loading is owned by the driver entirely.
@@ -102,6 +103,7 @@ void main() {
     });
 
     tearDown(() async {
+      if (dylib == null) return;
       await driver?.dispose();
       tts!.pause(false);
       tts!.stop();
@@ -110,6 +112,10 @@ void main() {
     test(
       'speak drives Started -> word boundaries -> Completed in real time',
       () async {
+        if (dylib == null) {
+          markTestSkipped('atlas_tts native test library not built on this host');
+          return;
+        }
         const cafe = 'caf\u00e9';
         final events = <SpeechDriverEvent>[];
         final completed = Completer<void>();
@@ -163,6 +169,10 @@ void main() {
     );
 
     test('pause holds play-out; resume lets it complete', () async {
+      if (dylib == null) {
+        markTestSkipped('atlas_tts native test library not built on this host');
+        return;
+      }
       final completion = Completer<void>();
       final sub = driver!.events.listen((e) {
         if (e is DriverCompleted && !completion.isCompleted) {
@@ -202,6 +212,10 @@ void main() {
     test(
       'stop resolves the in-flight speak without waiting for play-out',
       () async {
+        if (dylib == null) {
+          markTestSkipped('atlas_tts native test library not built on this host');
+          return;
+        }
         final speakFuture = driver!.speak(
           _item('A longish sentence that will be cancelled mid-flight.'),
         );
@@ -231,6 +245,10 @@ void main() {
     test(
       'configure remaps rate to length scale without breaking speak',
       () async {
+        if (dylib == null) {
+          markTestSkipped('atlas_tts native test library not built on this host');
+          return;
+        }
         await driver!.configure(rate: 1.5, pitch: 1.0, volume: 0.8);
         final done = Completer<void>();
         final sub = driver!.events.listen(
@@ -246,12 +264,20 @@ void main() {
     );
 
     test('voice load completion state: ready after pack ready', () async {
+      if (dylib == null) {
+        markTestSkipped('atlas_tts native test library not built on this host');
+        return;
+      }
       await driver!.warmup(_item(''));
       await driver!.speak(_item('Ready path runs.'));
       expect(driver!.state, DriverState.ready);
     });
 
     test('listVoices tolerates a missing pack root', () async {
+      if (dylib == null) {
+        markTestSkipped('atlas_tts native test library not built on this host');
+        return;
+      }
       // No path_provider mock in the test env: the document-root resolve
       // fails harmlessly.
       expect(await driver!.listVoices(), isEmpty);
