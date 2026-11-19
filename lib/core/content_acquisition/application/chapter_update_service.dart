@@ -223,9 +223,13 @@ class ChapterUpdateService {
         // Site glitches (torn "Chaptet 1583", stray re-listings) surface as a
         // remote chapter whose parsed number regresses behind the highest
         // already-known chapter number. Sources publish sequentially, so a
-        // strictly lower number cannot be a new chapter — admit it and the
-        // count inflates permanently. Entries without a parseable number are
-        // never dropped here (they can't be judged).
+        // strictly lower number *can* still be a new chapter when a source
+        // restarts numbering per volume/book/season (e.g. "Book 2 Chapter 1"
+        // after "Book 1 Chapter 5000"). Dropping every regressed-number entry
+        // would silently discard entire new volumes, so regressed entries are
+        // only treated as junk when they're an isolated, small outlier — a
+        // large batch signals a numbering restart and is admitted.
+        const int maxJunkBatch = 2;
         final maxKnownTitleNumber = localRows.fold<int?>(null, (max, c) {
           final n = extractChapterNumber(c.title);
           if (n == null) return max;
@@ -237,17 +241,24 @@ class ChapterUpdateService {
               maxKnownTitleNumber != null &&
               n < maxKnownTitleNumber;
         }).toList();
-        if (junkChapters.isNotEmpty) {
+        final shouldDropJunk = junkChapters.length <= maxJunkBatch;
+        if (junkChapters.isNotEmpty && shouldDropJunk) {
           AppLogger.warning(
             'Update check: dropped ${junkChapters.length} regressed-number '
             'chapter(s) for "${book.title}" '
             '(${junkChapters.map((c) => c.title).take(5).join(", ")})',
           );
+        } else if (junkChapters.isNotEmpty) {
+          AppLogger.info(
+            'Update check: admitted ${junkChapters.length} regressed-number '
+            'chapter(s) for "${book.title}" (likely a volume/season numbering '
+            'restart) instead of dropping them as junk.',
+          );
         }
         // ChapterModel has no == override, so `contains` is identity-based.
-        final admissibleList = freshChapters
-            .where((ch) => !junkChapters.contains(ch))
-            .toList();
+        final admissibleList = shouldDropJunk
+            ? freshChapters.where((ch) => !junkChapters.contains(ch)).toList()
+            : freshChapters;
 
         // Assign stable, non-colliding indices/contentPaths for inserts.
         final maxLocalIndex = localRows.isEmpty

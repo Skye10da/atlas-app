@@ -400,6 +400,49 @@ void main() {
     expect(book.totalChapters, 6);
   });
 
+  test('new volume with restarted numbering is fully detected (not dropped as junk)', () async {
+    // An ongoing novel with chapters numbered 1..10 locally, so
+    // maxKnownTitleNumber = 10. The regressed-number guard must not discard
+    // an entire new volume that restarts numbering at Chapter 1.
+    await (db.delete(db.chapters)..where((c) => c.bookId.equals('test_novel'))).go();
+    for (var i = 1; i <= 10; i++) {
+      await db.into(db.chapters).insert(
+        ChaptersCompanion.insert(
+          id: 'test_novel_existing_ch$i',
+          bookId: 'test_novel',
+          index: i - 1,
+          title: 'Chapter $i',
+          contentPath: '$bookDir/${i - 1}.txt',
+          wordCount: 10,
+          pageCount: 1,
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
+    // A new volume restarts numbering at Chapter 1, each with a brand-new URL.
+    // Every fresh title's number (1..9) is below the historical max (10), so
+    // without the batch-aware guard all of them would be wrongly dropped.
+    source.chapters = List.generate(9, (i) {
+      final n = i + 1;
+      return ChapterModel(
+        id: 'remote-vol2-$n',
+        title: 'Book 2 Chapter $n',
+        index: n,
+        contentUrl: 'https://example.com/vol2/ch$n',
+      );
+    });
+
+    final outcome = await service.refreshBook('test_novel');
+
+    expect(outcome.success, isTrue);
+    expect(outcome.newChapters, 9);
+
+    final rows = await (db.select(
+      db.chapters,
+    )..where((c) => c.bookId.equals('test_novel'))).get();
+    expect(rows.length, 19); // 10 local + 9 new
+  });
+
   test('self-repairs duplicate index rows left by legacy id scheme', () async {
     // Historical row inserted by the pre-deterministic id scheme (which
     // uniquified ids with a timestamp) at the same index as the canonical
