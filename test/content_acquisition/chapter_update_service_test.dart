@@ -443,6 +443,52 @@ void main() {
     expect(rows.length, 19); // 10 local + 9 new
   });
 
+  test('embedded non-chapter number in a title does not inflate maxKnownTitleNumber', () async {
+    // Mirrors mvlempyr.io "Path to the Trillionaire": local chapter 3 is
+    // titled "Chapter 3: The 415% Lie". With the old "last number"
+    // semantics, extractChapterNumber returned 415 instead of 3, inflating
+    // maxKnownTitleNumber to 415. Every later chapter (87, 88, …) then had a
+    // number below 415 and was silently dropped as "junk", so updates were
+    // never detected. Taking the first number fixes this.
+    await (db.delete(db.chapters)..where((c) => c.bookId.equals('test_novel'))).go();
+    for (var i = 1; i <= 5; i++) {
+      final title = i == 3 ? 'Chapter 3: The 415% Lie' : 'Chapter $i';
+      await db.into(db.chapters).insert(
+        ChaptersCompanion.insert(
+          id: 'test_novel_existing_ch$i',
+          bookId: 'test_novel',
+          index: i - 1,
+          title: title,
+          contentPath: '$bookDir/${i - 1}.txt',
+          wordCount: 10,
+          pageCount: 1,
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
+    // New chapters 6-10 all have numbers below the old maxKnownTitleNumber
+    // (415) but above the correct one (5). They must be admitted.
+    source.chapters = List.generate(5, (i) {
+      final n = i + 6;
+      return ChapterModel(
+        id: 'remote-embedded-$n',
+        title: 'Chapter $n: New Title',
+        index: n,
+        contentUrl: 'https://example.com/embedded/ch$n',
+      );
+    });
+
+    final outcome = await service.refreshBook('test_novel');
+
+    expect(outcome.success, isTrue);
+    expect(outcome.newChapters, 5);
+
+    final rows = await (db.select(
+      db.chapters,
+    )..where((c) => c.bookId.equals('test_novel'))).get();
+    expect(rows.length, 10); // 5 local + 5 new
+  });
+
   test('self-repairs duplicate index rows left by legacy id scheme', () async {
     // Historical row inserted by the pre-deterministic id scheme (which
     // uniquified ids with a timestamp) at the same index as the canonical

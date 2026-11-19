@@ -640,14 +640,21 @@ class ChapterUpdateService {
     '[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF\u00AD]',
   );
 
-  /// Last integer embedded in a chapter title, or null ("Chapter 5638:
-  /// Roles! III" → 5638; "Sonder II" → null; numbers ≥ 1000000 are ignored
-  /// as URLs/garbage).
+  /// First integer embedded in a chapter title, or null ("Chapter 5638:
+  /// Roles! III" → 5638; "Chapter 3: The 415% Lie" → 3, not 415; "Sonder II"
+  /// → null; numbers ≥ 1000000 are ignored as URLs/garbage).
+  ///
+  /// The first number is used because chapter numbers typically lead the
+  /// title. Taking the last number (previous behavior) misfires on titles
+  /// that embed a larger non-chapter number — e.g. "Chapter 3: The 415% Lie"
+  /// yielded 415 instead of 3, which inflated `maxKnownTitleNumber` and
+  /// caused every later chapter (87, 88, …) to be misclassified as "junk"
+  /// and silently dropped, so updates were never detected.
   static int? extractChapterNumber(String title) {
     final clean = title.replaceAll(_invisibleChars, '');
     final matches = RegExp(r'\d+').allMatches(clean);
     if (matches.isEmpty) return null;
-    final n = int.tryParse(matches.last.group(0)!);
+    final n = int.tryParse(matches.first.group(0)!);
     if (n == null || n >= 1000000) return null;
     return n;
   }
