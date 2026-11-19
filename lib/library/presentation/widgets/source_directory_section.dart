@@ -3,6 +3,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import 'package:atlas_app/browser/presentation/screens/source_immersive_screen.dart';
 import 'package:atlas_app/core/content_acquisition/models/content_category.dart';
+import 'package:atlas_app/core/content_engine/registry/plugin_source.dart';
 import 'package:atlas_app/core/design_system/tokens/spacing.dart';
 import 'package:atlas_app/core/design_system/atoms/source_visuals.dart';
 import 'package:atlas_app/library/presentation/providers/source_browser_provider.dart';
@@ -36,6 +37,10 @@ class SourceListSection extends ConsumerWidget {
           _SourceRow(
             sourceName: source.sourceName,
             isNovel: source.contentCategory == ContentCategory.novel,
+            // The plugin manifest base URL is authoritative for plugin sites;
+            // built-in/OPDS sources have no manifest base and fall back to
+            // pluginSiteHomeUrls / knownSourceHomeUrls in sourceHomeUrl.
+            declaredHomeUrl: source is PluginSource ? source.manifest.baseUrl : null,
           ),
       ],
     );
@@ -46,10 +51,14 @@ class _SourceRow extends StatelessWidget {
   const _SourceRow({
     required this.sourceName,
     required this.isNovel,
+    this.declaredHomeUrl,
   });
 
   final String sourceName;
   final bool isNovel;
+  /// Live plugin manifest base URL (e.g. `https://sleepytranslations.com`),
+  /// when the source is a plugin. Takes precedence in `sourceHomeUrl`.
+  final String? declaredHomeUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -67,9 +76,14 @@ class _SourceRow extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
         // Open the source's own web home in the immersive browser — never the
-        // per-site search page.
+        // per-site search page. `declaredHomeUrl` (the plugin manifest base)
+        /// is authoritative so newly installed plugin sites open their real
+        /// home even when they aren't yet listed in pluginSiteHomeUrls.
         onTap: () {
-          final homeUrl = sourceHomeUrl(sourceName);
+          final homeUrl = sourceHomeUrl(
+            sourceName,
+            declaredHomeUrl: declaredHomeUrl,
+          );
           if (homeUrl == null) return;
           Navigator.of(context, rootNavigator: true).push(
             MaterialPageRoute(

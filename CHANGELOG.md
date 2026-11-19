@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **New plugin homepages unreachable from Find new page** — installing a new LNReader plugin added its site card, but tapping "Open site" did nothing: `SupportedSitesSection`/`SourceListSection` resolved each source's home from a static `pluginSiteHomeUrls` map that only listed the 8 original plugins, so every newly installed plugin resolved to `null` and the card stayed disabled. Rows now thread the live plugin manifest `baseUrl` through `sourceHomeUrl(sourceName, declaredHomeUrl: …)` (the manifest is authoritative), and `pluginSiteHomeUrls` was synced with all 51 `lnr-*` plugin `baseUrl`s as defense-in-depth for callers that can't pass the manifest.
+
 ## [1.1.0] - 2026-11-19
 
 ### Added

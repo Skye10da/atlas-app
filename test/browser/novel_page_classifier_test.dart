@@ -171,6 +171,33 @@ void main() {
         expect(sourceHomeUrl('Royal Road'), 'https://www.royalroad.com');
       });
 
+      test('newly generated plugin sites resolve to their manifest base URL', () {
+        // The Find new page's SourceListSection now threads manifest.baseUrl
+        // as declaredHomeUrl, so new plugin sites open their real home.
+        expect(
+          sourceHomeUrl('SleepyTranslations', declaredHomeUrl: 'https://sleepytranslations.com'),
+          'https://sleepytranslations.com',
+        );
+        expect(
+          sourceHomeUrl('WuxiaWorld.Site', declaredHomeUrl: 'https://wuxiaworld.site'),
+          'https://wuxiaworld.site',
+        );
+        expect(
+          sourceHomeUrl('LightNovelHeaven', declaredHomeUrl: 'https://lightnovelheaven.com'),
+          'https://lightnovelheaven.com',
+        );
+      });
+
+      test('pluginSiteHomeUrls stays in sync with installed plugin catalogs', () {
+        // Defense-in-depth: any caller that cannot pass declaredHomeUrl still
+        // resolves the home from the catalog mirroring plugin.json.
+        expect(sourceHomeUrl('SleepyTranslations'), 'https://sleepytranslations.com');
+        expect(sourceHomeUrl('WuxiaWorld.Site'), 'https://wuxiaworld.site');
+        expect(sourceHomeUrl('LightNovelHeaven'), 'https://lightnovelheaven.com');
+        expect(sourceHomeUrl('AllNovelFull'), 'https://novgo.net');
+        expect(sourceHomeUrl('WTR-LAB'), 'https://wtr-lab.com');
+      });
+
       test('rejects sources without a known home', () {
         expect(sourceHomeUrl('Unknown Site'), isNull);
         expect(sourceHomeUrl('not a host'), isNull);
